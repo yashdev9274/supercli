@@ -46,6 +46,7 @@
     "dot": "^1.1.3",
     "embla-carousel-react": "^8.6.0",
     "env": "^0.0.2",
+    "framer-motion": "^12.24.11",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.562.0",
     "next": "16.1.1",
