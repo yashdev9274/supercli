@@ -1,11 +1,13 @@
+import { DashboardContent } from '@/components/dashboard/dashboard-content';
+import { DashboardHeader } from '@/components/dashboard/dashboard-header';
 import React from 'react'
 
-const DashboardPage = () => {
+export default function Home() {
     return (
-        <div>
-            <h1>Dashboard</h1>
-        </div>
-    )
-}
-
-export default DashboardPage
+      <>
+        <DashboardHeader />
+        <DashboardContent />
+      </>
+    );
+  }
+  
