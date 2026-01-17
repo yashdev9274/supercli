@@ -1,3 +1,4 @@
+import {Octokit} from "octokit"
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/db";
 import { headers } from "next/headers";
@@ -26,5 +27,49 @@ export const getGithubToken = async()=>{
 }
 
 export async function fetchUserContribution(token: string, username: string){
-    
+    const octokit = new Octokit({auth: token})
+
+    const query =`
+    query($username:String!){
+        user(login:$username){
+            contributionCollection {
+                contributionCalendar{
+                    totalContributions
+                    weeks{
+                        contributionDays{
+                            contributionCount
+                            data
+                            color
+                        }
+                    }
+                }
+            }
+        }
+    }
+    `
+
+    interface contributindata{
+        user:{
+            contributionCollection:{
+                contributionCalendar:{
+                    totalContributions:number,
+                    weeks:{
+                        contributionCount:number,
+                        data:string | Date,
+                    }
+                }
+            }
+        }
+    }
+
+    try {
+        const response: contributindata = await octokit.graphql(query, {
+            username
+        })
+        
+        return response.user.contributionCollection.contributionCalendar
+    } catch (error) {
+        
+    }
+
 }
