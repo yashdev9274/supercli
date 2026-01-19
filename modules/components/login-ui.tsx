@@ -62,7 +62,8 @@ const LoginUI=()=> {
         setIsLoading(true)
         try {
             await signIn.social({
-                provider:"github"
+                provider:"github",
+                callbackURL: "/dashboard"
             })
         } catch (error) {
             console.error("Login error:", error)
