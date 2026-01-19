@@ -1,11 +1,17 @@
-import { Button } from "@/components/ui/button";
-import Logout from "@/modules/components/logout";
-import { requireAuth } from "@/modules/components/utils/auth-utils";
-import Image from "next/image";
-import { redirect } from "next/navigation";
+import Navbar from "@/components/homepage/navbar";
+import HeroSection from "@/components/homepage/hero";
+import Footer from "@/components/homepage/footer";
 
-export default async function Home() {
-
-  await requireAuth()
-  return redirect("/dashboard")
+export default function Home() {
+  return (
+    <main className="min-h-screen bg-background dark relative">
+      {/* Side borders */}
+      <div className="fixed top-0 left-0 w-px h-full bg-border z-50" />
+      <div className="fixed top-0 right-0 w-px h-full bg-border z-50" />
+      
+      <Navbar />
+      <HeroSection />
+      <Footer />
+    </main>
+  );
 }
