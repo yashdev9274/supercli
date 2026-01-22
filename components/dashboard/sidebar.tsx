@@ -46,6 +46,26 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { LucideIcon } from "lucide-react";
 
+const PixelLogo = () => {
+  return (
+    <svg width="36" height="30" viewBox="0 0 9 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* s */}
+      <rect x="0" y="0" width="3" height="3" fill="#a1a1aa"/>
+      <rect x="3" y="0" width="3" height="3" fill="#a1a1aa"/>
+      <rect x="6" y="0" width="3" height="3" fill="#a1a1aa"/>
+      <rect x="0" y="3" width="3" height="3" fill="#71717a"/>
+      <rect x="0" y="6" width="3" height="3" fill="#71717a"/>
+      <rect x="3" y="6" width="3" height="3" fill="#71717a"/>
+      <rect x="6" y="6" width="3" height="3" fill="#71717a"/>
+      <rect x="6" y="9" width="3" height="3" fill="#52525b"/>
+      <rect x="0" y="12" width="3" height="3" fill="#52525b"/>
+      <rect x="3" y="12" width="3" height="3" fill="#52525b"/>
+      <rect x="6" y="12" width="3" height="3" fill="#52525b"/>
+      
+    </svg>
+  );
+};
+
 type NavigationChild = {
   name: string;
   href: string;
@@ -194,7 +214,7 @@ export function Sidebar() {
                         className="flex items-center justify-between gap-2 text-xs cursor-pointer rounded-none"
                       >
                         <span className="font-bold text-primary">
-                          SuperCli
+                          SuperCode
                         </span>
                         <Check className="h-3 w-3 text-primary" />
                       </DropdownMenuItem>
@@ -251,8 +271,8 @@ export function Sidebar() {
               </Dialog>
             )}
             {isCollapsed && (
-               <div className="mx-auto h-7 w-7 rounded-none border border-sidebar-border bg-sidebar-accent/20 flex items-center justify-center font-bold text-[10px] text-muted-foreground/40 uppercase">
-                 SuperCli
+               <div className="mx-auto flex items-center justify-center w-full">
+                 <PixelLogo />
                </div>
             )}
 
@@ -288,7 +308,7 @@ export function Sidebar() {
                               "flex w-full items-center gap-3 rounded-none px-3 py-2 text-xs font-medium transition-colors",
                               isActive 
                                 ? "bg-primary text-primary-foreground" 
-                                : "text-muted-foreground/60 hover:text-foreground hover:bg-sidebar-accent",
+                                : "text-muted-foreground/60 hover:text-foreground hover:bg-orange-500",
                               isCollapsed && "justify-center px-0"
                             )}
                           >
@@ -307,7 +327,7 @@ export function Sidebar() {
                               "flex items-center gap-3 rounded-none px-3 py-2 text-xs font-medium transition-colors",
                               isActive 
                                 ? "bg-primary text-primary-foreground" 
-                                : "text-muted-foreground/60 hover:text-foreground hover:bg-sidebar-accent",
+                                : "text-muted-foreground/60 hover:text-foreground hover:bg-orange-500",
                               isCollapsed && "justify-center px-0"
                             )}
                           >
@@ -326,7 +346,7 @@ export function Sidebar() {
                                   "block rounded-none px-3 py-2 text-xs transition-colors",
                                   pathname === child.href 
                                     ? "text-foreground font-medium" 
-                                    : "text-muted-foreground/40 hover:text-foreground hover:bg-sidebar-accent"
+                                    : "text-muted-foreground/40 hover:text-foreground hover:bg-orange-500"
                                 )}
                               >
                                 {child.name}
@@ -346,7 +366,7 @@ export function Sidebar() {
         <div className="mt-auto border-t border-sidebar-border p-4">
           <button 
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="flex w-full items-center gap-3 rounded-none px-2 py-2 text-xs font-medium text-muted-foreground/40 hover:text-foreground hover:bg-sidebar-accent transition-colors group"
+            className="flex w-full items-center gap-3 rounded-none px-2 py-2 text-xs font-medium text-muted-foreground/40 hover:text-foreground hover:bg-orange-500 transition-colors group"
           >
             <div className="flex h-4 w-4 items-center justify-center">
               {isCollapsed ? (
