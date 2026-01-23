@@ -1,8 +1,11 @@
 import Navbar from "@/components/homepage/navbar";
 import HeroSection from "@/components/homepage/hero";
 import Footer from "@/components/homepage/footer";
+import { requireAuth } from "@/modules/components/utils/auth-utils";
 
-export default function Home() {
+export default async function Home() {
+  await requireAuth();
+  
   return (
     <main className="min-h-screen bg-background dark relative">
       {/* Side borders */}
