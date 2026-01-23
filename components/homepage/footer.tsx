@@ -8,10 +8,10 @@ const Footer = () => {
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-6">
             <a href="/" className="flex items-center">
-              <span className="text-[16px] font-bold text-foreground font-mono">superCli</span>
+              <span className="text-[16px] font-bold text-foreground font-mono">Supercode</span>
             </a>
             <span className="text-[13px] text-muted-foreground font-mono">
-              © 2024 superCli Inc
+              © 2026 Supercode Inc.
             </span>
           </div>
           
@@ -26,10 +26,14 @@ const Footer = () => {
               Docs
             </a>
             <div className="flex items-center gap-4 ml-4">
-              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+              <a
+                href="https://github.com/yashdev9274/superCli" 
+                className="text-muted-foreground hover:text-foreground transition-colors">
                 <Github className="w-4 h-4" />
               </a>
-              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+              <a 
+                href="https://x.com/dew_yashtwt" 
+                className="text-muted-foreground hover:text-foreground transition-colors">
                 <Twitter className="w-4 h-4" />
               </a>
             </div>

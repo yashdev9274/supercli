@@ -5,20 +5,12 @@ import VisualEditsMessenger from "../visual-edits/VisualEditsMessenger";
 import ErrorReporter from "@/components/ErrorReporter";
 import Script from 'next/script'
 import React from 'react'
-import { ThemeProvider } from '@/components/providers/theme-providers';
 
 const DashboardLayout = (
     {children}: {children: React.ReactNode}
 ) => {
     return (
-        <html lang="en" suppressHydrationWarning>
-      <body className="antialiased font-sans">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem
-          disableTransitionOnChange
-        >
+        <>
           <div className="flex h-screen overflow-hidden">
             <Sidebar />
             <div className="flex flex-1 flex-col overflow-hidden">
@@ -45,9 +37,7 @@ const DashboardLayout = (
             data-custom-data='{"appName": "YourApp", "version": "1.0.0", "greeting": "hi"}'
           />
           <VisualEditsMessenger />
-        </ThemeProvider>
-      </body>
-    </html>
+        </>
     )
 }
 
