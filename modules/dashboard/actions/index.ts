@@ -100,15 +100,15 @@ export async function getMontlyActivity(){
             monthlyData[monthKey] = { commits: 0, prs: 0, reviews: 0 };
           }
           
-          calendar.weeks.forEach((week: any) => {
-            week.contributionDays.forEach((day: any) => {
-              const date = new Date(day.date);
-              const monthKey = monthNames[date.getMonth()];
-              if (monthlyData[monthKey]) {
-                monthlyData[monthKey].commits += day.contributionCount;
-              }
-            })
-          })
+        //   calendar.weeks.forEach((week: any) => {
+        //     week.contributionDays.forEach((day: any) => {
+        //       const date = new Date(day.date);
+        //       const monthKey = monthNames[date.getMonth()];
+        //       if (monthlyData[monthKey]) {
+        //         monthlyData[monthKey].commits += day.contributionCount;
+        //       }
+        //     })
+        //   })
 
           const sixMonthsAgo = new Date();
           sixMonthsAgo.setMonth(sixMonthsAgo.getMonth()-6)
