@@ -100,15 +100,15 @@ export async function getMontlyActivity(){
             monthlyData[monthKey] = { commits: 0, prs: 0, reviews: 0 };
           }
           
-        //   calendar.weeks.forEach((week: any) => {
-        //     week.contributionDays.forEach((day: any) => {
-        //       const date = new Date(day.date);
-        //       const monthKey = monthNames[date.getMonth()];
-        //       if (monthlyData[monthKey]) {
-        //         monthlyData[monthKey].commits += day.contributionCount;
-        //       }
-        //     })
-        //   })
+          calendar.weeks.forEach((week: any) => {
+            week.contributionDays.forEach((day: any) => {
+              const date = new Date(day.date);
+              const monthKey = monthNames[date.getMonth()];
+              if (monthlyData[monthKey]) {
+                monthlyData[monthKey].commits += day.contributionCount;
+              }
+            })
+          })
 
           const sixMonthsAgo = new Date();
           sixMonthsAgo.setMonth(sixMonthsAgo.getMonth()-6)
@@ -147,8 +147,23 @@ export async function getMontlyActivity(){
         }`,
         per_page:100
     })
+
+    prs.items.forEach((pr: any)=>{
+        const date = new Date(pr.created_at)
+        const monthKey = monthNames[date.getMonth()]
+        if(monthlyData[monthKey]){
+            monthlyData[monthKey].prs+=1
+        }
+    })
+
+    return Object.keys(monthlyData).map((name) => ({
+        name,
+        ...monthlyData[name]
+    }));
           
     } catch (error) {
+        console.log("Error in fetching montly activity:", error)
+        return [];
         
     }
 }

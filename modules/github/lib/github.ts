@@ -48,22 +48,22 @@ export async function fetchUserContribution(token: string, username: string){
     }
     `
 
-    interface contributindata{
-        user:{
-            contributionCollection:{
-                contributionCalendar:{
-                    totalContributions:number,
-                    weeks:{
-                        contributionCount:number,
-                        data:string | Date,
-                    }
-                }
-            }
-        }
-    }
+    // interface contributindata{
+    //     user:{
+    //         contributionCollection:{
+    //             contributionCalendar:{
+    //                 totalContributions:number,
+    //                 weeks:{
+    //                     contributionCount:number,
+    //                     data:string | Date,
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
     try {
-        const response: contributindata = await octokit.graphql(query, {
+        const response: any = await octokit.graphql(query, {
             username
         })
         
