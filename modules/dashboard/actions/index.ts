@@ -1,3 +1,5 @@
+"use server"
+
 import { auth } from "@/lib/auth";
 import { fetchUserContribution, getGithubToken } from "@/modules/github/lib/github";
 import { headers } from "next/headers";
