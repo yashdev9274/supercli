@@ -20,6 +20,7 @@ import { motion } from "framer-motion";
 import {useQuery} from "@tanstack/react-query"
 import { getDashboardStats, getMontlyActivity } from "@/modules/dashboard/actions";
 import RepoMetricCard from "./metric-cards/total-repositories";
+import { MetricsCard } from "./metric-cards/metrics-card";
 
 // interface MetricCardProps {
 //   title: string;
@@ -131,7 +132,7 @@ export function DashboardContent() {
       </div>
 
       {/* Metrics Grid */}
-      <div className="mb-16 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div >
         {/* <MetricCard
           title="Repositories"
           value="0m"
@@ -143,7 +144,7 @@ export function DashboardContent() {
 
         {/*  repositories */}
 
-        <RepoMetricCard/>
+        <MetricsCard/>
 
         
       </div>
