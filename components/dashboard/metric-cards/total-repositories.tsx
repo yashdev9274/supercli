@@ -17,10 +17,25 @@ import {
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 
+import {useQuery} from "@tanstack/react-query"
+import { getDashboardStats, getMontlyActivity } from "@/modules/dashboard/actions";
 
 
 
 function RepoMetricCard() {
+
+  const {data:stats, isLoading} = useQuery({
+    queryKey:["dashboard-stats"],
+    queryFn: async()=>await getDashboardStats(),
+    refetchOnWindowFocus:false
+  })
+
+  const {data: monthlyAcivity, isLoading: isLoadingActivity }=useQuery({
+    queryKey: ["monthly-stats"],
+    queryFn: async()=> await getMontlyActivity(),
+    refetchOnWindowFocus: false
+  })
+
     return (
       <motion.div 
         initial={{ opacity: 0, y: 10 }}
@@ -42,13 +57,10 @@ function RepoMetricCard() {
         
         
           <div className="relative flex flex-1 flex-col items-center justify-center gap-5 py-10 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-border bg-muted/20">
             
-              <div className="flex h-8 w-8 items-center justify-center text-muted-foreground/20">{<Clock />}</div>
-            </div>
-            {/* <div className="text-2xl font-bold">{isLoading ? "..."stats?.totalRepos || 0 }</div> */}
+            <div className="text-2xl font-bold">{isLoading ? "...": (stats?.totalRepos || 0) }</div>
             <span className="max-w-[180px] text-[11px] font-medium leading-relaxed text-muted-foreground/30">
-              30
+              
             </span>
           </div>
         
