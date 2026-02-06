@@ -201,6 +201,7 @@ export async function getContributionStats(){
         )
 
     } catch (error) {
-        
+        console.error("Error in fetching user contribution stats:", error);
+        return null;
     }
 }
