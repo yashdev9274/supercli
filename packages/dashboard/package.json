@@ -1,0 +1,12 @@
+{
+  "name": "@super/dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "build": "echo 'dashboard build pending'",
+    "lint": "echo 'dashboard lint pending'",
+    "typecheck": "echo 'dashboard typecheck pending'"
+  }
+}

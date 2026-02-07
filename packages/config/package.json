@@ -1,0 +1,12 @@
+{
+  "name": "@super/config",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "build": "echo 'config build pending'",
+    "lint": "echo 'config lint pending'",
+    "typecheck": "echo 'config typecheck pending'"
+  }
+}

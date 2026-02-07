@@ -1,0 +1,11 @@
+{
+  "name": "supercode-cli",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "echo 'supercode-cli scaffold pending'",
+    "build": "echo 'supercode-cli build scaffold pending'",
+    "lint": "echo 'supercode-cli lint scaffold pending'",
+    "typecheck": "echo 'supercode-cli typecheck scaffold pending'"
+  }
+}

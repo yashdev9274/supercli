@@ -1,0 +1,21 @@
+{
+  "name": "@super/auth",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./server": "./src/server.ts",
+    "./client": "./src/client.ts"
+  },
+  "scripts": {
+    "build": "echo 'auth build pending'",
+    "lint": "echo 'auth lint pending'",
+    "typecheck": "echo 'auth typecheck pending'"
+  },
+  "dependencies": {
+    "@super/db": "workspace:*",
+    "better-auth": "^1.4.10"
+  }
+}

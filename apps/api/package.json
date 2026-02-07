@@ -1,0 +1,11 @@
+{
+  "name": "api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "echo 'api app scaffold pending'",
+    "build": "echo 'api build scaffold pending'",
+    "lint": "echo 'api lint scaffold pending'",
+    "typecheck": "echo 'api typecheck scaffold pending'"
+  }
+}

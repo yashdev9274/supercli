@@ -19,7 +19,10 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@super/*": ["../../packages/*/index.ts"],
+      "@super/auth/server": ["../../packages/auth/src/server.ts"],
+      "@super/auth/client": ["../../packages/auth/src/client.ts"]
     }
   },
   "include": [

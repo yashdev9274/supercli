@@ -1,0 +1,12 @@
+{
+  "name": "@super/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "build": "echo 'sdk build pending'",
+    "lint": "echo 'sdk lint pending'",
+    "typecheck": "echo 'sdk typecheck pending'"
+  }
+}
