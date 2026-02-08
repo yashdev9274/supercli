@@ -11,6 +11,7 @@
     "build": "echo 'db build pending'",
     "lint": "echo 'db lint pending'",
     "typecheck": "echo 'db typecheck pending'",
+    "postinstall": "bun run db:generate",
     "db:generate": "prisma generate --schema ./prisma/schema.prisma",
     "db:migrate": "prisma migrate deploy --schema ./prisma/schema.prisma"
   },

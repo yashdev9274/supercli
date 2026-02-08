@@ -10,6 +10,7 @@
     "build": "turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
+    "postinstall": "bun run --cwd packages/db db:generate",
     "dev:web": "turbo dev --filter=web",
     "dev:api": "turbo dev --filter=api",
     "dev:cli": "turbo dev --filter=supercode-cli"

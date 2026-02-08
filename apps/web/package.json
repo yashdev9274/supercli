@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build --webpack",
+    "build": "bun run db:generate && next build --webpack",
+    "postinstall": "bun run db:generate",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
