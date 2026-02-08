@@ -36,9 +36,9 @@
   --sidebar-accent-foreground: oklch(0.2101 0.0318 264.6645);
   --sidebar-border: oklch(0.9276 0.0058 264.5313);
   --sidebar-ring: oklch(0.6716 0.1368 48.5130);
-  --font-sans: Geist Mono, ui-monospace, monospace;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   --font-serif: serif;
-  --font-mono: JetBrains Mono, monospace;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
   --radius: 0.75rem;
   --shadow-x: 0px;
   --shadow-y: 1px;
@@ -91,9 +91,9 @@
   --sidebar-accent-foreground: oklch(0.8109 0 0);
   --sidebar-border: oklch(0.2520 0 0);
   --sidebar-ring: oklch(0.7214 0.1337 49.9802);
-  --font-sans: Geist Mono, ui-monospace, monospace;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   --font-serif: serif;
-  --font-mono: JetBrains Mono, monospace;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
   --radius: 0.75rem;
   --shadow-x: 0px;
   --shadow-y: 1px;

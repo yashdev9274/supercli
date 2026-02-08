@@ -1,0 +1,12 @@
+{
+  "name": "@super/ui",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "build": "echo 'ui build pending'",
+    "lint": "echo 'ui lint pending'",
+    "typecheck": "echo 'ui typecheck pending'"
+  }
+}
