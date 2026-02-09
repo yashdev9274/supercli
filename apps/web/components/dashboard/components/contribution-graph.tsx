@@ -53,8 +53,8 @@ export function ContributionGraph() {
                     showMonthLabels
                     showWeekdayLabels
                     theme={{
-                        light: ['#ebedf0', 'hsl(142, 71%, 45%)'],
-                        dark: ['#1d1b22', 'hsl(142, 71%, 45%)']
+                        light: ['#ebedf0', '#f97316'],
+                        dark: ['#1d1b22', '#f97316']
                     }}
                 />
                 </div>

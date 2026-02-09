@@ -143,12 +143,12 @@ export async function getMontlyActivity(){
         }
     })
 
-    const {data:prs} = await octokit.rest.search.issuesAndPullRequests({
-        q: `author:${user.login} type:pr created: >${
-            sixMonthsAgo.toISOString().split("T")[0]
-        }`,
-        per_page:100
-    })
+          const {data:prs} = await octokit.rest.search.issuesAndPullRequests({
+            q: `author:${user.login} type:pr created:>=${
+                sixMonthsAgo.toISOString().split("T")[0]
+            }`,
+            per_page:100
+        })
 
     prs.items.forEach((pr: any)=>{
         const date = new Date(pr.created_at)
