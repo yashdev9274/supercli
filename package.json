@@ -18,5 +18,10 @@
   "devDependencies": {
     "turbo": "^2.5.8"
   },
-  "packageManager": "bun@1.2.21"
+  "packageManager": "bun@1.2.21",
+  "dependencies": {
+    "-": "^0.0.1",
+    "g": "^2.0.1",
+    "vercel": "^50.13.2"
+  }
 }
