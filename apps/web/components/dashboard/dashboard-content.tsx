@@ -21,6 +21,8 @@ import {useQuery} from "@tanstack/react-query"
 import { getDashboardStats, getMontlyActivity } from "@/modules/dashboard/actions";
 import RepoMetricCard from "./metric-cards/total-repositories";
 import { MetricsCard } from "./metric-cards/metrics-card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
+import { ContributionGraph } from "./components/contribution-graph";
 
 // interface MetricCardProps {
 //   title: string;
@@ -149,8 +151,32 @@ export function DashboardContent() {
         
       </div>
 
-      {/* Activity Section */}
+      {/* Acitvity Caldendar */}
+
       <div className="flex flex-col gap-10">
+        <div className="flex items-center justify-between border-b border-border pb-5">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-xl font-medium text-foreground">Acitvity Caldendar</h2>
+            <p className="text-[10px] text-muted-foreground/40 uppercase tracking-[0.2em] font-bold">Automated Analysis</p>
+          </div>
+          {/* <button className="text-[11px] font-medium text-muted-foreground/40 hover:text-foreground transition-all">Details →</button> */}
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Contribution Activity</CardTitle>
+            <CardDescription>Visualizing your coding frequency over the last year</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ContributionGraph />
+          </CardContent>
+        </Card>
+      </div>
+
+
+
+      {/* Activity Section */}
+      <div className="flex flex-col gap-10 mt-9">
         <div className="flex items-center justify-between border-b border-border pb-5">
           <div className="flex flex-col gap-1">
             <h2 className="text-xl font-medium text-foreground">Intelligence</h2>

@@ -192,13 +192,40 @@ export async function getContributionStats(){
             return null
         }
 
-        const contributions = calendar.weeks.flatMap((week:any)=>
-            week.contributionDays.map((day:any)=>({
-                date: day.date,
-                count: day.contributionCount,
-                level: Math.min(4, Math.floor(day.contributionCount / 3)), // Convert to 0-4 scale
-            }))
+        // First flatten raw contributions so we can compute levels relative to the max count.
+        const rawContributions: { date: string; count: number }[] =
+            calendar.weeks.flatMap((week: any) =>
+                week.contributionDays.map((day: any) => ({
+                    date: day.date,
+                    count: day.contributionCount,
+                }))
+            )
+
+        const maxCount = rawContributions.reduce(
+            (max: number, day) => (day.count > max ? day.count : max),
+            0
         )
+
+        // Map counts to levels 0–4 (what react-activity-calendar expects).
+        const contributions = rawContributions.map((day) => {
+            if (day.count === 0 || maxCount === 0) {
+                return { ...day, level: 0 }
+            }
+
+            const ratio = day.count / maxCount
+            let level = 1
+
+            if (ratio > 0.75) level = 4
+            else if (ratio > 0.5) level = 3
+            else if (ratio > 0.25) level = 2
+
+            return { ...day, level }
+        })
+
+        return{
+            contributions,
+            totalContributions: calendar.totalContributions
+        }
 
     } catch (error) {
         console.error("Error in fetching user contribution stats:", error);
