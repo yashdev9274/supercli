@@ -23,6 +23,8 @@ import RepoMetricCard from "./metric-cards/total-repositories";
 import { MetricsCard } from "./metric-cards/metrics-card";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { ContributionGraph } from "./components/contribution-graph";
+import { Spinner } from "../ui/spinner";
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 // interface MetricCardProps {
 //   title: string;
@@ -96,7 +98,7 @@ export function DashboardContent() {
     refetchOnWindowFocus:false
   })
 
-  const {data: monthlyAcivity, isLoading: isLoadingActivity }=useQuery({
+  const {data: monthlyActivity, isLoading: isLoadingActivity }=useQuery({
     queryKey: ["monthly-stats"],
     queryFn: async()=> await getMontlyActivity(),
     refetchOnWindowFocus: false
@@ -171,6 +173,43 @@ export function DashboardContent() {
             <ContributionGraph />
           </CardContent>
         </Card>
+
+        <div className='grid gap-4 md:grid-cols-2'>
+          <Card className='col-span-2'>
+            <CardHeader>
+              <CardTitle>Activity Overview</CardTitle>
+              <CardDescription>Monthly breakdown of commits, PRs, and reviews (last 6 months)</CardDescription>
+            </CardHeader>
+            
+            <CardContent>
+            {
+              isLoadingActivity ? (
+                <div className="h-80 w-full flex items-center justify-center">
+                  <Spinner/>
+                </div>
+              ) : (
+                <div className='h-80 w-full'>
+                  <ResponsiveContainer width={"100%"} height={"100%"}>
+                    <BarChart data={monthlyActivity || []}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: 'var(--background)', borderColor: 'var(--border)' }}
+                        itemStyle={{ color: 'var(--foreground)' }}
+                      />
+                      <Legend/>
+                      <Bar dataKey="commits" name="Commits" fill="#f97316" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="prs" name="Pull Requests" fill="#fb923c" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="reviews" name="AI Reviews" fill="#c2410c" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )
+            }
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
 
