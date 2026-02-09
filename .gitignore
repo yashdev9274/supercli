@@ -47,4 +47,8 @@ next-env.d.ts
 /packages/db/src/generated/prisma
 **/node_modules
 
+# turbo
+.turbo
+**/turbo.log*
+
 NOTES.md
