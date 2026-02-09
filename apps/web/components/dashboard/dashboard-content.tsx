@@ -110,26 +110,26 @@ export function DashboardContent() {
       <div className="mb-12 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-medium tracking-tight text-foreground">Overview</h1>
-          <p className="text-xs text-muted-foreground/60">A real-time snapshot of your development cycle.</p>
+          <p className="text-xs text-foreground/80">A real-time snapshot of your development cycle.</p>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center border border-border bg-muted/30 p-1">
-            <button className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-muted-foreground/70 hover:bg-muted/50 hover:text-foreground transition-colors">
-              <Box className="h-3.5 w-3.5 opacity-50" />
+            <button className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-foreground/80 hover:bg-muted/50 hover:text-foreground transition-colors">
+              <Box className="h-3.5 w-3.5 opacity-80" />
               Repositories
               <ChevronDown className="h-3 w-3 opacity-30" />
             </button>
             <div className="h-4 w-[1px] bg-border mx-1" />
-            <button className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-muted-foreground/70 hover:bg-muted/50 hover:text-foreground transition-colors">
-              <User className="h-3.5 w-3.5 opacity-50" />
+            <button className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-foreground/80 hover:bg-muted/50 hover:text-foreground transition-colors">
+              <User className="h-3.5 w-3.5 opacity-80" />
               Authors
               <ChevronDown className="h-3 w-3 opacity-30" />
             </button>
           </div>
           
-          <button className="flex items-center gap-2 border border-border bg-muted/30 px-3 py-2 text-[11px] font-medium text-muted-foreground/70 hover:bg-muted/50 hover:text-foreground transition-colors">
-            <Calendar className="h-3.5 w-3.5 opacity-50" />
+          <button className="flex items-center gap-2 border border-border bg-muted/30 px-3 py-2 text-[11px] font-medium text-foreground/80 hover:bg-muted/50 hover:text-foreground transition-colors">
+            <Calendar className="h-3.5 w-3.5 opacity-80" />
             Time Range
             <ChevronDown className="h-3 w-3 opacity-30" />
           </button>
@@ -160,7 +160,7 @@ export function DashboardContent() {
         <div className="flex items-center justify-between border-b border-border pb-5">
           <div className="flex flex-col gap-1">
             <h2 className="text-xl font-medium text-foreground">Acitvity Caldendar</h2>
-            <p className="text-[10px] text-muted-foreground/40 uppercase tracking-[0.2em] font-bold">Automated Analysis</p>
+            <p className="text-[10px] text-foreground/70 uppercase tracking-[0.2em] font-bold">Automated Analysis</p>
           </div>
           {/* <button className="text-[11px] font-medium text-muted-foreground/40 hover:text-foreground transition-all">Details →</button> */}
         </div>
@@ -191,8 +191,8 @@ export function DashboardContent() {
         <div className='grid gap-4 md:grid-cols-2'>
           <Card className='col-span-2'>
             <CardHeader>
-              <CardTitle>Activity Overview</CardTitle>
-              <CardDescription>Monthly breakdown of commits, PRs, and reviews (last 6 months)</CardDescription>
+              <CardTitle className="text-foreground">Activity Overview</CardTitle>
+              <CardDescription className="text-foreground/80">Monthly breakdown of commits, PRs, and reviews (last 6 months)</CardDescription>
             </CardHeader>
             
             <CardContent>
@@ -233,9 +233,9 @@ export function DashboardContent() {
         <div className="flex items-center justify-between border-b border-border pb-5">
           <div className="flex flex-col gap-1">
             <h2 className="text-xl font-medium text-foreground">Intelligence</h2>
-            <p className="text-[10px] text-muted-foreground/40 uppercase tracking-[0.2em] font-bold">Automated Analysis</p>
+            <p className="text-[10px] text-foreground/70 uppercase tracking-[0.2em] font-bold">Automated Analysis</p>
           </div>
-          <button className="text-[11px] font-medium text-muted-foreground/40 hover:text-foreground transition-all">Details →</button>
+          <button className="text-[11px] font-medium text-foreground/70 hover:text-foreground transition-all">Details →</button>
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -246,7 +246,7 @@ export function DashboardContent() {
             className="flex min-h-[360px] flex-col border border-border bg-card p-8 group transition-all hover:border-white/10"
           >
             <div className="mb-10 flex items-center justify-between">
-              <div className="flex items-center gap-3 text-[10px] font-bold tracking-[0.2em] text-muted-foreground/40 uppercase">
+              <div className="flex items-center gap-3 text-[10px] font-bold tracking-[0.2em] text-foreground/70 uppercase">
                 <AlertCircle className="h-4 w-4 opacity-50 transition-colors group-hover:text-foreground group-hover:opacity-100" />
                 Detected Anomalies
               </div>
@@ -258,7 +258,7 @@ export function DashboardContent() {
               </div>
               <div className="flex flex-col items-center gap-2">
                 <span className="text-[14px] font-medium text-foreground">Clean State</span>
-                <span className="text-[11px] text-muted-foreground/40">No critical issues flagged by Greptile</span>
+                <span className="text-[11px] text-foreground/75">No critical issues flagged by Greptile</span>
               </div>
             </div>
           </motion.div>
@@ -270,7 +270,7 @@ export function DashboardContent() {
             className="flex min-h-[360px] flex-col border border-border bg-card p-8 group transition-all hover:border-white/10"
           >
             <div className="mb-10 flex items-center justify-between">
-              <div className="flex items-center gap-3 text-[10px] font-bold tracking-[0.2em] text-muted-foreground/40 uppercase">
+              <div className="flex items-center gap-3 text-[10px] font-bold tracking-[0.2em] text-foreground/70 uppercase">
                 <ListChecks className="h-4 w-4 opacity-50 transition-colors group-hover:text-foreground group-hover:opacity-100" />
                 Synthesis Report
               </div>
@@ -282,7 +282,7 @@ export function DashboardContent() {
               </div>
               <div className="flex flex-col items-center gap-2">
                 <span className="text-[14px] font-medium text-foreground">Processing...</span>
-                <span className="text-[11px] text-muted-foreground/40">Aggregating weekly performance metrics</span>
+                <span className="text-[11px] text-foreground/75">Aggregating weekly performance metrics</span>
               </div>
             </div>
           </motion.div>
