@@ -35,11 +35,11 @@ export function ContributionGraph() {
         )
     }
 
+    
     return(
         <div className='w-full flex flex-col items-center gap-4 p-4'>
             <div className="text-sm text-muted-foreground">
-                <span className="font-semibold text-foreground">{data.totalContributions}</span>
-                contributions in the last year
+                {/* <span className="font-semibold text-foreground">{data.totalContributions.toLocaleString()}</span> */}
             </div>
 
             <div className='w-full overflow-x-auto'>
@@ -49,13 +49,23 @@ export function ContributionGraph() {
                     colorScheme={theme==="dark"?"dark":"light"}
                     blockSize={11}
                     blockMargin={4}
+                    blockRadius={2}
                     fontSize={14}
                     showMonthLabels
                     showWeekdayLabels
+                    labels={{
+                        totalCount: "{{count}} contributions in the last year",
+                      }}
                     theme={{
                         light: ['#ebedf0', '#f97316'],
                         dark: ['#1d1b22', '#f97316']
                     }}
+                    renderBlock={(block, activity) =>
+                        React.cloneElement(block, {
+                          "data-tooltip-id": "contribution-tooltip",
+                          "data-tooltip-content": `${activity.count} contributions on ${activity.date}`,
+                        } as any)
+                      }
                 />
                 </div>
             </div>

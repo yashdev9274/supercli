@@ -13,7 +13,8 @@ import {
   AlertCircle,
   ListChecks,
   TrendingUp,
-  Activity
+  Activity,
+  GitCommit
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -164,15 +165,28 @@ export function DashboardContent() {
           {/* <button className="text-[11px] font-medium text-muted-foreground/40 hover:text-foreground transition-all">Details →</button> */}
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Contribution Activity</CardTitle>
-            <CardDescription>Visualizing your coding frequency over the last year</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ContributionGraph />
-          </CardContent>
-        </Card>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.45 }}
+        >
+          
+          <Card>
+            <CardHeader>
+              <div>
+                
+              </div>
+              <div className="flex h-7 w-7 items-center justify-center text-muted-foreground/40">
+                <GitCommit size={18} strokeWidth={1.5} />
+              </div>
+              <CardTitle>Contribution Activity</CardTitle>
+              <CardDescription>Visualizing your coding frequency over the last year</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ContributionGraph />
+            </CardContent>
+          </Card>
+        </motion.div>
 
         <div className='grid gap-4 md:grid-cols-2'>
           <Card className='col-span-2'>
