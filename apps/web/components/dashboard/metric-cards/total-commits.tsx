@@ -47,10 +47,10 @@ function TotalCommitsCard() {
         )}
       >
         <div className="relative mb-6 flex items-center gap-3">
-          <div className="flex h-7 w-7 items-center justify-center text-muted-foreground/40 transition-colors group-hover:text-muted-foreground/60">
+          <div className="flex h-7 w-7 items-center justify-center text-foreground/70 transition-colors group-hover:text-foreground/90">
             {<Clock />}
           </div>
-          <span className="text-[10px] font-bold tracking-[0.15em] text-muted-foreground/50 uppercase">
+          <span className="text-[10px] font-bold tracking-[0.15em] text-foreground/80 uppercase">
             Commits
           </span>
         </div>
@@ -58,15 +58,15 @@ function TotalCommitsCard() {
         
           <div className="relative flex flex-1 flex-col items-center justify-center gap-5 py-10 text-center">
             
-            <div className="text-2xl font-bold">{isLoading ? "...": (stats?.totalCommits || 0) }</div>
-            <span className="max-w-[180px] text-[11px] font-medium leading-relaxed text-muted-foreground/30">
+            <div className="text-2xl font-bold text-foreground">{isLoading ? "...": (stats?.totalCommits || 0) }</div>
+            <span className="max-w-[180px] text-[11px] font-medium leading-relaxed text-foreground/70">
               
             </span>
           </div>
         
   
         
-          <div className="mt-auto flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground/20 group-hover:text-muted-foreground/30 transition-colors">
+          <div className="mt-auto flex items-center gap-1.5 text-[10px] font-medium text-foreground/60 group-hover:text-foreground/80 transition-colors">
             <Activity className="h-3 w-3" />
             <span>Syncing live data</span>
           </div>

@@ -73,4 +73,10 @@ export async function fetchUserContribution(token: string, username: string){
         return null
     }
 
+  }
+  
+export const getRepositories = async(page: number=1, per_page=10)=>{
+
+  const token = await getGithubToken();
+  const octokit = new Octokit({auth:token})
 }

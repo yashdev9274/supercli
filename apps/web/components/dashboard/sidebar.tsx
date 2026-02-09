@@ -209,7 +209,7 @@ export function Sidebar() {
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-56 rounded-none">
-                    <DropdownMenuLabel className="text-[10px] font-bold tracking-wider text-muted-foreground/50 uppercase">Organizations</DropdownMenuLabel>
+                    <DropdownMenuLabel className="text-[10px] font-bold tracking-wider text-foreground/75 uppercase">Organizations</DropdownMenuLabel>
                       <DropdownMenuItem 
                         className="flex items-center justify-between gap-2 text-xs cursor-pointer rounded-none"
                       >
@@ -220,7 +220,7 @@ export function Sidebar() {
                       </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DialogTrigger asChild>
-                      <DropdownMenuItem className="flex items-center gap-2 text-xs cursor-pointer rounded-none text-muted-foreground hover:text-foreground">
+                      <DropdownMenuItem className="flex items-center gap-2 text-xs cursor-pointer rounded-none text-foreground/80 hover:text-foreground">
                         <Plus className="h-3 w-3" />
                         <span>Create Organization</span>
                       </DropdownMenuItem>
@@ -278,7 +278,7 @@ export function Sidebar() {
 
           <button 
             onClick={() => setIsMobileOpen(false)}
-            className="lg:hidden text-muted-foreground/40 hover:text-foreground"
+            className="lg:hidden text-foreground/70 hover:text-foreground"
           >
             <X className="h-5 w-5" />
           </button>
@@ -289,7 +289,7 @@ export function Sidebar() {
             {navigation.map((group, groupIdx) => (
               <div key={groupIdx} className="space-y-1">
                 {group.section && !isCollapsed && (
-                  <h3 className="px-3 py-2 text-[10px] font-bold tracking-[0.2em] text-muted-foreground/30 uppercase">
+                  <h3 className="px-3 py-2 text-[10px] font-bold tracking-[0.2em] text-foreground/60 uppercase">
                     {group.section}
                   </h3>
                 )}
@@ -308,7 +308,7 @@ export function Sidebar() {
                               "flex w-full items-center gap-3 rounded-none px-3 py-2 text-xs font-medium transition-colors",
                               isActive 
                                 ? "bg-primary text-primary-foreground" 
-                                : "text-muted-foreground/60 hover:text-foreground hover:bg-orange-500",
+                                : "text-foreground/75 hover:text-foreground hover:bg-orange-500",
                               isCollapsed && "justify-center px-0"
                             )}
                           >
@@ -327,7 +327,7 @@ export function Sidebar() {
                               "flex items-center gap-3 rounded-none px-3 py-2 text-xs font-medium transition-colors",
                               isActive 
                                 ? "bg-primary text-primary-foreground" 
-                                : "text-muted-foreground/60 hover:text-foreground hover:bg-orange-500",
+                                : "text-foreground/75 hover:text-foreground hover:bg-orange-500",
                               isCollapsed && "justify-center px-0"
                             )}
                           >
@@ -346,7 +346,7 @@ export function Sidebar() {
                                   "block rounded-none px-3 py-2 text-xs transition-colors",
                                   pathname === child.href 
                                     ? "text-foreground font-medium" 
-                                    : "text-muted-foreground/40 hover:text-foreground hover:bg-orange-500"
+                                    : "text-foreground/65 hover:text-foreground hover:bg-orange-500"
                                 )}
                               >
                                 {child.name}
@@ -366,7 +366,7 @@ export function Sidebar() {
         <div className="mt-auto border-t border-sidebar-border p-4">
           <button 
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="flex w-full items-center gap-3 rounded-none px-2 py-2 text-xs font-medium text-muted-foreground/40 hover:text-foreground hover:bg-orange-500 transition-colors group"
+            className="flex w-full items-center gap-3 rounded-none px-2 py-2 text-xs font-medium text-foreground/70 hover:text-foreground hover:bg-orange-500 transition-colors group"
           >
             <div className="flex h-4 w-4 items-center justify-center">
               {isCollapsed ? (
