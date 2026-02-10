@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "next-themes";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
   title: "Supercode - CLI AI Coding Agent for developers",
@@ -47,6 +49,8 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             {children}
+            <Analytics />
+            <SpeedInsights />
           </ThemeProvider>
         </QueryProvider>
       </body>
