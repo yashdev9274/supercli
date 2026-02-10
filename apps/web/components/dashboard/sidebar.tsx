@@ -87,7 +87,7 @@ const navigation: NavigationGroup[] = [
   { 
     section: null,
     items: [
-      { name: "Home", href: "/", icon: Home },
+      { name: "Home", href: "/dashboard", icon: Home },
     ]
   },
   { 
@@ -110,8 +110,8 @@ const navigation: NavigationGroup[] = [
         href: "/connections", 
         icon: Zap,
         children: [
+          { name: "Connect your repos", href: "/providers" },
           { name: "Integrations", href: "/integrations" },
-          { name: "Code Providers", href: "/providers" },
         ]
       },
     ]
