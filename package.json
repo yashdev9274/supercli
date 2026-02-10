@@ -13,7 +13,8 @@
     "postinstall": "bun run --cwd packages/db db:generate",
     "dev:web": "turbo dev --filter=web",
     "dev:api": "turbo dev --filter=api",
-    "dev:cli": "turbo dev --filter=supercode-cli"
+    "dev:terminal": "turbo dev --filter=supercode-cli-client",
+    "dev:terminal-server": "turbo dev --filter=supercode-cli-server"
   },
   "devDependencies": {
     "turbo": "^2.5.8"
