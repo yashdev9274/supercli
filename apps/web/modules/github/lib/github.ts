@@ -79,4 +79,13 @@ export const getRepositories = async(page: number=1, per_page=10)=>{
 
   const token = await getGithubToken();
   const octokit = new Octokit({auth:token})
+
+  const {data} = await octokit.rest.repos.listForAuthenticatedUser({
+    per_page,
+    page,
+    sort: "updated",
+    direction: "desc"
+  })
+
+  return data
 }
