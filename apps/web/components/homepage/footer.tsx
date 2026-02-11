@@ -1,6 +1,8 @@
 import React from 'react';
 import { Github, Twitter } from 'lucide-react';
 
+const DOCS_URL = process.env.NEXT_PUBLIC_DOCS_URL || 'http://localhost:3001';
+
 const Footer = () => {
   return (
     <footer className="border-t border-border py-12 px-12 mt-20">
@@ -22,7 +24,7 @@ const Footer = () => {
             <a href="#" className="text-[13px] text-muted-foreground hover:text-foreground transition-colors font-mono">
               Terms
             </a>
-            <a href="#" className="text-[13px] text-muted-foreground hover:text-foreground transition-colors font-mono">
+            <a href={DOCS_URL} className="text-[13px] text-muted-foreground hover:text-foreground transition-colors font-mono">
               Docs
             </a>
             <div className="flex items-center gap-4 ml-4">

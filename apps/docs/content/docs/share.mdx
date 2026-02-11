@@ -1,0 +1,93 @@
+---
+title: Share
+description: Share your Supercode conversations.
+---
+
+# Share
+
+Share your Supercode conversations.
+
+Supercode’s share feature lets you create public links to conversations so you can collaborate or get help from others.
+
+> **Note:** Shared conversations are publicly accessible to anyone with the link.
+
+## How it works
+
+When you share a conversation, Supercode:
+
+1. Creates a unique public URL for your session
+2. Syncs your conversation history to the servers
+3. Makes the conversation available at the shareable link (e.g. `supercli.com/s/<share-id>`)
+
+## Sharing modes
+
+### Manual (default)
+
+By default, sharing is manual. Sessions are not shared automatically. Use the `/share` command to share:
+
+```
+/share
+```
+
+This generates a URL and copies it to your clipboard.
+
+To set manual mode explicitly in your [config](/docs/config):
+
+```json
+{
+  "$schema": "https://supercode.ai/config.json",
+  "share": "manual"
+}
+```
+
+### Auto-share
+
+Enable automatic sharing for all new conversations:
+
+```json
+{
+  "share": "auto"
+}
+```
+
+Every new conversation will be shared and a link will be generated.
+
+### Disabled
+
+Disable sharing entirely:
+
+```json
+{
+  "share": "disabled"
+}
+```
+
+To enforce this for a project, add it to `opencode.json` in the project and commit to Git.
+
+## Un-sharing
+
+To stop sharing and remove a conversation from public access:
+
+```
+/unshare
+```
+
+This removes the share link and deletes the related data.
+
+## Privacy
+
+### Data retention
+
+Shared conversations stay accessible until you unshare them. This includes full conversation history, all messages and responses, and session metadata.
+
+### Recommendations
+
+- Only share conversations that don’t contain sensitive information.
+- Review content before sharing.
+- Unshare when collaboration is done.
+- Avoid sharing proprietary code or confidential data.
+- For sensitive projects, disable sharing in config.
+
+## For enterprises
+
+For enterprise deployments, sharing can be disabled for compliance, restricted to SSO users only, or self-hosted on your own infrastructure.

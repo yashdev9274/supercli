@@ -1,0 +1,85 @@
+---
+title: Windows (WSL)
+description: Run Supercode on Windows using WSL for the best experience.
+---
+
+# Windows (WSL)
+
+Run Supercode on Windows using WSL for the best experience.
+
+Supercode can run directly on Windows, but we recommend [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/en-us/windows/wsl/install) for the best experience. WSL gives you a Linux environment that works well with Supercode’s features.
+
+**Why WSL?** Better file system performance, full terminal support, and compatibility with the tools Supercode relies on.
+
+## Setup
+
+1. **Install WSL**  
+   If needed, [install WSL](https://learn.microsoft.com/en-us/windows/wsl/install) using the official Microsoft guide.
+
+2. **Install Supercode in WSL**  
+   Open your WSL terminal and install Supercode using one of the [installation methods](/docs/intro):
+
+   ```bash
+   curl -fsSL https://supercli.com/install | bash
+   ```
+
+3. **Use Supercode from WSL**  
+   Go to your project directory (Windows drives are under `/mnt/c/`, `/mnt/d/`, etc.) and run Supercode:
+
+   ```bash
+   cd /mnt/c/Users/YourName/project
+   supercode
+   ```
+
+## Desktop App + WSL Server
+
+If you use the Supercode Desktop app but want the server in WSL:
+
+1. **Start the server in WSL** with `--hostname 0.0.0.0` so the app can connect:
+
+   ```bash
+   supercode serve --hostname 0.0.0.0 --port 4096
+   ```
+
+2. **Connect the Desktop app** to `http://localhost:4096`.
+
+   If `localhost` doesn’t work, use the WSL IP from WSL (`hostname -I`) and connect to `http://<wsl-ip>:4096`.
+
+> **Caution:** When using `--hostname 0.0.0.0`, set `SUPERCODE_SERVER_PASSWORD` to secure the server.
+
+## Web Client + WSL
+
+For the best web experience on Windows:
+
+1. Run **`supercode web`** in the WSL terminal (not PowerShell):
+
+   ```bash
+   supercode web --hostname 0.0.0.0
+   ```
+
+2. Open your Windows browser at the URL printed (e.g. `http://localhost:<port>`).
+
+Running `supercode web` from WSL keeps file system and terminal behavior correct while you use the browser on Windows.
+
+## Accessing Windows files
+
+WSL can access Windows drives under `/mnt/`:
+
+- `C:` → `/mnt/c/`
+- `D:` → `/mnt/d/`
+- etc.
+
+Example:
+
+```bash
+cd /mnt/c/Users/YourName/Documents/project
+supercode
+```
+
+**Tip:** For the smoothest experience, clone or copy your repo into the WSL filesystem (e.g. under `~/code/`) and run Supercode there.
+
+## Tips
+
+- Keep Supercode running in WSL for projects on Windows drives — file access works seamlessly.
+- Use VS Code’s [WSL extension](https://code.visualstudio.com/docs/remote/wsl) with Supercode for an integrated workflow.
+- Config and sessions live in WSL at `~/.local/share/supercode/`.

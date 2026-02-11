@@ -3,6 +3,8 @@
 import React from 'react';
 import Link from 'next/link';
 
+const DOCS_URL = process.env.NEXT_PUBLIC_DOCS_URL || 'http://localhost:3001';
+
 
 const PixelLogo = () => {
     return (
@@ -140,8 +142,8 @@ const Navbar = () => {
           >
             GitHub <span className="text-muted-foreground/60"></span>
           </a>
-          <a 
-            href="#docs" 
+          <a
+            href={DOCS_URL}
             className="text-[15px] text-muted-foreground hover:text-foreground transition-colors font-mono"
           >
             Docs

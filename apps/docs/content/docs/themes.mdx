@@ -1,0 +1,73 @@
+---
+title: Themes
+description: Select a built-in theme or define your own.
+---
+
+# Themes
+
+Select a built-in theme or define your own.
+
+With Supercode you can use built-in themes, a theme that adapts to your terminal, or define a custom theme. By default, Supercode uses the `opencode` theme.
+
+## Terminal requirements
+
+For full colors, your terminal must support **truecolor** (24-bit). Run `echo $COLORTERM` — it should output `truecolor` or `24bit`. Set `COLORTERM=truecolor` if needed. Most modern terminals (WezTerm, Alacritty, Kitty, Windows Terminal, GNOME Terminal) support it.
+
+## Built-in themes
+
+| Name              | Description                          |
+|-------------------|--------------------------------------|
+| `system`          | Adapts to your terminal background   |
+| `tokyonight`      | Based on Tokyonight                   |
+| `everforest`      | Based on Everforest                   |
+| `ayu`             | Ayu dark theme                        |
+| `catppuccin`      | Catppuccin                            |
+| `gruvbox`         | Gruvbox                               |
+| `kanagawa`        | Kanagawa                              |
+| `nord`            | Nord                                  |
+| `matrix`          | Green on black                       |
+| `one-dark`        | Atom One Dark                         |
+
+More themes are added over time.
+
+## System theme
+
+The `system` theme adapts to your terminal:
+
+- Generates a gray scale from your terminal background.
+- Uses ANSI colors for syntax and UI.
+- Uses `none` for text/background to keep the terminal’s native look.
+
+Use it if you want Supercode to match your terminal or use a custom terminal color scheme.
+
+## Using a theme
+
+Select a theme with the `/theme` command in the TUI, or set it in your [config](/docs/config):
+
+```json
+{
+  "$schema": "https://supercode.ai/config.json",
+  "theme": "tokyonight"
+}
+```
+
+## Custom themes
+
+Themes are loaded in this order (later overrides earlier):
+
+1. Built-in themes
+2. User: `~/.config/supercode/themes/*.json` or `$XDG_CONFIG_HOME/supercode/themes/*.json`
+3. Project: `<project-root>/.opencode/themes/*.json`
+4. Current dir: `./.opencode/themes/*.json`
+
+### Creating a theme
+
+Create a JSON file in one of the theme directories. Use:
+
+- **Hex colors:** `"#ffffff"`
+- **ANSI colors:** `3` (0–255)
+- **References:** `"primary"` or custom names from `defs`
+- **Dark/light:** `{"dark": "#000", "light": "#fff"}`
+- **Terminal default:** `"none"` — uses the terminal’s default color
+
+The `defs` section is optional and defines reusable colors. The `theme` section references them (e.g. `primary`, `secondary`, `accent`, `error`, `warning`, `success`, `info`, `text`, `textMuted`, `background`, `backgroundPanel`, `backgroundElement`, `border`, diff and markdown/syntax colors). See the built-in theme JSON files for the full structure.

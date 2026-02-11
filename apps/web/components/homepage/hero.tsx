@@ -16,6 +16,9 @@ const installCommands: Record<InstallMethod, { command: string; highlight: strin
   paru: { command: 'paru -S supercode', highlight: 'supercode' },
 };
 
+const DOCS_URL = process.env.NEXT_PUBLIC_DOCS_URL || 'http://localhost:3001';
+
+
 const HeroSection = () => {
   const [copied, setCopied] = useState(false);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
@@ -75,8 +78,8 @@ const HeroSection = () => {
 
         {/* Subheadline */}
         <p className="text-[17px] md:text-[19px] text-muted-foreground leading-relaxed mb-10 max-w-[700px] mx-auto">
-          Work with superCli directly in your codebase. Build, debug, and ship from your terminal,<br className="hidden md:block" />
-          IDE, Slack, or the web. Describe what you need, and superCli handles the rest.
+          Work with superCli directly in your codebase.<br className="hidden md:block" /> 
+          Build, debug, and ship from your terminal,IDE, Slack, or the web. <br className="hidden md:block" />Describe what you need, and superCli handles the rest.
         </p>
 
         {/* Install CTA - Tabbed style */}
@@ -130,7 +133,8 @@ const HeroSection = () => {
 
         {/* Documentation link */}
         <p className="text-[14px] text-muted-foreground">
-          Or read the <a href="#" className="text-foreground underline underline-offset-4 hover:text-primary transition-colors">documentation</a>
+          Or read the <a href={DOCS_URL} 
+            className="text-foreground underline underline-offset-4 hover:text-primary transition-colors">documentation</a>
         </p>
       </div>
     </section>

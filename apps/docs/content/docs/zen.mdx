@@ -1,0 +1,65 @@
+---
+title: Zen
+description: Curated list of models provided by Supercode.
+---
+
+# Zen
+
+Curated list of models provided by Supercode.
+
+Supercode Zen is a list of tested and verified models provided by the team.
+
+> **Note:** Supercode Zen is currently in beta.
+
+Zen works like any other provider. You log in and get your API key. It's **completely optional**.
+
+## Background
+
+There are many models but only a few work well as coding agents. Most providers are configured differently, so you get very different performance and quality.
+
+To fix this:
+
+1. We tested a select group of models and talked to their teams about how to best run them.
+2. We worked with providers to ensure they were served correctly.
+3. We benchmarked model/provider combinations and came up with a list we recommend.
+
+Supercode Zen is an AI gateway that gives you access to these models.
+
+## How it works
+
+1. Sign in to Supercode Zen, add your billing details, and copy your API key.
+2. Run `/connect` in the TUI, select Zen, and paste your API key.
+3. Run `/models` in the TUI to see the list of recommended models.
+
+You are charged per request and can add credits to your account.
+
+## Endpoints
+
+You can access models through API endpoints. The model id in your config uses the format `opencode/<model-id>`.
+
+## Pricing
+
+We support pay-as-you-go. Prices are per 1M tokens. See the dashboard for current pricing.
+
+## Privacy
+
+Models are hosted in the US. Providers follow a zero-retention policy and do not use your data for model training, with documented exceptions for some free tiers.
+
+## For Teams
+
+Zen works for teams. You can invite teammates, assign roles, and curate the models your team uses. Workspaces are currently free for teams during the beta.
+
+### Roles
+
+- **Admin**: Manage models, members, API keys, and billing
+- **Member**: Manage only their own API keys
+
+Admins can set monthly spending limits per member.
+
+### Model access
+
+Admins can enable or disable specific models for the workspace.
+
+### Bring your own key
+
+You can use your own OpenAI or Anthropic API keys while still accessing other models in Zen. When you use your own keys, tokens are billed directly by the provider.

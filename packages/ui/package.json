@@ -8,5 +8,12 @@
     "build": "echo 'ui build pending'",
     "lint": "echo 'ui lint pending'",
     "typecheck": "echo 'ui typecheck pending'"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "react": "^19"
   }
 }

@@ -1,0 +1,104 @@
+---
+title: Intro
+description: Get started with Supercode (OpenCode-style docs).
+---
+
+# Intro
+
+Get started with Supercode.
+
+**Supercode** is an open source AI coding agent. It's available as a terminal-based interface, desktop app, or IDE extension.
+
+Let's get started.
+
+## Prerequisites
+
+To use Supercode in your terminal, you'll need:
+
+1. A modern terminal emulator like:
+   - WezTerm — cross-platform
+   - Alacritty — cross-platform
+   - Ghostty — Linux and macOS
+   - Kitty — Linux and macOS
+2. API keys for the LLM providers you want to use.
+
+## Install
+
+The easiest way to install is through the install script.
+
+```bash
+curl -fsSL https://supercli.com/install | bash
+```
+
+You can also install with:
+
+- **Using Node.js**: `npm install -g supercode-ai`, `bun install -g supercode-ai`, `pnpm add -g supercode-ai`, or `yarn global add supercode-ai`
+- **Using Homebrew on macOS and Linux**: `brew install supercode/tap/supercode`
+- **Using Paru on Arch Linux**: `paru -S supercode-bin`
+
+### Windows
+
+**Recommended: Use WSL**
+
+For the best experience on Windows, we recommend using [Windows Subsystem for Linux (WSL)](/docs/windows-wsl). It provides better performance and full compatibility.
+
+You can also grab the binary from the Releases page.
+
+## Configure
+
+With Supercode you can use any LLM provider by configuring their API keys.
+
+If you are new to using LLM providers, we recommend using **Supercode Zen** — a curated list of models tested and verified by the team.
+
+1. Run the `/connect` command in the TUI, select your provider, and head to the auth page.
+2. Sign in, add your billing details, and copy your API key.
+3. Paste your API key.
+
+Alternatively, you can select one of the other providers. [Learn more](/docs/providers).
+
+## Initialize
+
+Now that you've configured a provider, navigate to a project and run:
+
+```bash
+cd /path/to/project
+supercode
+```
+
+Initialize Supercode for the project:
+
+```
+/init
+```
+
+This will analyze your project and create an `AGENTS.md` file in the project root.
+
+> **Tip:** Commit your project's `AGENTS.md` to Git. This helps Supercode understand the project structure and coding patterns.
+
+## Usage
+
+You are now ready to use Supercode. Feel free to ask it anything!
+
+### Ask questions
+
+You can ask Supercode to explain the codebase. Use the `@` key to fuzzy search for files in the project.
+
+### Add features
+
+You can ask Supercode to add new features. We recommend asking it to create a plan first using **Plan mode** (Tab key), then switch back to **Build mode** and ask it to make the changes.
+
+### Make changes
+
+For straightforward changes, ask Supercode to implement directly. Provide enough detail so it makes the right changes.
+
+### Undo changes
+
+Use the `/undo` command to revert changes, or `/redo` to redo them.
+
+## Share
+
+Conversations can be [shared with your team](/docs/share) using the `/share` command. This creates a link to the current conversation and copies it to your clipboard.
+
+## Customize
+
+To make it your own, we recommend [picking a theme](/docs/themes), [customizing keybinds](/docs/keybinds), [configuring formatters](/docs/formatters), [creating custom commands](/docs/commands), or editing the [config](/docs/config).
