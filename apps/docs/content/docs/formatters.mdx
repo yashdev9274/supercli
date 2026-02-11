@@ -1,0 +1,100 @@
+---
+title: Formatters
+description: OpenCode uses language-specific formatters.
+---
+
+# Formatters
+
+Supercode uses language-specific formatters.
+
+Supercode automatically formats files after writing or editing using language-specific formatters, so generated code matches your project’s style.
+
+## Built-in
+
+Supercode includes formatters for popular languages and frameworks. Examples:
+
+| Formatter   | Extensions                    | Requirements                    |
+|------------|--------------------------------|---------------------------------|
+| gofmt      | .go                            | `gofmt` command                 |
+| prettier   | .js, .jsx, .ts, .tsx, .html, .css, .md, .json, .yaml, … | `prettier` in package.json      |
+| biome      | .js, .jsx, .ts, .tsx, .html, .css, .md, .json, .yaml, … | `biome.json(c)` config file     |
+| rustfmt    | .rs                            | `rustfmt` command               |
+| ruff       | .py, .pyi                      | `ruff` command with config      |
+| zig        | .zig, .zon                     | `zig` command                   |
+| clang-format | .c, .cpp, .h, .hpp, …        | `.clang-format` config           |
+| ktlint     | .kt, .kts                      | `ktlint` command                 |
+| dart       | .dart                          | `dart` command                  |
+| terraform  | .tf, .tfvars                   | `terraform` command             |
+| shfmt      | .sh, .bash                     | `shfmt` command                 |
+
+If your project has e.g. `prettier` in `package.json`, Supercode will use it.
+
+## How it works
+
+When Supercode writes or edits a file it:
+
+1. Checks the file extension against enabled formatters
+2. Runs the appropriate formatter command
+3. Applies the formatting automatically
+
+This runs in the background so your code style is kept without extra steps.
+
+## Configure
+
+Customize formatters in the `formatter` section of your [config](/docs/config).
+
+```json
+{
+  "$schema": "https://supercode.ai/config.json",
+  "formatter": {}
+}
+```
+
+Each formatter supports:
+
+| Property      | Type     | Description                                      |
+|---------------|----------|--------------------------------------------------|
+| `disabled`    | boolean  | Set to `true` to disable the formatter           |
+| `command`     | string[] | Command to run for formatting                    |
+| `environment` | object   | Env vars when running the formatter              |
+| `extensions`  | string[] | File extensions this formatter should handle    |
+
+### Disabling formatters
+
+Disable **all** formatters:
+
+```json
+{
+  "formatter": false
+}
+```
+
+Disable a **specific** formatter:
+
+```json
+{
+  "formatter": {
+    "prettier": { "disabled": true }
+  }
+}
+```
+
+### Custom formatters
+
+Override or add formatters by specifying command, environment, and extensions. Use the **`$FILE`** placeholder in the command; it’s replaced with the path to the file being formatted.
+
+```json
+{
+  "formatter": {
+    "prettier": {
+      "command": ["npx", "prettier", "--write", "$FILE"],
+      "environment": { "NODE_ENV": "development" },
+      "extensions": [".js", ".ts", ".jsx", ".tsx"]
+    },
+    "custom-markdown-formatter": {
+      "command": ["deno", "fmt", "$FILE"],
+      "extensions": [".md"]
+    }
+  }
+}
+```

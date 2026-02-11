@@ -1,0 +1,61 @@
+---
+title: Providers
+description: Using any LLM provider in Supercode.
+---
+
+# Providers
+
+Using any LLM provider in Supercode.
+
+Supercode uses the AI SDK and supports **75+ LLM providers** plus local models.
+
+To add a provider:
+
+1. Add the API keys using the `/connect` command.
+2. Configure the provider in your Supercode config.
+
+## Credentials
+
+When you add a provider's API keys with `/connect`, they are stored in `~/.local/share/supercode/auth.json`.
+
+## Config
+
+Customize providers through the `provider` section in your config.
+
+### Base URL
+
+You can set a custom base URL for any provider with the `baseURL` option (useful for proxy services or custom endpoints).
+
+```json
+{
+  "$schema": "https://supercode.ai/config.json",
+  "provider": {
+    "anthropic": {
+      "options": {
+        "baseURL": "https://api.anthropic.com/v1"
+      }
+    }
+  }
+}
+```
+
+## Supercode Zen
+
+Supercode Zen is a list of models tested and verified to work well. [Learn more](/docs/zen).
+
+1. Run `/connect`, select Zen, and go to the auth page.
+2. Sign in, add billing details, and copy your API key.
+3. Paste your API key.
+4. Run `/models` to see recommended models.
+
+## Directory
+
+If you don't see a provider here, you can add it via config using an OpenAI-compatible or custom base URL. Popular options include:
+
+- **OpenAI** — Run `/connect`, select OpenAI, then ChatGPT Plus/Pro or enter an API key. Run `/models` to select a model.
+- **Anthropic** — Run `/connect`, select Anthropic, then Claude Pro/Max or create an API key. Run `/models`.
+- **OpenRouter** — Create an API key at openrouter.ai, run `/connect`, search for OpenRouter, paste the key. Run `/models`.
+- **Ollama (local)** — Configure in config with `baseURL: "http://localhost:11434/v1"` and your model list.
+- **LM Studio (local)** — Set `baseURL: "http://127.0.0.1:1234/v1"` and add models in config.
+
+Each provider follows the same pattern: credentials via `/connect`, then optional config in `opencode.json` for base URL, models, and provider-specific options.

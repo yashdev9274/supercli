@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: oklch(0.145 0.005 285);
+  --foreground: oklch(0.92 0 0);
+  --muted: oklch(0.22 0.006 285);
+  --muted-foreground: oklch(0.62 0.01 285);
+  --border: oklch(0.28 0.006 285);
+  --primary: oklch(0.72 0.14 165);
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: oklch(0.145 0.005 285);
+  --foreground: oklch(0.92 0 0);
+  --muted: oklch(0.22 0.006 285);
+  --muted-foreground: oklch(0.62 0.01 285);
+  --border: oklch(0.28 0.006 285);
+  --primary: oklch(0.72 0.14 165);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* Docs prose */
+.docs-prose h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+  letter-spacing: -0.025em;
+}
+.docs-prose h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: 2.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.docs-prose h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+.docs-prose h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+.docs-prose p {
+  margin-bottom: 1rem;
+  line-height: 1.7;
+}
+.docs-prose ul, .docs-prose ol {
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+}
+.docs-prose li {
+  margin-bottom: 0.25rem;
+}
+.docs-prose code {
+  font-size: 0.875em;
+  padding: 0.15em 0.4em;
+  border-radius: 0.25rem;
+  background: var(--muted);
+}
+.docs-prose pre {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border-radius: var(--radius);
+  background: var(--muted);
+  overflow-x: auto;
+}
+.docs-prose pre code {
+  padding: 0;
+  background: none;
+}
+.docs-prose blockquote {
+  margin: 1rem 0;
+  padding-left: 1rem;
+  border-left: 4px solid var(--primary);
+  color: var(--muted-foreground);
+}
+.docs-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+.docs-prose th,
+.docs-prose td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border: 1px solid var(--border);
+}
+.docs-prose th {
+  font-weight: 600;
+  background: var(--muted);
+}
+.docs-prose a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.docs-prose a:hover {
+  text-decoration: none;
+}

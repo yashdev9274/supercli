@@ -14,7 +14,8 @@
     "dev:web": "turbo dev --filter=web",
     "dev:api": "turbo dev --filter=api",
     "dev:terminal": "turbo dev --filter=supercode-cli-client",
-    "dev:terminal-server": "turbo dev --filter=supercode-cli-server"
+    "dev:terminal-server": "turbo dev --filter=supercode-cli-server",
+    "dev:docs": "turbo dev --filter=docs"
   },
   "devDependencies": {
     "turbo": "^2.5.8"

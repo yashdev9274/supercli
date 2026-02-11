@@ -1,0 +1,62 @@
+---
+title: Keybinds
+description: Customize your keybinds.
+---
+
+# Keybinds
+
+Customize your keybinds.
+
+Supercode has a list of keybinds you can customize in your config.
+
+```json
+{
+  "$schema": "https://supercode.ai/config.json",
+  "keybinds": {
+    "leader": "ctrl+x",
+    "app_exit": "ctrl+c,ctrl+d,<leader>q",
+    "editor_open": "<leader>e",
+    "theme_list": "<leader>t",
+    "sidebar_toggle": "<leader>b",
+    "session_new": "<leader>n",
+    "session_list": "<leader>l",
+    "agent_list": "<leader>a",
+    "agent_cycle": "tab",
+    "agent_cycle_reverse": "shift+tab",
+    "command_list": "ctrl+p",
+    "input_submit": "return",
+    "input_newline": "shift+return,ctrl+return,alt+return",
+    "input_clear": "ctrl+c",
+    "input_paste": "ctrl+v",
+    "messages_undo": "<leader>u",
+    "messages_redo": "<leader>r",
+    "model_list": "<leader>m"
+  }
+}
+```
+
+## Leader key
+
+Most keybinds use a **leader** key to avoid conflicts. The default leader is `ctrl+x`. Many actions are **leader** then another key (e.g. leader + `n` for new session).
+
+You don’t have to use a leader, but it’s recommended.
+
+## Disable a keybind
+
+Set a keybind to `"none"` to disable it:
+
+```json
+{
+  "keybinds": {
+    "session_compact": "none"
+  }
+}
+```
+
+## Desktop prompt shortcuts
+
+The desktop app prompt supports Readline/Emacs-style shortcuts (e.g. `ctrl+a` start of line, `ctrl+e` end of line, `ctrl+k` kill to end of line). These are built-in and not configurable via config.
+
+## Shift+Enter
+
+Some terminals don’t send modifier keys with Enter. You may need to configure your terminal to send `Shift+Enter` as an escape sequence. On Windows Terminal, you can add a custom keybinding that sends `\u001b[13;2u` for Shift+Enter.

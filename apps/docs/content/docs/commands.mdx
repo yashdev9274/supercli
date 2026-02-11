@@ -1,0 +1,91 @@
+---
+title: Commands
+description: Create custom commands for repetitive tasks.
+---
+
+# Commands
+
+Create custom commands for repetitive tasks.
+
+Custom commands let you specify a prompt that runs when you execute the command in the TUI.
+
+```
+/my-command
+```
+
+Custom commands are in addition to built-in commands like `/init`, `/undo`, `/redo`, `/share`, `/help`.
+
+## Create command files
+
+Create markdown files in the `commands/` directory to define custom commands.
+
+Example `.opencode/commands/test.md`:
+
+```md
+---
+description: Run tests with coverage
+agent: build
+model: anthropic/claude-3-5-sonnet-20241022
+---
+Run the full test suite with coverage report and show any failures.
+Focus on the failing tests and suggest fixes.
+```
+
+The frontmatter defines command properties. The content becomes the template. Use the command by typing `/` followed by the command name: `/test`.
+
+## Configure
+
+You can add custom commands through the config or by creating markdown files in the `commands/` directory.
+
+### JSON
+
+Use the `command` option in your [config](/docs/config):
+
+```jsonc
+{
+  "$schema": "https://supercode.ai/config.json",
+  "command": {
+    "test": {
+      "template": "Run the full test suite with coverage report and show any failures.\\nFocus on the failing tests and suggest fixes.",
+      "description": "Run tests with coverage",
+      "agent": "build",
+      "model": "anthropic/claude-3-5-sonnet-20241022"
+    }
+  }
+}
+```
+
+### Markdown
+
+Place command files in:
+
+- Global: `~/.config/supercode/commands/`
+- Per-project: `.opencode/commands/`
+
+The filename (without `.md`) becomes the command name (e.g. `test.md` → `/test`).
+
+## Prompt config
+
+### Arguments
+
+Use the `$ARGUMENTS` placeholder to pass arguments. For example, `/component Button` replaces `$ARGUMENTS` with `Button`. You can also use `$1`, `$2`, `$3` for positional arguments.
+
+### Shell output
+
+Use **!`command`** to inject shell command output into the prompt. Commands run in the project root.
+
+### File references
+
+Use `@path/to/file` to include file content in the command prompt.
+
+## Options
+
+- **template** — Required. The prompt sent to the LLM when the command runs.
+- **description** — Shown in the TUI when you type the command.
+- **agent** — Optional. Which [agent](/docs/config#agents) runs the command. Defaults to the current agent.
+- **subtask** — Optional. Set to `true` to force the command to run as a subagent.
+- **model** — Optional. Override the model for this command.
+
+## Built-in
+
+Supercode includes built-in commands like `/init`, `/undo`, `/redo`, `/share`, `/help`. Custom commands can override built-in ones if you define a command with the same name.

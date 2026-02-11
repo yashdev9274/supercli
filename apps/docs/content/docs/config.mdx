@@ -1,0 +1,122 @@
+---
+title: Config
+description: Using the Supercode JSON config.
+---
+
+# Config
+
+Using the Supercode JSON config.
+
+You can configure Supercode using a JSON config file.
+
+## Format
+
+Supercode supports both **JSON** and **JSONC** (JSON with Comments) formats.
+
+```jsonc
+{
+  "$schema": "https://supercode.ai/config.json",
+  "theme": "opencode",
+  "model": "anthropic/claude-sonnet-4-5",
+  "autoupdate": true
+}
+```
+
+## Locations
+
+Config can live in several places with the following precedence (later overrides earlier for conflicting keys; non-conflicting settings are merged):
+
+1. **Remote config** (`.well-known/opencode`) — organizational defaults
+2. **Global config** (`~/.config/supercode/opencode.json`) — user preferences
+3. **Custom config** (`OPENCODE_CONFIG` env var) — custom overrides
+4. **Project config** (`opencode.json` in project root) — project-specific
+5. **Inline config** (`OPENCODE_CONFIG_CONTENT` env var) — runtime overrides
+
+### Global
+
+Place global config in `~/.config/supercode/opencode.json`. Use it for themes, providers, keybinds.
+
+### Per project
+
+Add `opencode.json` in your project root. Project config overrides global and remote.
+
+### Custom path
+
+Set `OPENCODE_CONFIG=/path/to/config.json` to use a custom config file.
+
+## Schema
+
+The config has a schema at `https://supercode.ai/config.json`. Your editor can validate and autocomplete.
+
+### TUI
+
+Configure TUI settings (scroll speed, diff style, etc.) under the `tui` option.
+
+### Server
+
+Configure `opencode serve` and `opencode web` with the `server` option (port, hostname, mdns, cors).
+
+### Tools
+
+Control which tools the LLM can use via the `tools` option (e.g. `write`, `bash`).
+
+### Models
+
+Set `provider`, `model`, and `small_model`. The `small_model` is used for lightweight tasks like title generation.
+
+### Themes
+
+Set `theme` to a built-in or custom theme name. [Learn more](/docs/themes).
+
+### Agents
+
+Configure specialized agents with the `agent` option. You can also define agents in `~/.config/supercode/agents/` or `.opencode/agents/`.
+
+### Default agent
+
+Set `default_agent` to choose which agent is used when none is specified (e.g. `"build"` or `"plan"`).
+
+### Sharing
+
+Configure sharing with the `share` option: `"manual"` (default), `"auto"`, or `"disabled"`. [Learn more](/docs/share).
+
+### Commands
+
+Add custom commands under the `command` option or in `.opencode/commands/`. [Learn more](/docs/commands).
+
+### Keybinds
+
+Customize keybinds with the `keybinds` option. [Learn more](/docs/keybinds).
+
+### Autoupdate
+
+Set `autoupdate: false` to disable automatic updates. Use `"notify"` to only get notified of new versions.
+
+### Formatters
+
+Configure formatters with the `formatter` option. [Learn more](/docs/formatters).
+
+### Permissions
+
+Use the `permission` option to require approval for tools (e.g. `"edit": "ask"`, `"bash": "ask"`).
+
+### MCP servers
+
+Configure MCP servers with the `mcp` option.
+
+### Plugins
+
+Load plugins via the `plugin` option (e.g. `["plugin-name", "@org/plugin"]`). Place files in `.opencode/plugins/` or `~/.config/supercode/plugins/`.
+
+### Instructions
+
+Point to instruction files with `instructions`: an array of paths/globs (e.g. `["CONTRIBUTING.md", "docs/guidelines.md"]`).
+
+### Disabled / enabled providers
+
+Use `disabled_providers` to block specific providers. Use `enabled_providers` to allow only listed providers. `disabled_providers` takes priority.
+
+## Variables
+
+- **Env vars:** Use `{env:VARIABLE_NAME}` in the config to substitute environment variables.
+- **Files:** Use `{file:path/to/file}` to substitute file contents. Paths can be relative to the config file or absolute (`/` or `~`).
