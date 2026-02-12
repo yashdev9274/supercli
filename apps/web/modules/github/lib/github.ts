@@ -89,3 +89,49 @@ export const getRepositories = async(page: number=1, per_page=10)=>{
 
   return data
 }
+
+
+export const createWebhook = async(owner:string, repo:string)=>{
+  const token = await getGithubToken()
+
+  const octokit = new Octokit({auth:token})
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL?.replace(/\/$/, '')
+  const webhookUrl = `${baseUrl}/api/webhooks/github`
+
+  const{data:hooks} = await octokit.rest.repos.listWebhooks({
+    owner,
+    repo
+  })
+
+  // check any existing webhook
+
+  const existingHook = hooks.find(hook => {
+    const hookUrl = hook.config?.url
+    if (!hookUrl) return false
+    // Normalize both URLs for comparison (remove trailing slashes)
+    const normalizedHookUrl = hookUrl.replace(/\/$/, '')
+    const normalizedWebhookUrl = webhookUrl.replace(/\/$/, '')
+    return normalizedHookUrl === normalizedWebhookUrl
+  })
+
+  if(existingHook){
+    return existingHook
+  }
+
+
+  // creating webhook
+
+  const {data} = await octokit.rest.repos.createWebhook({
+    owner,
+    repo,
+    config:{
+      url:webhookUrl,
+      content_type:"json"
+    },
+    events:["pull_request"]
+  })
+
+  return data
+
+}

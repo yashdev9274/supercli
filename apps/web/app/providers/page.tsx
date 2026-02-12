@@ -16,6 +16,7 @@ import {
   Link,
 } from "lucide-react";
 import { useRepositories } from "@/modules/repository/hooks/use-repositories";
+import { useConnectRepository } from "@/modules/repository/hooks/use-connect-repositories";
 import { RepositoryListSkeleton } from "@/modules/repository/components/repository-skelaton";
 
 interface GitHubRepo {
@@ -40,17 +41,24 @@ export default function ProvidersPage() {
     isFetchingNextPage,
   } = useRepositories();
 
+  const { mutate: connectRepo, isPending: isConnecting } = useConnectRepository();
+
   const [searchQuery, setSearchQuery] = useState("");
-  const [connectingId, setConnectingId] = useState<string | null>(null);
-  const [connectedIds, setConnectedIds] = useState<Set<string>>(new Set());
+  const [connectingId, setConnectingId] = useState<number | null>(null);
   const observerTarget = useRef<HTMLDivElement>(null);
 
-  const handleConnect = async (repoId: string) => {
-    setConnectingId(repoId);
-    // Simulate connection delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setConnectedIds(prev => new Set(prev).add(repoId));
-    setConnectingId(null);
+  const handleConnect = (repo: GitHubRepo) => {
+    setConnectingId(repo.id);
+    connectRepo(
+      {
+        owner: repo.full_name.split("/")[0],
+        repo: repo.name,
+        githubId: repo.id,
+      },
+      {
+        onSettled: () => setConnectingId(null),
+      }
+    );
   };
 
   // Intersection Observer for infinite scroll
@@ -79,31 +87,33 @@ export default function ProvidersPage() {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // Flatten paginated data
-  const allRepositories: GitHubRepo[] = data?.pages.flatMap(page => page) || [];
+  const allRepositories: GitHubRepo[] = data?.pages.flatMap((page) => page) || [];
 
   // Filter repositories based on search
-  const filteredRepos = allRepositories.filter((repo) =>
-    repo.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    repo.full_name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredRepos = allRepositories.filter(
+    (repo) =>
+      repo.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      repo.full_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Transform GitHub data to match UI structure
-  const transformedRepos = filteredRepos.map(repo => {
-    const isConnected = repo.isConnected || connectedIds.has(String(repo.id));
+  const transformedRepos = filteredRepos.map((repo) => {
+    const isConnecting = connectingId === repo.id;
     return {
       id: String(repo.id),
       name: repo.name,
       provider: "github",
-      owner: repo.full_name.split('/')[0] || "unknown",
-      visibility: repo.private ? "private" as const : "public" as const,
+      owner: repo.full_name.split("/")[0] || "unknown",
+      visibility: repo.private ? ("private" as const) : ("public" as const),
       lastSync: "Just now",
-      status: isConnected ? "synced" as const : "syncing" as const,
+      status: repo.isConnected ? ("synced" as const) : ("syncing" as const),
       branches: 0,
       prs: 0,
       html_url: repo.html_url,
       language: repo.language,
-      isConnected,
-      isConnecting: connectingId === String(repo.id),
+      isConnected: repo.isConnected,
+      isConnecting,
+      originalRepo: repo,
     };
   });
 
@@ -272,7 +282,7 @@ export default function ProvidersPage() {
                     <button className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground/40 hover:bg-muted/30 hover:text-foreground transition-all opacity-0 group-hover:opacity-100">
                       <RefreshCw className="h-3.5 w-3.5" />
                     </button>
-                    <a 
+                    <a
                       href={repo.html_url}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -284,7 +294,7 @@ export default function ProvidersPage() {
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                     <button
-                      onClick={() => handleConnect(repo.id)}
+                      onClick={() => handleConnect(repo.originalRepo)}
                       disabled={repo.isConnecting || repo.isConnected}
                       className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
                         repo.isConnected
