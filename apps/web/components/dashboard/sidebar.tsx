@@ -21,6 +21,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
+import { useMounted } from "@/hooks/use-mounted";
 import { motion, AnimatePresence } from "framer-motion";
 // import { useOrganizations } from "@/hooks/use-organizations";
 import {
@@ -141,6 +142,7 @@ export function Sidebar() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newOrgName, setNewOrgName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const mounted = useMounted();
 
   
 
@@ -197,7 +199,7 @@ export function Sidebar() {
         )}
       >
           <div className="flex h-14 items-center justify-between px-4 border-b border-sidebar-border">
-            {!isCollapsed && (
+            {!isCollapsed && mounted && (
               <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

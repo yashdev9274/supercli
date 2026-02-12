@@ -1,3 +1,5 @@
+"use server";
+
 import { getRepositories } from "@/modules/github/lib/github"
 import { auth } from "@super/auth/server"
 import prisma from "@super/db"
