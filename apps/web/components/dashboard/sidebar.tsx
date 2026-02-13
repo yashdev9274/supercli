@@ -15,7 +15,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
-  Check
+  Check,
+  Settings
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -125,9 +126,9 @@ const navigation: NavigationGroup[] = [
     ]
   },
   { 
-    section: "API",
+    section: "Platform",
     items: [
-      { name: "API Keys", href: "/api-keys", icon: Code2 },
+      { name: "Settings", href: "/settings", icon: Settings },
       { name: "Documentation", href: "/docs", icon: FileText },
     ]
   }
