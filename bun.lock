@@ -507,6 +507,8 @@
 
     "@octokit/webhooks-methods": ["@octokit/webhooks-methods@6.0.0", "", {}, "sha512-MFlzzoDJVw/GcbfzVC1RLR36QqkTLUf79vLVO3D+xn7r0QgxnFoLZgtrzxiQErAjFUOdH6fas2KeQJ1yr/qaXQ=="],
 
+    "@opentelemetry/api": ["@opentelemetry/api@1.9.0", "", {}, "sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg=="],
+
     "@oxc-project/types": ["@oxc-project/types@0.110.0", "", {}, "sha512-6Ct21OIlrEnFEJk5LT4e63pk3btsI6/TusD/GStLi7wYlGJNOl1GI9qvXAnRAxQU9zqA2Oz+UwhfTOU2rPZVow=="],
 
     "@oxc-transform/binding-android-arm-eabi": ["@oxc-transform/binding-android-arm-eabi@0.111.0", "", { "os": "android", "cpu": "arm" }, "sha512-NdFLicvorfHYu0g2ftjVJaH7+Dz27AQUNJOq8t/ofRUoWmczOodgUCHx8C1M1htCN4ZmhS/FzfSy6yd/UngJGg=="],
