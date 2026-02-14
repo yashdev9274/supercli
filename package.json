@@ -15,7 +15,11 @@
     "dev:api": "turbo dev --filter=api",
     "dev:terminal": "turbo dev --filter=supercode-cli-client",
     "dev:terminal-server": "turbo dev --filter=supercode-cli-server",
-    "dev:docs": "turbo dev --filter=docs"
+    "dev:docs": "turbo dev --filter=docs",
+    "dev:video": "bun run --cwd apps/video dev",
+    "build:video": "bun run --cwd apps/video build",
+    "build:video:square": "bun run --cwd apps/video build:square",
+    "build:video:vertical": "bun run --cwd apps/video build:vertical"
   },
   "devDependencies": {
     "turbo": "^2.5.8"
@@ -24,6 +28,7 @@
   "dependencies": {
     "-": "^0.0.1",
     "g": "^2.0.1",
+    "inngest": "^3.52.0",
     "vercel": "^50.13.2"
   }
 }

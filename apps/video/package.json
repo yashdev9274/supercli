@@ -1,0 +1,25 @@
+{
+  "name": "video",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "remotion studio",
+    "build": "remotion render Root out/video.mp4",
+    "build:square": "remotion render Root --props='{\"width\":1080,\"height\":1080}' out/video-square.mp4",
+    "build:vertical": "remotion render Root --props='{\"width\":1080,\"height\":1920}' out/video-vertical.mp4",
+    "upgrade": "remotion upgrade"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.421",
+    "@remotion/player": "4.0.421",
+    "@remotion/transitions": "4.0.421",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "remotion": "4.0.421"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/web": "^0.0.139",
+    "typescript": "^5.5.4"
+  }
+}
