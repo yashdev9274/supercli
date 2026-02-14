@@ -12,7 +12,8 @@
     "lint": "echo 'db lint pending'",
     "typecheck": "echo 'db typecheck pending'",
     "postinstall": "bun run db:generate",
-    "db:generate": "prisma generate --schema ./prisma/schema.prisma",
+    "db:clean": "rm -rf src/generated/prisma",
+    "db:generate": "bun run db:clean && prisma generate --schema ./prisma/schema.prisma",
     "db:migrate": "prisma migrate deploy --schema ./prisma/schema.prisma"
   },
   "dependencies": {
