@@ -27,6 +27,8 @@
   "packageManager": "bun@1.2.21",
   "dependencies": {
     "-": "^0.0.1",
+    "@ai-sdk/google": "^3.0.29",
+    "@pinecone-database/pinecone": "^7.0.0",
     "g": "^2.0.1",
     "inngest": "^3.52.0",
     "vercel": "^50.13.2"
