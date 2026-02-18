@@ -1,16 +1,19 @@
+import os
 from datasets import load_dataset, concatenate_datasets
 from dill import load
 
 def prepare_coding_dataset():
     datasets=[]
 
-    code_alpaca = load_dataset("HuggingFaceH4/CodeAlpaca_20k", split="train")
+    code_alpaca = load_dataset("HuggingFaceH4/CodeAlpaca_20K", split="train", token=os.getenv("HF_TOKEN"))
     datasets.append(code_alpaca)
 
     # openCodeReasoning
 
-    reasoning = load_dataset("nvidia/OpenCodeReasoning","split_0", split="train")
-    reasoning= reasoning.filter(lambda x: "code" in x.get("tags", []))
+    reasoning = load_dataset("nvidia/OpenCodeReasoning","split_0", token=os.getenv("HF_TOKEN"))
+    reasoning=reasoning["split_0"]
+    reasoning= reasoning.filter(lambda x: "code" in x.get("tags", []) if x.get("tags") else False)
+    reasoning=reasoning.select(range(30000))
     datasets.append(reasoning)
 
     # combine
@@ -20,12 +23,12 @@ def prepare_coding_dataset():
 
     # limit to 50k samples
 
-    combined = combined.select(range(50000))
+    # combined = combined.select(range(50000))
 
     # split
     split = combined.train_test_split(test_size=0.05)
 
-    return split("train"), split("test")
+    return split["train"], split["test"]
 
 if __name__ == "__main__":
     train, val = prepare_coding_dataset()
