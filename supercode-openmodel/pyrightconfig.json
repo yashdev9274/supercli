@@ -1,0 +1,12 @@
+{
+  "pythonVersion": "3.11",
+  "pythonPath": "/opt/homebrew/bin/python3.11",
+  "extraPaths": [
+    "/opt/homebrew/lib/python3.11/site-packages"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "."
+    }
+  ]
+}
