@@ -12,6 +12,7 @@
     "db:generate": "prisma generate --schema ../../packages/db/prisma/schema.prisma"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.29",
     "@hookform/resolvers": "^5.2.2",
     "@prisma/adapter-pg": "^7.2.0",
     "@prisma/client": "^7.2.0",
