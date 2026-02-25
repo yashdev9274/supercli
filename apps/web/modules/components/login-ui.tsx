@@ -78,6 +78,8 @@ const LoginUI=()=> {
         <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(var(--border)_1px,transparent_1px)] [background-size:24px_24px]" />
       </div>
 
+      {/* login header */}
+
       <nav className="relative z-10 flex justify-between items-center px-8 py-6 border-b border-border bg-background/50 backdrop-blur-sm">
         <div className="flex items-center gap-2">
           <div className="bg-primary p-1.5 rounded-none">
@@ -89,6 +91,8 @@ const LoginUI=()=> {
           <Moon className="w-4 h-4 text-muted-foreground" />
         </button>
       </nav>
+
+      {/* main content */}
 
       <main className="relative z-10 container mx-auto px-8 pt-12 lg:pt-24 flex flex-col lg:flex-row items-center justify-between gap-16">
         {/* Left Side: Marketing Content */}
