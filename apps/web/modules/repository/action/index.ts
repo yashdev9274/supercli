@@ -59,7 +59,7 @@ export const connectRepository = async (owner: string, repo: string, githubId: n
 
   try {
     await inngest.send({
-      name: "repository.connected",
+      name: "repository-connected",
       data:{
         owner,
         repo,

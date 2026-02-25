@@ -1,6 +1,7 @@
 import prisma from "@super/db";
 import { inngest } from "../client";
 import { getRepoFileContents } from "@/modules/github/lib/github";
+import { indexCodebase } from "@/modules/pinecone/rag";
 
 export const helloWorld = inngest.createFunction(
   { id: "hello-world" },
@@ -34,7 +35,9 @@ export const indexRepo = inngest.createFunction(
     })
 
     await step.run("index-codebase", async()=>{
-      
+      await indexCodebase(`${owner}/${repo}`, files)
     })
+
+    return {success:true, indexedFiles: files.length}
   }
 )
