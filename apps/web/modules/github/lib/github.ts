@@ -259,3 +259,21 @@ export async function getPullRequestDiff(
   }
   
 }
+
+export async function postReviewComment(
+  token:string,
+  owner:string,
+  repo:string,
+  prNumber:number,
+  review:string
+){
+  
+  const octokit = new Octokit({auth:token})
+
+  await octokit.rest.issues.createComment({
+    owner,
+    repo,
+    issue_number:prNumber,
+    body: `## 🤖 AI Code Review\n\n${review}\n\n---\n*Powered by CodeRabbit Clone*`,
+  })
+}
