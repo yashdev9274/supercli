@@ -370,5 +370,5 @@ This project is currently private and proprietary.
 ---
 
 <div align="center">
-  <strong>Built with ❤️ by Yash the Supercode team</strong>
+  <strong>Built with ❤️ by the Supercode team</strong>
 </div>
