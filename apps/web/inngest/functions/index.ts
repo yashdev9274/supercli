@@ -20,6 +20,7 @@ export const indexRepo = inngest.createFunction(
     const{owner, repo, userId} = event.data
   
     const files = await step.run("fetch-files", async()=>{
+      console.log("[DEBUG] Starting to fetch files for", owner, repo)
       const account = await prisma.account.findFirst({
         where:{
           userId:userId,
@@ -31,13 +32,19 @@ export const indexRepo = inngest.createFunction(
         throw new Error("No github access token found");
       }
 
-      return await getRepoFileContents(account.accessToken, owner, repo)
+      const files = await getRepoFileContents(account.accessToken, owner, repo)
+      console.log("[DEBUG] Fetched files count:", files.length)
+      console.log("[DEBUG] File paths:", files.map(f => f.path).join(", "))
+      return files
     })
 
-    await step.run("index-codebase", async()=>{
-      await indexCodebase(`${owner}/${repo}`, files)
+    const indexedCount = await step.run("index-codebase", async()=>{
+      console.log("[DEBUG] Starting indexing for", owner, repo, "with", files.length, "files")
+      const result = await indexCodebase(`${owner}/${repo}`, files)
+      console.log("[DEBUG] Indexed count:", result)
+      return result
     })
 
-    return {success:true, indexedFiles: files.length}
+    return {success:true, indexedFiles: indexedCount}
   }
 )

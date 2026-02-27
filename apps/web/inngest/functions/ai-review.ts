@@ -4,6 +4,7 @@ import { getPullRequestDiff, postReviewComment } from "@/modules/github/lib/gith
 import { retrieveContext } from "@/modules/pinecone/rag";
 import { generateText } from "ai";
 import { google } from "@ai-sdk/google";
+import { success } from "better-auth";
 
 export const generateReview = inngest.createFunction(
 
@@ -72,6 +73,30 @@ export const generateReview = inngest.createFunction(
         await step.run("post-comment", async()=>{
             await postReviewComment(token, owner, repo, prNumber, review)
         })
+
+        await step.run("save-review",async()=>{
+            const repository = await prisma.repository.findFirst({
+                where:{
+                    owner,
+                    name:repo,
+                }
+            })
+            if(repository){
+                await prisma.review.create({
+                    data:{
+                        repositoryId: repository.id,
+                        prNumber,
+                        prTitle: title,
+                        prUrl: `https://github.com/${owner}/${repo}/pull/${prNumber}`,
+                        review,
+                        status: "completed"
+                        
+                    }
+                })
+            }
+        })
+        return{success:true}
+
 
 
     }
