@@ -263,7 +263,7 @@ supercli/
 │   │   └── server/          # WebSocket server
 │   │
 │   ├── api/                 # API server
-│   └── video/               # Video generation
+│   └── video/               # Video generation #optional
 │
 ├── packages/
 │   ├── db/                  # Prisma client
