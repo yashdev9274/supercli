@@ -2,7 +2,7 @@
   
   # Supercode
   
-  **AI-Powered Development Platform**
+  **AI-Powered Terminal Coding Agent**
   
   A monorepo containing the Supercode dashboard, documentation, terminal AI client, and shared packages.
   
