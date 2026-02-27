@@ -263,7 +263,7 @@ supercli/
 │   │   └── server/          # WebSocket server
 │   │
 │   ├── api/                 # API server
-│   └── video/               # Video generation
+│   └── video/               # Video generation #optional
 │
 ├── packages/
 │   ├── db/                  # Prisma client
@@ -370,5 +370,5 @@ This project is currently private and proprietary.
 ---
 
 <div align="center">
-  <strong>Built with ❤️ by the Supercode team</strong>
+  <strong>Built with ❤️ by Yash the Supercode team</strong>
 </div>
