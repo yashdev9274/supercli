@@ -2,7 +2,7 @@
   
   # Supercode
   
-  **AI-Powered Development Platform**
+  **AI-Powered Terminal Coding Agent**
   
   A monorepo containing the Supercode dashboard, documentation, terminal AI client, and shared packages.
   
@@ -370,5 +370,5 @@ This project is currently private and proprietary.
 ---
 
 <div align="center">
-  <strong>Built with ❤️ by Yash Dewasthale from Supercode team!</strong>
+  <strong>Built with ❤️ by the Supercode team!</strong>
 </div>
