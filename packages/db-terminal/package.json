@@ -1,0 +1,26 @@
+{
+  "name": "@super/db-terminal",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "scripts": {
+    "build": "echo 'db-terminal build pending'",
+    "lint": "echo 'db-terminal lint pending'",
+    "typecheck": "echo 'db-terminal typecheck pending'",
+    "postinstall": "bun run db:generate",
+    "db:clean": "rm -rf src/generated/prisma",
+    "db:generate": "bun run db:clean && prisma generate --schema ./prisma/schema.prisma",
+    "db:migrate": "prisma migrate deploy --schema ./prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.2.0",
+    "@prisma/client": "^7.2.0"
+  },
+  "devDependencies": {
+    "prisma": "^7.2.0"
+  }
+}
