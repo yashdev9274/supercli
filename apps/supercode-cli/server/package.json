@@ -1,0 +1,36 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "nodemon src/index.ts",
+    "start": "bun src/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "nodemonConfig": {
+    "watch": ["src"],
+    "ext": "ts,json",
+    "exec": "bun src/index.ts",
+    "ignore": ["node_modules"]
+  },
+  "type": "module",
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.4.2",
+    "@prisma/client": "^7.4.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
+    "express": "^5.1.0",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.18.0",
+    "nodemon": "^3.1.0",
+    "prisma": "^7.4.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.0"
+  }
+}

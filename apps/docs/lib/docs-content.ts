@@ -5,12 +5,30 @@ import { DOCS_NAV } from "./docs-nav"
 
 const CONTENT_DIR = path.join(process.cwd(), "content/docs")
 
+function getFilesRecursively(dir: string): string[] {
+  if (!fs.existsSync(dir)) return []
+  
+  const entries = fs.readdirSync(dir, { withFileTypes: true })
+  let files: string[] = []
+  
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      files = [...files, ...getFilesRecursively(fullPath)]
+    } else if (entry.name.endsWith(".mdx")) {
+      files.push(fullPath)
+    }
+  }
+  
+  return files
+}
+
 export function getDocSlugs(): string[] {
-  if (!fs.existsSync(CONTENT_DIR)) return []
-  return fs
-    .readdirSync(CONTENT_DIR)
-    .filter((f) => f.endsWith(".mdx"))
-    .map((f) => f.replace(/\.mdx$/, ""))
+  const files = getFilesRecursively(CONTENT_DIR)
+  return files.map((f) => {
+    const relativePath = path.relative(CONTENT_DIR, f)
+    return relativePath.replace(/\.mdx$/, "").replace(/\\/g, "/")
+  })
 }
 
 export function getDocBySlug(
