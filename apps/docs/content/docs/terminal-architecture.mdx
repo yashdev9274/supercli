@@ -1,0 +1,114 @@
+---
+title: Architecture
+description: Technical architecture of the Terminal.
+---
+
+# Architecture
+
+This document describes the technical architecture of the Supercode Terminal.
+
+## Overview
+
+The Terminal consists of three main components:
+
+1. **Web Client** - Next.js application for the user interface
+2. **WebSocket Server** - Handles real-time AI communication
+3. **Database** - PostgreSQL for persistent storage
+
+## Project Structure
+
+```
+apps/supercode-cli/
+├── client/              # Next.js web application
+│   ├── app/            # App Router pages
+│   ├── components/     # React components
+│   └── lib/            # Utilities
+│
+└── server/             # Express + WebSocket server
+    ├── src/
+    │   └── index.ts    # Server entry point
+    └── prisma/         # Database schema
+```
+
+## Database Schema
+
+Terminal uses a separate PostgreSQL database with the following models:
+
+### TerminalUser
+- Stores user accounts (separate from dashboard)
+- Supports email/password and GitHub OAuth
+
+### Session
+- Active coding sessions
+- Stores conversation history
+- Tracks session status (active, paused, archived)
+
+### Message
+- Chat messages within sessions
+- Role (user, assistant, system)
+- Token usage tracking
+
+### Workspace
+- Project workspaces
+- File tree caching
+- Git ignore patterns
+
+### ApiKey
+- User's AI provider API keys
+- Encrypted storage
+- Provider tracking (OpenAI, Anthropic, etc.)
+
+### ToolCall
+- AI tool execution logs
+- Input/output tracking
+- Status (pending, success, error)
+
+## Communication
+
+### WebSocket Protocol
+
+The client connects via WebSocket for real-time communication:
+
+```
+Client <--> WebSocket Server <--> AI Provider
+                |
+                v
+           Database
+```
+
+### Message Format
+
+Messages are JSON with the following structure:
+```json
+{
+  "type": "message" | "tool_call" | "stream",
+  "sessionId": "string",
+  "content": "string",
+  "role": "user" | "assistant",
+  "metadata": {}
+}
+```
+
+## Authentication
+
+Terminal uses separate authentication from the dashboard:
+- **Better-Auth** for auth management
+- **GitHub OAuth** for social login
+- Sessions stored in database
+
+## Deployment
+
+### Client
+- **Platform**: Vercel
+- **Domain**: terminal.supercli.com
+
+### Server
+- **Platform**: Railway/Fly.io (recommended for WebSockets)
+- **Reason**: Vercel has limited WebSocket support
+
+## Security
+
+- API keys are encrypted at rest
+- WebSocket connections over WSS (secure)
+- Rate limiting on API endpoints
+- Input sanitization for tool execution

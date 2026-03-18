@@ -1,0 +1,58 @@
+---
+title: Authentication
+description: Setting up GitHub OAuth authentication.
+---
+
+# Authentication
+
+Supercode uses GitHub OAuth for secure authentication. This allows you to sign in with your GitHub account and access your repositories.
+
+## Sign In
+
+1. Visit [supercli.com](https://supercli.com)
+2. Click **Sign In** 
+3. You'll be redirected to GitHub for authorization
+4. Authorize the Supercode application
+5. You'll be redirected back to the dashboard
+
+## GitHub OAuth Setup
+
+### For Users
+
+The OAuth flow is handled automatically. When you sign in:
+
+1. GitHub will ask you to authorize Supercode
+2. Grant access to your GitHub account
+3. You'll be able to view and connect your repositories
+
+### Required Permissions
+
+Supercode requests the following GitHub permissions:
+- **Read user profile** - To display your account info
+- **Read repositories** - To list and display your repos
+- **Read repository contents** - To analyze code when using Terminal
+
+## Session Management
+
+- Sessions are managed via secure HTTP-only cookies
+- Session tokens are encrypted with `BETTER_AUTH_SECRET`
+- Sessions persist across browser sessions
+
+## Security
+
+- Passwords are never stored (GitHub handles authentication)
+- API keys for AI providers are stored per-user in encrypted form
+- All requests are served over HTTPS in production
+
+## Troubleshooting
+
+### Authorization Failed
+
+If GitHub authorization fails:
+1. Check that you're logged into the correct GitHub account
+2. Ensure the Supercode app hasn't been revoked in GitHub settings
+3. Try clearing browser cookies and signing in again
+
+### Session Expired
+
+Sessions expire after 30 days of inactivity. Simply sign in again to continue.

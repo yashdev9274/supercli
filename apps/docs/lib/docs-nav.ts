@@ -1,12 +1,12 @@
 export const DOCS_NAV: { title: string; slug: string }[] = [
-  { title: "Intro", slug: "intro" },
-  { title: "Zen", slug: "zen" },
-  { title: "Providers", slug: "providers" },
-  { title: "Config", slug: "config" },
-  { title: "Commands", slug: "commands" },
-  { title: "Themes", slug: "themes" },
-  { title: "Keybinds", slug: "keybinds" },
-  { title: "Share", slug: "share" },
-  { title: "Formatters", slug: "formatters" },
-  { title: "Windows (WSL)", slug: "windows-wsl" },
+  // Dashboard
+  { title: "Dashboard", slug: "dashboard-intro" },
+  { title: "Authentication", slug: "authentication" },
+  { title: "Repositories", slug: "repositories" },
+  { title: "Settings", slug: "settings" },
+  
+  // Terminal
+  { title: "Terminal", slug: "terminal-intro" },
+  { title: "Getting Started", slug: "terminal-getting-started" },
+  { title: "Architecture", slug: "terminal-architecture" },
 ]

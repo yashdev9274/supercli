@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
 
 export default function DocsIndex() {
-  redirect("/docs/intro")
+  redirect("/docs/dashboard-intro")
 }

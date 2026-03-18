@@ -3,7 +3,7 @@ import "./globals.css"
 
 export const metadata: Metadata = {
   title: "Docs | Supercode",
-  description: "Documentation for Supercode — AI coding agent for the terminal.",
+  description: "Documentation for Supercode — AI SWE agent for the terminal.",
 }
 
 export default function RootLayout({
