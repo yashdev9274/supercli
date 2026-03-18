@@ -45,6 +45,7 @@ yarn-error.log*
 next-env.d.ts
 
 /packages/db/src/generated/prisma
+/packages/db-terminal/src/generated
 **/node_modules
 
 # turbo

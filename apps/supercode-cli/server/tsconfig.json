@@ -24,6 +24,16 @@
     // Some stricter flags (disabled by default)
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false
+    "noPropertyAccessFromIndexSignature": false,
+
+    // Base URL for paths
+    "baseUrl": ".",
+    
+    // Paths
+    "paths": {
+      "@super/db-terminal": ["../../packages/db-terminal/index.ts"],
+      "@super/db-terminal/*": ["../../packages/db-terminal/*"],
+      "db-terminal-generated": ["../../packages/db-terminal/src/generated/index"]
+    }
   }
 }
