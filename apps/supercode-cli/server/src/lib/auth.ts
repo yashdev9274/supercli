@@ -5,7 +5,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
 const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL_TERMINAL || "postgresql://postgres:postgres@localhost:5432/postgres",
+  connectionString: process.env.DATABASE_URL || "postgresql://neondb_owner:npg_1bpOJngF2ohy@ep-sparkling-term-ad22ysxy-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require",
 });
 
 const prisma = new PrismaClient({ adapter });
@@ -14,10 +14,9 @@ export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
-  emailAndPassword: {
-    enabled: true,
-    requireEmailVerification: false,
-  },
+  baseURL: "http://localhost:3004",
+  basePath: "/api/auth",
+  trustedOrigins: ["http://localhost:3000", "http://localhost:3004"],
   socialProviders: {
     github: {
       clientId: process.env.GITHUB_CLIENT_ID as string,
