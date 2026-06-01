@@ -1,152 +1,136 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { PulseButton } from "@/components/ui/pulse-button";
+import { useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { authClient } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
+import { Spinner } from "@/components/ui/spinner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { LogOut, Mail, User, CheckCircle2 } from "lucide-react";
 
-function MatrixRain() {
-  const [chars, setChars] = useState<Array<{ id: number; chars: string[] }>>([]);
-
-  useEffect(() => {
-    const columns = Math.floor(typeof window !== "undefined" ? window.innerWidth / 20 : 50);
-    const newChars = Array.from({ length: columns }, (_, i) => ({
-      id: i,
-      chars: Array.from({ length: 20 }, () =>
-        String.fromCharCode(0x30a0 + Math.random() * 96)
-      ),
-    }));
-    setChars(newChars);
-  }, []);
-
+function BackgroundGlow() {
   return (
-    <div className="absolute inset-0 overflow-hidden opacity-[0∫.03] pointer-events-none">
-      {chars.map((col) => (
-        <div
-          key={col.id}
-          className="absolute top-0 animate-[matrix_8s_linear_infinite]"
-          style={{
-            left: `${col.id * 4}%`,
-            animationDuration: `${8 + Math.random() * 4}s`,
-            animationDelay: `-${Math.random() * 8}s`,
-          }}
-        >
-          {col.chars.map((char, i) => (
-            <span
-              key={i}
-              className={cn(
-                "text-xs font-mono",
-                i < 5 ? "text-amber-500" : "text-zinc-500"
-              )}
-            >
-              {char}
-            </span>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function GridPattern() {
-  return (
-    <div className="absolute inset-0 bg-[linear-gradient(rgba(245,158,11,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(245,158,11,0.03)_1px,transparent_1px)] bg-[size:50px_50px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_50%,black_40%,transparent_100%)] pointer-events-none" />
-  );
-}
-
-function Vignette() {
-  return (
-    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)] pointer-events-none" />
+    <>
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(251,146,60,0.06)_0%,transparent_60%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(245,158,11,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(245,158,11,0.02)_1px,transparent_1px)] bg-[size:60px_60px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_40%,black_30%,transparent_100%)] pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.6)_100%)] pointer-events-none" />
+    </>
   );
 }
 
 export default function Home() {
-  const [mounted, setMounted] = useState(false);
-  const [showContent, setShowContent] = useState(false);
+  const { data, isPending } = authClient.useSession()
+  const router = useRouter()
 
   useEffect(() => {
-    setMounted(true);
-    const timer = setTimeout(() => setShowContent(true), 100);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!isPending && !data?.session) {
+      router.push("/sign-in")
+    }
+  }, [data, isPending, router])
+
+  if (isPending) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-zinc-950">
+        <Spinner className="size-8 text-amber-500" />
+      </div>
+    )
+  }
 
   return (
     <div className="relative min-h-screen bg-zinc-950 overflow-hidden flex items-center justify-center">
-      <MatrixRain />
-      <GridPattern />
-      <Vignette />
+      <BackgroundGlow />
 
-      <div
-        className={cn(
-          "relative z-10 flex flex-col items-center gap-16 transition-all duration-[1.5s] ease-out",
-          mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-        )}
-      >
-        <div className="text-center space-y-4">
-          <div
-            className={cn(
-              "font-mono text-xs tracking-[0.3em] text-amber-500/60 uppercase transition-all duration-700 delay-200",
-              showContent ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-            )}
-          >
-            Terminal v2.0
+      <div className="relative z-10 w-full max-w-md px-4 py-8">
+        <div className="space-y-6">
+          <div className="flex justify-center mb-2">
+            <span className="font-mono text-[10px] tracking-[0.25em] text-amber-500/40 uppercase">
+              Authenticated Dashboard
+            </span>
           </div>
-          <h1
-            className={cn(
-              "text-5xl md:text-7xl font-bold tracking-tighter text-zinc-100 transition-all duration-700 delay-300",
-              showContent ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-            )}
-          >
-            <span className="text-zinc-500">Super</span>
-            <span className="text-amber-500">code</span>
-          </h1>
-          <p
-            className={cn(
-              "text-zinc-500 font-mono text-sm max-w-xs mx-auto transition-all duration-700 delay-500",
-              showContent ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-            )}
-          >
-            AI-powered terminal interface for developers
+
+          <Card className="border-2 border-dashed border-zinc-800 bg-zinc-900/40 backdrop-blur-xl shadow-2xl shadow-orange-500/5">
+            <CardContent className="px-6 py-8">
+              <div className="flex flex-col items-center gap-5">
+                <div className="relative">
+                  <Avatar size="lg" className="size-24 border-2 border-dashed border-zinc-700">
+                    <AvatarImage
+                      src={data?.user?.image || undefined}
+                      alt={data?.user?.name || "User"}
+                      className="object-cover"
+                    />
+                    <AvatarFallback className="bg-zinc-800/80 text-zinc-400 text-2xl">
+                      <User className="size-8" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="absolute -bottom-1 -right-1 size-6 bg-emerald-500/90 rounded-full border-[3px] border-zinc-950 flex items-center justify-center">
+                    <CheckCircle2 className="size-3 text-white" />
+                  </div>
+                </div>
+                <div className="space-y-1 text-center">
+                  <h1 className="text-2xl font-semibold tracking-tight text-zinc-100">
+                    Welcome, {data?.user?.name || "User"}
+                  </h1>
+                  <p className="text-sm text-zinc-500 font-mono">
+                    Authenticated User
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-2 border-dashed border-zinc-800 bg-zinc-900/40 backdrop-blur-xl shadow-2xl shadow-orange-500/5">
+            <CardContent className="px-6 py-6">
+              <div className="space-y-5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                    Email Address
+                  </span>
+                  <Mail className="size-3.5 text-zinc-600" />
+                </div>
+                <p className="text-base text-zinc-200 font-medium break-all -mt-1">
+                  {data?.user?.email || "No email"}
+                </p>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px border-t border-dashed border-zinc-800" />
+                  <span className="text-[11px] text-zinc-600 font-mono px-2">
+                    Session Active
+                  </span>
+                  <div className="flex-1 h-px border-t border-dashed border-zinc-800" />
+                </div>
+
+                <Button
+                  onClick={() =>
+                    authClient.signOut({
+                      fetchOptions: {
+                        onSuccess: () => router.push("/sign-in"),
+                      },
+                    })
+                  }
+                  variant="destructive"
+                  className="w-full h-11 bg-red-600/90 hover:bg-red-600 text-white font-medium rounded-lg transition-all duration-200 hover:shadow-lg hover:shadow-red-500/15 active:scale-[0.98]"
+                >
+                  <LogOut className="size-4" />
+                  Sign Out
+                </Button>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px border-t border-dashed border-zinc-800" />
+                  <span className="text-[11px] text-zinc-600 font-mono px-2">
+                    Session Active
+                  </span>
+                  <div className="flex-1 h-px border-t border-dashed border-zinc-800" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <p className="text-center text-[10px] text-zinc-700 font-mono tracking-wider">
+            supercode terminal v2.0
           </p>
         </div>
-
-        <div
-          className={cn(
-            "transition-all duration-700 delay-700",
-            showContent ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-          )}
-        >
-          <PulseButton className="scale-110">
-            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-            Initialize System
-          </PulseButton>
-        </div>
-
-        <div
-          className={cn(
-            "flex items-center gap-8 font-mono text-xs text-zinc-600 transition-all duration-700 delay-1000",
-            showContent ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-          )}
-        >
-          <span className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            System Ready
-          </span>
-          <span className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500/50" />
-            Awaiting Input
-          </span>
-        </div>
-      </div>
-
-      <div
-        className={cn(
-          "absolute bottom-8 left-8 right-8 flex justify-between font-mono text-xs text-zinc-700 transition-all duration-1000 delay-[1200ms]",
-          showContent ? "opacity-100" : "opacity-0"
-        )}
-      >
-        <span>session: active</span>
-        <span>connection: secure</span>
-        <span>v2.0.0</span>
       </div>
     </div>
   );

@@ -1,12 +1,14 @@
 {
-  "name": "server",
+  "name": "supercode-cli-server",
   "version": "1.0.0",
   "main": "src/index.ts",
   "scripts": {
     "dev": "nodemon src/index.ts",
     "start": "bun src/index.ts",
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:generate": "prisma generate",
+    "postinstall": "bun run db:generate"
   },
   "nodemonConfig": {
     "watch": ["src"],

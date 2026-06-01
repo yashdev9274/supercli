@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import LoginForm from '@/components/auth/login-form'
-import React from 'react'
 
 export const metadata: Metadata = {
   title: "Sign In - Supercode",
@@ -8,11 +7,7 @@ export const metadata: Metadata = {
 }
 
 const Page = () => {
-  return (
-    <>
-      <LoginForm />
-    </>
-  )
+  return <LoginForm />
 }
 
 export default Page

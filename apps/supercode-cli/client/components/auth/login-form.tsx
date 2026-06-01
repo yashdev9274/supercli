@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '../ui/card'
 import { Button } from '../ui/button'
 import { authClient } from '@/lib/auth-client'
+import { Spinner } from '@/components/ui/spinner'
 import { Github, Code2, Sparkles, ArrowRight } from 'lucide-react'
 import { ParticleBackground } from './particle-background'
 
@@ -144,22 +145,45 @@ const PixelLogo = ({ animate = false }: { animate?: boolean }) => {
 const LoginForm = () => {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [isVisible, setIsVisible] = useState(false)
+
+  const { data, isPending } = authClient.useSession()
+
+  useEffect(() => {
+    if (!isPending && data?.session) {
+      router.push("/")
+    }
+  }, [data, isPending, router])
 
   useEffect(() => {
     const timer = setTimeout(() => setIsVisible(true), 100)
     return () => clearTimeout(timer)
   }, [])
 
+  if (isPending) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-zinc-950">
+        <Spinner className="size-8 text-amber-500" />
+      </div>
+    )
+  }
+
+  if (data?.session) {
+    return null
+  }
+
   const handleGitHubSignIn = async () => {
     setIsLoading(true)
+    setError(null)
     try {
       await authClient.signIn.social({
         provider: 'github',
         callbackURL: 'http://localhost:3000',
       })
-    } catch (error) {
-      console.error('Sign in error:', error)
+    } catch (err) {
+      console.error('Sign in error:', err)
+      setError('Failed to connect to authentication server. Make sure the terminal server is running.')
     } finally {
       setIsLoading(false)
     }
@@ -229,6 +253,12 @@ const LoginForm = () => {
                       </>
                     )}
                   </Button>
+
+                  {error && (
+                    <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3">
+                      <p className="text-xs text-red-400 leading-relaxed">{error}</p>
+                    </div>
+                  )}
 
                   <div className="relative">
                     <div className="absolute inset-0 flex items-center">
