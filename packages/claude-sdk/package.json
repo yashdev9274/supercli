@@ -5,7 +5,7 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "dependencies": {
-    "ai": "^4.3.19",
+    "ai": "^5.0.138",
     "@ai-sdk/anthropic": "^0.0.56"
   }
 }
