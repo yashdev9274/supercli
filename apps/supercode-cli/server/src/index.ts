@@ -15,9 +15,14 @@ app.use(
     credentials: true, // Allow credentials (cookies, authorization headers, etc.)
   })
 );
-app.all("/api/auth/*splat", toNodeHandler(auth)); 
+app.use("/api/auth", toNodeHandler(auth)); 
 
-app.use(express.json());
+app.use(express.json()); 
+
+app.get("/device",async(req,res)=>{
+  const {user_code} = req.query
+  res.redirect(`http://localhost:3000/device?user_code=${user_code}`)
+})
 
 app.get("/handle", (req, res)=>{
   res.send("OK")

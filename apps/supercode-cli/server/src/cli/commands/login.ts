@@ -1,63 +1,81 @@
 #!/usr/bin/env bun
-import fs from "fs"
 import os from "os"
 import path from "path"
 import chalk from "chalk"
 import open from "open"
 import { z } from "zod"
-import { intro, confirm, cancel, isCancel, outro } from "@clack/prompts"
+import { confirm, isCancel } from "@clack/prompts"
 import yoctoSpinner from "yocto-spinner"
 import { createAuthClient } from "better-auth/client"
 import { deviceAuthorizationClient } from "better-auth/client/plugins"
 import { Command } from "commander"
-import { logger } from "better-auth"
 import { getStoredToken, isTokenExpired, storeToken } from "src/lib/token"
 import type { TokenData } from "src/lib/token"
+import {
+  theme,
+  panel,
+  frame,
+  gradientText,
+  step,
+  statusIcon,
+  heading,
+  bullet,
+  dimmed,
+  separator,
+  infoBox,
+  successBox,
+  errorBox,
+  codeBlock,
+  banner,
+  tag,
+  hudPanel,
+  ornamentalDivider,
+  glow,
+  progressBar,
+  keyValue,
+} from "../utils/tui"
 
 const URL = "http://localhost:3004"
-const CLIENT_ID = process.env.GITHUB_CLIENT_ID 
+const CLIENT_ID = process.env.GITHUB_CLIENT_ID
 export const CONFIG_DIR = path.join(os.homedir(), ".better-auth")
 export const TOKEN_FILE = path.join(CONFIG_DIR, "token.json")
 
+type AuthError = Record<string, unknown> | null | undefined
 
-// type LoginOptions = {
-//   serverUrl?: string
-//   clientId?: string
-//   defaultServerUrl?: string
-// }
+type DeviceAuthClient = ReturnType<typeof createAuthClient> & {
+  device: {
+    code: (params: {
+      client_id: string
+      scope?: string
+    }) => Promise<{
+      data?: {
+        device_code: string
+        user_code: string
+        verification_uri: string
+        verification_uri_complete: string
+        expires_in: number
+        interval: number
+      }
+      error?: { error: string; error_description?: string }
+    }>
+    token: (params: {
+      grant_type: "urn:ietf:params:oauth:grant-type:device_code"
+      device_code: string
+      client_id: string
+      fetchOptions?: { headers?: Record<string, string> }
+    }) => Promise<{
+      data?: {
+        access_token: string
+        token_type?: string
+        expires_in?: number
+        scope?: string
+      }
+      error?: { error: string; error_description?: string }
+    }>
+  }
+}
 
-// function readStoredToken(): { token: string; expiresAt: number } | null {
-//   try {
-//     if (!fs.existsSync(TOKEN_FILE)) return null
-//     return JSON.parse(fs.readFileSync(TOKEN_FILE, "utf-8"))
-//   } catch {
-//     return null
-//   }
-// }
-
-// function writeStoredToken(data: {
-//   token: string
-//   expiresIn: number
-// }): boolean {
-//   try {
-//     if (!fs.existsSync(CONFIG_DIR)) {
-//       fs.mkdirSync(CONFIG_DIR, { recursive: true })
-//     }
-//     fs.writeFileSync(
-//       TOKEN_FILE,
-//       JSON.stringify({
-//         token: data.token,
-//         expiresAt: Date.now() + data.expiresIn * 1000,
-//       }),
-//       "utf-8"
-//     )
-//     return true
-//   } catch {
-//     return false
-//   }
-// }
-
-export async function loginAction(opts: any) {
+export async function loginAction(opts: Record<string, unknown>) {
   const schema = z.object({
     serverUrl: z.string().optional(),
     clientId: z.string().optional(),
@@ -65,43 +83,52 @@ export async function loginAction(opts: any) {
 
   const options = schema.parse(opts)
 
-  const serverUrl =
-    options.serverUrl || URL;
-  const clientId =
-    options.clientId ||
-    CLIENT_ID || ""
+  const serverUrl = options.serverUrl || URL
+  const clientId = options.clientId || CLIENT_ID || ""
 
-  intro(chalk.bold("Supercode CLI Login"))
+  console.clear()
+  console.log()
+  console.log(`  ${banner("LOGIN")}`)
+  console.log()
 
-  // const existingToken = readStoredToken()
-  // const expired = existingToken
-  //   ? Date.now() >= existingToken.expiresAt
-  //   : true
-
-
-  const existingToken = await getStoredToken();
-  const expired = await isTokenExpired();
+  // ── Existing session check ──────────────────────────────────────
+  const existingToken = await getStoredToken()
+  const expired = await isTokenExpired()
 
   if (existingToken && !expired) {
     const shouldRelogin = await confirm({
-      message: "You are already logged in. Do you want to log in again?",
+      message: "Already authenticated. Log in again?",
       initialValue: false,
     })
 
     if (isCancel(shouldRelogin) || !shouldRelogin) {
-      cancel("Login cancelled.")
+      console.log()
+      console.log(
+        infoBox(
+          `${statusIcon("info")} Login cancelled. Existing session preserved.`,
+        ),
+      )
+      console.log()
       process.exit(0)
     }
   }
 
+  console.log()
+  console.log(ornamentalDivider())
+  console.log()
+
+  // ── Step 1: Request authorization ──────────────────────────────
+  console.log(step(1, "Requesting device authorization...", "active"))
+  console.log()
 
   const authClient = createAuthClient({
     baseURL: serverUrl,
     plugins: [deviceAuthorizationClient()],
-  })
+  }) as DeviceAuthClient
 
   const spinner = yoctoSpinner({
-    text: "Requesting device authorization...",
+    text: chalk.hex(theme.muted)("Contacting authentication server..."),
+    color: "cyan",
   })
 
   spinner.start()
@@ -114,44 +141,56 @@ export async function loginAction(opts: any) {
 
     spinner.stop()
 
-    // if (error || !data) {
-    //   const err = error as Record<string, unknown> | null | undefined
-    //   const msg =
-    //     (err?.error_description as string) ||
-    //     (err?.statusText as string) ||
-    //     JSON.stringify(err)
-    //   console.error(
-    //     chalk.red(`Failed to request device authorization: ${msg}`)
-    //   )
-    //   process.exit(1)
-    // }
-
     if (error || !data) {
-      const err = error as Record<string, unknown> | null | undefined
+      const err = error as AuthError
       const msg =
-        err?.error_description ||
-        err?.statusText ||
+        (err?.error_description as string) ||
+        (err?.statusText as string) ||
         JSON.stringify(err)
-      logger.error(`Failed to request device authorization: ${msg}`)
+      console.log()
+      console.log(errorBox(`Authorization request failed: ${msg}`))
+      console.log()
       process.exit(1)
     }
 
     const {
-      device_code,
       user_code,
-      verification_uri,
       verification_uri_complete,
+      verification_uri,
       interval = 5,
       expires_in,
     } = data
 
-    console.log(chalk.cyan("\nDevice Authorization Required"))
+    console.log(step(1, "Device authorization requested", "done"))
+    console.log()
+
+    // ── Step 2: Open verification page ───────────────────────────
+    console.log(step(2, "Open the verification page", "active"))
+    console.log()
+
     console.log(
-      `Please visit ${chalk.underline.blue(
-        verification_uri_complete || verification_uri
-      )}`
+      frame(
+        [
+          `  ${glow("◆", theme.amber)} ${chalk.hex(theme.amber).bold("DEVICE AUTHORIZATION")}`,
+          "",
+          `  ${chalk.hex(theme.muted)("Open this URL in your browser:")}`,
+          `  ${chalk.hex(theme.cyan).underline(verification_uri_complete || verification_uri)}`,
+          "",
+          `  ${chalk.hex(theme.dim)("╭──────────────────────────────────────╮")}`,
+          `  ${chalk.hex(theme.dim)("│")}         ${chalk.hex(theme.amber).bold("VERIFICATION CODE")}        ${chalk.hex(theme.dim)("│")}`,
+          `  ${chalk.hex(theme.dim)("│")}                                       ${chalk.hex(theme.dim)("│")}`,
+          `  ${chalk.hex(theme.dim)("│")}     ${chalk.hex(theme.glowCyan).bold(` ${user_code.split("").join(" ")} `)}     ${chalk.hex(theme.dim)("│")}`,
+          `  ${chalk.hex(theme.dim)("│")}                                       ${chalk.hex(theme.dim)("│")}`,
+          `  ${chalk.hex(theme.dim)("╰──────────────────────────────────────╯")}`,
+          "",
+          `  ${dimmed(`Code expires in ${Math.floor(expires_in / 60)} minutes`)}`,
+          `  ${dimmed(`Polling every ${interval} seconds`)}`,
+        ].join("\n"),
+        { title: "device authorization", borderColor: theme.dim, padding: 1 },
+      ),
     )
-    console.log(`Enter code: ${chalk.bold.green(user_code)}\n`)
+
+    console.log()
 
     const shouldOpen = await confirm({
       message: "Open browser automatically?",
@@ -161,83 +200,96 @@ export async function loginAction(opts: any) {
     if (!isCancel(shouldOpen) && shouldOpen) {
       const urlToOpen = verification_uri_complete || verification_uri
       await open(urlToOpen)
+      console.log()
+      console.log(`  ${statusIcon("info")} ${chalk.hex(theme.muted)("Browser opened — complete authorization there")}`)
     }
 
-    console.log(
-      chalk.gray(
-        `Waiting for authorization (expires in ${Math.floor(
-          expires_in / 60
-        )} minutes)...`
-      )
-    )
+    console.log()
+    console.log(step(2, "Verification page ready", "done"))
+    console.log()
 
-    const token = await pollForToken(
-      authClient,
-      device_code,
-      clientId,
-      interval,
-    )
+    // ── Step 3: Poll for token ───────────────────────────────────
+    console.log(step(3, "Waiting for authorization...", "active"))
+    console.log()
+
+    const token = await pollForToken(authClient, data.device_code, clientId, interval)
+
+    console.log(step(3, "Authorization received", "done"))
+    console.log()
 
     if (token) {
       const saved = await storeToken(token as TokenData)
 
-      if (!saved) {
-        console.log(
-          chalk.yellow(
-            "\nWarning: Could not save authentication token to disk."
-          )
-        )
-        console.log(
-          chalk.yellow("You may need to log in again on next use.")
-        )
-      } else {
-        console.log(
-          chalk.gray(
-            "\nYou can now use AI commands without logging in again."
-          )
-        )
-      }
+      console.log(ornamentalDivider())
+      console.log()
 
-      // get the user's data
-
-      outro(chalk.green("Login successful!"))
-      console.log(chalk.gray(`\nToken saved to: ${TOKEN_FILE}`))
-
-      console.log(chalk.gray("You can now use supercode without logging in again. \n"))
+      // ── Success celebration ────────────────────────────────────
+      console.log(
+        frame(
+          [
+            `  ${chalk.hex(theme.green).bold("◆  AUTHENTICATION SUCCESSFUL")}`,
+            "",
+            ...(saved
+              ? [
+                  `  ${chalk.hex(theme.muted)("Token securely stored at:")}`,
+                  `  ${chalk.hex(theme.dim)(TOKEN_FILE)}`,
+                ]
+              : [
+                  `  ${statusIcon("warning")} ${chalk.hex(theme.warning)("Warning:")} ${chalk.hex(theme.muted)("Could not save token to disk.")}`,
+                  `  ${dimmed("You may need to log in again on next use.")}`,
+                ]),
+            "",
+            `  ${chalk.hex(theme.green)("▸")} ${chalk.hex(theme.text).bold("You are now authenticated.")}`,
+            `  ${chalk.hex(theme.green)("▸")} ${chalk.hex(theme.muted)("Run")} ${chalk.hex(theme.cyan)("supercode")} ${chalk.hex(theme.muted)("commands without re-authenticating.")}`,
+          ].join("\n"),
+          { title: "authenticated", borderColor: theme.green, padding: 0 },
+        ),
+      )
+      console.log()
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     spinner.stop()
-    console.error(chalk.red("\nLogin failed:"), err.message)
+    const message = err instanceof Error ? err.message : "Unknown error"
+    console.log()
+    console.log(errorBox(`Login failed: ${message}`))
+    console.log()
     process.exit(1)
   }
-
 }
 
-
 async function pollForToken(
-  authClient: any,
+  authClient: DeviceAuthClient,
   deviceCode: string,
   clientId: string,
   initialInterval: number,
-){
-  // const deadline = Date.now() + expiresIn * 1000
+): Promise<unknown> {
   let pollingInterval = initialInterval
-  let dots = 0
+  let attempt = 0
+
+  const messages = [
+    "Waiting for authorization",
+    "Still waiting for authorization",
+    "Authorization should arrive any moment",
+    "Hang tight, processing authorization",
+    "Almost there, confirming with server",
+  ]
 
   const spinner = yoctoSpinner({
-    text: "Waiting for authorization...",
+    text: chalk.hex(theme.muted)(`${messages[0]}...`),
     color: "cyan",
   })
 
   return new Promise((resolve, reject) => {
-    // Windsurf: Refactor | Explain | Generate JSDoc | X
     const poll = async () => {
-      dots = (dots + 1) % 4;
-      spinner.text = chalk.gray(
-        `Polling for authorization${".".repeat(dots)}${" ".repeat(3 - dots)}`
-      );
-      if (!spinner.isSpinning) spinner.start();
-  
+      attempt++
+      const dotCount = ((attempt - 1) % 4) + 1
+      const msgIndex = Math.min(Math.floor(attempt / 3), messages.length - 1)
+
+      spinner.text = chalk.hex(theme.muted)(
+        `${messages[msgIndex]}${".".repeat(dotCount)}${" ".repeat(4 - dotCount)} ${chalk.hex(theme.dim)(`[poll #${attempt}]`)}`,
+      )
+      if (!spinner.isSpinning) spinner.start()
+
       try {
         const { data, error } = await authClient.device.token({
           grant_type: "urn:ietf:params:oauth:grant-type:device_code",
@@ -245,131 +297,70 @@ async function pollForToken(
           client_id: clientId,
           fetchOptions: {
             headers: {
-              "user-agent": `My CLI`,
+              "user-agent": "Supercode CLI",
             },
           },
-        });
+        })
 
         if (data?.access_token) {
-          console.log(
-            chalk.bold.yellow(`Your access token: ${data.access_token}`)
-          );
-        
-          spinner.stop();
-          resolve(data);
-          return;
-        } else if (error){
+          spinner.stop()
+          resolve(data)
+          return
+        }
+
+        if (error) {
           switch (error.error) {
             case "authorization_pending":
-              // Continue polling
-              break;
+              break
             case "slow_down":
-              pollingInterval += 5;
-              break;
+              pollingInterval += 5
+              spinner.text = chalk.hex(theme.warning)(
+                `Slowing down — server busy. Next poll in ${pollingInterval}s`,
+              )
+              break
             case "access_denied":
-              console.error("Access was denied by the user");
-              return;
+              spinner.stop()
+              console.log()
+              console.log(errorBox("Authorization was denied by the user."))
+              console.log()
+              process.exit(1)
             case "expired_token":
-              console.error("The device code has expired. Please try again.");
-              return;
+              spinner.stop()
+              console.log()
+              console.log(errorBox("Device code expired. Please run login again."))
+              console.log()
+              process.exit(1)
             default:
               spinner.stop()
-              logger.error(`Error: ${error.error_description}`);
+              console.log()
+              console.log(
+                errorBox(`Authorization error: ${error.error_description || error.error}`),
+              )
+              console.log()
               process.exit(1)
           }
         }
-        
       } catch (error) {
         spinner.stop()
-        logger.error(`Network Error: ${(error as Error).message}`);
+        console.log()
+        console.log(
+          errorBox(`Network error: ${(error as Error).message}`),
+        )
+        console.log()
         process.exit(1)
       }
 
-      setTimeout(poll, pollingInterval * 1000);
-    };
-    setTimeout(poll, pollingInterval * 1000);
-  });
+      setTimeout(poll, pollingInterval * 1000)
+    }
+
+    setTimeout(poll, pollingInterval * 1000)
+  })
 }
 
-//   spinner.start()
-
-//   while (Date.now() < deadline) {
-//     attempt++
-
-//     const { data, error } = await authClient.device.token({
-//       grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-//       device_code: deviceCode,
-//       client_id: clientId,
-//     })
-
-//     if (data && !error) {
-//       spinner.stop(chalk.green("Authorization granted!"))
-//       return data.access_token
-//     }
-
-//     const errCode = error?.error as string | undefined
-
-//     if (errCode === "authorization_pending") {
-//       spinner.text = `Waiting for authorization (attempt ${attempt})...`
-//     } else if (errCode === "slow_down") {
-//       pollingInterval += 5
-//       spinner.text = "Waiting for authorization (slowing down)..."
-//     } else if (errCode === "expired_token") {
-//       spinner.stop(chalk.red("Authorization expired."))
-//       console.error(
-//         chalk.red(
-//           "The device code expired. Please run the login command again."
-//         )
-//       )
-//       return null
-//     } else if (errCode === "access_denied") {
-//       spinner.stop(chalk.red("Authorization denied."))
-//       console.error(chalk.red("You denied the authorization request."))
-//       return null
-//     } else if (errCode) {
-//       spinner.stop(chalk.red("Error during authorization."))
-//       console.error(
-//         chalk.red(
-//           `Unexpected error: ${error?.error_description || errCode}`
-//         )
-//       )
-//       return null
-//     }
-
-//     await sleep(pollingInterval * 1000)
-//   }
-
-//   spinner.stop(chalk.red("Authorization timed out."))
-//   console.error(
-//     chalk.red(
-//       "The authorization request timed out. Please run the login command again."
-//     )
-//   )
-//   return null
-// }
-
-// function sleep(ms: number): Promise<void> {
-//   return new Promise((resolve) => setTimeout(resolve, ms))
-// }
-
-// const isMain = process.argv[1] && (import.meta.url === `file://${process.argv[1]}` || import.meta.url.endsWith(process.argv[1]))
-// if (isMain) {
-//   loginAction().catch((err) => {
-//     console.error(chalk.red("Login failed:"), err.message)
-//     process.exit(1)
-//   })
-// }
-
-
-// commander setup
 export const loginCommand = new Command("login")
   .description("Authenticate with the Supercode server")
-  .option("--server-url <url>", "The URL of the Supercode server",URL)
-  .option("--client-id <id>", "The client ID of the Supercode server",CLIENT_ID)
+  .option("--server-url <url>", "The URL of the Supercode server", URL)
+  .option("--client-id <id>", "The client ID of the Supercode server", CLIENT_ID)
   .action(async () => {
     await loginAction({})
-})
-
-// }
-
-
+  })

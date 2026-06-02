@@ -32,6 +32,7 @@ export const auth = betterAuth({
       schema: {},
       expiresIn: "10m",
       interval: "5s",
+      verificationUri: "http://localhost:3000/device",
     }), 
   ],
 })

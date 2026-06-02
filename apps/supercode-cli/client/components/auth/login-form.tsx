@@ -177,9 +177,11 @@ const LoginForm = () => {
     setIsLoading(true)
     setError(null)
     try {
+      const params = new URLSearchParams(window.location.search)
+      const redirect = params.get("redirect") || "http://localhost:3000"
       await authClient.signIn.social({
         provider: 'github',
-        callbackURL: 'http://localhost:3000',
+        callbackURL: redirect,
       })
     } catch (err) {
       console.error('Sign in error:', err)

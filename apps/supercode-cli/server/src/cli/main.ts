@@ -1,28 +1,85 @@
 #!/usr/bin/env bun
 
 import chalk from "chalk"
-import figlet from "figlet"
 import { Command } from "commander"
 import { loginCommand } from "./commands/login"
-
+import {
+  banner,
+  panel,
+  frame,
+  separator,
+  statusIcon,
+  bullet,
+  dimmed,
+  theme,
+  tag,
+  hudPanel,
+  ornamentalDivider,
+  glow,
+} from "./utils/tui"
 
 async function main() {
-  // Display banner
+  console.clear()
+
+  const tagline = "ai-powered coding agent"
+
+  // ── Brand Header ────────────────────────────────────────────────
+  console.log()
+  console.log(`  ${banner("SUPERCODE")}`)
   console.log(
-    chalk.cyan(
-      figlet.textSync("SUPERCODE", {
-        font: "Standard",
-        horizontalLayout: "default",
-      })
-    )
+    `  ${chalk.hex(theme.dim)("╰─")} ${chalk.hex(theme.amber).bold(tagline)} ${glow("◆", theme.cyan)} ${chalk.hex(theme.muted)(`v0.0.1`)}`,
+  )
+  console.log()
+
+  // ── System HUD ──────────────────────────────────────────────────
+  console.log(
+    frame(
+      [
+        hudPanel({ label: "ENGINE", value: "bun · typescript", status: "ok" }),
+        hudPanel({ label: "AUTH", value: "better-auth · device flow", status: "ok", accent: theme.green }),
+        hudPanel({ label: "MODEL", value: "BYO API key", status: "warn", accent: theme.warning }),
+      ].join("\n"),
+      { title: "system", borderColor: theme.dim, padding: 0 },
+    ),
+  )
+  console.log()
+
+  // ── Commands ────────────────────────────────────────────────────
+  console.log(
+    panel(
+      [
+        `  ${statusIcon("cmd")} ${chalk.hex(theme.cyan).bold("login")}`,
+        `     ${chalk.hex(theme.muted)("Authenticate with the Supercode server")}`,
+        `     ${dimmed("supercode login [--server-url <url>]")}`,
+        "",
+        `  ${statusIcon("cmd")} ${chalk.hex(theme.cyan).bold("help")}`,
+        `     ${chalk.hex(theme.muted)("Show available commands and usage")}`,
+        `     ${dimmed("supercode help")}`,
+      ].join("\n"),
+      { title: "commands", borderColor: theme.dim },
+    ),
   )
 
-  console.log(chalk.gray("A cli based AI Tool \n"))
+  console.log()
+  console.log(ornamentalDivider())
 
-  // TODO: wire up Commander commands here, e.g.:
-  const program = new Command('supercode')
+  // ── Footer ──────────────────────────────────────────────────────
+  console.log(
+    `  ${bullet("run", theme.cyan)} ${chalk.hex(theme.cyan)("supercode login")}   ${dimmed("to get started")}`,
+  )
+  console.log(
+    `  ${bullet("docs", theme.cyan)} ${chalk.hex(theme.cyan)(chalk.underline("terminal.supercli.com"))}`,
+  )
+  console.log()
+  console.log(
+    `  ${chalk.hex(theme.dim)("built with")} ${chalk.hex(theme.cyan)("bun")} ${chalk.hex(theme.dim)("·")} ${chalk.hex(theme.pink)("typescript")} ${chalk.hex(theme.dim)("·")} ${chalk.hex(theme.amber)("better-auth")}`,
+  )
+  console.log()
+
+  // ── Commander setup ─────────────────────────────────────────────
+  const program = new Command("supercode")
   program
-    .description("Orbital CLI - AI powered developer tools")
+    .description("Supercode CLI - AI powered developer tools")
     .version("0.0.1")
     .addCommand(loginCommand)
 
@@ -31,18 +88,9 @@ async function main() {
   })
 
   program.parse()
-  
-  // program
-  //   .command("login")
-  //   .description("Authenticate with the Orbital AI service")
-  //   .action(async () => {
-  //     await loginAction({})
-  //   })
-  //
-  // program.parse(process.argv)
 }
 
 main().catch((err) => {
-  console.error(chalk.red("Error:"), err.message)
+  console.error(chalk.hex(theme.red)("Error:"), err.message)
   process.exit(1)
 })
