@@ -58,6 +58,27 @@ model Account {
   @@map("account")
 }
 
+model DeviceCode {
+  id              String    @id
+  deviceCode      String
+  userCode        String
+  userId          String?
+  expiresAt       DateTime
+  status          String
+  lastPolledAt    DateTime?
+  pollingInterval Int?
+  clientId        String?
+  scope           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([deviceCode])
+  @@unique([userCode])
+  @@index([deviceCode])
+  @@index([userCode])
+  @@map("device_code")
+}
+
 model Verification {
   id         String   @id
   identifier String
