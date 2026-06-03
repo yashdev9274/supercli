@@ -36,8 +36,11 @@
     "dotenv": "^17.3.1",
     "express": "^5.1.0",
     "figlet": "^1.11.0",
+    "marked": "^18.0.4",
+    "marked-terminal": "^7.3.0",
     "open": "^11.0.0",
     "pg": "^8.20.0",
+    "vercel-minimax-ai-provider": "^0.0.2",
     "yocto-spinner": "^1.2.0"
   },
   "devDependencies": {

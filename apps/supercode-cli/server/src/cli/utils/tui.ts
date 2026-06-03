@@ -391,3 +391,150 @@ export function ornamentalDivider(width?: number): string {
 function stripAnsi(str: string): string {
   return str.replace(/\x1b\[[0-9;]*m/g, "")
 }
+
+//
+// ─── REFINED TUI FUNCTIONS ───────────────────────────────────
+// New rendering primitives designed for the chat UI.
+// Uses the same theme tokens as above.
+//
+
+const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
+export function createThinking(label = "thinking"): { stop: () => void; succeed: (text?: string) => void; fail: (text?: string) => void } {
+  let i = 0
+  let running = true
+  const id = setInterval(() => {
+    if (!running) return
+    process.stdout.write(`\r${chalk.hex(theme.cyan)(SPINNER_FRAMES[i])} ${chalk.hex(theme.muted)(label)}`)
+    i = (i + 1) % SPINNER_FRAMES.length
+  }, 80)
+
+  function clear() {
+    process.stdout.write("\r" + " ".repeat(process.stdout.columns ?? 60) + "\r")
+  }
+
+  return {
+    stop: () => {
+      running = false
+      clearInterval(id)
+      clear()
+    },
+    succeed: (text?: string) => {
+      running = false
+      clearInterval(id)
+      clear()
+      if (text) console.log(` ${chalk.hex(theme.green)("◆")} ${chalk.hex(theme.muted)(text)}`)
+    },
+    fail: (text?: string) => {
+      running = false
+      clearInterval(id)
+      clear()
+      if (text) console.log(` ${chalk.hex(theme.red)("◆")} ${chalk.hex(theme.red)(text)}`)
+    },
+  }
+}
+
+export type MessageRole = "user" | "assistant" | "system"
+
+export function messageBlock(content: string, opts?: { role?: MessageRole; title?: string; compact?: boolean }) {
+  const role = opts?.role ?? "assistant"
+  const color = role === "user" ? theme.cyan : role === "system" ? theme.amber : theme.green
+  const defaultTitle = role === "user" ? "you" : "supercode"
+  const title = opts?.title ?? defaultTitle
+  const lines = content.split("\n")
+  const terminalWidth = process.stdout.columns ?? 80
+  const innerWidth = terminalWidth - 6
+
+  const topBorder = `┏${"━".repeat(Math.min(title.length + 2, innerWidth))} ${chalk.hex(color).bold(title)} ${"━".repeat(Math.max(0, innerWidth - title.length - 4))}`
+
+  const body = opts?.compact
+    ? lines.slice(0, 3).map((l) => `${chalk.hex(color)("┃")} ${l}`).join("\n") + (lines.length > 3 ? `\n${chalk.hex(color)("┃")} ${chalk.hex(theme.muted)(`... +${lines.length - 3} more lines`)}` : "")
+    : lines.map((l) => `${chalk.hex(color)("┃")} ${l}`).join("\n")
+
+  const bottomBorder = `${chalk.hex(color)("┗")}${chalk.hex(theme.dim)("━".repeat(Math.max(0, innerWidth + 2)))}`
+
+  return [chalk.hex(color)(topBorder), body, bottomBorder].join("\n")
+}
+
+export function streamHeader(model: string, label = "supercode") {
+  const ts = new Date().toLocaleTimeString()
+  const w = process.stdout.columns ?? 80
+  const line = `┏━━ ${chalk.hex(theme.green).bold(label)} ${chalk.hex(theme.muted)(`· ${model} · ${ts}`)} ${"━".repeat(Math.max(0, w - label.length - model.length - ts.length - 18))}`
+  console.log(chalk.hex(theme.green)(line))
+}
+
+export function streamFooter(usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number }, elapsedMs?: number, model?: string) {
+  const parts: string[] = []
+  if (usage && (usage.totalTokens || usage.promptTokens || usage.completionTokens)) {
+    const t = usage.totalTokens ?? (usage.promptTokens ?? 0) + (usage.completionTokens ?? 0)
+    parts.push(`${t} tokens`)
+  }
+  if (elapsedMs !== undefined) {
+    const time = elapsedMs < 1000 ? `${elapsedMs}ms` : `${(elapsedMs / 1000).toFixed(1)}s`
+    parts.push(time)
+  }
+  if (model) parts.push(model)
+  const meta = parts.length > 0 ? ` ${chalk.hex(theme.muted)(parts.join(" · "))}` : ""
+
+  const w = process.stdout.columns ?? 80
+  const base = `┗${"━".repeat(Math.max(0, w - 2))}`
+  console.log(chalk.hex(theme.dim)(base + meta.slice(0, w - base.length)))
+}
+
+export function responseDivider() {
+  const w = process.stdout.columns ?? 80
+  console.log(chalk.hex(theme.dim)(` ${"─".repeat(Math.max(0, w - 2))}`))
+}
+
+export function streamingLine(text: string) {
+  process.stdout.write(`${chalk.hex(theme.green)("┃")} ${text}`)
+}
+
+export function userMessage(content: string) {
+  const lines = content.split("\n")
+  console.log(chalk.hex(theme.cyan)(`┏━━ ${chalk.bold("you")} ${"━".repeat(Math.max(0, (process.stdout.columns ?? 80) - 10))}`))
+  for (const line of lines) {
+    console.log(`${chalk.hex(theme.cyan)("┃")} ${line}`)
+  }
+  console.log(chalk.hex(theme.cyan)(`┗${"━".repeat(Math.max(0, (process.stdout.columns ?? 80) - 4))}`))
+  console.log()
+}
+
+export function compactMessageSummary(role: string, content: string, index: number) {
+  const color = role === "user" ? theme.cyan : theme.green
+  const icon = role === "user" ? "─" : "─"
+  const firstLine = content.split("\n")[0] ?? ""
+  const truncated = firstLine.length > 72 ? firstLine.slice(0, 69) + "..." : firstLine
+  console.log(` ${chalk.hex(theme.dim)(`${index}.`)} ${chalk.hex(color)(icon)} ${chalk.hex(theme.muted)(truncated)}`)
+}
+
+export function sessionSummary(conversation: { id: string; title: string | null; mode: string; createdAt: Date; messages?: { role: string }[] }) {
+  const msgCount = conversation.messages?.length ?? 0
+  const title = conversation.title ?? "Untitled"
+  const date = conversation.createdAt.toLocaleDateString()
+  return panel(
+    [
+      `  ${chalk.hex(theme.green).bold(title)}`,
+      `  ${chalk.hex(theme.muted)(`${msgCount} messages · ${date} · ${conversation.mode}`)}`,
+      `  ${chalk.hex(theme.dim)(conversation.id)}`,
+    ].join("\n"),
+    { title: "session", borderColor: theme.dim },
+  )
+}
+
+export function chatHelp() {
+  const lines = [
+    ` ${chalk.hex(theme.cyan)("Enter")}     send message`,
+    ` ${chalk.hex(theme.cyan)("Esc")}      cancel / exit`,
+    ` ${chalk.hex(theme.cyan)("↑/↓")}     navigate history`,
+  ]
+  return panel(lines.join("\n"), { title: "keys", borderColor: theme.dim })
+}
+
+export function timediff(ms: number): string {
+  if (ms < 1000) return `${ms}ms`
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
+  const m = Math.floor(ms / 60000)
+  const s = Math.round((ms % 60000) / 1000)
+  return `${m}m ${s}s`
+}
