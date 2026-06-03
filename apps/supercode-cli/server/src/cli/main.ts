@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import "../lib/load-env"
 import chalk from "chalk"
 import { Command } from "commander"
 import { loginCommand } from "./commands/login"
@@ -7,23 +8,21 @@ import {
   banner,
   panel,
   frame,
-  separator,
   statusIcon,
   bullet,
   dimmed,
   theme,
-  tag,
   hudPanel,
   ornamentalDivider,
   glow,
 } from "./utils/tui"
+import { supercodeInit } from "./commands/ai/init"
 
 async function main() {
   console.clear()
 
   const tagline = "ai-powered coding agent"
 
-  // ── Brand Header ────────────────────────────────────────────────
   console.log()
   console.log(`  ${banner("SUPERCODE")}`)
   console.log(
@@ -31,7 +30,6 @@ async function main() {
   )
   console.log()
 
-  // ── System HUD ──────────────────────────────────────────────────
   console.log(
     frame(
       [
@@ -44,7 +42,6 @@ async function main() {
   )
   console.log()
 
-  // ── Commands ────────────────────────────────────────────────────
   console.log(
     panel(
       [
@@ -63,7 +60,6 @@ async function main() {
   console.log()
   console.log(ornamentalDivider())
 
-  // ── Footer ──────────────────────────────────────────────────────
   console.log(
     `  ${bullet("run", theme.cyan)} ${chalk.hex(theme.cyan)("supercode login")}   ${dimmed("to get started")}`,
   )
@@ -76,12 +72,12 @@ async function main() {
   )
   console.log()
 
-  // ── Commander setup ─────────────────────────────────────────────
   const program = new Command("supercode")
   program
     .description("Supercode CLI - AI powered developer tools")
     .version("0.0.1")
     .addCommand(loginCommand)
+    .addCommand(supercodeInit)
 
   program.action(async () => {
     program.help()
