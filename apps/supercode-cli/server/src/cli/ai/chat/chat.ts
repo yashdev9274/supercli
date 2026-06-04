@@ -16,6 +16,10 @@ import {
   createThinking,
   chatHelp,
 } from "src/cli/utils/tui.ts"
+import type { WorkspaceInfo } from "src/cli/workspace/scanner.ts"
+import { buildSystemPrompt } from "src/cli/workspace/context.ts"
+import { tools } from "src/tools/registry.ts"
+import { renderWorkspaceBanner } from "src/cli/workspace/format.ts"
 
 let _chatService: ChatService
 
@@ -68,9 +72,22 @@ async function initConversation(userId: string, conversationId: string | null = 
   return conversation
 }
 
-async function streamAIResponse(provider: AIProvider, conversationId: string): Promise<{ content: string; elapsed: number; usage: any }> {
+async function streamAIResponse(
+  provider: AIProvider,
+  conversationId: string,
+  workspaceInfo?: WorkspaceInfo,
+): Promise<{ content: string; elapsed: number; usage: any }> {
   const dbMessages = await getChatService().getMessages(conversationId)
-  const aiMessages = getChatService().formatMessagesForAI(dbMessages)
+  let aiMessages = getChatService().formatMessagesForAI(dbMessages)
+
+  if (workspaceInfo) {
+    process.env.SUPERCODE_WORKSPACE_ROOT = workspaceInfo.workspaceRoot
+    const systemPrompt = buildSystemPrompt(workspaceInfo)
+    aiMessages = [
+      { role: "system", content: systemPrompt },
+      ...aiMessages,
+    ]
+  }
 
   let fullResponse = ""
   let isFirstChunk = true
@@ -80,16 +97,24 @@ async function streamAIResponse(provider: AIProvider, conversationId: string): P
   const thinking = createThinking()
 
   try {
-    const result = await provider.sendMessage(aiMessages as ModelMessage[], (chunk) => {
-      if (isFirstChunk) {
-        thinking.stop()
-        firstChunkTime = Date.now() - startTime
-        streamHeader(provider.modelName)
-        isFirstChunk = false
-      }
-      process.stdout.write(chunk)
-      fullResponse += chunk
-    })
+    const result = await provider.sendMessage(
+      aiMessages as ModelMessage[],
+      (chunk) => {
+        if (isFirstChunk) {
+          thinking.stop()
+          firstChunkTime = Date.now() - startTime
+          streamHeader(provider.modelName)
+          isFirstChunk = false
+        }
+        process.stdout.write(chunk)
+        fullResponse += chunk
+      },
+      workspaceInfo ? tools : undefined,
+      async ({ toolName, args }: { toolName: string; args: Record<string, unknown> }) => {
+        const filePath = (args as any).path || ""
+        thinking.setLabel(`${toolName}(${filePath})`)
+      },
+    )
 
     const elapsed = Date.now() - startTime
     const usage = await result.usage
@@ -138,7 +163,11 @@ async function chatInput(): Promise<string | null> {
   })
 }
 
-export async function chatLoop(provider: AIProvider, conversation: Conversation) {
+export async function chatLoop(
+  provider: AIProvider,
+  conversation: Conversation,
+  workspaceInfo?: WorkspaceInfo,
+) {
   console.log()
   console.log(chatHelp())
   console.log()
@@ -172,7 +201,7 @@ export async function chatLoop(provider: AIProvider, conversation: Conversation)
     await updateConversationTitle(conversation.id, trimmed, messageCount)
 
     try {
-      const result = await streamAIResponse(provider, conversation.id)
+      const result = await streamAIResponse(provider, conversation.id, workspaceInfo)
       await saveMessage(conversation.id, "assistant", result.content)
     } catch (error: any) {
       const errMsg = error?.message ?? "Unknown error"
@@ -187,7 +216,12 @@ async function saveMessage(conversationId: string, role: string, content: string
   return getChatService().addMessage(conversationId, role, content)
 }
 
-export async function startChat(provider: ModelProvider = "google", model?: string, conversationId?: string | null) {
+export async function startChat(
+  provider: ModelProvider = "google",
+  model?: string,
+  conversationId?: string | null,
+  workspaceInfo?: WorkspaceInfo,
+) {
   try {
     console.clear()
     console.log()
@@ -196,15 +230,20 @@ export async function startChat(provider: ModelProvider = "google", model?: stri
 
     console.log(
       frame(
-        ` ${chalk.hex(theme.cyan).bold("supercode")} ${chalk.hex(theme.muted)(`ai chat · ${aiProvider.modelName}`)} `,
+        ` ${chalk.hex(theme.cyan).bold("supercode")} ${chalk.hex(theme.muted)(`ai chat · ${aiProvider.modelName} `)}`,
         { borderColor: theme.dim, padding: 0 },
       )
     )
     console.log()
 
+    if (workspaceInfo) {
+      console.log(renderWorkspaceBanner(workspaceInfo))
+      console.log()
+    }
+
     const user = await getUserFromToken()
     const conversation = await initConversation(user.id, conversationId)
-    await chatLoop(aiProvider, conversation)
+    await chatLoop(aiProvider, conversation, workspaceInfo)
   } catch (error: any) {
     console.log()
     console.log(` ${chalk.hex(theme.red)("◆")} ${chalk.hex(theme.red)(error?.message ?? "Error")}`)
