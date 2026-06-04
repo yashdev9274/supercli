@@ -53,7 +53,7 @@ async function getUserFromToken() {
   return user
 }
 
-async function initConversation(userId: string, conversationId: string | null = null) {
+export async function initConversation(userId: string, conversationId: string | null = null) {
   const thinking = createThinking("loading conversation")
   const conversation = await getChatService().getOrCreateConversation(userId, conversationId)
   thinking.succeed()
