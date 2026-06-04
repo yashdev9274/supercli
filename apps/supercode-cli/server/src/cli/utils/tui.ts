@@ -400,12 +400,13 @@ function stripAnsi(str: string): string {
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 
-export function createThinking(label = "thinking"): { stop: () => void; succeed: (text?: string) => void; fail: (text?: string) => void } {
+export function createThinking(label = "thinking"): { stop: () => void; succeed: (text?: string) => void; fail: (text?: string) => void; setLabel: (text: string) => void } {
   let i = 0
   let running = true
+  let currentLabel = label
   const id = setInterval(() => {
     if (!running) return
-    process.stdout.write(`\r${chalk.hex(theme.cyan)(SPINNER_FRAMES[i])} ${chalk.hex(theme.muted)(label)}`)
+    process.stdout.write(`\r${chalk.hex(theme.cyan)(SPINNER_FRAMES[i])} ${chalk.hex(theme.muted)(currentLabel)}`)
     i = (i + 1) % SPINNER_FRAMES.length
   }, 80)
 
@@ -430,6 +431,9 @@ export function createThinking(label = "thinking"): { stop: () => void; succeed:
       clearInterval(id)
       clear()
       if (text) console.log(` ${chalk.hex(theme.red)("◆")} ${chalk.hex(theme.red)(text)}`)
+    },
+    setLabel: (text: string) => {
+      currentLabel = text
     },
   }
 }

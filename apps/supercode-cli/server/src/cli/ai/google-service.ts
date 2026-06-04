@@ -25,10 +25,30 @@ export class AIService {
     onToolCall?: any,
   ) {
     try {
-      const result = streamText({
+      const systemMessages = messages.filter(m => m.role === "system")
+      const nonSystemMessages = messages.filter(m => m.role !== "system")
+      const system = systemMessages.map(m => m.content).join("\n")
+
+      const streamOptions: any = {
         model: this.model,
-        messages,
-      })
+        messages: nonSystemMessages,
+      }
+
+      if (system) {
+        streamOptions.system = system
+      }
+
+      if (tools && Object.keys(tools).length > 0) {
+        streamOptions.tools = tools
+        streamOptions.maxSteps = 5
+        if (onToolCall) {
+          streamOptions.experimental_onToolCallStart = ({ toolName, args }: { toolName: string; args: unknown }) => {
+            onToolCall({ toolName, args: args as Record<string, unknown> })
+          }
+        }
+      }
+
+      const result = streamText(streamOptions)
 
       let fullResponse = ""
 

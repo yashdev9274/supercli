@@ -5,6 +5,8 @@ import prisma from "@super/db-terminal"
 import { select, isCancel } from "@clack/prompts"
 import { startChat, type ModelProvider } from "src/cli/ai/chat/chat"
 import { theme, frame, createThinking } from "src/cli/utils/tui"
+import { scanWorkspace } from "src/cli/workspace/scanner.ts"
+import { renderWorkspaceBanner, renderFileTree } from "src/cli/workspace/format.ts"
 
 const NVIDIA_MODELS = {
   "minimaxai/minimax-m2.7": "MiniMax M2.7",
@@ -39,7 +41,18 @@ export const wakeUpAction = async () => {
   }
 
   thinking.succeed(`Welcome, ${user.name}`)
-  console.log()
+
+  const wsThinking = createThinking("scanning workspace")
+  let workspaceInfo = null
+  try {
+    workspaceInfo = await scanWorkspace()
+    wsThinking.succeed()
+    console.log()
+    console.log(frame(renderWorkspaceBanner(workspaceInfo), { borderColor: theme.dim, padding: 0 }))
+    console.log()
+  } catch (err) {
+    wsThinking.fail("Could not scan workspace")
+  }
 
   let modelChoice: ModelProvider
   let selectedModel: string | undefined
@@ -103,7 +116,7 @@ export const wakeUpAction = async () => {
     message: chalk.hex(theme.cyan)("select mode"),
     options: [
       { value: "chat", label: "Chat", hint: "conversation with AI" },
-      { value: "tools", label: "Tools", hint: "AI with search & code execution" },
+      { value: "tools", label: "Tools", hint: "AI with file read & search" },
       { value: "agent", label: "Agent", hint: "autonomous coding agent (coming soon)" },
     ],
   })
@@ -117,10 +130,8 @@ export const wakeUpAction = async () => {
 
   switch (modeChoice) {
     case "chat":
-      await startChat(modelChoice, selectedModel)
-      break
     case "tools":
-      console.log(frame(` ${chalk.hex(theme.warning)("tools mode coming soon")} `, { borderColor: theme.dim, padding: 0 }))
+      await startChat(modelChoice, selectedModel, null, workspaceInfo || undefined)
       break
     case "agent":
       console.log(frame(` ${chalk.hex(theme.warning)("agent mode coming soon")} `, { borderColor: theme.dim, padding: 0 }))
