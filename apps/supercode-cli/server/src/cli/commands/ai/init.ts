@@ -7,6 +7,7 @@ import { startChat, type ModelProvider } from "src/cli/ai/chat/chat"
 import { theme, frame, createThinking } from "src/cli/utils/tui"
 import { scanWorkspace } from "src/cli/workspace/scanner.ts"
 import { renderWorkspaceBanner, renderFileTree } from "src/cli/workspace/format.ts"
+import { startToolChat } from "src/cli/ai/chat/chatTools"
 
 const NVIDIA_MODELS = {
   "minimaxai/minimax-m2.7": "MiniMax M2.7",
@@ -131,7 +132,7 @@ export const wakeUpAction = async () => {
   switch (modeChoice) {
     case "chat":
     case "tools":
-      await startChat(modelChoice, selectedModel, null, workspaceInfo || undefined)
+      await startToolChat()
       break
     case "agent":
       console.log(frame(` ${chalk.hex(theme.warning)("agent mode coming soon")} `, { borderColor: theme.dim, padding: 0 }))
