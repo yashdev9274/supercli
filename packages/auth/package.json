@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@super/db": "workspace:*",
-    "better-auth": "^1.4.10"
+    "better-auth": "1.6.11",
+    "kysely": "^0.28.17"
   }
 }

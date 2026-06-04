@@ -17,6 +17,7 @@ model User {
   updatedAt     DateTime  @updatedAt
   sessions      Session[]
   accounts      Account[]
+  conversation  Conversation[]
 
   @@unique([email])
   @@map("user")
@@ -58,6 +59,27 @@ model Account {
   @@map("account")
 }
 
+model DeviceCode {
+  id              String    @id
+  deviceCode      String
+  userCode        String
+  userId          String?
+  expiresAt       DateTime
+  status          String
+  lastPolledAt    DateTime?
+  pollingInterval Int?
+  clientId        String?
+  scope           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([deviceCode])
+  @@unique([userCode])
+  @@index([deviceCode])
+  @@index([userCode])
+  @@map("device_code")
+}
+
 model Verification {
   id         String   @id
   identifier String
@@ -68,4 +90,28 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String?
+  mode      String   @default("chat")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  Message[]
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String // user , assistant , system , tool
+  content        String
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
 }

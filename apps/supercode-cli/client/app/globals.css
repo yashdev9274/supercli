@@ -237,3 +237,38 @@ body {
   background-size: 200% 200%;
   animation: gradient-shift 8s ease infinite;
 }
+
+@keyframes ripple {
+  0% {
+    width: 1px;
+    height: 1px;
+    opacity: 0.5;
+  }
+  100% {
+    width: 300px;
+    height: 300px;
+    opacity: 0;
+  }
+}
+
+.animate-ripple {
+  animation: ripple 0.6s ease-out forwards;
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+.animate-scanline {
+  animation: scanline 4s linear infinite;
+}
+
+@keyframes matrix {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+.animate-matrix {
+  animation: matrix 8s linear infinite;
+}
