@@ -187,12 +187,12 @@ async function saveMessage(conversationId: string, role: string, content: string
   return getChatService().addMessage(conversationId, role, content)
 }
 
-export async function startChat(provider: ModelProvider = "google", conversationId: string | null = null) {
+export async function startChat(provider: ModelProvider = "google", model?: string, conversationId?: string | null) {
   try {
     console.clear()
     console.log()
 
-    const aiProvider = createProvider(provider)
+    const aiProvider = createProvider(provider, model)
 
     console.log(
       frame(
