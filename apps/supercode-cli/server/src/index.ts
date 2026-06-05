@@ -5,12 +5,13 @@ import cors from "cors"
 import prisma from "@super/db-terminal"
 
 const port = process.env.PORT || 10000
+const serverUrl = process.env.BETTER_AUTH_URL || `http://localhost:${port}`
 const clientUrl = process.env.CLIENT_URL || "http://localhost:3000"
 const app = express()
 
 app.use(
   cors({
-    origin: [clientUrl].filter(Boolean),
+    origin: [clientUrl, serverUrl].filter(Boolean),
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   }),
