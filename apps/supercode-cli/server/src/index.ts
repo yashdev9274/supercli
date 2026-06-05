@@ -18,6 +18,23 @@ app.use(
 )
 app.use("/api/auth", toNodeHandler(auth))
 
+app.get("/", (req, res) => {
+  const { error, error_description } = req.query
+  if (error) {
+    return res.redirect(
+      `${clientUrl}/sign-in?error=${encodeURIComponent(error as string)}${error_description ? `&error_description=${encodeURIComponent(error_description as string)}` : ""}`,
+    )
+  }
+  res.redirect(clientUrl)
+})
+
+app.get("/error", (req, res) => {
+  const { error, error_description } = req.query
+  res.redirect(
+    `${clientUrl}/sign-in?error=${encodeURIComponent(error as string || "unknown")}${error_description ? `&error_description=${encodeURIComponent(error_description as string)}` : ""}`,
+  )
+})
+
 app.use(express.json())
 
 app.get("/device", async (req, res) => {

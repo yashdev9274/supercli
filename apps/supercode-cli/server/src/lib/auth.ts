@@ -14,6 +14,9 @@ export const auth = betterAuth({
   baseURL: serverUrl,
   basePath: "/api/auth",
   trustedOrigins: [clientUrl, serverUrl],
+  account: {
+    skipStateCookieCheck: true,
+  },
   socialProviders: {
     github: {
       clientId: process.env.GITHUB_CLIENT_ID as string,
