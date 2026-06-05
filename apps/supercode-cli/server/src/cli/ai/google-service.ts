@@ -1,10 +1,10 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { streamText, type ModelMessage } from "ai";
+import { streamText, generateObject, type ModelMessage } from "ai";
 import { config } from "../../config/google.config.ts";
 import chalk from "chalk";
 
 export class AIService {
-  private model: ReturnType<ReturnType<typeof createGoogleGenerativeAI>>
+  model: ReturnType<ReturnType<typeof createGoogleGenerativeAI>>
 
   constructor() {
     if (!config.googleApiKey) {
@@ -16,6 +16,26 @@ export class AIService {
     })
 
     this.model = google(config.model)
+  }
+
+  async generateStructured(
+    schema: any,
+    prompt: string,
+  ): Promise<any> {
+    try {
+      const result = await generateObject({
+        model: this.model,
+        schema,
+        prompt,
+      })
+      return result.object
+    } catch (error) {
+      console.error(
+        chalk.red("AI Structured Generation Error:"),
+        error instanceof Error ? error.message : String(error),
+      )
+      throw error
+    }
   }
 
   async sendMessage(
@@ -42,8 +62,9 @@ export class AIService {
         streamOptions.tools = tools
         streamOptions.maxSteps = 5 // allow limit tool calling
         if (onToolCall) {
-          streamOptions.experimental_onToolCallStart = ({ toolName, args }: { toolName: string; args: unknown }) => {
-            onToolCall({ toolName, args: args as Record<string, unknown> })
+          streamOptions.experimental_onToolCallStart = (event: any) => {
+            const tc = event.toolCall
+            onToolCall({ toolName: tc.toolName, args: tc.input as Record<string, unknown> })
           }
         }
       }
@@ -69,7 +90,7 @@ export class AIService {
               toolCalls.push(toolCall);
 
               if (onToolCall) {
-                onToolCall(toolCall);
+                onToolCall({ toolName: toolCall.toolName, args: toolCall.input as Record<string, unknown> });
               }
             }
           }

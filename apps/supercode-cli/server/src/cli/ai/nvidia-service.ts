@@ -1,6 +1,7 @@
 import chalk from "chalk"
 import { nvidiaConfig } from "../../config/nvidia.config.ts"
 import type { ModelMessage, FinishReason, LanguageModelUsage } from "ai"
+import { zodToJsonSchema } from "zod-to-json-schema"
 
 export class NvidiaService {
   readonly modelName: string
@@ -18,18 +19,24 @@ export class NvidiaService {
   async sendMessage(
     messages: ModelMessage[],
     onChunk?: (chunk: string) => void,
-    _tools?: any,
-    _onToolCall?: any,
+    tools?: any,
+    onToolCall?: any,
   ) {
     try {
-      const body = JSON.stringify({
+      const bodyObj: any = {
         model: this.modelName,
         messages: messages.map((m) => ({ role: m.role, content: String(m.content) })),
         max_tokens: nvidiaConfig.maxTokens,
         temperature: nvidiaConfig.temperature,
         top_p: nvidiaConfig.topP,
         stream: true,
-      })
+      }
+
+      const seenToolCallIds = new Set<string>()
+
+      if (tools && Object.keys(tools).length > 0) {
+        bodyObj.tools = toolsToOpenAI(tools)
+      }
 
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: "POST",
@@ -37,7 +44,7 @@ export class NvidiaService {
           "Authorization": `Bearer ${nvidiaConfig.apiKey}`,
           "Content-Type": "application/json",
         },
-        body,
+        body: JSON.stringify(bodyObj),
       })
 
       if (!response.ok) {
@@ -77,6 +84,24 @@ export class NvidiaService {
             if (delta?.content) {
               fullResponse += delta.content
               onChunk?.(delta.content)
+            }
+
+            if (delta?.tool_calls && onToolCall) {
+              for (const tc of delta.tool_calls) {
+                if (tc.id && !seenToolCallIds.has(tc.id)) {
+                  seenToolCallIds.add(tc.id)
+                  const name = tc.function?.name || "unknown"
+                  let args: Record<string, unknown> = {}
+                  try {
+                    if (tc.function?.arguments) {
+                      args = JSON.parse(tc.function.arguments)
+                    }
+                  } catch {
+                    // partial streaming JSON
+                  }
+                  onToolCall({ toolName: name, args })
+                }
+              }
             }
 
             if (data.choices?.[0]?.finish_reason) {
@@ -126,6 +151,17 @@ export class NvidiaService {
     })
     return fullResponse
   }
+}
+
+function toolsToOpenAI(tools: Record<string, any>): any[] {
+  return Object.entries(tools).map(([name, tool]) => ({
+    type: "function",
+    function: {
+      name,
+      description: tool.description || "",
+      parameters: zodToJsonSchema(tool.parameters),
+    },
+  }))
 }
 
 function mapFinishReason(reason: string): FinishReason {

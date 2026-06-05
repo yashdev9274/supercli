@@ -2,6 +2,7 @@ import { OpenRouter } from "@openrouter/sdk"
 import chalk from "chalk"
 import { openRouterConfig } from "../../config/openrouter.config.ts"
 import type { ModelMessage, FinishReason, LanguageModelUsage } from "ai"
+import { zodToJsonSchema } from "zod-to-json-schema"
 
 export class OpenRouterService {
   private client: OpenRouter
@@ -24,8 +25,8 @@ export class OpenRouterService {
   async sendMessage(
     messages: ModelMessage[],
     onChunk?: (chunk: string) => void,
-    _tools?: any,
-    _onToolCall?: any,
+    tools?: any,
+    onToolCall?: any,
   ) {
     try {
       const apiMessages = messages.map((m) => ({
@@ -33,13 +34,21 @@ export class OpenRouterService {
         content: String(m.content),
       }))
 
+      const body: any = {
+        model: this.modelName,
+        messages: apiMessages,
+        maxTokens: openRouterConfig.maxTokens,
+        stream: true,
+      }
+
+      const seenToolCallIds = new Set<string>()
+
+      if (tools && Object.keys(tools).length > 0) {
+        body.tools = toolsToOpenAI(tools)
+      }
+
       const response: any = await this.client.chat.send({
-        chatRequest: {
-          model: this.modelName,
-          messages: apiMessages as any,
-          maxTokens: openRouterConfig.maxTokens,
-          stream: true,
-        },
+        chatRequest: body,
       })
 
       let fullResponse = ""
@@ -48,10 +57,28 @@ export class OpenRouterService {
       let outputTokens = 0
 
       for await (const chunk of response) {
-        const delta = chunk.choices?.[0]?.delta?.content
-        if (delta) {
-          fullResponse += delta
-          onChunk?.(delta)
+        const delta = chunk.choices?.[0]?.delta
+        if (delta?.content) {
+          fullResponse += delta.content
+          onChunk?.(delta.content)
+        }
+
+        if (delta?.tool_calls && onToolCall) {
+          for (const tc of delta.tool_calls) {
+            if (tc.id && !seenToolCallIds.has(tc.id)) {
+              seenToolCallIds.add(tc.id)
+              const name = tc.function?.name || "unknown"
+              let args: Record<string, unknown> = {}
+              try {
+                if (tc.function?.arguments) {
+                  args = JSON.parse(tc.function.arguments)
+                }
+              } catch {
+                // partial streaming JSON
+              }
+              onToolCall({ toolName: name, args })
+            }
+          }
         }
 
         if (chunk.choices?.[0]?.finishReason) {
@@ -100,6 +127,17 @@ export class OpenRouterService {
     })
     return fullResponse
   }
+}
+
+function toolsToOpenAI(tools: Record<string, any>): any[] {
+  return Object.entries(tools).map(([name, tool]) => ({
+    type: "function",
+    function: {
+      name,
+      description: tool.description || "",
+      parameters: zodToJsonSchema(tool.parameters),
+    },
+  }))
 }
 
 function mapFinishReason(reason: string): FinishReason {

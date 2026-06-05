@@ -1,5 +1,5 @@
-import { google } from "@ai-sdk/google";
-import chalk from "chalk";
+import chalk from "chalk"
+import { tools as registryTools } from "src/tools/registry.ts"
 
 type ToolConfig = {
   id: string
@@ -11,69 +11,58 @@ type ToolConfig = {
 
 export const availableTools: ToolConfig[] = [
   {
-    id: "google_search",
-    name: "Google Search",
+    id: "web_search",
+    name: "Web Search",
     description:
-      "Access the latest information using Google Search. Useful for current events, news, and real-time information",
-    getTool: () => google.tools!.googleSearch({}) as unknown as Record<string, unknown>,
+      "Search the web using Google Search. Useful for current events, news, and real-time information",
+    getTool: () => registryTools.web_search as unknown as Record<string, unknown>,
     enabled: false,
   },
   {
-    id: "code_execution",
+    id: "code_exec",
     name: "Code Execution",
     description:
       "Execute JavaScript/TypeScript code in a sandboxed environment",
-    getTool: () => google.tools!.codeExecution({}) as unknown as Record<string, unknown>,
+    getTool: () => registryTools.code_exec as unknown as Record<string, unknown>,
     enabled: false,
   },
   {
-    id: "url_context",
-    name: "URL Context",
+    id: "url_fetch",
+    name: "URL Fetch",
     description:
       "Fetch and extract content from URLs to provide additional context",
-    getTool: () => google.tools!.urlContext({}) as unknown as Record<string, unknown>,
+    getTool: () => registryTools.url_fetch as unknown as Record<string, unknown>,
     enabled: false,
   },
 ]
 
-export function getEnabledTools(): Record<string, unknown> | undefined {
-  const tools: Record<string, unknown> = {}
+function tryGetConfigTools(
+  filterFn: (tool: ToolConfig) => boolean,
+): Record<string, unknown> | undefined {
+  const result: Record<string, unknown> = {}
 
   try {
     for (const toolConfig of availableTools) {
-      if (toolConfig.enabled) {
-        tools[toolConfig.id] = toolConfig.getTool()
+      if (filterFn(toolConfig)) {
+        result[toolConfig.id] = toolConfig.getTool()
       }
     }
-
-    if (Object.keys(tools).length > 0) {
-      console.log(
-        chalk.gray(
-          `[DEBUG] Enabled tools: ${Object.keys(tools).join(", ")}`
-        )
-      )
-    } else {
-      console.log(chalk.yellow("[DEBUG] No tools enabled"))
-    }
-
-    return Object.keys(tools).length > 0 ? tools : undefined
+    return Object.keys(result).length > 0 ? result : undefined
   } catch (error) {
     console.error(
-      chalk.red("[ERROR] Failed to initialize tools:"),
+      chalk.red("Failed to initialize tools:"),
       error instanceof Error ? error.message : String(error)
-    )
-    console.error(
-      chalk.yellow(
-        "Make sure you have @ai-sdk/google version 2.0+ installed"
-      )
-    )
-    console.error(
-      chalk.yellow(
-        "Run: npm install @ai-sdk/google@latest"
-      )
     )
     return undefined
   }
+}
+
+export function getAllConfigTools(): Record<string, unknown> | undefined {
+  return tryGetConfigTools(() => true)
+}
+
+export function getEnabledTools(): Record<string, unknown> | undefined {
+  return tryGetConfigTools((t) => t.enabled)
 }
 
 export function toggleTool(toolId: string): boolean {
@@ -81,48 +70,24 @@ export function toggleTool(toolId: string): boolean {
 
   if (tool) {
     tool.enabled = !tool.enabled
-    console.log(
-      chalk.gray(`[DEBUG] Tool ${toolId} toggled to ${tool.enabled}`)
-    )
     return tool.enabled
   }
 
-  console.log(chalk.red(`[DEBUG] Tool ${toolId} not found`))
   return false
 }
 
 export function enableTools(toolIds: string[]): void {
-  console.log(chalk.gray("[DEBUG] enableTools called with:"), toolIds)
-
   availableTools.forEach(tool => {
-    const wasEnabled = tool.enabled
     tool.enabled = toolIds.includes(tool.id)
-    if (tool.enabled !== wasEnabled) {
-      console.log(
-        chalk.gray(`[DEBUG] ${tool.id}: ${wasEnabled} -> ${tool.enabled}`)
-      )
-    }
   })
-
-  const enabledCount = availableTools.filter(t => t.enabled).length
-  console.log(
-    chalk.gray(
-      `[DEBUG] Total tools enabled: ${enabledCount}/${availableTools.length}`
-    )
-  )
 }
 
 export function getEnabledToolNames(): string[] {
-  const names = availableTools.filter(t => t.enabled).map(t => t.name)
-  console.log(chalk.gray("[DEBUG] getEnabledToolNames returning:"), names)
-  return names
+  return availableTools.filter(t => t.enabled).map(t => t.name)
 }
 
 export function resetTools(): void {
   availableTools.forEach(tool => {
     tool.enabled = false
   })
-  console.log(
-    chalk.gray("[DEBUG] All tools have been reset (disabled)")
-  )
 }

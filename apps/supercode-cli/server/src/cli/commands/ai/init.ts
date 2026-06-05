@@ -4,10 +4,10 @@ import { getStoredToken } from "src/lib/token"
 import prisma from "@super/db-terminal"
 import { select, isCancel } from "@clack/prompts"
 import { startChat, type ModelProvider } from "src/cli/ai/chat/chat"
+import { startAgentChat } from "src/cli/ai/chat/chatAgent"
 import { theme, frame, createThinking } from "src/cli/utils/tui"
 import { scanWorkspace } from "src/cli/workspace/scanner.ts"
 import { renderWorkspaceBanner, renderFileTree } from "src/cli/workspace/format.ts"
-import { startToolChat } from "src/cli/ai/chat/chatTools"
 
 const NVIDIA_MODELS = {
   "minimaxai/minimax-m2.7": "MiniMax M2.7",
@@ -130,14 +130,11 @@ export const wakeUpAction = async () => {
   console.log()
 
   switch (modeChoice) {
-    case "chat":
-      await startChat(modelChoice, selectedModel, null, workspaceInfo ?? undefined)
-      break
-    case "tools":
-      await startToolChat()
-      break
     case "agent":
-      console.log(frame(` ${chalk.hex(theme.warning)("agent mode coming soon")} `, { borderColor: theme.dim, padding: 0 }))
+      await startAgentChat()
+      break
+    default:
+      await startChat(modelChoice, selectedModel, null, workspaceInfo ?? undefined, modeChoice as string)
       break
   }
 }

@@ -63,6 +63,13 @@ export class ChatService {
     })
   }
 
+  async updateMode(conversationId: string, mode: string) {
+    return prisma.conversation.update({
+      where: { id: conversationId },
+      data: { mode },
+    })
+  }
+
   async updateTitle(conversationId: string, title: string) {
     return prisma.conversation.update({
       where: { id: conversationId },

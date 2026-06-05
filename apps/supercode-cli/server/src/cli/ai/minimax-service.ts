@@ -42,8 +42,9 @@ export class MinimaxService {
         streamOptions.tools = tools
         streamOptions.maxSteps = 5
         if (onToolCall) {
-          streamOptions.experimental_onToolCallStart = ({ toolName, args }: { toolName: string; args: unknown }) => {
-            onToolCall({ toolName, args: args as Record<string, unknown> })
+          streamOptions.experimental_onToolCallStart = (event: any) => {
+            const tc = event.toolCall
+            onToolCall({ toolName: tc.toolName, args: tc.input as Record<string, unknown> })
           }
         }
       }

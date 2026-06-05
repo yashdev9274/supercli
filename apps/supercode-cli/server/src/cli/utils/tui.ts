@@ -388,7 +388,7 @@ export function ornamentalDivider(width?: number): string {
   return chalk.hex(theme.dim)(`${left}${mid}${right}`)
 }
 
-function stripAnsi(str: string): string {
+export function stripAnsi(str: string): string {
   return str.replace(/\x1b\[[0-9;]*m/g, "")
 }
 
@@ -533,6 +533,35 @@ export function chatHelp() {
     ` ${chalk.hex(theme.cyan)("↑/↓")}     navigate history`,
   ]
   return panel(lines.join("\n"), { title: "keys", borderColor: theme.dim })
+}
+
+export function chatStatusBar(opts: {
+  mode: string
+  model: string
+  usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number }
+  elapsed?: number
+}) {
+  const w = process.stdout.columns ?? 80
+  const dim = (s: string) => chalk.hex(theme.dim)(s)
+
+  const tags: string[] = []
+  tags.push(chalk.hex(theme.muted)(opts.mode))
+  tags.push(chalk.hex(theme.green)(opts.model))
+
+  if (opts.usage) {
+    const t = opts.usage.totalTokens ?? (opts.usage.promptTokens ?? 0) + (opts.usage.completionTokens ?? 0)
+    tags.push(chalk.hex(theme.amber)(`${t} tok`))
+  }
+  if (opts.elapsed !== undefined) {
+    const time = opts.elapsed < 1000 ? `${opts.elapsed}ms` : `${(opts.elapsed / 1000).toFixed(1)}s`
+    tags.push(chalk.hex(theme.muted)(time))
+  }
+
+  const inner = tags.join(` ${dim("·")} `)
+  const fillLen = Math.max(0, w - stripAnsi(inner).length - 5)
+
+  const line = `${dim("┣━")} ${inner} ${dim("━".repeat(fillLen))}${dim("┫")}`
+  console.log(line)
 }
 
 export function timediff(ms: number): string {
