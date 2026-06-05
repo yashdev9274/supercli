@@ -1,5 +1,3 @@
-import dotenv from "dotenv"
-dotenv.config()
 
 export const openRouterConfig = {
   apiKey: process.env.OPENROUTER_API_KEY || "",

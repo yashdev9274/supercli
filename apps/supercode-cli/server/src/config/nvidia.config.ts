@@ -1,5 +1,4 @@
-import dotenv from "dotenv"
-dotenv.config()
+
 
 export const nvidiaConfig = {
   apiKey: process.env.NVIDIA_API_KEY || "",

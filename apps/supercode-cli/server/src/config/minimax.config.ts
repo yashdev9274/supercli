@@ -1,5 +1,4 @@
-import dotenv from "dotenv"
-dotenv.config()
+
 
 export const minimaxConfig = {
   apiKey: process.env.MINIMAX_API_KEY || "",

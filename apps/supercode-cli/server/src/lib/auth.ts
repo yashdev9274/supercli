@@ -1,27 +1,28 @@
-import "dotenv/config";
-import { betterAuth } from "better-auth";
-import { prismaAdapter } from "better-auth/adapters/prisma";
-// import { deviceAuthorization } from "better-auth/plugins/device-authorization";
-import { deviceAuthorization } from "better-auth/plugins"; 
 
-import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "@prisma/client";
+import { betterAuth } from "better-auth"
+import { prismaAdapter } from "better-auth/adapters/prisma"
+import { deviceAuthorization } from "better-auth/plugins"
+
+import { PrismaPg } from "@prisma/adapter-pg"
+import { PrismaClient } from "@prisma/client"
 
 const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL || "postgresql://neondb_owner:npg_1bpOJngF2ohy@ep-sparkling-term-ad22ysxy-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require",
-});
+  connectionString: process.env.DATABASE_URL || "",
+})
 
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient({ adapter })
+
+const serverUrl = process.env.BETTER_AUTH_URL || "http://localhost:3004"
+const clientUrl = process.env.CLIENT_URL || "http://localhost:3000"
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
-  baseURL: process.env.AUTH_URL || "http://localhost:3004",
+  baseURL: serverUrl,
   basePath: "/api/auth",
-  trustedOrigins: ["http://localhost:3000", "http://localhost:3004"],
+  trustedOrigins: [clientUrl, serverUrl],
   socialProviders: {
-    
     github: {
       clientId: process.env.GITHUB_CLIENT_ID as string,
       clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
@@ -32,7 +33,7 @@ export const auth = betterAuth({
       schema: {},
       expiresIn: "10m",
       interval: "5s",
-      verificationUri: "http://localhost:3000/device",
-    }), 
+      verificationUri: `${clientUrl}/device`,
+    }),
   ],
 })
