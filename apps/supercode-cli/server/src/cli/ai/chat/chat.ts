@@ -10,11 +10,11 @@ import {
   theme,
   frame,
   streamHeader,
-  streamFooter,
+  chatStatusBar,
   userMessage,
   compactMessageSummary,
   createThinking,
-  chatHelp,
+  stripAnsi,
 } from "src/cli/utils/tui.ts"
 import type { WorkspaceInfo } from "src/cli/workspace/scanner.ts"
 import { buildSystemPrompt } from "src/cli/workspace/context.ts"
@@ -53,9 +53,9 @@ async function getUserFromToken() {
   return user
 }
 
-export async function initConversation(userId: string, conversationId: string | null = null) {
+export async function initConversation(userId: string, conversationId: string | null = null, mode = "chat") {
   const thinking = createThinking("loading conversation")
-  const conversation = await getChatService().getOrCreateConversation(userId, conversationId)
+  const conversation = await getChatService().getOrCreateConversation(userId, conversationId, mode)
   thinking.succeed()
 
   const history = await getChatService().getMessages(conversation.id)
@@ -75,6 +75,7 @@ export async function initConversation(userId: string, conversationId: string | 
 async function streamAIResponse(
   provider: AIProvider,
   conversationId: string,
+  mode: string,
   workspaceInfo?: WorkspaceInfo,
 ): Promise<{ content: string; elapsed: number; usage: any }> {
   const dbMessages = await getChatService().getMessages(conversationId)
@@ -96,6 +97,13 @@ async function streamAIResponse(
 
   const thinking = createThinking()
 
+  let toolsToUse: Record<string, unknown> | undefined
+  if (mode === "tool" || mode === "agent") {
+    toolsToUse = { ...tools }
+  } else if (workspaceInfo) {
+    toolsToUse = { ...tools }
+  }
+
   try {
     const result = await provider.sendMessage(
       aiMessages as ModelMessage[],
@@ -109,17 +117,15 @@ async function streamAIResponse(
         process.stdout.write(chunk)
         fullResponse += chunk
       },
-      workspaceInfo ? tools : undefined,
+      toolsToUse,
       async ({ toolName, args }: { toolName: string; args: Record<string, unknown> }) => {
-        const filePath = (args as any).path || ""
-        thinking.setLabel(`${toolName}(${filePath})`)
+        const argPreview = (args as any)?.path || (args as any)?.pattern || (args as any)?.query || (args as any)?.url || ""
+        thinking.setLabel(`${toolName}(${argPreview})`)
       },
     )
 
     const elapsed = Date.now() - startTime
     const usage = await result.usage
-
-    streamFooter(usage, elapsed, provider.modelName)
     console.log()
 
     return { content: fullResponse, elapsed, usage }
@@ -144,22 +150,143 @@ interface Conversation {
   updatedAt: Date
 }
 
-async function chatInput(): Promise<string | null> {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    terminal: true,
-  })
-
+async function chatInput(
+  currentMode: string,
+): Promise<{ input: string | null; mode: string }> {
   return new Promise((resolve) => {
-    rl.on("SIGINT", () => {
-      rl.close()
-      resolve(null)
-    })
-    rl.question(chalk.hex(theme.cyan)("┃ $ "), (answer) => {
-      rl.close()
-      resolve(answer)
-    })
+    const stdin = process.stdin
+    const wasRaw = stdin.isRaw
+
+    readline.emitKeypressEvents(stdin)
+    if (stdin.isTTY) {
+      stdin.setRawMode(true)
+    }
+    stdin.resume()
+
+    const modes = ["chat", "tool", "agent"]
+    const modeColors: Record<string, string> = {
+      chat: theme.cyan,
+      tool: theme.green,
+      agent: theme.warning,
+    }
+    const modeDisplay: Record<string, string> = {
+      chat: "chat",
+      tool: "tools",
+      agent: "agent",
+    }
+
+    let input = ""
+    let cursor = 0
+    let mode = modes.includes(currentMode) ? currentMode : "chat"
+
+    function promptText(): string {
+      const color = chalk.hex(modeColors[mode] ?? theme.cyan)
+      return `${chalk.hex(theme.cyan)("┃ [")}${color(modeDisplay[mode] ?? mode)}${chalk.hex(theme.cyan)("] ")}`
+    }
+
+    function getPromptLen(): number {
+      return stripAnsi(promptText()).length
+    }
+
+    function render() {
+      readline.clearLine(process.stdout, 0)
+      readline.cursorTo(process.stdout, 0)
+      process.stdout.write(promptText() + input)
+      const absPos = getPromptLen() + cursor
+      if (absPos !== getPromptLen() + input.length) {
+        readline.cursorTo(process.stdout, absPos)
+      }
+    }
+
+    render()
+
+    function cleanup() {
+      stdin.removeListener("keypress", onKeypress)
+      if (stdin.isTTY) {
+        stdin.setRawMode(wasRaw ?? false)
+      }
+      stdin.pause()
+    }
+
+    function onKeypress(_str: string, key: any) {
+      if (!key) return
+
+      if (key.name === "tab") {
+        const idx = modes.indexOf(mode)
+        mode = modes[(idx + 1) % modes.length]!
+        render()
+        return
+      }
+
+      if (key.name === "return" || key.name === "enter") {
+        cleanup()
+        resolve({ input, mode })
+        return
+      }
+
+      if (key.name === "escape" || (key.ctrl && key.name === "c")) {
+        cleanup()
+        resolve({ input: null, mode })
+        return
+      }
+
+      if (key.name === "backspace") {
+        if (cursor > 0) {
+          input = input.slice(0, cursor - 1) + input.slice(cursor)
+          cursor--
+          render()
+        }
+        return
+      }
+
+      if (key.name === "delete" || key.name === "del") {
+        if (cursor < input.length) {
+          input = input.slice(0, cursor) + input.slice(cursor + 1)
+          render()
+        }
+        return
+      }
+
+      if (key.name === "left") {
+        if (cursor > 0) {
+          cursor--
+          readline.cursorTo(process.stdout, getPromptLen() + cursor)
+        }
+        return
+      }
+
+      if (key.name === "right") {
+        if (cursor < input.length) {
+          cursor++
+          readline.cursorTo(process.stdout, getPromptLen() + cursor)
+        }
+        return
+      }
+
+      if (key.name === "home") {
+        cursor = 0
+        readline.cursorTo(process.stdout, getPromptLen())
+        return
+      }
+
+      if (key.name === "end") {
+        cursor = input.length
+        readline.cursorTo(process.stdout, getPromptLen() + cursor)
+        return
+      }
+
+      if (_str && _str.length === 1 && !key.ctrl && !key.meta) {
+        input = input.slice(0, cursor) + _str + input.slice(cursor)
+        cursor++
+        readline.clearLine(process.stdout, 0)
+        readline.cursorTo(process.stdout, 0)
+        process.stdout.write(promptText() + input)
+        readline.cursorTo(process.stdout, getPromptLen() + cursor)
+        return
+      }
+    }
+
+    stdin.on("keypress", onKeypress)
   })
 }
 
@@ -168,14 +295,15 @@ export async function chatLoop(
   conversation: Conversation,
   workspaceInfo?: WorkspaceInfo,
 ) {
-  console.log()
-  console.log(chatHelp())
-  console.log()
-
   let messageCount = 0
 
   while (true) {
-    const userInput = await chatInput()
+    const { input: userInput, mode } = await chatInput(conversation.mode)
+
+    if (mode !== conversation.mode) {
+      conversation.mode = mode
+      await getChatService().updateMode(conversation.id, mode)
+    }
 
     if (userInput === null) {
       console.log()
@@ -201,8 +329,16 @@ export async function chatLoop(
     await updateConversationTitle(conversation.id, trimmed, messageCount)
 
     try {
-      const result = await streamAIResponse(provider, conversation.id, workspaceInfo)
+      const result = await streamAIResponse(provider, conversation.id, conversation.mode, workspaceInfo)
       await saveMessage(conversation.id, "assistant", result.content)
+
+      chatStatusBar({
+        mode: conversation.mode,
+        model: provider.modelName,
+        usage: result.usage,
+        elapsed: result.elapsed,
+      })
+      console.log()
     } catch (error: any) {
       const errMsg = error?.message ?? "Unknown error"
       console.log()
@@ -221,6 +357,7 @@ export async function startChat(
   model?: string,
   conversationId?: string | null,
   workspaceInfo?: WorkspaceInfo,
+  initialMode = "chat",
 ) {
   try {
     console.clear()
@@ -228,9 +365,12 @@ export async function startChat(
 
     const aiProvider = createProvider(provider, model)
 
+    const modeLabel = initialMode === "tool" ? "tools" : initialMode === "agent" ? "agent" : "chat"
+    const subtitle = modeLabel === "chat" ? `ai chat · ${aiProvider.modelName}` : `${modeLabel} · ${aiProvider.modelName}`
+
     console.log(
       frame(
-        ` ${chalk.hex(theme.cyan).bold("supercode")} ${chalk.hex(theme.muted)(`ai chat · ${aiProvider.modelName} `)}`,
+        ` ${chalk.hex(theme.cyan).bold("supercode")} ${chalk.hex(theme.muted)(subtitle)}`,
         { borderColor: theme.dim, padding: 0 },
       )
     )
@@ -242,7 +382,7 @@ export async function startChat(
     }
 
     const user = await getUserFromToken()
-    const conversation = await initConversation(user.id, conversationId)
+    const conversation = await initConversation(user.id, conversationId, initialMode)
     await chatLoop(aiProvider, conversation, workspaceInfo)
   } catch (error: any) {
     console.log()
