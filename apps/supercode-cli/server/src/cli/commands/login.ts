@@ -35,7 +35,7 @@ import {
   keyValue,
 } from "../utils/tui"
 
-const URL = process.env.SUPERCODE_SERVER_URL || "http://localhost:3004"
+const URL = process.env.SUPERCODE_SERVER_URL || "https://supercode-8w7e.onrender.com"
 const CLIENT_ID = process.env.GITHUB_CLIENT_ID
 export const CONFIG_DIR = path.join(os.homedir(), ".better-auth")
 export const TOKEN_FILE = path.join(CONFIG_DIR, "token.json")

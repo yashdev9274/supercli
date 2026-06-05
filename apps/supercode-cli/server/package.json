@@ -1,27 +1,35 @@
 {
-  "name": "supercode-cli-server",
-  "version": "1.0.0",
-  "main": "src/index.ts",
+  "name": "supercode-cli",
+  "version": "0.1.0",
+  "description": "AI-powered coding agent CLI",
+  "main": "dist/main.js",
   "bin": {
-    "supercode": "./src/cli/main.ts"
+    "supercode": "dist/main.js"
   },
   "scripts": {
-    "dev": "nodemon src/index.ts",
-    "cli": "bun src/cli/commands/index.ts",
-    "login": "bun src/cli/commands/login.ts",
+    "dev": "bun src/index.ts",
     "start": "bun src/index.ts",
-    "build": "tsc",
+    "build": "bun src/index.ts",
+    "build:cli": "bun build --target node --outdir dist --entry ./src/cli/main.ts && sed -i '' 's|#!/usr/bin/env bun|#!/usr/bin/env node|' dist/main.js",
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",
-    "postinstall": "bun run db:generate"
-  },
-  "nodemonConfig": {
-    "watch": ["src"],
-    "ext": "ts,json",
-    "exec": "bun src/index.ts",
-    "ignore": ["node_modules"]
+    "prepublishOnly": "bun run build:cli"
   },
   "type": "module",
+  "files": [
+    "dist/main.js",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yashdev9274/supercli.git"
+  },
+  "keywords": ["ai", "cli", "coding-agent", "terminal"],
+  "author": "Yash Dewasthale",
+  "license": "MIT",
   "dependencies": {
     "@ai-sdk/google": "^3.0.80",
     "@clack/prompts": "^1.5.0",
@@ -38,8 +46,6 @@
     "cors": "^2.8.5",
     "dotenv": "^17.3.1",
     "express": "^5.1.0",
-    "figlet": "^1.11.0",
-    "json-schema-to-ts": "^2.8.0-beta.0",
     "marked": "^18.0.4",
     "marked-terminal": "^7.3.0",
     "oas": "^34.0.1",
@@ -47,16 +53,15 @@
     "pg": "^8.20.0",
     "vercel-minimax-ai-provider": "^0.0.2",
     "yocto-spinner": "^1.2.0",
-    "zod-to-json-schema": "^3.25.2"
+    "zod-to-json-schema": "^3.25.2",
+    "zod": "^3.25.2"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.18.0",
-    "nodemon": "^3.1.0",
     "prisma": "^7.4.2",
-    "tsx": "^4.21.0",
     "typescript": "^5.7.0"
   }
 }

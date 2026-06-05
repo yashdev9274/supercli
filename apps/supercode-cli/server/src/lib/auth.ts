@@ -2,15 +2,7 @@
 import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
 import { deviceAuthorization } from "better-auth/plugins"
-
-import { PrismaPg } from "@prisma/adapter-pg"
-import { PrismaClient } from "@prisma/client"
-
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL || "",
-})
-
-const prisma = new PrismaClient({ adapter })
+import prisma from "@super/db-terminal"
 
 const serverUrl = process.env.BETTER_AUTH_URL || "http://localhost:3004"
 const clientUrl = process.env.CLIENT_URL || "http://localhost:3000"

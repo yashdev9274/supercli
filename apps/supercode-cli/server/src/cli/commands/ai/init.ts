@@ -1,11 +1,11 @@
 import chalk from "chalk"
 import { Command } from "commander"
 import { getStoredToken } from "src/lib/token"
-import prisma from "@super/db-terminal"
+import { getCurrentUser } from "src/lib/api-client"
 import { select, isCancel } from "@clack/prompts"
 import { startChat, type ModelProvider } from "src/cli/ai/chat/chat"
 import { startAgentChat } from "src/cli/ai/chat/chatAgent"
-import { theme, frame, createThinking } from "src/cli/utils/tui"
+import { theme, frame, createThinking, errorBox } from "src/cli/utils/tui"
 import { scanWorkspace } from "src/cli/workspace/scanner.ts"
 import { renderWorkspaceBanner, renderFileTree } from "src/cli/workspace/format.ts"
 
@@ -24,23 +24,24 @@ export const wakeUpAction = async () => {
   const token = await getStoredToken()
 
   if (!token?.access_token) {
-    console.log(chalk.hex(theme.red)("Not authenticated. Please login first"))
+    console.log()
+    console.log(errorBox("Not authenticated. Run supercode login first"))
+    console.log()
     return
   }
 
-  const thinking = createThinking("fetching user")
-  const user = await prisma.user.findFirst({
-    where: {
-      sessions: { some: { token: token.access_token } },
-    },
-    select: { id: true, name: true, email: true, image: true },
-  })
+  const thinking = createThinking("authenticating")
+  const result = await getCurrentUser()
 
-  if (!user) {
-    thinking.fail("User not found")
+  if (!result.ok) {
+    const msg = result.reason === "unauthorized"
+      ? "Session expired. Run supercode login to re-authenticate"
+      : "Cannot reach server. Is the Supercode server running?"
+    thinking.fail(msg)
     return
   }
 
+  const user = result.user
   thinking.succeed(`Welcome, ${user.name}`)
 
   const wsThinking = createThinking("scanning workspace")

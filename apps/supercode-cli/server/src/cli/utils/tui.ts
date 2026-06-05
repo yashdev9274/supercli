@@ -2,7 +2,7 @@ import chalk from "chalk"
 import * as readline from "readline"
 import boxen from "boxen"
 import yoctoSpinner from "yocto-spinner"
-import figlet from "figlet"
+
 
 export const theme = {
   // Core palette
@@ -75,22 +75,10 @@ export function glow(text: string, color: string): string {
 }
 
 export function banner(text: string): string {
-  const art = figlet.textSync(text, { font: "ANSI Shadow" })
-  return gradientText(art, theme.cyan, theme.pink)
-}
-
-export function dualBanner(top: string, bottom: string): string {
-  const topArt = figlet.textSync(top, { font: "ANSI Shadow" })
-  const bottomArt = figlet.textSync(bottom, { font: "ANSI Shadow" })
-  const topLines = topArt.split("\n")
-  const bottomLines = bottomArt.split("\n")
-  const gap = 1
-  const combined = [
-    ...topLines,
-    ...Array(gap).fill(""),
-    ...bottomLines,
-  ].join("\n")
-  return gradientText(combined, theme.cyan, theme.pink)
+  const w = process.stdout.columns ?? 80
+  const padded = ` ${text} `
+  const line = "━".repeat(Math.min(w - 2, padded.length + 10))
+  return gradientText(`\n  ${line}\n  ${padded}\n  ${line}`, theme.cyan, theme.pink)
 }
 
 export function frame(
