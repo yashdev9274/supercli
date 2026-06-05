@@ -1,12 +1,11 @@
-import { OpenRouter } from "@openrouter/sdk"
-import chalk from "chalk"
+import { createOpenRouter } from "@openrouter/ai-sdk-provider"
+import { streamText, type ModelMessage } from "ai"
 import { openRouterConfig } from "../../config/openrouter.config.ts"
-import type { ModelMessage, FinishReason, LanguageModelUsage } from "ai"
-import { zodToJsonSchema } from "zod-to-json-schema"
+import chalk from "chalk"
 
 export class OpenRouterService {
-  private client: OpenRouter
   readonly modelName: string
+  model: any
 
   constructor(model?: string) {
     if (!openRouterConfig.apiKey) {
@@ -15,11 +14,11 @@ export class OpenRouterService {
 
     this.modelName = model || openRouterConfig.model
 
-    this.client = new OpenRouter({
+    const openrouter = createOpenRouter({
       apiKey: openRouterConfig.apiKey,
-      httpReferer: openRouterConfig.siteUrl || undefined,
-      appTitle: openRouterConfig.siteTitle || undefined,
     })
+
+    this.model = openrouter(this.modelName)
   }
 
   async sendMessage(
@@ -29,87 +28,43 @@ export class OpenRouterService {
     onToolCall?: any,
   ) {
     try {
-      const apiMessages = messages.map((m) => ({
-        role: m.role,
-        content: String(m.content),
-      }))
+      const systemMessages = messages.filter(m => m.role === "system")
+      const nonSystemMessages = messages.filter(m => m.role !== "system")
+      const system = systemMessages.map(m => m.content).join("\n")
 
-      const body: any = {
-        model: this.modelName,
-        messages: apiMessages,
-        maxTokens: openRouterConfig.maxTokens,
-        stream: true,
+      const streamOptions: any = {
+        model: this.model,
+        messages: nonSystemMessages,
       }
 
-      const seenToolCallIds = new Set<string>()
+      if (system) {
+        streamOptions.system = system
+      }
 
       if (tools && Object.keys(tools).length > 0) {
-        body.tools = toolsToOpenAI(tools)
-      }
-
-      const response: any = await this.client.chat.send({
-        chatRequest: body,
-      })
-
-      let fullResponse = ""
-      let finishReason: FinishReason = "stop"
-      let inputTokens = 0
-      let outputTokens = 0
-
-      for await (const chunk of response) {
-        const delta = chunk.choices?.[0]?.delta
-        if (delta?.content) {
-          fullResponse += delta.content
-          onChunk?.(delta.content)
-        }
-
-        if (delta?.tool_calls && onToolCall) {
-          for (const tc of delta.tool_calls) {
-            if (tc.id && !seenToolCallIds.has(tc.id)) {
-              seenToolCallIds.add(tc.id)
-              const name = tc.function?.name || "unknown"
-              let args: Record<string, unknown> = {}
-              try {
-                if (tc.function?.arguments) {
-                  args = JSON.parse(tc.function.arguments)
-                }
-              } catch {
-                // partial streaming JSON
-              }
-              onToolCall({ toolName: name, args })
-            }
+        streamOptions.tools = tools
+        streamOptions.maxSteps = 5
+        if (onToolCall) {
+          streamOptions.experimental_onToolCallStart = (event: any) => {
+            const tc = event.toolCall
+            onToolCall({ toolName: tc.toolName, args: tc.input as Record<string, unknown> })
           }
         }
-
-        if (chunk.choices?.[0]?.finishReason) {
-          finishReason = mapFinishReason(chunk.choices[0].finishReason)
-        }
-
-        if (chunk.usage) {
-          inputTokens = chunk.usage.promptTokens ?? chunk.usage.prompt_tokens ?? 0
-          outputTokens = chunk.usage.completionTokens ?? chunk.usage.completion_tokens ?? 0
-        }
       }
 
-      const usage: LanguageModelUsage = {
-        inputTokens,
-        inputTokenDetails: {
-          noCacheTokens: 0,
-          cacheReadTokens: 0,
-          cacheWriteTokens: 0,
-        },
-        outputTokens,
-        outputTokenDetails: {
-          textTokens: outputTokens,
-          reasoningTokens: 0,
-        },
-        totalTokens: inputTokens + outputTokens,
+      const result = streamText(streamOptions)
+
+      let fullResponse = ""
+
+      for await (const chunk of result.textStream) {
+        fullResponse += chunk
+        onChunk?.(chunk)
       }
 
       return {
         content: fullResponse,
-        finishResponse: Promise.resolve(finishReason),
-        usage: Promise.resolve(usage),
+        finishResponse: result.finishReason,
+        usage: result.usage,
       }
     } catch (error) {
       console.error(chalk.red("OpenRouter Service Error:"), error instanceof Error ? error.message : String(error))
@@ -120,38 +75,11 @@ export class OpenRouterService {
     }
   }
 
-  async getMessage(messages: ModelMessage[], _tools?: any) {
+  async getMessage(messages: ModelMessage[], tools?: any) {
     let fullResponse = ""
     await this.sendMessage(messages, (chunk) => {
       fullResponse += chunk
     })
     return fullResponse
-  }
-}
-
-function toolsToOpenAI(tools: Record<string, any>): any[] {
-  return Object.entries(tools).map(([name, tool]) => ({
-    type: "function",
-    function: {
-      name,
-      description: tool.description || "",
-      parameters: zodToJsonSchema(tool.parameters),
-    },
-  }))
-}
-
-function mapFinishReason(reason: string): FinishReason {
-  switch (reason) {
-    case "stop":
-      return "stop"
-    case "length":
-    case "max_tokens":
-      return "length"
-    case "tool_calls":
-      return "tool-calls"
-    case "content_filter":
-      return "content-filter"
-    default:
-      return "stop"
   }
 }

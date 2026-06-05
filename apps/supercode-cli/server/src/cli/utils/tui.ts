@@ -1,4 +1,5 @@
 import chalk from "chalk"
+import * as readline from "readline"
 import boxen from "boxen"
 import yoctoSpinner from "yocto-spinner"
 import figlet from "figlet"
@@ -411,7 +412,8 @@ export function createThinking(label = "thinking"): { stop: () => void; succeed:
   }, 80)
 
   function clear() {
-    process.stdout.write("\r" + " ".repeat(process.stdout.columns ?? 60) + "\r")
+    readline.clearLine(process.stdout, 0)
+    readline.cursorTo(process.stdout, 0)
   }
 
   return {
