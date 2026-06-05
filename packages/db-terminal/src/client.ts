@@ -2,7 +2,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./generated";
 
 const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL_TERMINAL,
+  connectionString: process.env.DATABASE_URL_TERMINAL || process.env.DATABASE_URL,
 });
 
 const prismaClientSingleton = () => new PrismaClient({ adapter });

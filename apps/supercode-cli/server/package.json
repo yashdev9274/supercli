@@ -27,16 +27,29 @@
     "type": "git",
     "url": "git+https://github.com/yashdev9274/supercli.git"
   },
-  "keywords": ["ai", "cli", "coding-agent", "terminal"],
+  "keywords": [
+    "ai",
+    "cli",
+    "coding-agent",
+    "terminal"
+  ],
   "author": "Yash Dewasthale",
   "license": "MIT",
-  "dependencies": {
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
     "@ai-sdk/google": "^3.0.80",
     "@clack/prompts": "^1.5.0",
     "@openrouter/ai-sdk-provider": "^2.9.0",
     "@openrouter/sdk": "^0.12.79",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@super/db-terminal": "workspace:*",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.18.0",
     "ai": "^6.0.195",
     "api": "^6.1.3",
     "better-auth": "^1.5.5",
@@ -51,17 +64,12 @@
     "oas": "^34.0.1",
     "open": "^11.0.0",
     "pg": "^8.20.0",
+    "prisma": "^7.4.2",
+    "typescript": "^5.7.0",
     "vercel-minimax-ai-provider": "^0.0.2",
     "yocto-spinner": "^1.2.0",
     "zod-to-json-schema": "^3.25.2",
     "zod": "^3.25.2"
-  },
-  "devDependencies": {
-    "@types/cors": "^2.8.17",
-    "@types/express": "^5.0.0",
-    "@types/node": "^22.0.0",
-    "@types/pg": "^8.18.0",
-    "prisma": "^7.4.2",
-    "typescript": "^5.7.0"
   }
+}
 }
