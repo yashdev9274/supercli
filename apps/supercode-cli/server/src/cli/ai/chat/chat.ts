@@ -1,8 +1,15 @@
 import chalk from "chalk"
 import * as readline from "readline"
-import prisma from "@super/db-terminal"
 import { getStoredToken } from "src/lib/token.ts"
-import { ChatService } from "src/service/chat-service.ts"
+import {
+  getCurrentUser,
+  getOrCreateConversation,
+  getMessages,
+  addMessage,
+  updateConversationMode,
+  updateConversationTitle,
+  formatMessagesForAI,
+} from "src/lib/api-client.ts"
 import type { ModelMessage } from "ai"
 import { createProvider, type ModelProvider, type AIProvider } from "src/cli/ai/provider.ts"
 export type { ModelProvider } from "src/cli/ai/provider.ts"
@@ -21,44 +28,30 @@ import { buildSystemPrompt } from "src/cli/workspace/context.ts"
 import { tools } from "src/tools/registry.ts"
 import { renderWorkspaceBanner } from "src/cli/workspace/format.ts"
 
-let _chatService: ChatService
-
-function getChatService() {
-  if (!_chatService) _chatService = new ChatService()
-  return _chatService
-}
-
 async function getUserFromToken() {
   const token = await getStoredToken()
-
   if (!token?.access_token) {
     console.log(chalk.hex(theme.red)("Not authenticated. Please login first."))
     process.exit(1)
   }
 
   const thinking = createThinking("authenticating")
-  const user = await prisma.user.findFirst({
-    where: {
-      sessions: { some: { token: token.access_token as string } },
-    },
-    select: { id: true, name: true, email: true },
-  })
-
-  if (!user) {
-    thinking.fail("User not found")
-    throw new Error("User not found. Please try again.")
+  const result = await getCurrentUser()
+  if (!result.ok) {
+    thinking.fail("Session expired or server unreachable")
+    throw new Error("Authentication failed. Run supercode login to re-authenticate.")
   }
 
-  thinking.succeed(`Welcome, ${user.name}`)
-  return user
+  thinking.succeed(`Welcome, ${result.user.name}`)
+  return result.user
 }
 
 export async function initConversation(userId: string, conversationId: string | null = null, mode = "chat") {
   const thinking = createThinking("loading conversation")
-  const conversation = await getChatService().getOrCreateConversation(userId, conversationId, mode)
+  const conversation = await getOrCreateConversation(conversationId, mode)
   thinking.succeed()
 
-  const history = await getChatService().getMessages(conversation.id)
+  const history = await getMessages(conversation.id)
   if (history.length > 0) {
     console.log()
     console.log(` ${chalk.hex(theme.dim)(`${history.length} previous messages`)}`)
@@ -78,8 +71,8 @@ async function streamAIResponse(
   mode: string,
   workspaceInfo?: WorkspaceInfo,
 ): Promise<{ content: string; elapsed: number; usage: any }> {
-  const dbMessages = await getChatService().getMessages(conversationId)
-  let aiMessages = getChatService().formatMessagesForAI(dbMessages)
+  const dbMessages = await getMessages(conversationId)
+  let aiMessages = formatMessagesForAI(dbMessages as any)
 
   if (workspaceInfo) {
     process.env.SUPERCODE_WORKSPACE_ROOT = workspaceInfo.workspaceRoot
@@ -135,10 +128,10 @@ async function streamAIResponse(
   }
 }
 
-async function updateConversationTitle(conversationId: string, userInput: string, messageCount: number) {
+async function trySetAutoTitle(conversationId: string, userInput: string, messageCount: number) {
   if (messageCount !== 1) return
   const baseTitle = userInput.slice(0, 50)
-  await getChatService().updateTitle(conversationId, userInput.length > 50 ? `${baseTitle}...` : baseTitle)
+  await updateConversationTitle(conversationId, userInput.length > 50 ? `${baseTitle}...` : baseTitle)
 }
 
 interface Conversation {
@@ -302,7 +295,7 @@ export async function chatLoop(
 
     if (mode !== conversation.mode) {
       conversation.mode = mode
-      await getChatService().updateMode(conversation.id, mode)
+      await updateConversationMode(conversation.id, mode)
     }
 
     if (userInput === null) {
@@ -325,12 +318,12 @@ export async function chatLoop(
     userMessage(trimmed)
     messageCount++
 
-    await saveMessage(conversation.id, "user", trimmed)
-    await updateConversationTitle(conversation.id, trimmed, messageCount)
+    await addMessage(conversation.id, "user", trimmed)
+    await trySetAutoTitle(conversation.id, trimmed, messageCount)
 
     try {
       const result = await streamAIResponse(provider, conversation.id, conversation.mode, workspaceInfo)
-      await saveMessage(conversation.id, "assistant", result.content)
+      await addMessage(conversation.id, "assistant", result.content)
 
       chatStatusBar({
         mode: conversation.mode,
@@ -346,10 +339,6 @@ export async function chatLoop(
       console.log()
     }
   }
-}
-
-async function saveMessage(conversationId: string, role: string, content: string) {
-  return getChatService().addMessage(conversationId, role, content)
 }
 
 export async function startChat(
