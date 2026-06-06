@@ -9,7 +9,7 @@ export function DocsSidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="w-56 shrink-0 border-r border-[var(--border)] py-6 pl-6 pr-4">
+    <aside className="w-56 shrink-0 border-r border-[var(--border)] py-6 pl-6 pr-4 overflow-y-auto">
       <nav className="space-y-0.5">
         {DOCS_NAV.map((item) => {
           const href = `/docs/${item.slug}`

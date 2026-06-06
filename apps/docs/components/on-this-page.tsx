@@ -35,8 +35,8 @@ export function OnThisPage({ headings }: Props) {
   if (headings.length === 0) return null
 
   return (
-    <aside className="w-52 shrink-0 hidden xl:block">
-      <nav className="sticky top-24">
+    <aside className="w-52 shrink-0 hidden xl:block overflow-y-auto sticky top-8 max-h-[calc(100vh-7rem)]">
+      <nav>
         <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)] mb-3">
           On this page
         </h2>

@@ -110,3 +110,14 @@ body {
 .docs-prose a:hover {
   text-decoration: none;
 }
+
+/* Terminal block */
+.terminal-window code {
+  display: block;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: #e4e4e7;
+  background: transparent !important;
+  padding: 0 !important;
+  white-space: pre-wrap;
+}

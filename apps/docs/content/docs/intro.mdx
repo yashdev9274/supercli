@@ -1,0 +1,167 @@
+---
+title: Intro
+description: Get started with the Supercode Terminal.
+---
+
+# Intro
+
+Get started with Supercode.
+
+Supercode is an open source AI coding agent. It's available as a terminal-based CLI and web terminal interface.
+
+## Prerequisites
+
+To use Supercode Terminal, you'll need:
+
+- A modern browser (Chrome, Firefox, or Safari)
+- An account on [supercode-terminal.vercel.app](https://supercode-terminal.vercel.app)
+- API keys for the LLM providers you want to use
+
+## Install
+
+The easiest way to install Supercode is through the install script.
+
+```bash
+curl -fsSL https://supercode.ai/install | bash
+```
+
+You can also install it with the following commands:
+
+Using Node.js (npm or Bun):
+
+```bash
+npm install -g supercode-cli
+```
+
+Using Homebrew on macOS and Linux:
+
+```bash
+brew install supercode
+```
+
+Using NPX (no install):
+
+```bash
+npx supercode-cli
+```
+
+Windows — recommended: use WSL. For the best experience on Windows, we recommend Windows Subsystem for Linux (WSL).
+
+```bash
+npm install -g supercode-cli
+```
+
+You can also grab the binary from the [Releases](https://github.com/yashdev9274/superCli/releases).
+
+## Configure
+
+With Supercode you can use any LLM provider by configuring their API keys.
+
+If you are new to using LLM providers, we recommend starting with the free models included — GPT, Gemini, Minimax, Deepseek and more available out of the box.
+
+### Connect a Provider
+
+1. Run the `/connect` command in the terminal
+2. Select your provider
+3. Enter your API key
+
+```bash
+/connect
+```
+
+You'll be prompted to paste your API key.
+
+```
+┌ API key
+│
+│
+└ enter
+```
+
+Supported providers include OpenAI, Anthropic, Google Gemini, Minimax, NVIDIA, and OpenRouter.
+
+## Initialize
+
+Navigate to a project you want to work on.
+
+```bash
+cd /path/to/project
+```
+
+And run Supercode.
+
+```bash
+supercode-cli
+```
+
+Next, initialize Supercode for the project by running the following command.
+
+```bash
+/init
+```
+
+This will get Supercode to analyze your project and understand the structure and coding patterns used.
+
+## Usage
+
+You are now ready to use Supercode to work on your project. Feel free to ask it anything!
+
+### Ask Questions
+
+You can ask Supercode to explain the codebase to you.
+
+How is authentication handled in the API?
+
+This is helpful if there's a part of the codebase that you didn't work on.
+
+### Add Features
+
+You can ask Supercode to add new features to your project. We recommend first asking it to create a plan.
+
+When a user deletes a note, we'd like to flag it as deleted in the database.
+Then create a screen that shows all the recently deleted notes.
+
+You want to give Supercode enough details to understand what you want. It helps to talk to it like you are talking to a junior developer on your team.
+
+### Make Changes
+
+For more straightforward changes, you can ask Supercode to directly build them.
+
+We need to add authentication to the /settings route.
+
+Make sure you provide a good amount of detail so Supercode makes the right changes.
+
+### Undo Changes
+
+If Supercode makes changes you don't want, use the `/undo` command.
+
+```bash
+/undo
+```
+
+You can run `/undo` multiple times to undo multiple changes. Or use `/redo` to redo changes.
+
+## Web Terminal
+
+You can also access Supercode from your browser at [supercode-terminal.vercel.app](https://supercode-terminal.vercel.app).
+
+Features include:
+
+- Session management with conversation history
+- Workspace file explorer
+- Multi-session tabs
+- Device authorization for secure CLI login
+
+## Customize
+
+To make Supercode your own:
+
+- Pick a theme from the settings
+- Configure API keys for your preferred providers
+- Set up workspace integrations
+
+## Next Steps
+
+- Check out the [Getting Started](/docs/terminal-getting-started) guide for detailed setup
+- Learn about the [Architecture](/docs/terminal-architecture)
+- Join our [GitHub community](https://github.com/yashdev9274/superCli)
