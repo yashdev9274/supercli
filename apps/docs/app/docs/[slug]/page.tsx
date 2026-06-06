@@ -3,6 +3,8 @@ import { MDXRemote } from "next-mdx-remote/rsc"
 import { getDocBySlug, getDocSlugs, DOCS_NAV } from "@/lib/docs-content"
 import { extractHeadings, getHeadingText, slugify } from "@/lib/utils"
 import { OnThisPage } from "@/components/on-this-page"
+import { TerminalBlock } from "@/components/terminal-block"
+import { DocsFooter } from "@/components/docs-footer"
 
 type Props = { params: Promise<{ slug: string }> }
 
@@ -37,12 +39,16 @@ export default async function DocPage({ params }: Props) {
         {children}
       </h3>
     ),
+    pre: ({ children }: React.ComponentProps<"pre">) => (
+      <TerminalBlock>{children}</TerminalBlock>
+    ),
   }
 
   return (
     <div className="flex gap-12 w-full max-w-5xl">
       <article className="docs-prose min-w-0 flex-1">
         <MDXRemote source={doc.content} components={components} />
+        <DocsFooter slug={slug} />
       </article>
       <OnThisPage headings={headings} />
     </div>

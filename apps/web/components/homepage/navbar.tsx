@@ -1,9 +1,28 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 
-const DOCS_URL = process.env.NEXT_PUBLIC_DOCS_URL || 'http://localhost:3001';
+const DOCS_URL = process.env.NEXT_PUBLIC_DOCS_URL || 'http://localhost:3001/docs/intro';
+
+function GithubStars() {
+  const [stars, setStars] = useState<number | null>(null)
+
+  useEffect(() => {
+    fetch("https://api.github.com/repos/yashdev9274/superCli")
+      .then((res) => res.json())
+      .then((data) => setStars(data.stargazers_count))
+      .catch(() => {})
+  }, [])
+
+  if (stars === null) return null
+
+  return (
+    <span className="ml-1.5 text-[15px] text-gray text-muted-foreground/60 font-mono">
+      [{stars >= 1000 ? `${(stars / 1000).toFixed(1)}k` : stars}]
+    </span>
+  )
+}
 
 
 const PixelLogo = () => {
@@ -138,25 +157,31 @@ const Navbar = () => {
         <nav className="hidden md:flex items-center gap-10">
           <a 
             href="https://github.com/yashdev9274/superCli" 
-            className="text-[15px] text-muted-foreground hover:text-foreground transition-colors font-mono"
+            className="text-[15px] text-white hover:text-foreground transition-colors font-mono"
           >
-            GitHub <span className="text-muted-foreground/60"></span>
+            GitHub <GithubStars />
           </a>
           <a
             href={DOCS_URL}
-            className="text-[15px] text-muted-foreground hover:text-foreground transition-colors font-mono"
+            className="text-[15px] text-white hover:text-foreground transition-colors font-mono"
           >
             Docs
           </a>
-          <a 
+          <Link
+            href="/changelog"
+            className="text-[15px] text-white hover:text-foreground transition-colors font-mono"
+          >
+            Changelog
+          </Link>
+          {/* <a 
             href="#enterprise" 
-            className="text-[15px] text-muted-foreground hover:text-foreground transition-colors font-mono"
+            className="text-[15px] text-white hover:text-foreground transition-colors font-mono"
           >
             Enterprise
-          </a>
+          </a> */}
           <a 
             href="#zen" 
-            className="text-[15px] text-muted-foreground hover:text-foreground transition-colors font-mono"
+            className="text-[15px] text-white hover:text-foreground transition-colors font-mono"
           >
             
           </a>

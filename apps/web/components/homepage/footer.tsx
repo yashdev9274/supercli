@@ -1,7 +1,7 @@
 import React from 'react';
 import { Github, Twitter } from 'lucide-react';
 
-const DOCS_URL = process.env.NEXT_PUBLIC_DOCS_URL || 'http://localhost:3001';
+const DOCS_URL = process.env.NEXT_PUBLIC_DOCS_URL || 'http://localhost:3001/docs/intro';
 
 const Footer = () => {
   return (

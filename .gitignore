@@ -64,3 +64,6 @@ supercode-openmodel.md
 
 /tech
 .gstack/
+
+# supercode-cli plan files
+apps/supercode-cli/plan
