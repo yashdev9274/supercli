@@ -18,18 +18,16 @@ export const auth = betterAuth({
   account: {
     skipStateCookieCheck: true,
   },
-  advanced: {
-    defaultCookieAttributes: {
-      sameSite: isProduction ? "none" : "lax",
-      secure: isProduction ? true : false,
-      httpOnly: true,
-      path: "/",
-    },
-  },
   socialProviders: {
     github: {
       clientId: process.env.GITHUB_CLIENT_ID as string,
       clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
+      ...(isProduction
+        ? {
+            redirectURI:
+              "https://supercode-terminal.vercel.app/api/auth/callback/github",
+          }
+        : {}),
     },
   },
   plugins: [
