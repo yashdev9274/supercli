@@ -22,11 +22,12 @@ function loadEnvFile(envPath: string) {
   return true
 }
 
-// Try CWD .env first (local dev), then fall back to file-relative path (global install)
+// Try CWD .env first, then file-relative paths for bundled/global install
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const cwdEnv = resolve(process.cwd(), ".env")
-const pkgEnv = resolve(__dirname, "../../.env")
+const pkgEnv = resolve(__dirname, "../../.env")        // dev: src/lib/ -> server/.env
+const distEnv = resolve(__dirname, "../.env")           // prod: dist/ -> server/.env
 
 try {
-  loadEnvFile(cwdEnv) || loadEnvFile(pkgEnv)
+  loadEnvFile(cwdEnv) || loadEnvFile(pkgEnv) || loadEnvFile(distEnv)
 } catch {}
