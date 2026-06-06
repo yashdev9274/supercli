@@ -1,10 +1,9 @@
-import { readFileSync } from "fs"
+import { readFileSync, existsSync } from "fs"
 import { resolve, dirname } from "path"
 import { fileURLToPath } from "url"
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const envPath = resolve(__dirname, "../../.env")
-try {
+function loadEnvFile(envPath: string) {
+  if (!existsSync(envPath)) return false
   const env = readFileSync(envPath, "utf-8")
   for (const line of env.split("\n")) {
     const trimmed = line.trim()
@@ -20,4 +19,14 @@ try {
       process.env[key] = value
     }
   }
+  return true
+}
+
+// Try CWD .env first (local dev), then fall back to file-relative path (global install)
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const cwdEnv = resolve(process.cwd(), ".env")
+const pkgEnv = resolve(__dirname, "../../.env")
+
+try {
+  loadEnvFile(cwdEnv) || loadEnvFile(pkgEnv)
 } catch {}
