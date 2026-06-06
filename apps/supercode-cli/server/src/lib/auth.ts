@@ -6,6 +6,7 @@ import prisma from "@super/db-terminal"
 
 const serverUrl = process.env.BETTER_AUTH_URL || "http://localhost:3004"
 const clientUrl = process.env.CLIENT_URL || "http://localhost:3000"
+const isProduction = serverUrl.startsWith("https://")
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -16,6 +17,14 @@ export const auth = betterAuth({
   trustedOrigins: [clientUrl, serverUrl],
   account: {
     skipStateCookieCheck: true,
+  },
+  advanced: {
+    defaultCookieAttributes: {
+      sameSite: isProduction ? "none" : "lax",
+      secure: isProduction ? true : false,
+      httpOnly: true,
+      path: "/",
+    },
   },
   socialProviders: {
     github: {
