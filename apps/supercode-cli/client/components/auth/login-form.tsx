@@ -178,10 +178,14 @@ const LoginForm = () => {
     setError(null)
     try {
       const params = new URLSearchParams(window.location.search)
-      const redirect = params.get("redirect") || "http://localhost:3000"
+      const redirect = params.get("redirect") || ""
+      const callbackURL = redirect
+        ? new URL(redirect, window.location.origin).toString()
+        : window.location.origin
       await authClient.signIn.social({
         provider: 'github',
-        callbackURL: redirect,
+        callbackURL,
+        errorCallbackURL: `${window.location.origin}/sign-in`,
       })
     } catch (err) {
       console.error('Sign in error:', err)

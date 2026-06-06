@@ -1,10 +1,9 @@
-import { readFileSync } from "fs"
+import { readFileSync, existsSync } from "fs"
 import { resolve, dirname } from "path"
 import { fileURLToPath } from "url"
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const envPath = resolve(__dirname, "../../.env")
-try {
+function loadEnvFile(envPath: string) {
+  if (!existsSync(envPath)) return false
   const env = readFileSync(envPath, "utf-8")
   for (const line of env.split("\n")) {
     const trimmed = line.trim()
@@ -20,4 +19,15 @@ try {
       process.env[key] = value
     }
   }
+  return true
+}
+
+// Try CWD .env first, then file-relative paths for bundled/global install
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const cwdEnv = resolve(process.cwd(), ".env")
+const pkgEnv = resolve(__dirname, "../../.env")        // dev: src/lib/ -> server/.env
+const distEnv = resolve(__dirname, "../.env")           // prod: dist/ -> server/.env
+
+try {
+  loadEnvFile(cwdEnv) || loadEnvFile(pkgEnv) || loadEnvFile(distEnv)
 } catch {}

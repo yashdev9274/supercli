@@ -5,17 +5,35 @@ import cors from "cors"
 import prisma from "@super/db-terminal"
 
 const port = process.env.PORT || 10000
+const serverUrl = process.env.BETTER_AUTH_URL || `http://localhost:${port}`
 const clientUrl = process.env.CLIENT_URL || "http://localhost:3000"
 const app = express()
 
 app.use(
   cors({
-    origin: [clientUrl].filter(Boolean),
+    origin: [clientUrl, serverUrl].filter(Boolean),
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   }),
 )
 app.use("/api/auth", toNodeHandler(auth))
+
+app.get("/", (req, res) => {
+  const { error, error_description } = req.query
+  if (error) {
+    return res.redirect(
+      `${clientUrl}/sign-in?error=${encodeURIComponent(error as string)}${error_description ? `&error_description=${encodeURIComponent(error_description as string)}` : ""}`,
+    )
+  }
+  res.redirect(clientUrl)
+})
+
+app.get("/error", (req, res) => {
+  const { error, error_description } = req.query
+  res.redirect(
+    `${clientUrl}/sign-in?error=${encodeURIComponent(error as string || "unknown")}${error_description ? `&error_description=${encodeURIComponent(error_description as string)}` : ""}`,
+  )
+})
 
 app.use(express.json())
 

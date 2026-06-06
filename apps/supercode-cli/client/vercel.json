@@ -1,4 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "rewrites": [
+    {
+      "source": "/api/auth/:path*",
+      "destination": "https://supercode-8w7e.onrender.com/api/auth/:path*"
+    }
+  ]
 }
