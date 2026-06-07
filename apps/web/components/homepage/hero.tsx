@@ -45,7 +45,7 @@ const HeroSection = () => {
           {/* Version tag */}
           <div className="flex justify-center mb-4">
             <div className="px-3 py-1 bg-primary/10 text-primary text-[12px] font-mono rounded-md">
-              v0.1.0-beta
+              v0.1.2-beta
             </div>
           </div>
 
@@ -63,7 +63,7 @@ const HeroSection = () => {
 
           {/* Main headline */}
           <h1 className="text-[28px] md:text-[56px] leading-[1.1] mb-8 tracking-tight font-semibold">
-            The open source AI coding agent
+            The open source SWE agent
           </h1>
 
           {/* Subheadline */}
@@ -88,6 +88,9 @@ const HeroSection = () => {
                     }`}
                   >
                     {method}
+                    {(method === 'npm' || method === 'npx') && (
+                      <span className="ml-1.5 px-1.5 py-0.5 text-[10px] bg-primary/20 text-primary rounded font-semibold leading-none">live</span>
+                    )}
                     {activeMethod === method && (
                       <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />
                     )}

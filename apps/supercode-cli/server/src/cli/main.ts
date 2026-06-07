@@ -64,7 +64,7 @@ async function main() {
     `  ${bullet("run", theme.cyan)} ${chalk.hex(theme.cyan)("supercode login")}   ${dimmed("to get started")}`,
   )
   console.log(
-    `  ${bullet("docs", theme.cyan)} ${chalk.hex(theme.cyan)(chalk.underline("supercode-terminal.vercel.app"))}`,
+    `  ${bullet("docs", theme.cyan)} ${chalk.hex(theme.cyan)(chalk.underline("supercli-docs.vercel.app/"))}`,
   )
   console.log()
   console.log(
