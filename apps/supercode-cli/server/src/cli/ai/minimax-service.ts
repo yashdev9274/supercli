@@ -4,7 +4,7 @@ import { minimaxConfig } from "../../config/minimax.config.ts"
 import chalk from "chalk"
 
 export class MinimaxService {
-  private model: ReturnType<ReturnType<typeof createMinimax>>
+  model: ReturnType<ReturnType<typeof createMinimax>>
 
   constructor() {
     if (!minimaxConfig.apiKey) {

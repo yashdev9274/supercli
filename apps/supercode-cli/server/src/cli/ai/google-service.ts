@@ -8,7 +8,7 @@ export class AIService {
 
   constructor() {
     if (!config.googleApiKey) {
-      throw new Error("GOOGLE_API_KEY is not set in env");
+      throw new Error("GOOGLE_GENERATIVE_AI_API_KEY is not set in env");
     }
 
     const google = createGoogleGenerativeAI({

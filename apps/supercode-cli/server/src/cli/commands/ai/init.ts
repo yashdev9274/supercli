@@ -132,7 +132,7 @@ export const wakeUpAction = async () => {
 
   switch (modeChoice) {
     case "agent":
-      await startAgentChat()
+      await startAgentChat(modelChoice, selectedModel)
       break
     default:
       await startChat(modelChoice, selectedModel, null, workspaceInfo ?? undefined, modeChoice as string)

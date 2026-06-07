@@ -4,7 +4,7 @@ import { text, confirm, isCancel } from "@clack/prompts"
 import { createThinking, theme, frame, panel, userMessage, streamFooter } from "src/cli/utils/tui"
 import { getStoredToken } from "src/lib/token"
 import { ChatService } from "src/service/chat-service"
-import { AIService } from "src/cli/ai/google-service"
+import { createProvider, type ModelProvider } from "src/cli/ai/provider"
 import { generateApplication } from "src/config/agent-config"
 
 let _chatService: ChatService
@@ -70,7 +70,7 @@ interface Conversation {
   updatedAt: Date
 }
 
-async function agentLoop(conversation: Conversation, aiService: AIService) {
+async function agentLoop(conversation: Conversation, model: import("ai").LanguageModel) {
   console.log(` ${chalk.hex(theme.warning)("◆")} ${chalk.hex(theme.muted)("Describe an application to generate")}`)
   console.log(` ${chalk.hex(theme.muted)('•')} Type "exit" to end`)
   console.log()
@@ -107,7 +107,7 @@ async function agentLoop(conversation: Conversation, aiService: AIService) {
     const startTime = Date.now()
 
     try {
-      const result = await generateApplication(userInput, aiService, process.cwd())
+      const result = await generateApplication(userInput, model, process.cwd())
 
       if (result && result.success) {
         const responseMessage =
@@ -168,7 +168,11 @@ async function updateConversationTitle(conversationId: string, userInput: string
   await getChatService().updateTitle(conversationId, userInput.length > 50 ? `${baseTitle}...` : baseTitle)
 }
 
-export async function startAgentChat(conversationId: string | null = null) {
+export async function startAgentChat(
+  provider: ModelProvider = "google",
+  model?: string,
+  conversationId: string | null = null,
+) {
   try {
     console.log(
       frame(
@@ -191,9 +195,13 @@ export async function startAgentChat(conversationId: string | null = null) {
       process.exit(0)
     }
 
-    const aiService = new AIService()
+    const aiProvider = createProvider(provider, model)
+    if (!aiProvider.model) {
+      console.log(chalk.hex(theme.red)(`Agent mode is not supported with ${provider} provider (no structured output support)`))
+      process.exit(1)
+    }
     const conversation = await initAgentConversation(user.id, conversationId)
-    await agentLoop(conversation, aiService)
+    await agentLoop(conversation, aiProvider.model as import("ai").LanguageModel)
 
     console.log()
     console.log(chalk.hex(theme.green)("◆") + " " + chalk.hex(theme.muted)("agent session ended"))

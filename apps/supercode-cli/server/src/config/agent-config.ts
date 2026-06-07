@@ -3,7 +3,7 @@ import { generateObject } from "ai"
 import chalk from "chalk"
 import path from "node:path"
 import { mkdir, writeFile } from "node:fs/promises"
-import type { AIService } from "src/cli/ai/google-service.ts"
+import type { LanguageModel } from "ai"
 
 const ApplicationSchema = z.object({
   folderName: z
@@ -84,7 +84,7 @@ async function createApplicationFiles(
 
 export async function generateApplication(
   description: string,
-  aiService: AIService,
+  model: LanguageModel,
   cwd = process.cwd(),
 ) {
   try {
@@ -92,7 +92,7 @@ export async function generateApplication(
     console.log(chalk.gray(`Request: ${description}\n`))
 
     const { object: application } = await generateObject({
-      model: aiService.model,
+      model,
       schema: ApplicationSchema,
       prompt: `Create a complete, production-ready application for: ${description}
 CRITICAL REQUIREMENTS:

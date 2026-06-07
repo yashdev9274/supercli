@@ -9,6 +9,7 @@ export type ModelProvider = "google" | "minimax" | "openrouter" | "nvidia"
 export interface AIProvider {
   readonly name: string
   readonly modelName: string
+  readonly model?: object | null
   sendMessage(
     messages: ModelMessage[],
     onChunk?: (chunk: string) => void,
@@ -28,6 +29,7 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
       return {
         name: "google",
         modelName: "gemini-2.5-flash",
+        model: svc.model,
         sendMessage: (messages, onChunk, tools, onToolCall) => svc.sendMessage(messages, onChunk, tools, onToolCall),
       }
     }
@@ -36,6 +38,7 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
       return {
         name: "minimax",
         modelName: "MiniMax-M2",
+        model: svc.model,
         sendMessage: (messages, onChunk, tools, onToolCall) => svc.sendMessage(messages, onChunk, tools, onToolCall),
       }
     }
@@ -44,6 +47,7 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
       return {
         name: "openrouter",
         modelName: svc.modelName,
+        model: svc.model,
         sendMessage: (messages, onChunk, tools, onToolCall) => svc.sendMessage(messages, onChunk, tools, onToolCall),
       }
     }
@@ -52,6 +56,7 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
       return {
         name: "nvidia",
         modelName: svc.modelName,
+        model: svc.model,
         sendMessage: (messages, onChunk, tools, onToolCall) => svc.sendMessage(messages, onChunk, tools, onToolCall),
       }
     }
