@@ -5,6 +5,7 @@ import { zodToJsonSchema } from "zod-to-json-schema"
 
 export class NvidiaService {
   readonly modelName: string
+  readonly model = null
   private readonly baseUrl: string
 
   constructor(model?: string) {
