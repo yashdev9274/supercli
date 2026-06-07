@@ -7,11 +7,11 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
-  title: "Supercode - CLI AI Coding Agent for developers",
+  title: "Supercode - The open source SWE agent",
   description: "Work with superCli directly in your codebase. Build, debug, and ship from your terminal, IDE, Slack, or the web. Describe what you need, and superCli handles the rest.",
   metadataBase: new URL("https://supercli.vercel.app"),
   openGraph: {
-    title: "Supercode - CLI AI Coding Agent for developers",
+    title: "Supercode - The open source SWE agent",
     description: "Work with superCli directly in your codebase. Build, debug, and ship from your terminal, IDE, Slack, or the web. Describe what you need, and superCli handles the rest.",
     url: "https://supercli.vercel.app",
     siteName: "Supercode",
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Supercode - CLI AI Coding Agent for developers",
+    title: "Supercode - The open source SWE agent",
     description: "Work with superCli directly in your codebase. Build, debug, and ship from your terminal, IDE, Slack, or the web.",
     images: ["/og-image.png"],
   },
