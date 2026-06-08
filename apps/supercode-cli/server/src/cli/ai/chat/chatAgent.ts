@@ -70,7 +70,10 @@ interface Conversation {
   updatedAt: Date
 }
 
-async function agentLoop(conversation: Conversation, model: import("ai").LanguageModel) {
+async function agentLoop(
+  conversation: Conversation,
+  modelOrGenerate: import("ai").LanguageModel | ((schema: any, prompt: string) => Promise<{ object: unknown }>),
+) {
   console.log(` ${chalk.hex(theme.warning)("◆")} ${chalk.hex(theme.muted)("Describe an application to generate")}`)
   console.log(` ${chalk.hex(theme.muted)('•')} Type "exit" to end`)
   console.log()
@@ -107,7 +110,7 @@ async function agentLoop(conversation: Conversation, model: import("ai").Languag
     const startTime = Date.now()
 
     try {
-      const result = await generateApplication(userInput, model, process.cwd())
+      const result = await generateApplication(userInput, modelOrGenerate, process.cwd())
 
       if (result && result.success) {
         const responseMessage =
@@ -196,12 +199,17 @@ export async function startAgentChat(
     }
 
     const aiProvider = createProvider(provider, model)
-    if (!aiProvider.model) {
+    let agentModel: import("ai").LanguageModel | ((schema: any, prompt: string) => Promise<{ object: unknown }>)
+    if (aiProvider.model) {
+      agentModel = aiProvider.model as import("ai").LanguageModel
+    } else if (aiProvider.generateObject) {
+      agentModel = (schema, prompt) => aiProvider.generateObject!(schema, prompt)
+    } else {
       console.log(chalk.hex(theme.red)(`Agent mode is not supported with ${provider} provider (no structured output support)`))
       process.exit(1)
     }
     const conversation = await initAgentConversation(user.id, conversationId)
-    await agentLoop(conversation, aiProvider.model as import("ai").LanguageModel)
+    await agentLoop(conversation, agentModel)
 
     console.log()
     console.log(chalk.hex(theme.green)("◆") + " " + chalk.hex(theme.muted)("agent session ended"))
