@@ -1,114 +1,119 @@
 ---
 title: Architecture
-description: Technical architecture of the Terminal.
+description: Technical architecture of the Supercode CLI.
 ---
 
 # Architecture
 
-This document describes the technical architecture of the Supercode Terminal.
+This document describes the technical architecture of the Supercode CLI — a terminal-based AI coding agent.
 
 ## Overview
 
-The Terminal consists of three main components:
+The system consists of two main components:
 
-1. **Web Client** - Next.js application for the user interface
-2. **WebSocket Server** - Handles real-time AI communication
-3. **Database** - PostgreSQL for persistent storage
-
-## Project Structure
-
-```
-apps/supercode-cli/
-├── client/              # Next.js web application
-│   ├── app/            # App Router pages
-│   ├── components/     # React components
-│   └── lib/            # Utilities
-│
-└── server/             # Express + WebSocket server
-    ├── src/
-    │   └── index.ts    # Server entry point
-    └── prisma/         # Database schema
-```
+1. **CLI App** — Commander-based terminal application (Bun/TypeScript)
+2. **API Server** — Express server for auth, AI proxy, and persistence (deployed on Render)
 
 ## Database Schema
 
-Terminal uses a separate PostgreSQL database with the following models:
+Terminal uses a PostgreSQL database via Prisma with the following models:
 
-### TerminalUser
-- Stores user accounts (separate from dashboard)
-- Supports email/password and GitHub OAuth
+### User
+- GitHub-authenticated user accounts
+- Links to sessions, accounts, and conversations
 
 ### Session
-- Active coding sessions
-- Stores conversation history
-- Tracks session status (active, paused, archived)
+- Better-Auth session management
+- Tracks expiry, IP, and user agent
+
+### Account
+- OAuth provider accounts (GitHub)
+- Stores access/refresh tokens and scopes
+
+### DeviceCode
+- Device authorization grant codes
+- Tracks polling status and expiry (10-minute TTL)
+
+### Conversation
+- AI chat sessions
+- Supports multiple modes: `chat`, `tools`, `agent`
+- Each conversation belongs to a user and contains messages
 
 ### Message
-- Chat messages within sessions
-- Role (user, assistant, system)
-- Token usage tracking
+- Individual messages within conversations
+- Roles: `user`, `assistant`, `system`, `tool`
+- Stores raw content as text
 
-### Workspace
-- Project workspaces
-- File tree caching
-- Git ignore patterns
+## CLI Flow
 
-### ApiKey
-- User's AI provider API keys
-- Encrypted storage
-- Provider tracking (OpenAI, Anthropic, etc.)
+### Entry Point
 
-### ToolCall
-- AI tool execution logs
-- Input/output tracking
-- Status (pending, success, error)
-
-## Communication
-
-### WebSocket Protocol
-
-The client connects via WebSocket for real-time communication:
-
-```
-Client <--> WebSocket Server <--> AI Provider
-                |
-                v
-           Database
+```bash
+supercode <command>
 ```
 
-### Message Format
+Outputs a styled banner and registers two commands:
 
-Messages are JSON with the following structure:
-```json
-{
-  "type": "message" | "tool_call" | "stream",
-  "sessionId": "string",
-  "content": "string",
-  "role": "user" | "assistant",
-  "metadata": {}
-}
-```
+- **`login`** — Device code authentication via GitHub OAuth
+- **`init`** — Start an interactive AI coding session
 
-## Authentication
+### Init Flow
 
-Terminal uses separate authentication from the dashboard:
-- **Better-Auth** for auth management
-- **GitHub OAuth** for social login
-- Sessions stored in database
+1. Check stored token → authenticate with server (`GET /api/user/me`)
+2. Scan current workspace for project info (language, structure)
+3. Prompt for AI provider and model selection
+4. Prompt for mode: Chat, Tools, or Agent
+5. Launch the chosen mode's interactive loop
+
+### Supported AI Providers
+
+| Provider | Models | Key Required |
+|----------|--------|--------------|
+| Google Gemini | gemini-2.5-flash | Server-configured |
+| OpenRouter | gpt-oss-120b, deepseek-v4-flash | Server-configured |
+| MiniMax | MiniMax-M2 | Server-configured |
+| NVIDIA NIM | minimax-m2.7, deepseek-v4-flash, llama-3.3-70b | Server-configured |
+
+API keys are configured server-side via environment variables (`GOOGLE_GENERATIVE_AI_API_KEY`, `OPENROUTER_API_KEY`, etc.).
+
+### Modes
+
+- **Chat** — Direct conversation with AI. Workspace context is sent as system prompt.
+- **Tools** — AI with file system access (read, search, grep) via tool calls.
+- **Agent** — Autonomous coding agent that can read, write, and execute commands.
+
+## API Server
+
+The Express server runs on Render and provides:
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/auth/*` | Any | Better-Auth routes (OAuth, sessions) |
+| `/api/user/me` | GET | Current user info |
+| `/api/conversations` | POST | Create/get conversation |
+| `/api/conversations/:id/messages` | GET/POST | Message history / new message |
+| `/api/conversations/:id/mode` | PUT | Update conversation mode |
+| `/api/conversations/:id/title` | PUT | Update conversation title |
+| `/api/ai/chat` | POST | Streaming AI chat (proxied) |
+| `/api/ai/generate-object` | POST | Structured generation |
+
+AI requests are proxied through the server so API keys remain server-side (not exposed to the CLI client).
 
 ## Deployment
 
-### Client
-- **Platform**: Vercel
-- **Domain**: terminal.supercli.com
-
 ### Server
-- **Platform**: Railway/Fly.io (recommended for WebSockets)
-- **Reason**: Vercel has limited WebSocket support
+- **Platform**: Render (free tier)
+- **Port**: 10000 (default)
+- **Domain**: supercode-8w7e.onrender.com
+
+### Notes
+- Free tier spins down after 15 minutes of inactivity
+- Cold start takes 30-60 seconds
+- First CLI request will fail — wait a minute and retry
 
 ## Security
 
-- API keys are encrypted at rest
-- WebSocket connections over WSS (secure)
-- Rate limiting on API endpoints
-- Input sanitization for tool execution
+- AI provider API keys are stored server-side only
+- Session tokens are encrypted with `BETTER_AUTH_SECRET`
+- GitHub OAuth handled entirely server-side
+- All production traffic over HTTPS

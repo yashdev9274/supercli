@@ -213,6 +213,7 @@ app.post("/api/ai/chat", async (req, res) => {
         const { streamText } = await import("ai")
         const openrouter = createOpenRouter({ apiKey })
         const opts: any = { model: openrouter(modelName), messages: nonSystemMessages }
+        if (modelName.includes("minimax-m3") || modelName.includes("glm-5.1")) opts.maxOutputTokens = 8192
         if (system) opts.system = system
         if (tools) { opts.tools = tools; opts.maxSteps = 5 }
         const result = streamText(opts)

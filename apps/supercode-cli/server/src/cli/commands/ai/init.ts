@@ -18,6 +18,9 @@ const NVIDIA_MODELS = {
 const OPENROUTER_MODELS = {
   "openai/gpt-oss-120b:free": "GPT OSS 120B (free)",
   "deepseek/deepseek-v4-flash": "DeepSeek V4 Flash",
+  "minimax/minimax-m3": "MiniMax M3",
+  "z-ai/glm-5.1": "GLM 5.1",
+  "moonshotai/kimi-k2.6:free": "Kimi K2.6 (free)",
 } as const
 
 export const wakeUpAction = async () => {
@@ -36,7 +39,7 @@ export const wakeUpAction = async () => {
   if (!result.ok) {
     const msg = result.reason === "unauthorized"
       ? "Session expired. Run supercode login to re-authenticate"
-      : "Cannot reach server. Is the Supercode server running?"
+      : "Server was inactive and is waking up. Wait a minute, then run supercode init again"
     thinking.fail(msg)
     return
   }

@@ -457,11 +457,17 @@ export function streamHeader(model: string, label = "supercode") {
   console.log(chalk.hex(theme.green)(line))
 }
 
+export function formatTokenCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return `${n}`
+}
+
 export function streamFooter(usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number }, elapsedMs?: number, model?: string) {
   const parts: string[] = []
   if (usage && (usage.totalTokens || usage.promptTokens || usage.completionTokens)) {
     const t = usage.totalTokens ?? (usage.promptTokens ?? 0) + (usage.completionTokens ?? 0)
-    parts.push(`${t} tokens`)
+    parts.push(`${formatTokenCount(t)}`)
   }
   if (elapsedMs !== undefined) {
     const time = elapsedMs < 1000 ? `${elapsedMs}ms` : `${(elapsedMs / 1000).toFixed(1)}s`
@@ -530,6 +536,8 @@ export function chatStatusBar(opts: {
   model: string
   usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number }
   elapsed?: number
+  cumulativeTokens?: number
+  contextWindow?: number
 }) {
   const w = process.stdout.columns ?? 80
   const dim = (s: string) => chalk.hex(theme.dim)(s)
@@ -538,9 +546,17 @@ export function chatStatusBar(opts: {
   tags.push(chalk.hex(theme.muted)(opts.mode))
   tags.push(chalk.hex(theme.green)(opts.model))
 
-  if (opts.usage) {
+  if (opts.cumulativeTokens !== undefined) {
+    const formatted = formatTokenCount(opts.cumulativeTokens)
+    if (opts.contextWindow) {
+      const pct = Math.min(100, Math.round((opts.cumulativeTokens / opts.contextWindow) * 100))
+      tags.push(chalk.hex(theme.amber)(`${formatted} (${pct}%)`))
+    } else {
+      tags.push(chalk.hex(theme.amber)(formatted))
+    }
+  } else if (opts.usage) {
     const t = opts.usage.totalTokens ?? (opts.usage.promptTokens ?? 0) + (opts.usage.completionTokens ?? 0)
-    tags.push(chalk.hex(theme.amber)(`${t} tok`))
+    tags.push(chalk.hex(theme.amber)(formatTokenCount(t)))
   }
   if (opts.elapsed !== undefined) {
     const time = opts.elapsed < 1000 ? `${opts.elapsed}ms` : `${(opts.elapsed / 1000).toFixed(1)}s`

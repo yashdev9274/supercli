@@ -37,6 +37,10 @@ export class OpenRouterService {
         messages: nonSystemMessages,
       }
 
+      if (this.modelName.includes("minimax-m3") || this.modelName.includes("glm-5.1")) {
+        streamOptions.maxOutputTokens = 8192
+      }
+
       if (system) {
         streamOptions.system = system
       }
