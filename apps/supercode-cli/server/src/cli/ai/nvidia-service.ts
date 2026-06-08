@@ -10,7 +10,7 @@ export class NvidiaService {
 
   constructor(model?: string) {
     if (!nvidiaConfig.apiKey) {
-      throw new Error("NVIDIA_API_KEY is not set in env")
+      throw new Error("NVIDIA NIM is not configured.\n\n  Set NVIDIA_API_KEY in your environment:\n    export NVIDIA_API_KEY=<your-key>")
     }
 
     this.modelName = model || nvidiaConfig.model
