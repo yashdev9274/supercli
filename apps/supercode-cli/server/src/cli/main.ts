@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import "../lib/load-env"
+import { version } from "../../package.json"
 import chalk from "chalk"
 import { Command } from "commander"
 import { loginCommand } from "./commands/login"
@@ -26,7 +27,7 @@ async function main() {
   console.log()
   console.log(`  ${banner("SUPERCODE")}`)
   console.log(
-    `  ${chalk.hex(theme.dim)("╰─")} ${chalk.hex(theme.amber).bold(tagline)} ${glow("◆", theme.cyan)} ${chalk.hex(theme.muted)(`v0.0.1`)}`,
+    `  ${chalk.hex(theme.dim)("╰─")}   ${chalk.hex(theme.amber).bold(tagline)} ${glow("◆", theme.cyan)} ${chalk.hex(theme.muted)(`v${version}`)}`,
   )
   console.log()
 
@@ -75,7 +76,7 @@ async function main() {
   const program = new Command("supercode")
   program
     .description("Supercode CLI - AI powered developer tools")
-    .version("0.0.1")
+    .version(version)
     .addCommand(loginCommand)
     .addCommand(supercodeInit)
 

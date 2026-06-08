@@ -17,6 +17,8 @@
     "dev:terminal": "turbo dev --filter=supercode-cli-client",
     "dev:terminal-server": "turbo dev --filter=supercode-cli-server",
     "dev:docs": "turbo dev --filter=docs",
+    "supercode": "bun run --cwd apps/supercode-cli/server src/cli/main.ts",
+    "supercode:prod": "node apps/supercode-cli/server/dist/main.js",
     "dev:video": "bun run --cwd apps/video dev",
     "build:video": "bun run --cwd apps/video build",
     "build:video:square": "bun run --cwd apps/video build:square",
