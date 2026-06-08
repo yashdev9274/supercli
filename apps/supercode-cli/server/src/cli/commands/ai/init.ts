@@ -62,6 +62,7 @@ export const wakeUpAction = async () => {
   const providerChoice = await select({
     message: chalk.hex(theme.cyan)("select model"),
     options: [
+      // { value: "server", label: "Supercloud", hint: "server-hosted · no API key needed (Recommended)" },
       { value: "google", label: "Gemini 2.5 Flash", hint: "free · fast" },
       { value: "minimax", label: "MiniMax M2", hint: "reasoning · powerful" },
       { value: "openrouter", label: "OpenRouter", hint: "multi-provider · bring your own key" },

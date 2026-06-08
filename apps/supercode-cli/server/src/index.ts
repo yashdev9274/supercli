@@ -165,6 +165,212 @@ app.put("/api/conversations/:id/mode", async (req, res) => {
   }
 })
 
+app.post("/api/ai/chat", async (req, res) => {
+  try {
+    const user = await getUserFromBearer(req)
+    if (!user) {
+      res.status(401).json({ error: "Unauthorized" })
+      return
+    }
+
+    const { messages, provider, model: modelParam, tools } = req.body
+    if (!messages || !Array.isArray(messages)) {
+      res.status(400).json({ error: "Messages array is required" })
+      return
+    }
+
+    const systemMessages = messages.filter((m: any) => m.role === "system")
+    const nonSystemMessages = messages.filter((m: any) => m.role !== "system")
+    const system = systemMessages.map((m: any) => m.content).join("\n")
+
+    res.setHeader("Content-Type", "application/x-ndjson")
+
+    switch (provider) {
+      case "google": {
+        const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY
+        if (!apiKey) { res.status(500).json({ error: "Google Gemini not configured on server" }); return }
+        const modelName = modelParam || "gemini-2.5-flash"
+        const { createGoogleGenerativeAI } = await import("@ai-sdk/google")
+        const { streamText } = await import("ai")
+        const google = createGoogleGenerativeAI({ apiKey })
+        const opts: any = { model: google(modelName), messages: nonSystemMessages }
+        if (system) opts.system = system
+        if (tools) { opts.tools = tools; opts.maxSteps = 5 }
+        const result = streamText(opts)
+        for await (const chunk of result.textStream) {
+          res.write(JSON.stringify({ type: "text", content: chunk }) + "\n")
+        }
+        const usage = await result.usage
+        res.write(JSON.stringify({ type: "finish", reason: await result.finishReason, usage }) + "\n")
+        res.end()
+        break
+      }
+      case "openrouter": {
+        const apiKey = process.env.OPENROUTER_API_KEY
+        if (!apiKey) { res.status(500).json({ error: "OpenRouter not configured on server" }); return }
+        const modelName = modelParam || process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free"
+        const { createOpenRouter } = await import("@openrouter/ai-sdk-provider")
+        const { streamText } = await import("ai")
+        const openrouter = createOpenRouter({ apiKey })
+        const opts: any = { model: openrouter(modelName), messages: nonSystemMessages }
+        if (system) opts.system = system
+        if (tools) { opts.tools = tools; opts.maxSteps = 5 }
+        const result = streamText(opts)
+        for await (const chunk of result.textStream) {
+          res.write(JSON.stringify({ type: "text", content: chunk }) + "\n")
+        }
+        const usage = await result.usage
+        res.write(JSON.stringify({ type: "finish", reason: await result.finishReason, usage }) + "\n")
+        res.end()
+        break
+      }
+      case "minimax": {
+        const apiKey = process.env.MINIMAX_API_KEY
+        if (!apiKey) { res.status(500).json({ error: "MiniMax not configured on server" }); return }
+        const modelName = modelParam || "MiniMax-M2"
+        const { createMinimax } = await import("vercel-minimax-ai-provider")
+        const { streamText } = await import("ai")
+        const minimax = createMinimax({ apiKey })
+        const opts: any = { model: minimax(modelName), messages: nonSystemMessages }
+        if (system) opts.system = system
+        if (tools) { opts.tools = tools; opts.maxSteps = 5 }
+        const result = streamText(opts)
+        for await (const chunk of result.textStream) {
+          res.write(JSON.stringify({ type: "text", content: chunk }) + "\n")
+        }
+        const usage = await result.usage
+        res.write(JSON.stringify({ type: "finish", reason: await result.finishReason, usage }) + "\n")
+        res.end()
+        break
+      }
+      case "nvidia": {
+        const apiKey = process.env.NVIDIA_API_KEY
+        if (!apiKey) { res.status(500).json({ error: "NVIDIA not configured on server" }); return }
+        const modelName = modelParam || process.env.NVIDIA_MODEL || "minimaxai/minimax-m2.7"
+        const baseUrl = process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1"
+        const bodyObj: any = {
+          model: modelName,
+          messages: nonSystemMessages.map((m: any) => ({ role: m.role, content: String(m.content) })),
+          max_tokens: Number(process.env.NVIDIA_MAX_TOKENS) || 8192,
+          temperature: Number(process.env.NVIDIA_TEMPERATURE) || 1,
+          top_p: Number(process.env.NVIDIA_TOP_P) || 0.95,
+          stream: true,
+        }
+        if (system && nonSystemMessages.length > 0) {
+          bodyObj.messages = [{ role: "system", content: system }, ...bodyObj.messages]
+        }
+        const response = await fetch(`${baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify(bodyObj),
+        })
+        if (!response.ok) {
+          const errText = await response.text().catch(() => "unknown error")
+          res.status(response.status).json({ error: `NVIDIA API ${response.status}: ${errText}` })
+          return
+        }
+        const reader = response.body?.getReader()
+        if (!reader) { res.status(500).json({ error: "No response body" }); return }
+        const decoder = new TextDecoder()
+        let buffer = ""
+        let inputTokens = 0
+        let outputTokens = 0
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split("\n")
+          buffer = lines.pop() || ""
+          for (const line of lines) {
+            const trimmed = line.trim()
+            if (!trimmed || !trimmed.startsWith("data: ")) continue
+            const jsonStr = trimmed.slice(6)
+            if (jsonStr === "[DONE]") break
+            try {
+              const data = JSON.parse(jsonStr)
+              const delta = data.choices?.[0]?.delta
+              if (delta?.content) {
+                res.write(JSON.stringify({ type: "text", content: delta.content }) + "\n")
+              }
+              if (data.usage) {
+                inputTokens = data.usage.prompt_tokens ?? 0
+                outputTokens = data.usage.completion_tokens ?? 0
+              }
+            } catch { /* skip malformed */ }
+          }
+        }
+        res.write(JSON.stringify({
+          type: "finish", reason: "stop",
+          usage: { inputTokens, outputTokenDetails: { textTokens: outputTokens, reasoningTokens: 0 }, outputTokens, inputTokenDetails: { noCacheTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, totalTokens: inputTokens + outputTokens }
+        }) + "\n")
+        res.end()
+        break
+      }
+      default: {
+        res.status(400).json({ error: `Unknown provider: ${provider}` })
+      }
+    }
+  } catch (error) {
+    res.status(500).json({ error: String(error) })
+  }
+})
+
+app.post("/api/ai/generate-object", async (req, res) => {
+  try {
+    const user = await getUserFromBearer(req)
+    if (!user) {
+      res.status(401).json({ error: "Unauthorized" })
+      return
+    }
+
+    const { provider, model: modelParam, schema, prompt } = req.body
+    if (!prompt) {
+      res.status(400).json({ error: "Prompt is required" })
+      return
+    }
+
+    const { generateObject } = await import("ai")
+
+    switch (provider) {
+      case "google": {
+        const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY
+        if (!apiKey) { res.status(500).json({ error: "Google Gemini not configured on server" }); return }
+        const { createGoogleGenerativeAI } = await import("@ai-sdk/google")
+        const google = createGoogleGenerativeAI({ apiKey })
+        const modelName = modelParam || "gemini-2.5-flash"
+        const result = await generateObject({ model: google(modelName), schema: schema as any, prompt })
+        res.json({ object: result.object })
+        break
+      }
+      case "openrouter": {
+        const apiKey = process.env.OPENROUTER_API_KEY
+        if (!apiKey) { res.status(500).json({ error: "OpenRouter not configured on server" }); return }
+        const { createOpenRouter } = await import("@openrouter/ai-sdk-provider")
+        const openrouter = createOpenRouter({ apiKey })
+        const modelName = modelParam || process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free"
+        const result = await generateObject({ model: openrouter(modelName), schema: schema as any, prompt })
+        res.json({ object: result.object })
+        break
+      }
+      case "minimax": {
+        const apiKey = process.env.MINIMAX_API_KEY
+        if (!apiKey) { res.status(500).json({ error: "MiniMax not configured on server" }); return }
+        const { createMinimax } = await import("vercel-minimax-ai-provider")
+        const minimax = createMinimax({ apiKey })
+        const modelName = modelParam || "MiniMax-M2"
+        const result = await generateObject({ model: minimax(modelName), schema: schema as any, prompt })
+        res.json({ object: result.object })
+        break
+      }
+      default: {
+        res.status(400).json({ error: `Provider ${provider} not supported for structured generation` })
+      }
+    }
+  } catch (error) {
+    res.status(500).json({ error: String(error) })
+  }
+})
+
 app.put("/api/conversations/:id/title", async (req, res) => {
   try {
     const user = await getUserFromBearer(req)

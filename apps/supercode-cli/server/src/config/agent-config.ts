@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { generateObject } from "ai"
+import { generateObject as aiGenerateObject } from "ai"
 import chalk from "chalk"
 import path from "node:path"
 import { mkdir, writeFile } from "node:fs/promises"
@@ -84,17 +84,15 @@ async function createApplicationFiles(
 
 export async function generateApplication(
   description: string,
-  model: LanguageModel,
+  modelOrGenerate: LanguageModel | ((schema: any, prompt: string) => Promise<{ object: unknown }>),
   cwd = process.cwd(),
 ) {
   try {
     console.log(chalk.cyan("\n🤖 Generating your application...\n"))
     console.log(chalk.gray(`Request: ${description}\n`))
 
-    const { object: application } = await generateObject({
-      model,
-      schema: ApplicationSchema,
-      prompt: `Create a complete, production-ready application for: ${description}
+    let application: unknown
+    const promptText = `Create a complete, production-ready application for: ${description}
 CRITICAL REQUIREMENTS:
 1. Generate ALL files needed for the application to run
 2. Include package.json with ALL dependencies and correct versions
@@ -110,43 +108,55 @@ Provide:
 - A meaningful kebab-case folder name
 - All necessary files with complete content
 - Setup commands (cd folder, npm install, npm run dev, etc.)
-- All dependencies with versions`,
-    })
+- All dependencies with versions`
+    if (typeof modelOrGenerate === "function") {
+      const result = await modelOrGenerate(ApplicationSchema, promptText)
+      application = result.object
+    } else {
+      const result = await aiGenerateObject({
+        model: modelOrGenerate,
+        schema: ApplicationSchema,
+        prompt: promptText,
+      })
+      application = result.object
+    }
 
-    console.log(chalk.green(`\n✅ Generated: ${application.folderName}\n`))
-    console.log(chalk.gray(`Description: ${application.description}\n`))
+    const app = application as z.infer<typeof ApplicationSchema>
 
-    if (application.files.length === 0) {
+    console.log(chalk.green(`\n✅ Generated: ${app.folderName}\n`))
+    console.log(chalk.gray(`Description: ${app.description}\n`))
+
+    if (app.files.length === 0) {
       throw new Error("No files were generated")
     }
 
-    displayFileTree(application.files, application.folderName)
+    displayFileTree(app.files, app.folderName)
 
     console.log(chalk.cyan("\n📝 Creating files...\n"))
 
     const appDir = await createApplicationFiles(
       cwd,
-      application.folderName,
-      application.files,
+      app.folderName,
+      app.files,
     )
 
     console.log(chalk.green.bold("\n✨ Application created successfully!\n"))
     console.log(chalk.cyan(`📂 Location: ${chalk.bold(appDir)}\n`))
 
-    if (application.setupCommands.length > 0) {
+    if (app.setupCommands.length > 0) {
       console.log(chalk.cyan("📋 Next Steps:\n"))
       console.log(chalk.white("```bash"))
-      for (const cmd of application.setupCommands) {
+      for (const cmd of app.setupCommands) {
         console.log(chalk.white(cmd))
       }
       console.log(chalk.white("```\n"))
     }
 
     return {
-      folderName: application.folderName,
+      folderName: app.folderName,
       appDir,
-      files: application.files.map((f: { path: string }) => f.path),
-      commands: application.setupCommands,
+      files: app.files.map((f: { path: string }) => f.path),
+      commands: app.setupCommands,
       success: true,
     }
   } catch (error) {
