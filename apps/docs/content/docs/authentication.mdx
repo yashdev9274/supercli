@@ -1,58 +1,87 @@
 ---
 title: Authentication
-description: Setting up GitHub OAuth authentication.
+description: Device code authentication for the Supercode CLI.
 ---
 
 # Authentication
 
-Supercode uses GitHub OAuth for secure authentication. This allows you to sign in with your GitHub account and access your repositories.
+Supercode uses **GitHub OAuth** via **Better-Auth**'s device authorization grant flow. This works entirely in the terminal — no browser redirects during login.
 
-## Sign In
+## CLI Authentication
 
-1. Visit [supercli.com](https://supercli.com)
-2. Click **Sign In** 
-3. You'll be redirected to GitHub for authorization
-4. Authorize the Supercode application
-5. You'll be redirected back to the dashboard
+The `supercode login` command authenticates you with the Supercode server:
+
+```bash
+supercode login [--server-url <url>]
+```
+
+### Device Code Flow
+
+1. Run `supercode login` in your terminal
+2. A **verification URL** and **user code** are displayed (e.g. `https://supercode-terminal.vercel.app/device` + `ABCD-1234`)
+3. Open the URL in any browser — you will be redirected to GitHub for authorization
+4. Enter the user code displayed in your terminal
+5. The CLI polls for completion and stores your session token locally
+
+The token is stored at `~/.supercode/token.json` and used for all subsequent API calls.
+
+## Web Dashboard
+
+Visit [supercli.com](https://supercli.com) and click **Sign In** for browser-based GitHub OAuth access to the dashboard.
 
 ## GitHub OAuth Setup
-
-### For Users
-
-The OAuth flow is handled automatically. When you sign in:
-
-1. GitHub will ask you to authorize Supercode
-2. Grant access to your GitHub account
-3. You'll be able to view and connect your repositories
 
 ### Required Permissions
 
 Supercode requests the following GitHub permissions:
-- **Read user profile** - To display your account info
-- **Read repositories** - To list and display your repos
-- **Read repository contents** - To analyze code when using Terminal
+- **Read user profile** — To display your account info
+- **Read repositories** — To list and connect your repos
+- **Read repository contents** — To analyze code
+
+### Configuration
+
+The CLI uses a **production** GitHub OAuth app configured for the deployed server. For local development, you can override:
+
+```bash
+supercode login --server-url http://localhost:3004 --client-id <dev-client-id>
+```
 
 ## Session Management
 
-- Sessions are managed via secure HTTP-only cookies
-- Session tokens are encrypted with `BETTER_AUTH_SECRET`
-- Sessions persist across browser sessions
+- Sessions are managed via Better-Auth with secure HTTP-only cookies
+- Device flow tokens are stored locally in `~/.supercode/token.json`
+- Sessions expire after 30 days of inactivity
+- Use `supercode login` again to re-authenticate
 
 ## Security
 
 - Passwords are never stored (GitHub handles authentication)
-- API keys for AI providers are stored per-user in encrypted form
-- All requests are served over HTTPS in production
+- API keys for AI providers are stored per-user in the database
+- All production requests are served over HTTPS
+- Device codes expire after 10 minutes
 
 ## Troubleshooting
 
-### Authorization Failed
+### Server Inactive
 
-If GitHub authorization fails:
-1. Check that you're logged into the correct GitHub account
-2. Ensure the Supercode app hasn't been revoked in GitHub settings
-3. Try clearing browser cookies and signing in again
+The server runs on Render's free tier and spins down after inactivity. If you see:
+
+```
+Server was inactive and is waking up. Wait a minute, then run supercode init again
+```
+
+Wait 30-60 seconds and run the command again. The first request triggers the server to wake up.
 
 ### Session Expired
 
-Sessions expire after 30 days of inactivity. Simply sign in again to continue.
+```
+Session expired. Run supercode login to re-authenticate
+```
+
+Your session token has expired. Run `supercode login` to get a new one.
+
+### Authorization Failed
+
+1. Check you're logged into the correct GitHub account
+2. Ensure the Supercode OAuth app hasn't been revoked in GitHub settings
+3. Verify the user code hasn't expired (valid for 10 minutes)

@@ -22,7 +22,9 @@ import {
   compactMessageSummary,
   createThinking,
   stripAnsi,
+  formatTokenCount,
 } from "src/cli/utils/tui.ts"
+import { getContextWindow } from "src/cli/ai/context-windows.ts"
 import type { WorkspaceInfo } from "src/cli/workspace/scanner.ts"
 import { buildSystemPrompt } from "src/cli/workspace/context.ts"
 import { tools } from "src/tools/registry.ts"
@@ -289,6 +291,8 @@ export async function chatLoop(
   workspaceInfo?: WorkspaceInfo,
 ) {
   let messageCount = 0
+  let sessionTokens = 0
+  const contextWindow = getContextWindow(provider.modelName)
 
   while (true) {
     const { input: userInput, mode } = await chatInput(conversation.mode)
@@ -325,11 +329,16 @@ export async function chatLoop(
       const result = await streamAIResponse(provider, conversation.id, conversation.mode, workspaceInfo)
       await addMessage(conversation.id, "assistant", result.content)
 
+      const responseTokens = result.usage?.totalTokens ?? 0
+      sessionTokens += responseTokens
+
       chatStatusBar({
         mode: conversation.mode,
         model: provider.modelName,
         usage: result.usage,
         elapsed: result.elapsed,
+        cumulativeTokens: sessionTokens,
+        contextWindow,
       })
       console.log()
     } catch (error: any) {
