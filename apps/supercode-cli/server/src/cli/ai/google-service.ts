@@ -8,7 +8,7 @@ export class AIService {
 
   constructor() {
     if (!config.googleApiKey) {
-      throw new Error("GOOGLE_GENERATIVE_AI_API_KEY is not set in env");
+      throw new Error("Google Gemini is not configured.\n\n  Set GOOGLE_GENERATIVE_AI_API_KEY in your environment:\n    export GOOGLE_GENERATIVE_AI_API_KEY=<your-key>\n\n  Get a key at: https://aistudio.google.com/apikey");
     }
 
     const google = createGoogleGenerativeAI({

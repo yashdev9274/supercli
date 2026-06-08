@@ -9,7 +9,7 @@ export class OpenRouterService {
 
   constructor(model?: string) {
     if (!openRouterConfig.apiKey) {
-      throw new Error("OPENROUTER_API_KEY is not set in env")
+      throw new Error("OpenRouter is not configured.\n\n  Set OPENROUTER_API_KEY in your environment:\n    export OPENROUTER_API_KEY=<your-key>\n\n  Get a key at: https://openrouter.ai/keys")
     }
 
     this.modelName = model || openRouterConfig.model

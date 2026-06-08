@@ -8,7 +8,7 @@ export class MinimaxService {
 
   constructor() {
     if (!minimaxConfig.apiKey) {
-      throw new Error("MINIMAX_API_KEY is not set in env")
+      throw new Error("MiniMax is not configured.\n\n  Set MINIMAX_API_KEY in your environment:\n    export MINIMAX_API_KEY=<your-key>")
     }
 
     const minimax = createMinimax({
