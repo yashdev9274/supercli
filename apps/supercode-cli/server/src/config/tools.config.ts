@@ -34,6 +34,22 @@ export const availableTools: ToolConfig[] = [
     getTool: () => registryTools.url_fetch as unknown as Record<string, unknown>,
     enabled: false,
   },
+  {
+    id: "write_file",
+    name: "Write File",
+    description:
+      "Create and modify files in the workspace",
+    getTool: () => registryTools.write_file as unknown as Record<string, unknown>,
+    enabled: true,
+  },
+  {
+    id: "run_command",
+    name: "Run Command",
+    description:
+      "Execute shell commands in the workspace",
+    getTool: () => registryTools.run_command as unknown as Record<string, unknown>,
+    enabled: true,
+  },
 ]
 
 function tryGetConfigTools(

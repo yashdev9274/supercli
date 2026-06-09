@@ -17,6 +17,7 @@ export class ServerProxyService {
     onChunk?: (chunk: string) => void,
     tools?: any,
     onToolCall?: (call: { toolName: string; args: Record<string, unknown> }) => void,
+    signal?: AbortSignal,
   ) {
     const token = await getStoredToken()
     if (!token?.access_token) {
@@ -35,6 +36,7 @@ export class ServerProxyService {
         model: this.modelName,
         tools,
       }),
+      signal,
     })
 
     if (!res.ok) {

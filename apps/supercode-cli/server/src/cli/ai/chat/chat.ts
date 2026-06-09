@@ -29,6 +29,7 @@ import type { WorkspaceInfo } from "src/cli/workspace/scanner.ts"
 import { buildSystemPrompt } from "src/cli/workspace/context.ts"
 import { tools } from "src/tools/registry.ts"
 import { renderWorkspaceBanner } from "src/cli/workspace/format.ts"
+import { handleSlashCommand, isSlashCommand } from "src/cli/commands/slashCommands/index.ts"
 
 async function getUserFromToken() {
   const token = await getStoredToken()
@@ -72,7 +73,7 @@ async function streamAIResponse(
   conversationId: string,
   mode: string,
   workspaceInfo?: WorkspaceInfo,
-): Promise<{ content: string; elapsed: number; usage: any }> {
+): Promise<{ content: string; elapsed: number; usage: any; aborted?: boolean }> {
   const dbMessages = await getMessages(conversationId)
   let aiMessages = formatMessagesForAI(dbMessages as any)
 
@@ -93,11 +94,12 @@ async function streamAIResponse(
   const thinking = createThinking()
 
   let toolsToUse: Record<string, unknown> | undefined
-  if (mode === "tool" || mode === "agent") {
-    toolsToUse = { ...tools }
-  } else if (workspaceInfo) {
+  if (workspaceInfo) {
     toolsToUse = { ...tools }
   }
+
+  const abortController = new AbortController()
+  streamAbort = abortController
 
   try {
     const result = await provider.sendMessage(
@@ -117,6 +119,7 @@ async function streamAIResponse(
         const argPreview = (args as any)?.path || (args as any)?.pattern || (args as any)?.query || (args as any)?.url || ""
         thinking.setLabel(`${toolName}(${argPreview})`)
       },
+      abortController.signal,
     )
 
     const elapsed = Date.now() - startTime
@@ -124,9 +127,15 @@ async function streamAIResponse(
     console.log()
 
     return { content: fullResponse, elapsed, usage }
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.name === "AbortError" || abortController.signal.aborted) {
+      console.log()
+      return { content: fullResponse || "(cancelled)", elapsed: Date.now() - startTime, usage: {}, aborted: true }
+    }
     thinking.fail("Response failed")
     throw error
+  } finally {
+    streamAbort = null
   }
 }
 
@@ -145,154 +154,187 @@ interface Conversation {
   updatedAt: Date
 }
 
-async function chatInput(
-  currentMode: string,
-): Promise<{ input: string | null; mode: string }> {
+const modes = ["chat", "tool", "agent"]
+const modeColors: Record<string, string> = {
+  chat: theme.cyan,
+  tool: theme.green,
+  agent: theme.warning,
+}
+const modeDisplay: Record<string, string> = {
+  chat: "chat",
+  tool: "tools",
+  agent: "agent",
+}
+
+// Persistent stdin state
+let streamAbort: AbortController | null = null
+let stdinInput = ""
+let stdinCursor = 0
+let stdinMode = "chat"
+let stdinResolve: ((value: { input: string; mode: string }) => void) | null = null
+let stdinPromptLen = 0
+let stdinPrevWrapLines = 1
+
+function promptText(): string {
+  const color = chalk.hex(modeColors[stdinMode] ?? theme.cyan)
+  return `${chalk.hex(theme.cyan)("┃ [")}${color(modeDisplay[stdinMode] ?? stdinMode)}${chalk.hex(theme.cyan)("] ")}`
+}
+
+function getStdoutPromptLen(): number {
+  return stripAnsi(promptText()).length
+}
+
+function renderInput() {
+  const cols = process.stdout.columns || 80
+  const promptLen = getStdoutPromptLen()
+  stdinPromptLen = promptLen
+  const totalChars = promptLen + stdinInput.length
+  const wrapLines = Math.max(1, Math.ceil(totalChars / cols))
+
+  for (let i = 0; i < stdinPrevWrapLines; i++) {
+    readline.cursorTo(process.stdout, 0)
+    readline.clearLine(process.stdout, 0)
+    if (i < stdinPrevWrapLines - 1) {
+      readline.moveCursor(process.stdout, 0, -1)
+    }
+  }
+  readline.cursorTo(process.stdout, 0)
+  process.stdout.write(promptText() + stdinInput)
+  stdinPrevWrapLines = wrapLines
+
+  const absPos = promptLen + stdinCursor
+  if (absPos !== promptLen + stdinInput.length) {
+    readline.cursorTo(process.stdout, absPos)
+  }
+}
+
+function stdinKeypress(_str: string, key: any) {
+  if (!key) return
+
+  // If streaming, Escape cancels
+  if (key.name === "escape" && streamAbort) {
+    streamAbort.abort()
+    return
+  }
+
+  // No input handler active
+  if (!stdinResolve) return
+
+  // Tab to cycle modes
+  if (key.name === "tab") {
+    const idx = modes.indexOf(stdinMode)
+    stdinMode = modes[(idx + 1) % modes.length]!
+    renderInput()
+    return
+  }
+
+  if (key.name === "return" || key.name === "enter") {
+    const resolve = stdinResolve
+    stdinResolve = null
+    resolve({ input: stdinInput, mode: stdinMode })
+    return
+  }
+
+  if (key.name === "escape") {
+    stdinInput = ""
+    stdinCursor = 0
+    renderInput()
+    return
+  }
+
+  if (key.ctrl && key.name === "c") {
+    process.exit(0)
+    return
+  }
+
+  if (key.name === "backspace") {
+    if (stdinCursor > 0) {
+      stdinInput = stdinInput.slice(0, stdinCursor - 1) + stdinInput.slice(stdinCursor)
+      stdinCursor--
+      renderInput()
+    }
+    return
+  }
+
+  if (key.name === "delete" || key.name === "del") {
+    if (stdinCursor < stdinInput.length) {
+      stdinInput = stdinInput.slice(0, stdinCursor) + stdinInput.slice(stdinCursor + 1)
+      renderInput()
+    }
+    return
+  }
+
+  if (key.name === "left") {
+    if (stdinCursor > 0) {
+      stdinCursor--
+      readline.cursorTo(process.stdout, stdinPromptLen + stdinCursor)
+    }
+    return
+  }
+
+  if (key.name === "right") {
+    if (stdinCursor < stdinInput.length) {
+      stdinCursor++
+      readline.cursorTo(process.stdout, stdinPromptLen + stdinCursor)
+    }
+    return
+  }
+
+  if (key.name === "home") {
+    stdinCursor = 0
+    readline.cursorTo(process.stdout, stdinPromptLen)
+    return
+  }
+
+  if (key.name === "end") {
+    stdinCursor = stdinInput.length
+    readline.cursorTo(process.stdout, stdinPromptLen + stdinCursor)
+    return
+  }
+
+  if (_str && _str.length === 1 && !key.ctrl && !key.meta) {
+    stdinInput = stdinInput.slice(0, stdinCursor) + _str + stdinInput.slice(stdinCursor)
+    stdinCursor++
+    readline.clearLine(process.stdout, 0)
+    readline.cursorTo(process.stdout, 0)
+    process.stdout.write(promptText() + stdinInput)
+    readline.cursorTo(process.stdout, stdinPromptLen + stdinCursor)
+    return
+  }
+}
+
+function setupStdin() {
+  const stdin = process.stdin
+  readline.emitKeypressEvents(stdin)
+  if (stdin.isTTY) {
+    stdin.setRawMode(true)
+  }
+  stdin.resume()
+  stdin.on("keypress", stdinKeypress)
+}
+
+async function chatInput(currentMode: string): Promise<{ input: string; mode: string }> {
+  stdinMode = modes.includes(currentMode) ? currentMode : "chat"
+  stdinInput = ""
+  stdinCursor = 0
+  stdinPrevWrapLines = 1
+  renderInput()
   return new Promise((resolve) => {
-    const stdin = process.stdin
-    const wasRaw = stdin.isRaw
-
-    readline.emitKeypressEvents(stdin)
-    if (stdin.isTTY) {
-      stdin.setRawMode(true)
-    }
-    stdin.resume()
-
-    const modes = ["chat", "tool", "agent"]
-    const modeColors: Record<string, string> = {
-      chat: theme.cyan,
-      tool: theme.green,
-      agent: theme.warning,
-    }
-    const modeDisplay: Record<string, string> = {
-      chat: "chat",
-      tool: "tools",
-      agent: "agent",
-    }
-
-    let input = ""
-    let cursor = 0
-    let mode = modes.includes(currentMode) ? currentMode : "chat"
-
-    function promptText(): string {
-      const color = chalk.hex(modeColors[mode] ?? theme.cyan)
-      return `${chalk.hex(theme.cyan)("┃ [")}${color(modeDisplay[mode] ?? mode)}${chalk.hex(theme.cyan)("] ")}`
-    }
-
-    function getPromptLen(): number {
-      return stripAnsi(promptText()).length
-    }
-
-    function render() {
-      readline.clearLine(process.stdout, 0)
-      readline.cursorTo(process.stdout, 0)
-      process.stdout.write(promptText() + input)
-      const absPos = getPromptLen() + cursor
-      if (absPos !== getPromptLen() + input.length) {
-        readline.cursorTo(process.stdout, absPos)
-      }
-    }
-
-    render()
-
-    function cleanup() {
-      stdin.removeListener("keypress", onKeypress)
-      if (stdin.isTTY) {
-        stdin.setRawMode(wasRaw ?? false)
-      }
-      stdin.pause()
-    }
-
-    function onKeypress(_str: string, key: any) {
-      if (!key) return
-
-      if (key.name === "tab") {
-        const idx = modes.indexOf(mode)
-        mode = modes[(idx + 1) % modes.length]!
-        render()
-        return
-      }
-
-      if (key.name === "return" || key.name === "enter") {
-        cleanup()
-        resolve({ input, mode })
-        return
-      }
-
-      if (key.name === "escape" || (key.ctrl && key.name === "c")) {
-        cleanup()
-        resolve({ input: null, mode })
-        return
-      }
-
-      if (key.name === "backspace") {
-        if (cursor > 0) {
-          input = input.slice(0, cursor - 1) + input.slice(cursor)
-          cursor--
-          render()
-        }
-        return
-      }
-
-      if (key.name === "delete" || key.name === "del") {
-        if (cursor < input.length) {
-          input = input.slice(0, cursor) + input.slice(cursor + 1)
-          render()
-        }
-        return
-      }
-
-      if (key.name === "left") {
-        if (cursor > 0) {
-          cursor--
-          readline.cursorTo(process.stdout, getPromptLen() + cursor)
-        }
-        return
-      }
-
-      if (key.name === "right") {
-        if (cursor < input.length) {
-          cursor++
-          readline.cursorTo(process.stdout, getPromptLen() + cursor)
-        }
-        return
-      }
-
-      if (key.name === "home") {
-        cursor = 0
-        readline.cursorTo(process.stdout, getPromptLen())
-        return
-      }
-
-      if (key.name === "end") {
-        cursor = input.length
-        readline.cursorTo(process.stdout, getPromptLen() + cursor)
-        return
-      }
-
-      if (_str && _str.length === 1 && !key.ctrl && !key.meta) {
-        input = input.slice(0, cursor) + _str + input.slice(cursor)
-        cursor++
-        readline.clearLine(process.stdout, 0)
-        readline.cursorTo(process.stdout, 0)
-        process.stdout.write(promptText() + input)
-        readline.cursorTo(process.stdout, getPromptLen() + cursor)
-        return
-      }
-    }
-
-    stdin.on("keypress", onKeypress)
+    stdinResolve = resolve
   })
 }
 
 export async function chatLoop(
-  provider: AIProvider,
+  initialProvider: AIProvider,
   conversation: Conversation,
   workspaceInfo?: WorkspaceInfo,
 ) {
+  setupStdin()
+
   let messageCount = 0
   let sessionTokens = 0
-  const contextWindow = getContextWindow(provider.modelName)
+  let provider = initialProvider
+  let contextWindow = getContextWindow(provider.modelName)
 
   while (true) {
     const { input: userInput, mode } = await chatInput(conversation.mode)
@@ -300,13 +342,14 @@ export async function chatLoop(
     if (mode !== conversation.mode) {
       conversation.mode = mode
       await updateConversationMode(conversation.id, mode)
-    }
 
-    if (userInput === null) {
-      console.log()
-      console.log(chalk.hex(theme.amber)(` ╰─ `) + chalk.hex(theme.muted)("session ended"))
-      console.log()
-      process.exit(0)
+      if ((mode === "tool" || mode === "agent") && provider.name !== "openrouter") {
+        const orProvider = createProvider("openrouter")
+        provider = orProvider
+        contextWindow = getContextWindow(provider.modelName)
+        console.log(` ${chalk.hex(theme.blue)("◆")} switched to ${chalk.hex(theme.cyan)(provider.modelName)} for ${mode} mode`)
+        console.log()
+      }
     }
 
     const trimmed = userInput.trim()
@@ -319,6 +362,24 @@ export async function chatLoop(
 
     if (trimmed.length === 0) continue
 
+    if (isSlashCommand(trimmed)) {
+      const result = await handleSlashCommand(trimmed)
+      if (result?.type === "model_change") {
+        const newProvider = result.provider ? createProvider(result.provider, result.model) : null
+        if (newProvider) {
+          provider = newProvider
+          contextWindow = getContextWindow(provider.modelName)
+          const label = result.label || provider.modelName
+          console.log(` ${chalk.hex(theme.green)("◆")} switched to ${chalk.hex(theme.cyan)(label)}`)
+          console.log()
+        }
+      } else if (result?.type === "unknown") {
+        console.log(` ${chalk.hex(theme.red)("◆")} unknown slash command: ${trimmed.split(" ")[0]}`)
+        console.log()
+      }
+      continue
+    }
+
     userMessage(trimmed)
     messageCount++
 
@@ -327,6 +388,16 @@ export async function chatLoop(
 
     try {
       const result = await streamAIResponse(provider, conversation.id, conversation.mode, workspaceInfo)
+
+      if (result.aborted) {
+        if (result.content && result.content !== "(cancelled)") {
+          await addMessage(conversation.id, "assistant", result.content)
+        }
+        console.log(` ${chalk.hex(theme.amber)("◆")} cancelled`)
+        console.log()
+        continue
+      }
+
       await addMessage(conversation.id, "assistant", result.content)
 
       const responseTokens = result.usage?.totalTokens ?? 0
@@ -351,7 +422,7 @@ export async function chatLoop(
 }
 
 export async function startChat(
-  provider: ModelProvider = "google",
+  provider: ModelProvider = "openrouter",
   model?: string,
   conversationId?: string | null,
   workspaceInfo?: WorkspaceInfo,
@@ -381,7 +452,12 @@ export async function startChat(
 
     const user = await getUserFromToken()
     const conversation = await initConversation(user.id, conversationId, initialMode)
-    await chatLoop(aiProvider, conversation, workspaceInfo)
+
+    const activeProvider = (initialMode === "tool" || initialMode === "agent") && provider !== "openrouter"
+      ? createProvider("openrouter")
+      : aiProvider
+
+    await chatLoop(activeProvider, conversation, workspaceInfo)
   } catch (error: any) {
     console.log()
     console.log(` ${chalk.hex(theme.red)("◆")} ${chalk.hex(theme.red)(error?.message ?? "Error")}`)

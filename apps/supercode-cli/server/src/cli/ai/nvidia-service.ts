@@ -22,6 +22,7 @@ export class NvidiaService {
     onChunk?: (chunk: string) => void,
     tools?: any,
     onToolCall?: any,
+    signal?: AbortSignal,
   ) {
     try {
       const bodyObj: any = {
@@ -46,6 +47,7 @@ export class NvidiaService {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(bodyObj),
+        signal,
       })
 
       if (!response.ok) {
@@ -139,7 +141,8 @@ export class NvidiaService {
         finishResponse: Promise.resolve(finishReason),
         usage: Promise.resolve(usage),
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === "AbortError") throw error
       console.error(chalk.red("NVIDIA Service Error:"), error instanceof Error ? error.message : String(error))
       throw error
     }

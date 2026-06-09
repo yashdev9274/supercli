@@ -32,6 +32,7 @@ export class MinimaxService {
       const streamOptions: any = {
         model: this.model,
         messages: nonSystemMessages,
+        maxTokens: Number(process.env.MINIMAX_MAX_TOKENS) || 4096,
       }
 
       if (system) {
@@ -40,7 +41,7 @@ export class MinimaxService {
 
       if (tools && Object.keys(tools).length > 0) {
         streamOptions.tools = tools
-        streamOptions.maxSteps = 5
+        streamOptions.maxSteps = 25
         if (onToolCall) {
           streamOptions.experimental_onToolCallStart = (event: any) => {
             const tc = event.toolCall
@@ -64,7 +65,17 @@ export class MinimaxService {
         usage: result.usage,
       }
     } catch (error) {
-      console.error(chalk.red("MiniMax Service Error:"), error instanceof Error ? error.message : String(error))
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.includes("insufficient balance") || message.includes("402") || message.includes("1008")) {
+        console.error(chalk.red("MiniMax API Error:"), "Insufficient balance. Top up at https://platform.minimax.ai")
+        throw new Error(
+          "MiniMax API: insufficient balance (402).\n\n" +
+          "  Your MiniMax account has insufficient credits.\n" +
+          "  Top up at: https://platform.minimax.ai\n" +
+          "  Or switch to a different provider."
+        )
+      }
+      console.error(chalk.red("MiniMax Service Error:"), message)
       throw error
     }
   }

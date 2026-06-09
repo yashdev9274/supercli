@@ -5,17 +5,20 @@ import chalk from "chalk";
 
 export class AIService {
   model: ReturnType<ReturnType<typeof createGoogleGenerativeAI>>
+  readonly modelName: string
 
-  constructor() {
+  constructor(modelName?: string) {
     if (!config.googleApiKey) {
       throw new Error("Google Gemini is not configured.\n\n  Set GOOGLE_GENERATIVE_AI_API_KEY in your environment:\n    export GOOGLE_GENERATIVE_AI_API_KEY=<your-key>\n\n  Get a key at: https://aistudio.google.com/apikey");
     }
+
+    this.modelName = modelName || config.model
 
     const google = createGoogleGenerativeAI({
       apiKey: config.googleApiKey,
     })
 
-    this.model = google(config.model)
+    this.model = google(this.modelName)
   }
 
   async generateStructured(
@@ -43,6 +46,7 @@ export class AIService {
     onChunk?: (chunk: string) => void,
     tools?: any,
     onToolCall?: any,
+    signal?: AbortSignal,
   ) {
     try {
       const systemMessages = messages.filter(m => m.role === "system")
@@ -52,6 +56,7 @@ export class AIService {
       const streamOptions: any = {
         model: this.model,
         messages: nonSystemMessages,
+        abortSignal: signal,
       }
 
       if (system) {
@@ -60,7 +65,7 @@ export class AIService {
 
       if (tools && Object.keys(tools).length > 0) {
         streamOptions.tools = tools
-        streamOptions.maxSteps = 5 // allow limit tool calling
+        streamOptions.maxSteps = 25
         if (onToolCall) {
           streamOptions.experimental_onToolCallStart = (event: any) => {
             const tc = event.toolCall
@@ -110,7 +115,8 @@ export class AIService {
         toolResults,
         step: fullResult.steps
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === "AbortError") throw error
       console.error(chalk.red("AI Service Error:"), error instanceof Error ? error.message : String(error))
       throw error
     }

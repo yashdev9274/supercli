@@ -20,6 +20,7 @@ export interface AIProvider {
     onChunk?: (chunk: string) => void,
     tools?: any,
     onToolCall?: any,
+    signal?: AbortSignal,
   ): Promise<{
     content: string
     finishResponse: PromiseLike<FinishReason>
@@ -50,28 +51,19 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
     return {
       name: provider,
       modelName: model || meta.defaultModel,
-      sendMessage: (messages, onChunk, tools, onToolCall) => svc.sendMessage(messages, onChunk, tools, onToolCall),
+      sendMessage: (messages, onChunk, tools, onToolCall, signal) => svc.sendMessage(messages, onChunk, tools, onToolCall, signal),
       generateObject: (schema, prompt) => svc.generateObject(schema, prompt),
     }
   }
 
   switch (provider) {
     case "google": {
-      const svc = new AIService()
+      const svc = new AIService(model)
       return {
         name: "google",
-        modelName: "gemini-2.5-flash",
+        modelName: svc.modelName,
         model: svc.model,
-        sendMessage: (messages, onChunk, tools, onToolCall) => svc.sendMessage(messages, onChunk, tools, onToolCall),
-      }
-    }
-    case "minimax": {
-      const svc = new MinimaxService()
-      return {
-        name: "minimax",
-        modelName: "MiniMax-M2",
-        model: svc.model,
-        sendMessage: (messages, onChunk, tools, onToolCall) => svc.sendMessage(messages, onChunk, tools, onToolCall),
+        sendMessage: (messages, onChunk, tools, onToolCall, signal) => svc.sendMessage(messages, onChunk, tools, onToolCall, signal),
       }
     }
     case "openrouter": {
@@ -79,8 +71,8 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
       return {
         name: "openrouter",
         modelName: svc.modelName,
-        model: svc.model,
-        sendMessage: (messages, onChunk, tools, onToolCall) => svc.sendMessage(messages, onChunk, tools, onToolCall),
+        model: null,
+        sendMessage: (messages, onChunk, tools, onToolCall, signal) => svc.sendMessage(messages, onChunk, tools, onToolCall, signal),
       }
     }
     case "nvidia": {
@@ -89,8 +81,11 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
         name: "nvidia",
         modelName: svc.modelName,
         model: svc.model,
-        sendMessage: (messages, onChunk, tools, onToolCall) => svc.sendMessage(messages, onChunk, tools, onToolCall),
+        sendMessage: (messages, onChunk, tools, onToolCall, signal) => svc.sendMessage(messages, onChunk, tools, onToolCall, signal),
       }
+    }
+    default: {
+      throw new Error(`Provider "${provider}" is paused or unavailable`)
     }
   }
 }
