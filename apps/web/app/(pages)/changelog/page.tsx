@@ -22,7 +22,7 @@ export default function ChangelogPage() {
             <div className="flex items-baseline gap-4 mb-8">
               <h2 className="text-[24px] font-semibold tracking-tight">
                 <a
-                  href="https://github.com/yashdev9274/superCli"
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.5"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-primary underline underline-offset-4 transition-colors"
@@ -61,7 +61,7 @@ export default function ChangelogPage() {
             <div className="flex items-baseline gap-4 mb-8">
               <h2 className="text-[24px] font-semibold tracking-tight">
                 <a
-                  href="https://github.com/yashdev9274/superCli"
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.4"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-primary underline underline-offset-4 transition-colors"
@@ -108,7 +108,7 @@ export default function ChangelogPage() {
             <div className="flex items-baseline gap-4 mb-8">
               <h2 className="text-[24px] font-semibold tracking-tight">
                 <a
-                  href="https://github.com/yashdev9274/superCli"
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.3"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-primary underline underline-offset-4 transition-colors"
@@ -137,7 +137,7 @@ export default function ChangelogPage() {
             <div className="flex items-baseline gap-4 mb-8">
               <h2 className="text-[24px] font-semibold tracking-tight">
                 <a
-                  href="https://github.com/yashdev9274/superCli"
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.2"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-primary underline underline-offset-4 transition-colors"
@@ -192,7 +192,7 @@ export default function ChangelogPage() {
             <div className="flex items-baseline gap-4 mb-8">
               <h2 className="text-[24px] font-semibold tracking-tight">
                 <a
-                  href="https://github.com/yashdev9274/superCli"
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.0"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-primary underline underline-offset-4 transition-colors"
