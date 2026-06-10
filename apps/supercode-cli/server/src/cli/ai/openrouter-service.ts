@@ -1,24 +1,24 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider"
-import { streamText, type ModelMessage } from "ai"
+import { streamText, stepCountIs, type ModelMessage, type LanguageModel } from "ai"
 import { openRouterConfig } from "../../config/openrouter.config.ts"
 import chalk from "chalk"
 
 export class OpenRouterService {
+  model: LanguageModel
   readonly modelName: string
-  model: any
 
-  constructor(model?: string) {
+  constructor(modelName?: string) {
     if (!openRouterConfig.apiKey) {
       throw new Error("OpenRouter is not configured.\n\n  Set OPENROUTER_API_KEY in your environment:\n    export OPENROUTER_API_KEY=<your-key>\n\n  Get a key at: https://openrouter.ai/keys")
     }
 
-    this.modelName = model || openRouterConfig.model
+    this.modelName = modelName || openRouterConfig.model
 
     const openrouter = createOpenRouter({
       apiKey: openRouterConfig.apiKey,
     })
 
-    this.model = openrouter(this.modelName)
+    this.model = openrouter.chat(this.modelName)
   }
 
   async sendMessage(
@@ -26,64 +26,87 @@ export class OpenRouterService {
     onChunk?: (chunk: string) => void,
     tools?: any,
     onToolCall?: any,
+    signal?: AbortSignal,
+    onReasoning?: (chunk: string) => void,
   ) {
     try {
       const systemMessages = messages.filter(m => m.role === "system")
       const nonSystemMessages = messages.filter(m => m.role !== "system")
       const system = systemMessages.map(m => m.content).join("\n")
 
-      const streamOptions: any = {
-        model: this.model,
-        messages: nonSystemMessages,
-      }
+      const hasTools = tools && Object.keys(tools).length > 0
 
-      if (this.modelName.includes("minimax-m3") || this.modelName.includes("glm-5.1")) {
-        streamOptions.maxOutputTokens = 8192
-      }
+      if (!hasTools) {
+        const result = streamText({
+          model: this.model,
+          messages: nonSystemMessages,
+          system,
+          abortSignal: signal,
+        })
 
-      if (system) {
-        streamOptions.system = system
-      }
+        let fullResponse = ""
+        for await (const chunk of result.textStream) {
+          fullResponse += chunk
+          onChunk?.(chunk)
+        }
 
-      if (tools && Object.keys(tools).length > 0) {
-        streamOptions.tools = tools
-        streamOptions.maxSteps = 5
-        if (onToolCall) {
-          streamOptions.experimental_onToolCallStart = (event: any) => {
-            const tc = event.toolCall
-            onToolCall({ toolName: tc.toolName, args: tc.input as Record<string, unknown> })
-          }
+        const [finishReason, usage] = await Promise.all([
+          result.finishReason,
+          result.usage,
+        ])
+
+        return {
+          content: fullResponse,
+          finishReason,
+          usage,
         }
       }
 
-      const result = streamText(streamOptions)
-
       let fullResponse = ""
+
+      const result = streamText({
+        model: this.model,
+        messages: nonSystemMessages,
+        system,
+        tools,
+        stopWhen: stepCountIs(25),
+        abortSignal: signal,
+        onStepFinish: async (event) => {
+          if (event.toolCalls?.length) {
+            for (const tc of event.toolCalls) {
+              onToolCall?.({ toolName: tc.toolName, args: (tc as any).input as Record<string, unknown> })
+            }
+          }
+        },
+      })
 
       for await (const chunk of result.textStream) {
         fullResponse += chunk
         onChunk?.(chunk)
       }
 
+      const [finishReason, usage] = await Promise.all([
+        result.finishReason,
+        result.usage,
+      ])
+
       return {
         content: fullResponse,
-        finishResponse: result.finishReason,
-        usage: result.usage,
+        finishReason,
+        usage,
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === "AbortError") throw error
       console.error(chalk.red("OpenRouter Service Error:"), error instanceof Error ? error.message : String(error))
-      if (error instanceof Error && "cause" in error) {
-        console.error(chalk.red("  Cause:"), String((error as any).cause))
-      }
       throw error
     }
   }
 
   async getMessage(messages: ModelMessage[], tools?: any) {
     let fullResponse = ""
-    await this.sendMessage(messages, (chunk) => {
+    const result = await this.sendMessage(messages, (chunk) => {
       fullResponse += chunk
     })
-    return fullResponse
+    return result.content
   }
 }

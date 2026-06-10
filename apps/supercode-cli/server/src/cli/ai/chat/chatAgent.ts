@@ -5,7 +5,7 @@ import { createThinking, theme, frame, panel, userMessage, streamFooter } from "
 import { getStoredToken } from "src/lib/token"
 import { ChatService } from "src/service/chat-service"
 import { createProvider, type ModelProvider } from "src/cli/ai/provider"
-import { generateApplication } from "src/config/agent-config"
+import { createAppAgent } from "src/config/agent-config"
 
 let _chatService: ChatService
 
@@ -51,7 +51,7 @@ async function initAgentConversation(userId: string, conversationId: string | nu
   const detail = [
     chalk.hex(theme.text).bold(conversation.title ?? "Untitled"),
     chalk.hex(theme.muted)(`${conversation.id.slice(0, 12)} · agent mode`),
-    chalk.hex(theme.warning)("generates complete applications from descriptions"),
+    chalk.hex(theme.warning)("creates apps by executing commands step-by-step"),
   ]
 
   console.log()
@@ -72,7 +72,7 @@ interface Conversation {
 
 async function agentLoop(
   conversation: Conversation,
-  modelOrGenerate: import("ai").LanguageModel | ((schema: any, prompt: string) => Promise<{ object: unknown }>),
+  model: import("ai").LanguageModel,
 ) {
   console.log(` ${chalk.hex(theme.warning)("◆")} ${chalk.hex(theme.muted)("Describe an application to generate")}`)
   console.log(` ${chalk.hex(theme.muted)('•')} Type "exit" to end`)
@@ -110,33 +110,49 @@ async function agentLoop(
     const startTime = Date.now()
 
     try {
-      const result = await generateApplication(userInput, modelOrGenerate, process.cwd())
+      const agent = createAppAgent(model)
 
-      if (result && result.success) {
-        const responseMessage =
-          `Generated application: ${result.folderName}\n` +
-          `Files created: ${result.files.length}\n` +
-          `Location: ${result.appDir}\n\n` +
-          `Setup commands:\n${result.commands.join("\n")}`
+      const thinking = createThinking("generating")
 
-        await saveMessage(conversation.id, "assistant", responseMessage)
+      let lastToolCall = ""
 
-        const elapsed = Date.now() - startTime
-        streamFooter(undefined, elapsed)
+      const result = await agent.generate({
+        prompt: userInput,
+        onStepFinish: async ({ stepNumber, text, toolCalls, finishReason }) => {
+          if (toolCalls?.length) {
+            for (const tc of toolCalls) {
+              const label = `${tc.toolName}(${JSON.stringify((tc as any).input)})`
+              if (label !== lastToolCall) {
+                lastToolCall = label
+                thinking.setLabel(tc.toolName)
+              }
+            }
+          }
+        },
+      })
+
+      thinking.succeed("done")
+      console.log()
+      console.log(chalk.hex(theme.green)(`┏━━ ${chalk.hex(theme.green).bold("Result")}`))
+      console.log(chalk.white(result.text || "Application created successfully."))
+      console.log()
+
+      const responseMessage = result.text || "Application created successfully."
+      await saveMessage(conversation.id, "assistant", responseMessage)
+
+      const elapsed = Date.now() - startTime
+      streamFooter(undefined, elapsed)
+      console.log()
+
+      const continueApp = await confirm({
+        message: chalk.hex(theme.cyan)("Would you like to generate another application?"),
+        initialValue: false,
+      })
+
+      if (isCancel(continueApp) || !continueApp) {
         console.log()
-
-        const continuePrompt = await confirm({
-          message: chalk.hex(theme.cyan)("Would you like to generate another application?"),
-          initialValue: false,
-        })
-
-        if (isCancel(continuePrompt) || !continuePrompt) {
-          console.log()
-          console.log(chalk.hex(theme.green)("◆") + " " + chalk.hex(theme.muted)("Check your new application!"))
-          break
-        }
-      } else {
-        throw new Error("Generation returned no result")
+        console.log(chalk.hex(theme.green)("◆") + " " + chalk.hex(theme.muted)("Check your new application!"))
+        break
       }
     } catch (error: any) {
       console.log()
@@ -165,12 +181,6 @@ async function saveMessage(conversationId: string, role: string, content: string
   return getChatService().addMessage(conversationId, role, content)
 }
 
-async function updateConversationTitle(conversationId: string, userInput: string, messageCount: number) {
-  if (messageCount !== 1) return
-  const baseTitle = userInput.slice(0, 50)
-  await getChatService().updateTitle(conversationId, userInput.length > 50 ? `${baseTitle}...` : baseTitle)
-}
-
 export async function startAgentChat(
   provider: ModelProvider = "google",
   model?: string,
@@ -189,7 +199,7 @@ export async function startAgentChat(
     console.log()
 
     const confirmPrompt = await confirm({
-      message: chalk.hex(theme.amber)("The agent will create files and folders in the current directory. Continue?"),
+      message: chalk.hex(theme.amber)("The agent will create files and run commands in the current directory. Continue?"),
       initialValue: true,
     })
 
@@ -199,17 +209,15 @@ export async function startAgentChat(
     }
 
     const aiProvider = createProvider(provider, model)
-    let agentModel: import("ai").LanguageModel | ((schema: any, prompt: string) => Promise<{ object: unknown }>)
-    if (aiProvider.model) {
-      agentModel = aiProvider.model as import("ai").LanguageModel
-    } else if (aiProvider.generateObject) {
-      agentModel = (schema, prompt) => aiProvider.generateObject!(schema, prompt)
-    } else {
-      console.log(chalk.hex(theme.red)(`Agent mode is not supported with ${provider} provider (no structured output support)`))
+    const languageModel = aiProvider.model as import("ai").LanguageModel | null
+
+    if (!languageModel) {
+      console.log(chalk.hex(theme.red)(`Agent mode requires a model with tool support. ${provider} provider does not export a compatible model.`))
       process.exit(1)
     }
+
     const conversation = await initAgentConversation(user.id, conversationId)
-    await agentLoop(conversation, agentModel)
+    await agentLoop(conversation, languageModel)
 
     console.log()
     console.log(chalk.hex(theme.green)("◆") + " " + chalk.hex(theme.muted)("agent session ended"))

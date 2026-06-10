@@ -525,7 +525,7 @@ export function sessionSummary(conversation: { id: string; title: string | null;
 export function chatHelp() {
   const lines = [
     ` ${chalk.hex(theme.cyan)("Enter")}     send message`,
-    ` ${chalk.hex(theme.cyan)("Esc")}      cancel / exit`,
+    ` ${chalk.hex(theme.cyan)("Esc")}      clear input / cancel response`,
     ` ${chalk.hex(theme.cyan)("↑/↓")}     navigate history`,
   ]
   return panel(lines.join("\n"), { title: "keys", borderColor: theme.dim })

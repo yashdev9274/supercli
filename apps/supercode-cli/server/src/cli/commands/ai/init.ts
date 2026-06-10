@@ -67,7 +67,7 @@ export const wakeUpAction = async () => {
     options: [
       // { value: "server", label: "Supercloud", hint: "server-hosted · no API key needed (Recommended)" },
       { value: "google", label: "Gemini 2.5 Flash", hint: "free · fast" },
-      { value: "minimax", label: "MiniMax M2", hint: "reasoning · powerful" },
+      // { value: "minimax", label: "MiniMax M2", hint: "reasoning · powerful" },
       { value: "openrouter", label: "OpenRouter", hint: "multi-provider · bring your own key" },
       { value: "nvidia", label: "NVIDIA NIM", hint: "free API" },
     ],

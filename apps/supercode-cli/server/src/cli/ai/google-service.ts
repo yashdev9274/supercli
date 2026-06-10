@@ -1,21 +1,24 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { streamText, generateObject, type ModelMessage } from "ai";
+import { streamText, generateObject, stepCountIs, type ModelMessage } from "ai";
 import { config } from "../../config/google.config.ts";
 import chalk from "chalk";
 
 export class AIService {
   model: ReturnType<ReturnType<typeof createGoogleGenerativeAI>>
+  readonly modelName: string
 
-  constructor() {
+  constructor(modelName?: string) {
     if (!config.googleApiKey) {
       throw new Error("Google Gemini is not configured.\n\n  Set GOOGLE_GENERATIVE_AI_API_KEY in your environment:\n    export GOOGLE_GENERATIVE_AI_API_KEY=<your-key>\n\n  Get a key at: https://aistudio.google.com/apikey");
     }
+
+    this.modelName = modelName || config.model
 
     const google = createGoogleGenerativeAI({
       apiKey: config.googleApiKey,
     })
 
-    this.model = google(config.model)
+    this.model = google(this.modelName)
   }
 
   async generateStructured(
@@ -43,74 +46,77 @@ export class AIService {
     onChunk?: (chunk: string) => void,
     tools?: any,
     onToolCall?: any,
+    signal?: AbortSignal,
+    onReasoning?: (chunk: string) => void,
   ) {
     try {
       const systemMessages = messages.filter(m => m.role === "system")
       const nonSystemMessages = messages.filter(m => m.role !== "system")
       const system = systemMessages.map(m => m.content).join("\n")
 
-      const streamOptions: any = {
-        model: this.model,
-        messages: nonSystemMessages,
-      }
+      const hasTools = tools && Object.keys(tools).length > 0
 
-      if (system) {
-        streamOptions.system = system
-      }
+      if (!hasTools) {
+        const result = streamText({
+          model: this.model,
+          messages: nonSystemMessages,
+          system,
+          abortSignal: signal,
+        })
 
-      if (tools && Object.keys(tools).length > 0) {
-        streamOptions.tools = tools
-        streamOptions.maxSteps = 5 // allow limit tool calling
-        if (onToolCall) {
-          streamOptions.experimental_onToolCallStart = (event: any) => {
-            const tc = event.toolCall
-            onToolCall({ toolName: tc.toolName, args: tc.input as Record<string, unknown> })
-          }
+        let fullResponse = ""
+        for await (const chunk of result.textStream) {
+          fullResponse += chunk
+          onChunk?.(chunk)
+        }
+
+        const [finishReason, usage] = await Promise.all([
+          result.finishReason,
+          result.usage,
+        ])
+
+        return {
+          content: fullResponse,
+          finishReason,
+          usage,
         }
       }
 
-      const result = streamText(streamOptions)
-
       let fullResponse = ""
+
+      const result = streamText({
+        model: this.model,
+        messages: nonSystemMessages,
+        system,
+        tools,
+        stopWhen: stepCountIs(25),
+        abortSignal: signal,
+        onStepFinish: async (event) => {
+          if (event.toolCalls?.length) {
+            for (const tc of event.toolCalls) {
+              onToolCall?.({ toolName: tc.toolName, args: (tc as any).input as Record<string, unknown> })
+            }
+          }
+        },
+      })
 
       for await (const chunk of result.textStream) {
         fullResponse += chunk
         onChunk?.(chunk)
       }
 
-      const fullResult = result;
-
-      const toolCalls = [];
-      const toolResults = [];
-
-      if (fullResult.steps && Array.isArray(fullResult.steps)) {
-        for (const step of fullResult.steps) {
-          if (step.toolCalls && step.toolCalls.length > 0) {
-            for (const toolCall of step.toolCalls) {
-              toolCalls.push(toolCall);
-
-              if (onToolCall) {
-                onToolCall({ toolName: toolCall.toolName, args: toolCall.input as Record<string, unknown> });
-              }
-            }
-          }
-
-          if (step.toolResults && step.toolResults.length > 0) {
-            toolResults.push(...step.toolResults);
-          }
-        }
-      }
-
+      const [finishReason, usage] = await Promise.all([
+        result.finishReason,
+        result.usage,
+      ])
 
       return {
         content: fullResponse,
-        finishResponse: result.finishReason,
-        usage: result.usage,
-        toolCalls,
-        toolResults,
-        step: fullResult.steps
+        finishReason,
+        usage,
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === "AbortError") throw error
       console.error(chalk.red("AI Service Error:"), error instanceof Error ? error.message : String(error))
       throw error
     }
@@ -121,7 +127,6 @@ export class AIService {
     const result = await this.sendMessage(messages, (chunk) => {
       fullResponse += chunk
     })
-
     return result.content;
   }
 }

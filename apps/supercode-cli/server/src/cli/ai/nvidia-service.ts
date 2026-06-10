@@ -1,20 +1,28 @@
-import chalk from "chalk"
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
+import { streamText, stepCountIs, type ModelMessage, type LanguageModel } from "ai"
 import { nvidiaConfig } from "../../config/nvidia.config.ts"
-import type { ModelMessage, FinishReason, LanguageModelUsage } from "ai"
-import { zodToJsonSchema } from "zod-to-json-schema"
+import chalk from "chalk"
 
 export class NvidiaService {
+  model: LanguageModel
   readonly modelName: string
-  readonly model = null
-  private readonly baseUrl: string
 
-  constructor(model?: string) {
+  constructor(modelName?: string) {
     if (!nvidiaConfig.apiKey) {
-      throw new Error("NVIDIA NIM is not configured.\n\n  Set NVIDIA_API_KEY in your environment:\n    export NVIDIA_API_KEY=<your-key>")
+      throw new Error("NVIDIA NIM is not configured.\n\n  Set NVIDIA_API_KEY in your environment:\n    export NVIDIA_API_KEY=<your-key>\n\n  Get free credits at: https://build.nvidia.com")
     }
 
-    this.modelName = model || nvidiaConfig.model
-    this.baseUrl = nvidiaConfig.baseUrl
+    this.modelName = modelName || nvidiaConfig.model
+
+    const nim = createOpenAICompatible({
+      name: "nim",
+      baseURL: nvidiaConfig.baseUrl,
+      headers: {
+        Authorization: `Bearer ${nvidiaConfig.apiKey}`,
+      },
+    })
+
+    this.model = nim.chatModel(this.modelName)
   }
 
   async sendMessage(
@@ -22,161 +30,87 @@ export class NvidiaService {
     onChunk?: (chunk: string) => void,
     tools?: any,
     onToolCall?: any,
+    signal?: AbortSignal,
+    onReasoning?: (chunk: string) => void,
   ) {
     try {
-      const bodyObj: any = {
-        model: this.modelName,
-        messages: messages.map((m) => ({ role: m.role, content: String(m.content) })),
-        max_tokens: nvidiaConfig.maxTokens,
-        temperature: nvidiaConfig.temperature,
-        top_p: nvidiaConfig.topP,
-        stream: true,
-      }
+      const systemMessages = messages.filter(m => m.role === "system")
+      const nonSystemMessages = messages.filter(m => m.role !== "system")
+      const system = systemMessages.map(m => m.content).join("\n")
 
-      const seenToolCallIds = new Set<string>()
+      const hasTools = tools && Object.keys(tools).length > 0
 
-      if (tools && Object.keys(tools).length > 0) {
-        bodyObj.tools = toolsToOpenAI(tools)
-      }
+      if (!hasTools) {
+        const result = streamText({
+          model: this.model,
+          messages: nonSystemMessages,
+          system,
+          abortSignal: signal,
+        })
 
-      const response = await fetch(`${this.baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${nvidiaConfig.apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(bodyObj),
-      })
+        let fullResponse = ""
+        for await (const chunk of result.textStream) {
+          fullResponse += chunk
+          onChunk?.(chunk)
+        }
 
-      if (!response.ok) {
-        const errText = await response.text().catch(() => "unknown error")
-        throw new Error(`NVIDIA API ${response.status}: ${errText}`)
-      }
+        const [finishReason, usage] = await Promise.all([
+          result.finishReason,
+          result.usage,
+        ])
 
-      const reader = response.body?.getReader()
-      if (!reader) throw new Error("No response body")
-
-      const decoder = new TextDecoder()
-      let buffer = ""
-      let fullResponse = ""
-      let finishReason: FinishReason = "stop"
-      let inputTokens = 0
-      let outputTokens = 0
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split("\n")
-        buffer = lines.pop() || ""
-
-        for (const line of lines) {
-          const trimmed = line.trim()
-          if (!trimmed || !trimmed.startsWith("data: ")) continue
-
-          const jsonStr = trimmed.slice(6)
-          if (jsonStr === "[DONE]") break
-
-          try {
-            const data = JSON.parse(jsonStr)
-
-            const delta = data.choices?.[0]?.delta
-            if (delta?.content) {
-              fullResponse += delta.content
-              onChunk?.(delta.content)
-            }
-
-            if (delta?.tool_calls && onToolCall) {
-              for (const tc of delta.tool_calls) {
-                if (tc.id && !seenToolCallIds.has(tc.id)) {
-                  seenToolCallIds.add(tc.id)
-                  const name = tc.function?.name || "unknown"
-                  let args: Record<string, unknown> = {}
-                  try {
-                    if (tc.function?.arguments) {
-                      args = JSON.parse(tc.function.arguments)
-                    }
-                  } catch {
-                    // partial streaming JSON
-                  }
-                  onToolCall({ toolName: name, args })
-                }
-              }
-            }
-
-            if (data.choices?.[0]?.finish_reason) {
-              finishReason = mapFinishReason(data.choices[0].finish_reason)
-            }
-
-            if (data.usage) {
-              inputTokens = data.usage.prompt_tokens ?? 0
-              outputTokens = data.usage.completion_tokens ?? 0
-            }
-          } catch {
-            // skip malformed JSON lines
-          }
+        return {
+          content: fullResponse,
+          finishReason,
+          usage,
         }
       }
 
-      const usage: LanguageModelUsage = {
-        inputTokens,
-        inputTokenDetails: {
-          noCacheTokens: 0,
-          cacheReadTokens: 0,
-          cacheWriteTokens: 0,
+      let fullResponse = ""
+
+      const result = streamText({
+        model: this.model,
+        messages: nonSystemMessages,
+        system,
+        tools,
+        stopWhen: stepCountIs(25),
+        abortSignal: signal,
+        onStepFinish: async (event) => {
+          if (event.toolCalls?.length) {
+            for (const tc of event.toolCalls) {
+              onToolCall?.({ toolName: tc.toolName, args: (tc as any).input as Record<string, unknown> })
+            }
+          }
         },
-        outputTokens,
-        outputTokenDetails: {
-          textTokens: outputTokens,
-          reasoningTokens: 0,
-        },
-        totalTokens: inputTokens + outputTokens,
+      })
+
+      for await (const chunk of result.textStream) {
+        fullResponse += chunk
+        onChunk?.(chunk)
       }
+
+      const [finishReason, usage] = await Promise.all([
+        result.finishReason,
+        result.usage,
+      ])
 
       return {
         content: fullResponse,
-        finishResponse: Promise.resolve(finishReason),
-        usage: Promise.resolve(usage),
+        finishReason,
+        usage,
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === "AbortError") throw error
       console.error(chalk.red("NVIDIA Service Error:"), error instanceof Error ? error.message : String(error))
       throw error
     }
   }
 
-  async getMessage(messages: ModelMessage[], _tools?: any) {
+  async getMessage(messages: ModelMessage[], tools?: any) {
     let fullResponse = ""
-    await this.sendMessage(messages, (chunk) => {
+    const result = await this.sendMessage(messages, (chunk) => {
       fullResponse += chunk
     })
-    return fullResponse
-  }
-}
-
-function toolsToOpenAI(tools: Record<string, any>): any[] {
-  return Object.entries(tools).map(([name, tool]) => ({
-    type: "function",
-    function: {
-      name,
-      description: tool.description || "",
-      parameters: zodToJsonSchema(tool.parameters),
-    },
-  }))
-}
-
-function mapFinishReason(reason: string): FinishReason {
-  switch (reason) {
-    case "stop":
-      return "stop"
-    case "length":
-    case "max_tokens":
-      return "length"
-    case "tool_calls":
-      return "tool-calls"
-    case "content_filter":
-      return "content-filter"
-    default:
-      return "stop"
+    return result.content
   }
 }

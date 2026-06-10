@@ -1,6 +1,6 @@
 {
   "name": "supercode-cli",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "AI-powered coding agent CLI",
   "main": "dist/main.js",
   "bin": {
@@ -39,7 +39,9 @@
   "engines": {
     "node": ">=18"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "^2.0.48"
+  },
   "devDependencies": {
     "@ai-sdk/google": "^3.0.80",
     "@clack/prompts": "^1.5.0",
