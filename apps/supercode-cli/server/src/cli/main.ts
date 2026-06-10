@@ -19,6 +19,21 @@ import {
 } from "./utils/tui"
 import { supercodeInit } from "./commands/ai/init"
 
+process.on("unhandledRejection", (reason) => {
+  try {
+    process.stderr.write(`\n[debug] unhandled rejection: ${reason instanceof Error ? reason.message : String(reason)}\n`)
+  } catch {
+    // stderr might be unavailable
+  }
+})
+process.on("uncaughtException", (error) => {
+  try {
+    process.stderr.write(`\n[debug] uncaught exception: ${error.message}\n`)
+  } catch {
+    // stderr might be unavailable
+  }
+})
+
 async function main() {
   console.clear()
 

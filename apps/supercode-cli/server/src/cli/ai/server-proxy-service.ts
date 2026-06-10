@@ -18,6 +18,7 @@ export class ServerProxyService {
     tools?: any,
     onToolCall?: (call: { toolName: string; args: Record<string, unknown> }) => void,
     signal?: AbortSignal,
+    onReasoning?: (chunk: string) => void,
   ) {
     const token = await getStoredToken()
     if (!token?.access_token) {
@@ -77,6 +78,9 @@ export class ServerProxyService {
               fullResponse += event.content
               onChunk?.(event.content)
               break
+            case "reasoning":
+              onReasoning?.(event.content)
+              break
             case "tool-call":
               onToolCall?.({ toolName: event.toolName, args: event.args })
               break
@@ -91,8 +95,8 @@ export class ServerProxyService {
 
     return {
       content: fullResponse,
-      finishResponse: Promise.resolve(finishReason),
-      usage: Promise.resolve(usage),
+      finishReason,
+      usage,
     }
   }
 

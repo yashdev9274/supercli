@@ -14,17 +14,18 @@ export type ModelProvider = "google" | "minimax" | "openrouter" | "nvidia"
 export interface AIProvider {
   readonly name: string
   readonly modelName: string
-  readonly model?: object | null
+  readonly model?: any
   sendMessage(
     messages: ModelMessage[],
     onChunk?: (chunk: string) => void,
     tools?: any,
     onToolCall?: any,
     signal?: AbortSignal,
+    onReasoning?: (chunk: string) => void,
   ): Promise<{
     content: string
-    finishResponse: PromiseLike<FinishReason>
-    usage: PromiseLike<LanguageModelUsage>
+    finishReason: FinishReason
+    usage: LanguageModelUsage
   }>
   generateObject?(schema: any, prompt: string): Promise<{ object: unknown }>
 }
@@ -51,7 +52,7 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
     return {
       name: provider,
       modelName: model || meta.defaultModel,
-      sendMessage: (messages, onChunk, tools, onToolCall, signal) => svc.sendMessage(messages, onChunk, tools, onToolCall, signal),
+      sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning) => svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning),
       generateObject: (schema, prompt) => svc.generateObject(schema, prompt),
     }
   }
@@ -63,7 +64,7 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
         name: "google",
         modelName: svc.modelName,
         model: svc.model,
-        sendMessage: (messages, onChunk, tools, onToolCall, signal) => svc.sendMessage(messages, onChunk, tools, onToolCall, signal),
+        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning) => svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning),
       }
     }
     case "openrouter": {
@@ -71,8 +72,8 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
       return {
         name: "openrouter",
         modelName: svc.modelName,
-        model: null,
-        sendMessage: (messages, onChunk, tools, onToolCall, signal) => svc.sendMessage(messages, onChunk, tools, onToolCall, signal),
+        model: svc.model,
+        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning) => svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning),
       }
     }
     case "nvidia": {
@@ -81,7 +82,7 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
         name: "nvidia",
         modelName: svc.modelName,
         model: svc.model,
-        sendMessage: (messages, onChunk, tools, onToolCall, signal) => svc.sendMessage(messages, onChunk, tools, onToolCall, signal),
+        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning) => svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning),
       }
     }
     default: {

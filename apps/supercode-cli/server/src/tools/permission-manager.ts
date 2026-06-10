@@ -3,12 +3,52 @@ import * as readline from "readline"
 import boxen from "boxen"
 import { theme } from "src/cli/utils/tui.ts"
 
-export type PermissionAction = "allow" | "ask" | "deny"
+// ---- Types (aligned with opencode) ----
 
-interface PermissionRule {
-  action: PermissionAction
-  rememberAlways: boolean
+export type Effect = "allow" | "deny" | "ask"
+
+export interface Rule {
+  action: string
+  resource: string
+  effect: Effect
 }
+
+export type Ruleset = Rule[]
+
+export type Reply = "once" | "always" | "reject"
+
+interface PendingRequest {
+  id: string
+  action: string
+  resource: string
+  resolve: (value: boolean) => void
+  reject: () => void
+}
+
+// ---- Wildcard matching (from opencode) ----
+
+function wildcardMatch(input: string, pattern: string): boolean {
+  let escaped = pattern
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*/g, ".*")
+    .replace(/\?/g, ".")
+
+  return new RegExp("^" + escaped + "$", "s").test(input)
+}
+
+// ---- Evaluate: find last matching rule (opencode pattern) ----
+
+function evaluate(action: string, resource: string, ...rulesets: Ruleset[]): Rule {
+  const match = rulesets
+    .flat()
+    .findLast(
+      (rule) => wildcardMatch(action, rule.action) && wildcardMatch(resource, rule.resource),
+    )
+
+  return match ?? { action, resource: "*", effect: "ask" }
+}
+
+// ---- Dangerous patterns ----
 
 const DANGEROUS_PATTERNS: RegExp[] = [
   /rm\s+-rf/,
@@ -33,30 +73,55 @@ const DANGEROUS_PATTERNS: RegExp[] = [
   /init\s+6/,
 ]
 
-const DEFAULT_RULES: Record<string, PermissionRule> = {
-  read_file: { action: "allow", rememberAlways: false },
-  search_files: { action: "allow", rememberAlways: false },
-  url_fetch: { action: "allow", rememberAlways: false },
-  web_search: { action: "allow", rememberAlways: false },
-  code_exec: { action: "ask", rememberAlways: true },
-  write_file: { action: "ask", rememberAlways: true },
-  run_command: { action: "ask", rememberAlways: true },
+// ---- Default rulesets ----
+
+const DEFAULT_RULES: Ruleset = [
+  // Read-only tools: always allowed
+  { action: "read_file", resource: "*", effect: "allow" },
+  { action: "search_files", resource: "*", effect: "allow" },
+  { action: "url_fetch", resource: "*", effect: "allow" },
+  { action: "web_search", resource: "*", effect: "allow" },
+  { action: "read_instructions", resource: "*", effect: "allow" },
+  { action: "todo_read", resource: "*", effect: "allow" },
+  { action: "todo_write", resource: "*", effect: "allow" },
+
+  // Write/execute tools: ask by default
+  { action: "write_file", resource: "*", effect: "ask" },
+  { action: "run_command", resource: "*", effect: "ask" },
+  { action: "code_exec", resource: "*", effect: "ask" },
+]
+
+// ---- In-memory saved rules (persisted for the session) ----
+
+let sessionSavedRules: Ruleset = []
+
+// ---- Resource extraction ----
+
+function getResource(toolName: string, args: Record<string, unknown>): string {
+  switch (toolName) {
+    case "write_file":
+      return String(args.path || "")
+    case "run_command":
+      return String(args.command || "")
+    case "code_exec":
+      return String(args.code || "").slice(0, 80)
+    default:
+      return String(args.path || args.command || args.pattern || "*")
+  }
 }
 
+// ---- PermissionManager ----
+
 export class PermissionManager {
-  private rules: Map<string, PermissionRule>
-  private alwaysCache: Map<string, Set<string>> = new Map()
-  private sessionLevel: "allow" | "ask" | "deny" | null = null
+  private pendingRequests: Map<string, PendingRequest> = new Map()
+  private requestCounter = 0
+  private sessionLevel: "allow" | "deny" | "ask" | null = null
 
-  constructor() {
-    this.rules = new Map(Object.entries(DEFAULT_RULES))
-  }
-
-  setSessionLevel(level: "allow" | "ask" | "deny"): void {
+  setSessionLevel(level: "allow" | "deny" | "ask" | null): void {
     this.sessionLevel = level
   }
 
-  getSessionLevel(): "allow" | "ask" | "deny" | null {
+  getSessionLevel(): "allow" | "deny" | "ask" | null {
     return this.sessionLevel
   }
 
@@ -65,59 +130,57 @@ export class PermissionManager {
   }
 
   async check(toolName: string, args: Record<string, unknown>): Promise<boolean> {
+    // 1. Session-level override
     if (this.sessionLevel === "allow") return true
     if (this.sessionLevel === "deny") return false
 
-    const rule = this.rules.get(toolName)
-    if (!rule || rule.action === "allow") return true
-    if (rule.action === "deny") return false
+    // 2. Extract resource
+    const resource = getResource(toolName, args)
 
-    if (rule.rememberAlways && this.isAlwaysAllowed(toolName, args)) {
-      return true
-    }
+    // 3. Evaluate rules (opencode pattern: findLast match)
+    const allRules: Ruleset = [...DEFAULT_RULES, ...sessionSavedRules]
+    const rule = evaluate(toolName, resource, allRules)
 
-    const isDangerous = toolName === "run_command" && this.isDangerousCommand(String(args.command || ""))
+    // 4. Short-circuit
+    if (rule.effect === "allow") return true
+    if (rule.effect === "deny") return false
 
-    return this.promptUser(toolName, args, isDangerous, rule.rememberAlways)
+    // 5. Ask the user
+    const isDangerous = toolName === "run_command" && this.isDangerousCommand(resource)
+    return this.promptUser(toolName, resource, args, isDangerous)
   }
 
-  private isAlwaysAllowed(toolName: string, args: Record<string, unknown>): boolean {
-    const cache = this.alwaysCache.get(toolName)
-    if (!cache) return false
-
-    if (toolName === "run_command") {
-      const command = String(args.command || "")
-      for (const prefix of cache) {
-        if (command.startsWith(prefix)) return true
-      }
-      return false
-    }
-
-    if (toolName === "write_file") {
-      const path = String(args.path || "")
-      for (const pattern of cache) {
-        if (path.startsWith(pattern)) return true
-        if (pattern.endsWith("/*") && path.startsWith(pattern.slice(0, -2))) return true
-      }
-      return false
-    }
-
-    return false
-  }
-
-  private addAlwaysCache(toolName: string, args: Record<string, unknown>, alwaysPattern: string): void {
-    if (!this.alwaysCache.has(toolName)) {
-      this.alwaysCache.set(toolName, new Set())
-    }
-    this.alwaysCache.get(toolName)!.add(alwaysPattern)
-  }
-
-  private async promptUser(
+  private promptUser(
     toolName: string,
+    resource: string,
     args: Record<string, unknown>,
     isDangerous: boolean,
-    canRememberAlways: boolean,
   ): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      const id = `req_${++this.requestCounter}`
+
+      this.pendingRequests.set(id, {
+        id,
+        action: toolName,
+        resource,
+        resolve,
+        reject: () => {
+          resolve(false)
+        },
+      })
+
+      this.renderPrompt(toolName, resource, args, isDangerous, id, resolve)
+    })
+  }
+
+  private renderPrompt(
+    toolName: string,
+    resource: string,
+    args: Record<string, unknown>,
+    isDangerous: boolean,
+    requestId: string,
+    resolve: (value: boolean) => void,
+  ) {
     const stdin = process.stdin
     const wasRaw = stdin.isRaw
 
@@ -130,18 +193,17 @@ export class PermissionManager {
 
     let content = ""
     if (toolName === "write_file") {
-      content = `Supercode wants to write:\n  ${chalk.cyan(String(args.path || ""))}`
+      content = `Supercode wants to write:\n  ${chalk.cyan(resource)}`
       if (args.description) {
         content += `\n  ${chalk.dim(String(args.description))}`
       }
     } else if (toolName === "run_command") {
-      content = `Run:\n  $ ${chalk.cyan(String(args.command || ""))}`
+      content = `Run:\n  $ ${chalk.cyan(resource)}`
       if (args.description) {
         content += `\n  ${chalk.dim(String(args.description))}`
       }
     } else if (toolName === "code_exec") {
-      const code = String(args.code || "")
-      const preview = code.length > 80 ? code.slice(0, 77) + "..." : code
+      const preview = resource.length > 80 ? resource.slice(0, 77) + "..." : resource
       content = `Execute code:\n  ${chalk.cyan(preview)}`
     }
 
@@ -157,46 +219,76 @@ export class PermissionManager {
     })
     console.log(box)
 
-    return new Promise((resolve) => {
-      const rl = readline.createInterface({ input: stdin, output: process.stdout })
+    const rl = readline.createInterface({ input: stdin, output: process.stdout })
 
-      const prompt = isDangerous
-        ? "Allow this operation? (y/N): "
-        : canRememberAlways
-          ? "[y] Once  [a] Always for session  [n] Deny: "
-          : "Allow? (y/N): "
+    const prompt = isDangerous
+      ? "Allow this operation? (y/N): "
+      : "[y] Once  [a] Always for session  [n] Deny: "
 
-      rl.question(prompt, (answer) => {
-        rl.close()
+    rl.question(prompt, (answer) => {
+      rl.close()
 
-        if (stdin.isTTY && wasRaw) {
-          stdin.setRawMode(true)
-        }
+      if (stdin.isTTY && wasRaw) {
+        stdin.setRawMode(true)
+      }
 
-        const a = answer.trim().toLowerCase()
+      const a = answer.trim().toLowerCase()
 
-        if (a === "y" || a === "yes") {
-          resolve(true)
-        } else if ((a === "a" || a === "always") && canRememberAlways && !isDangerous) {
-          let alwaysPattern = "*"
-          if (toolName === "run_command") {
-            const cmd = String(args.command || "")
-            const parts = cmd.split(/\s+/)
-            if (parts.length > 0) {
-              alwaysPattern = parts[0] + " "
-            }
-          } else if (toolName === "write_file") {
-            const path = String(args.path || "")
-            const lastSlash = path.lastIndexOf("/")
-            alwaysPattern = lastSlash >= 0 ? path.slice(0, lastSlash + 1) : ""
-          }
-          this.addAlwaysCache(toolName, args, alwaysPattern)
-          resolve(true)
-        } else {
-          resolve(false)
-        }
-      })
+      if (a === "y" || a === "yes") {
+        this.pendingRequests.delete(requestId)
+        this.onReplied(toolName, resource, "once")
+        resolve(true)
+      } else if ((a === "a" || a === "always") && !isDangerous) {
+        // Save as "always allow" rule for this action+resource pattern
+        sessionSavedRules.push({ action: toolName, resource: this.alwaysPattern(toolName, resource), effect: "allow" })
+        this.pendingRequests.delete(requestId)
+        this.onReplied(toolName, resource, "always")
+        resolve(true)
+      } else {
+        this.pendingRequests.delete(requestId)
+        this.onReplied(toolName, resource, "reject")
+        resolve(false)
+      }
     })
+  }
+
+  private alwaysPattern(toolName: string, resource: string): string {
+    if (toolName === "run_command") {
+      const parts = resource.split(/\s+/)
+      return (parts[0] ?? "") + " *"
+    }
+    if (toolName === "write_file") {
+      const lastSlash = resource.lastIndexOf("/")
+      return lastSlash >= 0 ? resource.slice(0, lastSlash + 1) + "*" : "*"
+    }
+    return resource
+  }
+
+  // ---- Cascade (opencode pattern) ----
+  // When a user says "always allow", auto-approve pending requests
+  // that also match the saved rules.
+  // When a user says "reject", reject all pending requests for this tool.
+
+  private onReplied(action: string, resource: string, reply: Reply): void {
+    if (reply === "always") {
+      const allRules: Ruleset = [...DEFAULT_RULES, ...sessionSavedRules]
+      for (const [id, pending] of this.pendingRequests) {
+        if (pending.action !== action) continue
+        const rule = evaluate(pending.action, pending.resource, allRules)
+        if (rule.effect === "allow") {
+          pending.resolve(true)
+          this.pendingRequests.delete(id)
+        }
+      }
+    }
+
+    if (reply === "reject") {
+      for (const [id, pending] of this.pendingRequests) {
+        if (pending.action !== action) continue
+        pending.reject()
+        this.pendingRequests.delete(id)
+      }
+    }
   }
 }
 
