@@ -370,7 +370,19 @@ export async function chatLoop(
 ) {
   const exitHandler = (code: number) => {
     try {
-      process.stderr.write(`\n[chatLoop exit] code=${code}\n`)
+      if (code === 0) {
+        process.stdout.write("\r\n")
+        process.stdout.write(
+          frame(
+            [
+              `  ${chalk.hex(theme.cyan)("\u25C7")}  ${chalk.hex(theme.text).bold("thanks for being here")}  ${chalk.hex(theme.cyan)("\u25C7")}`,
+              "",
+              `  ${chalk.hex(theme.muted)("see you next time \u00B7 supercode \u25C6")}`,
+            ].join("\n"),
+            { borderColor: theme.dim },
+          ) + "\r\n",
+        )
+      }
     } catch {}
   }
   process.on("exit", exitHandler)
@@ -394,7 +406,6 @@ export async function chatLoop(
       const trimmed = userInput.trim()
       if (trimmed.toLowerCase() === "exit") {
         process.stdout.write("\r\n")
-        process.stdout.write(chalk.hex(theme.amber)(` ╰─ `) + chalk.hex(theme.muted)("session ended") + "\r\n")
         process.exit(0)
       }
 

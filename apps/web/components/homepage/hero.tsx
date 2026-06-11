@@ -8,7 +8,7 @@ const badgeTexts = ['Computing...', 'Building...', 'Deploying...', 'Shipping...'
 type InstallMethod = 'curl' | 'npm' | 'bun' | 'brew' | 'npx';
 
 const installCommands: Record<InstallMethod, { command: string; highlight: string }> = {
-  curl: { command: 'curl -fsSL https://supercode.vercel.app/install', highlight: 'supercode.vercel.app/install' },
+  curl: { command: 'curl -fsSL https://supercli.vercel.app/install', highlight: 'supercli.vercel.app/install' },
   npm: { command: 'npm install -g supercode-cli', highlight: 'supercode-cli' },
   bun: { command: 'bun install -g supercode-cli', highlight: 'supercode-cli' },
   npx: { command: 'npx supercode-cli', highlight: 'supercode-cli' },
@@ -45,7 +45,7 @@ const HeroSection = () => {
           {/* Version tag */}
           <div className="flex justify-center mb-4">
             <div className="px-3 py-1 bg-primary/10 text-primary text-[12px] font-mono rounded-md">
-              v0.1.5-beta
+              v0.1.6-beta
             </div>
           </div>
 

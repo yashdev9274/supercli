@@ -22,6 +22,58 @@ export default function ChangelogPage() {
             <div className="flex items-baseline gap-4 mb-8">
               <h2 className="text-[24px] font-semibold tracking-tight">
                 <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.6"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.6
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jun 11, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Core</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Agent mode rewritten from rigid <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">generateApplication()</code> to tool-calling loop (<code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">ToolLoopAgent</code>) — model calls <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">write_file</code> and <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">run_command</code> tools directly for iterative building and error recovery.</li>
+                  <li>- New <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/model</code> slash command — switch AI provider/model mid-session (Gemini, OpenRouter, NVIDIA NIM).</li>
+                  <li>- Persistent stdin handler — prevents "terminal state may be corrupted" crashes.</li>
+                  <li>- Stream cancellation via Escape key with partial response preservation.</li>
+                  <li>- Global <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">unhandledRejection</code> and <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">uncaughtException</code> handlers for crash resilience.</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Tools</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- New standalone tool definitions: <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">write-file</code>, <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">run-command</code>, <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">read-instructions</code> with path traversal protection, 1MB size limit, and auto mkdir support.</li>
+                  <li>- <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">PermissionManager</code> — granular tool permission system with wildcard matching, dangerous command detection (20 regex patterns), and <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">[y] Once / [a] Always / [n] Deny</code> prompts.</li>
+                  <li>- OpenRouter provider rewritten from SDK to raw <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">fetch</code> API with native tool call detection and multi-iteration tool loops.</li>
+                  <li>- NVIDIA NIM provider migrated to <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">@ai-sdk/openai-compatible</code> SDK with proper tool-calling support.</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Model switching at runtime via <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/model</code> command supporting Google Gemini, OpenRouter (GPT OSS, DeepSeek V4 Flash, MiniMax M3, GLM 5.1, Kimi K2.6), and NVIDIA NIM (MiniMax M2.7, DeepSeek V4 Flash, Llama 3.3 70B).</li>
+                  <li>- Default OpenRouter model changed to <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">moonshotai/kimi-k2.6:free</code>.</li>
+                  <li>- Animated thinking spinner with live tool call and reasoning updates.</li>
+                  <li>- Agent mode shows live tool call progress with exit and continue prompts.</li>
+                  <li>- Chat loop resilience — catch-all error handling prevents crashes; terminal state restored on errors.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
                   href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.5"
                   target="_blank"
                   rel="noopener noreferrer"
