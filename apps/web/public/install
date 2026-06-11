@@ -1,0 +1,90 @@
+#!/bin/bash
+set -e
+
+INSTALL_DIR="${SUPERCODE_DIR:-$HOME/.supercode}"
+BIN_DIR="$INSTALL_DIR/bin"
+WRAPPER="$BIN_DIR/supercode"
+
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+YELLOW='\033[1;33m'
+BOLD='\033[1m'
+DIM='\033[2m'
+NC='\033[0m'
+
+echo ""
+echo "  ${CYAN}◆${NC}  ${BOLD}supercode${NC} ${DIM}installer${NC}"
+echo ""
+
+if ! command -v node &>/dev/null; then
+  echo "  ${YELLOW}! Node.js is required but not found.${NC}"
+  echo "  Install it from https://nodejs.org or use your package manager."
+  echo ""
+  exit 1
+fi
+
+NODE_VER=$(node -v | sed 's/v//' | cut -d. -f1)
+if [ "$NODE_VER" -lt 18 ]; then
+  echo "  ${YELLOW}! Node.js >= 18 is required (found v$(node -v)).${NC}"
+  exit 1
+fi
+
+echo "  ${DIM}  fetching latest version...${NC}"
+VERSION=$(curl -fsSL https://registry.npmjs.org/supercode-cli/latest | grep -o '"version":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+if [ -z "$VERSION" ]; then
+  echo "  ${YELLOW}! Could not determine latest version.${NC}"
+  exit 1
+fi
+
+TARBALL_URL="https://registry.npmjs.org/supercode-cli/-/supercode-cli-$VERSION.tgz"
+
+echo "  ${DIM}  downloading supercode v${VERSION}...${NC}"
+mkdir -p "$INSTALL_DIR"
+curl -fsSL "$TARBALL_URL" | tar -xz -C "$INSTALL_DIR" 2>/dev/null
+
+if [ -d "$INSTALL_DIR/package" ]; then
+  rm -rf "$INSTALL_DIR/package/node_modules" 2>/dev/null || true
+fi
+
+mkdir -p "$BIN_DIR"
+
+cat > "$WRAPPER" << WRAPPER
+#!/bin/bash
+exec node "$INSTALL_DIR/package/dist/main.js" "\$@"
+WRAPPER
+
+chmod +x "$WRAPPER"
+
+echo "  ${GREEN}✓${NC}  supercode v${VERSION} installed to ${DIM}$INSTALL_DIR${NC}"
+echo ""
+
+if ! echo "$PATH" | grep -q "$BIN_DIR"; then
+  UPDATED_RC=""
+
+  for rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.profile"; do
+    if [ -f "$rc" ]; then
+      if ! grep -q "\.supercode/bin" "$rc" 2>/dev/null; then
+        echo "" >> "$rc"
+        echo "# supercode" >> "$rc"
+        echo "export PATH=\"\$HOME/.supercode/bin:\$PATH\"" >> "$rc"
+        [ -z "$UPDATED_RC" ] && UPDATED_RC="$rc"
+      fi
+    fi
+  done
+
+  if [ -n "$UPDATED_RC" ]; then
+    echo "  ${CYAN}◆${NC}  Added to PATH in ${DIM}$UPDATED_RC${NC}"
+  fi
+fi
+
+echo ""
+echo "  ${GREEN}${BOLD}Usage:${NC}"
+echo ""
+echo "    ${CYAN}supercode${NC} ${DIM}init${NC}         Start interactive chat"
+echo "    ${CYAN}supercode${NC} ${DIM}login${NC}        Authenticate with GitHub"
+echo ""
+echo "  ${DIM}  To get started right now:${NC}"
+echo "    ${DIM}export PATH=\"\$HOME/.supercode/bin:\$PATH\"${NC}"
+echo "    ${CYAN}supercode${NC} ${DIM}init${NC}"
+echo ""
