@@ -8,7 +8,7 @@
   
   [![Website](https://img.shields.io/badge/Website-supercli.vercel.app-blue)](https://supercli.vercel.app)
   [![Built with Bun](https://img.shields.io/badge/Runtime-Bun-black)](https://bun.sh)
-  [![Turborepo](https://img.shields.io/badge/Built%20with-Turborepo-EF4444)](https://turbo.build)
+  [![Turborepo](https://img.io/badge/Built%20with-Turborepo-EF4444)](https://turbo.build)
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6)](https://www.typescriptlang.org/)
 
   <img src="./apps/web/public/og-image.png" alt="Supercode Platform" width="800"/>
@@ -228,6 +228,8 @@ For detailed setup instructions, dataset preparation, and evaluation metrics, se
    bun run dev:docs     # Docs on port 3001
    bun run dev:terminal # Terminal client
    ```
+   
+   **❗ Troubleshooting Startup:** If any `bun run dev` command results in an unhandled rejection or a container crash, ensure all prerequisites are met (especially database connectivity and environment variables). Check the console output for specific error messages and relevant application logs for details.
 
 6. **Open your browser**
    - Dashboard: [http://localhost:3000](http://localhost:3000)
