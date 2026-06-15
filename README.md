@@ -205,7 +205,7 @@ For detailed setup instructions, dataset preparation, and evaluation metrics, se
    ```env
    DATABASE_URL="postgresql://..."
    BETTER_AUTH_SECRET="your-secret-key"
-   BETTER_AUTH_URL="http://localhost:3000"
+   BETTER_AUTH_URL="http://localhost:3000" # For local development. Use your deployed URL (e.g., https://your-app.com) in production.
    GITHUB_CLIENT_ID="your-github-oauth-id"
    GITHUB_CLIENT_SECRET="your-github-oauth-secret"
    ```
@@ -237,7 +237,7 @@ For detailed setup instructions, dataset preparation, and evaluation metrics, se
 
 1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
 2. Create a new OAuth App
-3. Set Authorization callback URL: `http://localhost:3000/api/auth/callback/github`
+3. Set Authorization callback URL: `http://localhost:3000/api/auth/callback/github` (for local development). In production, use your deployed domain, e.g., `https://your-app.com/api/auth/callback/github`.
 4. Copy Client ID and Client Secret to your `.env` file
 
 ## Project Structure
@@ -341,7 +341,7 @@ See `.env.example` for all available environment variables.
 |----------|-------------|
 | `DATABASE_URL` | PostgreSQL connection string |
 | `BETTER_AUTH_SECRET` | Session encryption secret |
-| `BETTER_AUTH_URL` | Base URL (http://localhost:3000) |
+| `BETTER_AUTH_URL` | Base URL of your application (e.g., `http://localhost:3000` for dev, `https://your-app.com` for prod) |
 | `GITHUB_CLIENT_ID` | GitHub OAuth app client ID |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth app secret |
 
