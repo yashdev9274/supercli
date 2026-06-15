@@ -237,7 +237,7 @@ For detailed setup instructions, dataset preparation, and evaluation metrics, se
 
 1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
 2. Create a new OAuth App
-3. Set Authorization callback URL: `http://localhost:3000/api/auth/callback/github` (for local development). In production, use your deployed domain, e.g., `https://your-app.com/api/auth/callback/github`.
+3. Set Authorization callback URL: `http://localhost:3000/api/auth/callback/github` (for local development). In production, use your deployed domain, e.g., `https://supercode-terminal.vercel.app/api/auth/callback/github`.
 4. Copy Client ID and Client Secret to your `.env` file
 
 ## Project Structure
