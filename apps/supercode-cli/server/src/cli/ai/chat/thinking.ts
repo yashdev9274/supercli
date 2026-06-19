@@ -1,7 +1,7 @@
 import chalk from "chalk"
 import { theme } from "src/cli/utils/tui"
 
-const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+const SPINNER_FRAMES = ["▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"]
 
 export function reasoningSummary(text: string) {
   const content = text.trim()
@@ -11,22 +11,22 @@ export function reasoningSummary(text: string) {
 }
 
 const TOOL_ICONS: Record<string, string> = {
-  run_command: "\u25B8",
-  read_file: "\u2192",
-  write_file: "\u2190",
-  edit_file: "\u2190",
-  glob: "\u2731",
-  grep: "\u2731",
+  run_command: "▸",
+  read_file: "←",
+  write_file: "→",
+  edit_file: "→",
+  glob: "✦",
+  grep: "✦",
   webfetch: "%",
-  websearch: "\u25C6",
-  task: "\u2713",
+  websearch: "◆",
+  task: "✓",
   question: "?",
-  skill: "\u2699",
-  apply_patch: "\u2190",
+  skill: "⚙",
+  apply_patch: "→",
 }
 
 export function getToolIcon(toolName: string): string {
-  return TOOL_ICONS[toolName] || "\u2699"
+  return TOOL_ICONS[toolName] || "⚙"
 }
 
 export class ThinkingDisplay {
@@ -42,7 +42,7 @@ export class ThinkingDisplay {
     this.i = 0
     this.intervalId = setInterval(() => {
       if (!this.running) return
-      process.stdout.write(`\r${chalk.hex(theme.cyan)(SPINNER_FRAMES[this.i])} ${chalk.hex(theme.muted)(this.currentLabel)}`)
+      process.stdout.write(`\r${chalk.hex(theme.amber)(SPINNER_FRAMES[this.i])} ${chalk.hex(theme.greenMute)(this.currentLabel)}`)
       this.i = (this.i + 1) % SPINNER_FRAMES.length
     }, 80)
   }
@@ -50,7 +50,7 @@ export class ThinkingDisplay {
   setLabel(label: string) {
     this.currentLabel = label
     if (this.running) {
-      process.stdout.write(`\r${chalk.hex(theme.cyan)(SPINNER_FRAMES[this.i])} ${chalk.hex(theme.muted)(label)}`)
+      process.stdout.write(`\r${chalk.hex(theme.amber)(SPINNER_FRAMES[this.i])} ${chalk.hex(theme.greenMute)(label)}`)
     }
   }
 
@@ -65,18 +65,18 @@ export class ThinkingDisplay {
 
   succeed(text?: string) {
     this.stop()
-    if (text) console.log(` ${chalk.hex(theme.green)("\u25C6")} ${chalk.hex(theme.muted)(text)}`)
+    if (text) console.log(` ${chalk.hex(theme.green)("◆")} ${chalk.hex(theme.greenMute)(text)}`)
   }
 
   fail(text?: string) {
     this.stop()
-    if (text) console.log(` ${chalk.hex(theme.red)("\u25C6")} ${chalk.hex(theme.red)(text)}`)
+    if (text) console.log(` ${chalk.hex(theme.red)("◆")} ${chalk.hex(theme.red)(text)}`)
   }
 
   showToolCall(toolName: string) {
     this.stop()
     const icon = getToolIcon(toolName)
-    const line = ` ${chalk.hex(theme.cyan)(icon)} ${chalk.hex(theme.muted)(toolName)}`
+    const line = ` ${chalk.hex(theme.amber)(icon)} ${chalk.hex(theme.greenGlow).bold(toolName)}`
     process.stdout.write(line + "\n")
   }
 

@@ -24,6 +24,12 @@ import {
   createThinking,
   stripAnsi,
   formatTokenCount,
+  pixelWordmark,
+  statusBar,
+  sectionHeader,
+  cardStack,
+  rowCard,
+  heavyDivider,
 } from "src/cli/utils/tui.ts"
 import { ThinkingDisplay } from "./thinking.ts"
 import { getContextWindow } from "src/cli/ai/context-windows.ts"
@@ -193,7 +199,8 @@ let stdinPrevWrapLines = 1
 
 function promptText(): string {
   const color = chalk.hex(modeColors[stdinMode] ?? theme.cyan)
-  return `${chalk.hex(theme.cyan)("┃ [")}${color(modeDisplay[stdinMode] ?? stdinMode)}${chalk.hex(theme.cyan)("] ")}`
+  const caret = chalk.hex(theme.amber)("▌")
+  return `${caret} ${chalk.hex(theme.green)("[")}${color(modeDisplay[stdinMode] ?? stdinMode)}${chalk.hex(theme.green)("]")} ${chalk.hex(theme.greenGlow)(">")} `
 }
 
 function getStdoutPromptLen(): number {
@@ -375,11 +382,11 @@ export async function chatLoop(
         process.stdout.write(
           frame(
             [
-              `  ${chalk.hex(theme.cyan)("\u25C7")}  ${chalk.hex(theme.text).bold("thanks for being here")}  ${chalk.hex(theme.cyan)("\u25C7")}`,
+              `  ${chalk.hex(theme.green)("◇")}  ${chalk.hex(theme.white).bold("thanks for being here")}  ${chalk.hex(theme.green)("◇")}`,
               "",
-              `  ${chalk.hex(theme.muted)("see you next time \u00B7 supercode \u25C6")}`,
+              `  ${chalk.hex(theme.greenMute)("see you next time · supercode ◆")}`,
             ].join("\n"),
-            { borderColor: theme.dim },
+            { borderColor: theme.greenDim, title: "goodbye" },
           ) + "\r\n",
         )
       }
@@ -509,11 +516,19 @@ export async function startChat(
     const modeLabel = initialMode === "tool" ? "tools" : initialMode === "agent" ? "agent" : "chat"
     const subtitle = modeLabel === "chat" ? `ai chat · ${aiProvider.modelName}` : `${modeLabel} · ${aiProvider.modelName}`
 
+    // ── Pixel wordmark header ───────────────────────────────────
+    const wordmark = pixelWordmark("SUPERCODE", { color: theme.green, shadow: theme.greenDim })
+    const w = process.stdout.columns ?? 80
+    const strippedW = wordmark.split("\n")[0]!.replace(/\x1b\[[0-9;]*m/g, "").length
+    console.log(" ".repeat(Math.max(0, Math.floor((w - strippedW) / 2))) + wordmark)
+    console.log()
+
+    // ── Mode + model status row ─────────────────────────────────
     console.log(
-      frame(
-        ` ${chalk.hex(theme.cyan).bold("supercode")} ${chalk.hex(theme.muted)(subtitle)}`,
-        { borderColor: theme.dim, padding: 0 },
-      )
+      statusBar({
+        left: ["supercode", modeLabel, aiProvider.modelName],
+        right: ["ready", "type to chat"],
+      }),
     )
     console.log()
 
@@ -521,6 +536,12 @@ export async function startChat(
       console.log(renderWorkspaceBanner(workspaceInfo))
       console.log()
     }
+
+    // ── Quick-start hint ────────────────────────────────────────
+    console.log(
+      `  ${chalk.hex(theme.greenDim)("hint")} ${chalk.hex(theme.green)("·")} ${chalk.hex(theme.greenGlow)("/model")} to switch  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("/help")} for commands  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("Tab")} to cycle mode`,
+    )
+    console.log()
 
     const user = await getUserFromToken()
     const conversation = await initConversation(user.id, conversationId, initialMode)
