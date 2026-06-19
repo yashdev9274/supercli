@@ -3,35 +3,50 @@ import * as readline from "readline"
 import boxen from "boxen"
 import yoctoSpinner from "yocto-spinner"
 
-
+//
+// ─── PHOSPHOR TERMINAL THEME ──────────────────────────────────────────────────
+//
+// Single coherent aesthetic: green phosphor CRT on pure black, amber as the
+// only warm accent (cursor + RECOMMENDED badge), with ASCII box-drawing,
+// pixel/bitmap wordmark, and hard-edged rectangular cards.
+//
 export const theme = {
-  // Core palette
-  cyan: "#00f7ff",
-  pink: "#ff0088",
-  amber: "#ffb347",
-  green: "#00ff88",
-  red: "#ff2244",
-  warning: "#ffaa33",
+  // Phosphor greens (primary palette)
+  green: "#00ff88",        // bright phosphor — selected, headers, borders
+  greenDim: "#1a4a36",     // dim phosphor — borders, pending
+  greenDeep: "#0a2a1c",    // deep — subtle fills
+  greenGlow: "#7fffb4",    // glow — accents, soft highlights
+  greenMute: "#3a6e54",    // muted — labels, secondary text
 
-  // Extended palette
-  magenta: "#bf40ff",
-  blue: "#4488ff",
-  teal: "#00ccbb",
+  // Warm accents (used sparingly)
+  amber: "#ffb84d",        // RECOMMENDED badge, cursor caret
+  amberDim: "#7a5520",
+  red: "#ff4458",          // errors only
 
-  // UI tones
-  muted: "#667788",
-  dim: "#2a3a4a",
-  darker: "#111922",
-  deep: "#080c14",
-  surface: "#0a0f18",
-  border: "#1a2a3a",
+  // Greys (sparingly — terminal stays green)
+  white: "#e6edf3",        // primary text
+  muted: "#7a8a82",        // muted labels
+  dim: "#3a4a42",          // very dim — dividers, hints
+
+  // Pure
+  black: "#000000",
+
+  // Backwards-compat aliases for code that imports old names
+  cyan: "#00ff88",
+  pink: "#ff4458",
+  teal: "#00ff88",
+  magenta: "#ff4458",
+  blue: "#00ff88",
+  warning: "#ffb84d",
+  border: "#1a4a36",
   text: "#e6edf3",
-  accent: "#58a6ff",
-
-  // Glow variants
-  glowCyan: "#66ffff",
-  glowPink: "#ff66cc",
-  glowGreen: "#66ffbb",
+  surface: "#000000",
+  darker: "#0a2a1c",
+  deep: "#000000",
+  accent: "#00ff88",
+  glowCyan: "#7fffb4",
+  glowPink: "#ff6688",
+  glowGreen: "#7fffb4",
 } as const
 
 function hexToRgb(hex: string) {
@@ -52,11 +67,6 @@ function lerpColor(c1: string, c2: string, t: number): string {
   return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${bl.toString(16).padStart(2, "0")}`
 }
 
-function rgb(hex: string) {
-  const c = hexToRgb(hex)
-  return `${c.r};${c.g};${c.b}`
-}
-
 export function gradientText(text: string, from: string, to: string): string {
   const chars = [...text]
   return chars
@@ -70,7 +80,7 @@ export function gradientText(text: string, from: string, to: string): string {
 
 export function glow(text: string, color: string): string {
   const c = hexToRgb(color)
-  const glowColor = `#${Math.min(c.r + 80, 255).toString(16).padStart(2, "0")}${Math.min(c.g + 80, 255).toString(16).padStart(2, "0")}${Math.min(c.b + 80, 255).toString(16).padStart(2, "0")}`
+  const glowColor = `#${Math.min(c.r + 60, 255).toString(16).padStart(2, "0")}${Math.min(c.g + 60, 255).toString(16).padStart(2, "0")}${Math.min(c.b + 60, 255).toString(16).padStart(2, "0")}`
   return chalk.hex(glowColor)(text)
 }
 
@@ -78,100 +88,527 @@ export function banner(text: string): string {
   const w = process.stdout.columns ?? 80
   const padded = ` ${text} `
   const line = "━".repeat(Math.min(w - 2, padded.length + 10))
-  return gradientText(`\n  ${line}\n  ${padded}\n  ${line}`, theme.cyan, theme.pink)
+  return gradientText(`\n  ${line}\n  ${padded}\n  ${line}`, theme.green, theme.greenGlow)
 }
 
+//
+// ─── PIXEL WORDMARK ───────────────────────────────────────────────────────────
+//
+// Bitmap font for short labels (≤ 12 chars). Each glyph is 5 cols × 5 rows.
+// Renders solid green main + dim-green drop-shadow offset (+1, +1) for that
+// chunky retro look from the reference image.
+//
+const GLYPHS: Record<string, string[]> = {
+  S: [
+    " ███ ",
+    "█    ",
+    " ███ ",
+    "    █",
+    "███  ",
+  ],
+  U: [
+    "█   █",
+    "█   █",
+    "█   █",
+    "█   █",
+    " ███ ",
+  ],
+  P: [
+    "████ ",
+    "█   █",
+    "████ ",
+    "█    ",
+    "█    ",
+  ],
+  E: [
+    "█████",
+    "█    ",
+    "███  ",
+    "█    ",
+    "█████",
+  ],
+  R: [
+    "████ ",
+    "█   █",
+    "████ ",
+    "█  █ ",
+    "█   █",
+  ],
+  C: [
+    " ████",
+    "█    ",
+    "█    ",
+    "█    ",
+    " ████",
+  ],
+  O: [
+    " ███ ",
+    "█   █",
+    "█   █",
+    "█   █",
+    " ███ ",
+  ],
+  D: [
+    "████ ",
+    "█   █",
+    "█   █",
+    "█   █",
+    "████ ",
+  ],
+  I: [
+    "█████",
+    "  █  ",
+    "  █  ",
+    "  █  ",
+    "█████",
+  ],
+  A: [
+    " ███ ",
+    "█   █",
+    "█████",
+    "█   █",
+    "█   █",
+  ],
+  M: [
+    "█   █",
+    "██ ██",
+    "█ █ █",
+    "█   █",
+    "█   █",
+  ],
+  N: [
+    "█   █",
+    "██  █",
+    "█ █ █",
+    "█  ██",
+    "█   █",
+  ],
+  T: [
+    "█████",
+    "  █  ",
+    "  █  ",
+    "  █  ",
+    "  █  ",
+  ],
+  L: [
+    "█    ",
+    "█    ",
+    "█    ",
+    "█    ",
+    "█████",
+  ],
+  G: [
+    " ████",
+    "█    ",
+    "█  ██",
+    "█   █",
+    " ████",
+  ],
+  H: [
+    "█   █",
+    "█   █",
+    "█████",
+    "█   █",
+    "█   █",
+  ],
+  V: [
+    "█   █",
+    "█   █",
+    "█   █",
+    "█   █",
+    " ███ ",
+  ],
+  W: [
+    "█   █",
+    "█   █",
+    "█ █ █",
+    "██ ██",
+    "█   █",
+  ],
+  X: [
+    "█   █",
+    " █ █ ",
+    "  █  ",
+    " █ █ ",
+    "█   █",
+  ],
+  Y: [
+    "█   █",
+    "█   █",
+    " █ █ ",
+    "  █  ",
+    "  █  ",
+  ],
+  Z: [
+    "█████",
+    "   █ ",
+    "  █  ",
+    " █   ",
+    "█████",
+  ],
+  B: [
+    "████ ",
+    "█   █",
+    "████ ",
+    "█   █",
+    "████ ",
+  ],
+  F: [
+    "█████",
+    "█    ",
+    "████ ",
+    "█    ",
+    "█    ",
+  ],
+  K: [
+    "█   █",
+    "█  █ ",
+    "███  ",
+    "█  █ ",
+    "█   █",
+  ],
+  J: [
+    "█████",
+    "    █",
+    "    █",
+    "█   █",
+    " ███ ",
+  ],
+  Q: [
+    " ███ ",
+    "█   █",
+    "█   █",
+    "█ █ █",
+    " ████",
+  ],
+  "0": [
+    " ███ ",
+    "█   █",
+    "█  ██",
+    "█ █ █",
+    " ███ ",
+  ],
+  "1": [
+    "  █  ",
+    " ██  ",
+    "  █  ",
+    "  █  ",
+    "█████",
+  ],
+  "2": [
+    " ███ ",
+    "█   █",
+    "   █ ",
+    "  █  ",
+    "█████",
+  ],
+  "3": [
+    "████ ",
+    "    █",
+    " ███ ",
+    "    █",
+    "████ ",
+  ],
+  ".": [
+    "    ",
+    "    ",
+    "    ",
+    "    ",
+    "  █ ",
+  ],
+  "-": [
+    "    ",
+    "    ",
+    "████",
+    "    ",
+    "    ",
+  ],
+  _: [
+    "    ",
+    "    ",
+    "    ",
+    "    ",
+    "████",
+  ],
+  "/": [
+    "    █",
+    "   █ ",
+    "  █  ",
+    " █   ",
+    "█    ",
+  ],
+  " ": [
+    "    ",
+    "    ",
+    "    ",
+    "    ",
+    "    ",
+  ],
+}
+
+export function pixelWordmark(text: string, opts?: { color?: string; shadow?: string }): string {
+  const main = opts?.color ?? theme.green
+  const shadow = opts?.shadow ?? theme.greenDim
+  const upper = text.toUpperCase()
+  const height = 5
+
+  // Per-letter 5-wide glyph strips; join with 1 space between letters.
+  const strips: string[][] = [[], [], [], [], []]
+  for (const ch of upper) {
+    const glyph = GLYPHS[ch] ?? GLYPHS[" "]!
+    for (let r = 0; r < height; r++) {
+      const row = glyph[r] ?? "    "
+      for (let c = 0; c < 5; c++) {
+        strips[r]!.push(row[c] ?? " ")
+      }
+      strips[r]!.push(" ") // 1-col gap between letters
+    }
+  }
+  // Trim trailing gap from each row
+  for (let r = 0; r < height; r++) {
+    if (strips[r]!.length && strips[r]![strips[r]!.length - 1] === " ") {
+      strips[r]!.pop()
+    }
+  }
+  const width = strips[0]!.length
+
+  // Canvas is height + 1 row (shadow sits one row below main), width + 1 col (shadow sits one col right of main).
+  const canvasH = height + 1
+  const canvasW = width + 1
+
+  // First pass: paint shadow grid (dim) at offset (+1, +1)
+  const shadowGrid: string[][] = []
+  for (let r = 0; r < canvasH; r++) {
+    shadowGrid.push(new Array(canvasW).fill(" "))
+  }
+  for (let r = 0; r < height; r++) {
+    for (let c = 0; c < width; c++) {
+      const ch = strips[r]![c] ?? " "
+      if (ch !== " ") shadowGrid[r + 1]![c + 1] = ch
+    }
+  }
+  // Second pass: paint main glyph (bright) — overlays shadow where they overlap
+  const mainGrid: string[][] = []
+  for (let r = 0; r < canvasH; r++) {
+    mainGrid.push(new Array(canvasW).fill(" "))
+  }
+  for (let r = 0; r < height; r++) {
+    for (let c = 0; c < width; c++) {
+      const ch = strips[r]![c] ?? " "
+      if (ch !== " ") mainGrid[r]![c] = ch
+    }
+  }
+
+  const out: string[] = []
+  for (let r = 0; r < canvasH; r++) {
+    let line = ""
+    for (let c = 0; c < canvasW; c++) {
+      const mainCh = mainGrid[r]![c]!
+      const shadowCh = shadowGrid[r]![c]!
+      if (mainCh !== " ") {
+        line += chalk.hex(main)(mainCh)
+      } else if (shadowCh !== " ") {
+        line += chalk.hex(shadow)(shadowCh)
+      } else {
+        line += " "
+      }
+    }
+    out.push(line.replace(/\s+$/, ""))
+  }
+
+  return out.join("\n")
+}
+
+// Compact single-line bitmap (used in status bars / inline labels)
+export function pixelInline(text: string, color = theme.green): string {
+  const upper = text.toUpperCase()
+  const blocks: string[] = []
+  for (const ch of upper) {
+    const g = GLYPHS[ch] ?? GLYPHS[" "]!
+    // Use the middle row to form a single-line "block letter"
+    blocks.push(g[2] ?? "    ")
+  }
+  return chalk.hex(color)(blocks.join(" "))
+}
+
+//
+// ─── ASCII FRAME PRIMITIVES ───────────────────────────────────────────────────
+//
+// Single hard-edged box with optional title centered in the top border.
+// Returns a multi-line string. Pure black background, phosphor green border.
+//
 export function frame(
   content: string,
   opts?: {
     title?: string
     borderColor?: string
-    glowColor?: string
     width?: number
     padding?: number
+    titleColor?: string
   },
 ): string {
-  const bc = opts?.borderColor ?? theme.border
+  const bc = opts?.borderColor ?? theme.green
+  const tc = opts?.titleColor ?? theme.green
   const pad = opts?.padding ?? 1
-  const terminalWidth = process.stdout.columns ?? 80
-  const innerWidth = (opts?.width ?? Math.min(terminalWidth - 4, 72)) - 4
+  const termW = process.stdout.columns ?? 80
+  const boxW = Math.max(20, Math.min(termW - 2, opts?.width ?? 76))
+  const innerW = boxW - 4 // `│ ` left + ` │` right = 4 cols
 
-  const topChar = "━"
-  const cornerTL = "┏"
-  const cornerTR = "┓"
-  const cornerBL = "┗"
-  const cornerBR = "┛"
-  const vert = "┃"
+  // Top border: `┌─ title ─...─┐` filling exactly boxW
+  let topBorder: string
+  if (opts?.title) {
+    const titlePart = `┌─ ${chalk.hex(tc).bold(opts.title)} `
+    const titlePartVisible = stripAnsi(titlePart).length
+    const topFill = Math.max(0, boxW - titlePartVisible - 1)
+    topBorder = chalk.hex(bc)(titlePart) + chalk.hex(bc)("─".repeat(topFill)) + chalk.hex(bc)("┐")
+  } else {
+    topBorder = chalk.hex(bc)("┌" + "─".repeat(boxW - 2) + "┐")
+  }
 
-  const titlePart = opts?.title
-    ? ` ${chalk.hex(theme.muted)(opts.title)} `
-    : ""
-
-  const topBorder = `${cornerTL}${topChar.repeat(innerWidth)}${cornerTR}`
-  const bottomBorder = `${cornerBL}${topChar.repeat(innerWidth)}${cornerBR}`
+  const bottomBorder = chalk.hex(bc)("└" + "─".repeat(boxW - 2) + "┘")
 
   const contentLines = content.split("\n")
-  const paddedLines = [
+  const padded = [
     ...Array(pad).fill(""),
     ...contentLines,
     ...Array(pad).fill(""),
   ]
-  const framedContent = paddedLines
+  const framed = padded
     .map((line) => {
-      const visible = stripAnsi(line)
-      const remaining = Math.max(0, innerWidth - visible.length)
-      return `${chalk.hex(bc)(vert)}${line}${" ".repeat(remaining)}${chalk.hex(bc)(vert)}`
+      const visible = stripAnsi(line).length
+      const padSpaces = Math.max(0, innerW - visible - 1)
+      return `${chalk.hex(bc)("│")} ${line}${" ".repeat(padSpaces)}${chalk.hex(bc)("│")}`
     })
     .join("\n")
 
-  const titleBorder = titlePart
-    ? `${chalk.hex(bc)(cornerTL)}${chalk.hex(bc)(topChar)}${titlePart}${chalk.hex(bc)(topChar.repeat(Math.max(0, innerWidth - titlePart.length + 4)))}${chalk.hex(bc)(cornerTR)}`
-    : chalk.hex(bc)(topBorder)
-
-  return [titleBorder, framedContent, chalk.hex(bc)(bottomBorder)].join("\n")
+  return [topBorder, framed, bottomBorder].join("\n")
 }
 
+// Soft panel (boxen-based) for secondary panels
 export function panel(content: string, opts?: { title?: string; borderColor?: string }) {
   return boxen(content, {
-    padding: { top: 1, bottom: 1, left: 2, right: 2 },
+    padding: { top: 0, bottom: 0, left: 2, right: 2 },
     margin: 0,
-    borderStyle: "round",
-    borderColor: opts?.borderColor ?? theme.darker,
+    borderStyle: "single",
+    borderColor: opts?.borderColor ?? theme.greenDim,
     title: opts?.title
-      ? chalk.hex(theme.muted)(` ${opts.title} `)
+      ? chalk.hex(theme.green)(` ${opts.title} `)
       : undefined,
     titleAlignment: "left",
     float: "left",
   })
 }
 
-export function miniPanel(content: string) {
-  return boxen(content, {
-    padding: { top: 0, bottom: 0, left: 1, right: 1 },
-    margin: 0,
-    borderStyle: "single",
-    borderColor: theme.darker,
-    dimBorder: true,
-    float: "left",
-  })
+// Section divider with section name (RECOMMENDED, PREMIUM, etc.)
+export function sectionHeader(label: string, opts?: { accent?: "amber" | "green"; width?: number }): string {
+  const w = opts?.width ?? Math.min(process.stdout.columns ?? 80, 80)
+  const accent = opts?.accent === "amber" ? theme.amber : theme.green
+  const upper = label.toUpperCase()
+  const tag = chalk.bgHex(accent).hex(theme.black).bold(` ${upper} `)
+  const trail = chalk.hex(theme.greenDim)("─".repeat(Math.max(0, w - upper.length - 4)))
+  return `  ${tag} ${trail}`
 }
 
-export function separator(char = "─", color = theme.dim): string {
+// Single-line card row used inside cardStack — content is just the inner
+// text without surrounding `│` rails (the stack adds those).
+export function cardRow(opts: {
+  label: string
+  description?: string
+  selected?: boolean
+  badge?: "recommended" | "premium" | "unlimited"
+}): string {
+  const labelColor = opts.selected ? theme.green : theme.greenGlow
+  const descColor = opts.selected ? theme.greenMute : theme.muted
+
+  const labelText = opts.selected
+    ? chalk.hex(labelColor).bold(opts.label.padEnd(18))
+    : chalk.hex(labelColor)(opts.label.padEnd(18))
+
+  const desc = opts.description ? " " + chalk.hex(descColor)(opts.description) : ""
+
+  let badge = ""
+  if (opts.badge === "recommended") {
+    badge = " " + chalk.bgHex(theme.amber).hex(theme.black).bold(" RECOMMENDED ")
+  } else if (opts.badge === "premium") {
+    badge = " " + chalk.hex(theme.amber)("[premium]")
+  } else if (opts.badge === "unlimited") {
+    badge = " " + chalk.hex(theme.greenGlow)("[unlimited]")
+  }
+
+  return labelText + desc + badge
+}
+
+// Standalone bordered card (used outside cardStack).
+export function rowCard(opts: {
+  label: string
+  description?: string
+  selected?: boolean
+  badge?: "recommended" | "premium" | "unlimited"
+}): string {
+  const borderColor = opts.selected ? theme.green : theme.greenDim
+  const left = chalk.hex(borderColor)("│")
+  const right = chalk.hex(borderColor)("│")
+  return `${left} ${cardRow(opts)} ${right}`
+}
+
+// Stack multiple cardRow()s inside a single bordered frame.
+// Borders align with terminal width; rows are padded internally.
+export function cardStack(opts: { rows: string[]; width?: number; title?: string }): string {
+  const termW = process.stdout.columns ?? 80
+  const boxW = Math.max(20, Math.min(termW - 2, opts.width ?? 76))
+  const innerW = boxW - 4 // `│ ` + ` │`
+
+  let top: string
+  if (opts.title) {
+    const titlePart = `┌─ ${chalk.hex(theme.green).bold(opts.title)} `
+    const titlePartVisible = stripAnsi(titlePart).length
+    const topFill = Math.max(0, boxW - titlePartVisible - 1)
+    top = chalk.hex(theme.green)(titlePart) + chalk.hex(theme.greenDim)("─".repeat(topFill)) + chalk.hex(theme.green)("┐")
+  } else {
+    top = chalk.hex(theme.green)("┌" + chalk.hex(theme.greenDim)("─".repeat(boxW - 2)) + chalk.hex(theme.green)("┐"))
+  }
+
+  const bottom = chalk.hex(theme.green)("└" + chalk.hex(theme.greenDim)("─".repeat(boxW - 2)) + chalk.hex(theme.green)("┘"))
+
+  const body = opts.rows
+    .map((row) => {
+      const stripped = stripAnsi(row)
+      const visibleLen = stripped.length
+      const pad = Math.max(0, innerW - visibleLen)
+      return `${chalk.hex(theme.greenDim)("│")} ${row}${" ".repeat(pad)} ${chalk.hex(theme.greenDim)("│")}`
+    })
+    .join("\n")
+
+  return [top, body, bottom].join("\n")
+}
+
+//
+// ─── SEPARATORS & DIVIDERS ────────────────────────────────────────────────────
+//
+export function separator(char = "─", color = theme.greenDim): string {
   const width = process.stdout.columns ?? 80
-  const line = char.repeat(Math.min(width - 1, 50))
-  return chalk.hex(color)(line)
+  return chalk.hex(color)(char.repeat(Math.min(width - 1, 80)))
 }
 
-export function divider(char = "─", color = theme.dim): string {
+export function divider(char = "─", color = theme.greenDim): string {
   return separator(char, color)
 }
 
-export function label(text: string, color = theme.muted): string {
-  return chalk.hex(color)(`▎${text}`)
+// Simple double-line full-width divider (used between sections)
+export function heavyDivider(): string {
+  const w = process.stdout.columns ?? 80
+  return chalk.hex(theme.greenDim)("━".repeat(Math.min(w - 1, 80)))
 }
 
-export function tag(text: string, color = theme.cyan): string {
-  return boxen(chalk.hex(color)(text), {
+//
+// ─── LABELS, TAGS, KEY-VALUE ──────────────────────────────────────────────────
+//
+export function label(text: string, color = theme.greenMute): string {
+  return `${chalk.hex(theme.green)("▎")}${chalk.hex(color)(text)}`
+}
+
+export function tag(text: string, color = theme.green): string {
+  return boxen(chalk.hex(color).bold(text), {
     padding: { top: 0, bottom: 0, left: 1, right: 1 },
     borderStyle: "single",
     borderColor: color,
@@ -180,24 +617,31 @@ export function tag(text: string, color = theme.cyan): string {
   })
 }
 
+export function keyValue(key: string, value: string, keyColor?: string): string {
+  return `  ${chalk.hex(keyColor ?? theme.green).bold(key.padEnd(10))} ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.white)(value)}`
+}
+
+//
+// ─── STEP / STATE PRIMITIVES ──────────────────────────────────────────────────
+//
 export function step(
   number: number,
   text: string,
   state: "active" | "done" | "pending" | "error" = "pending",
 ): string {
   const icons = {
-    active: chalk.hex(theme.cyan)("●"),
+    active: chalk.hex(theme.amber)("◉"),
     done: chalk.hex(theme.green)("✓"),
-    pending: chalk.hex(theme.dim)("○"),
+    pending: chalk.hex(theme.greenDim)("○"),
     error: chalk.hex(theme.red)("✕"),
   }
   const colors = {
-    active: chalk.hex(theme.cyan),
+    active: chalk.hex(theme.amber),
     done: chalk.hex(theme.green),
-    pending: chalk.hex(theme.dim),
+    pending: chalk.hex(theme.greenMute),
     error: chalk.hex(theme.red),
   }
-  return `  ${icons[state]} ${colors[state](`Step ${number}:`)} ${state === "done" ? chalk.hex(theme.muted)(text) : colors[state](text)}`
+  return `  ${icons[state]} ${colors[state](`Step ${number}:`)} ${state === "done" ? chalk.hex(theme.greenMute)(text) : colors[state](text)}`
 }
 
 export function stepChain(steps: Array<{ number: number; text: string; state: "active" | "done" | "pending" | "error" }>): string {
@@ -206,98 +650,35 @@ export function stepChain(steps: Array<{ number: number; text: string; state: "a
       const line = step(s.number, s.text, s.state)
       const isLast = i === steps.length - 1
       const connector = s.state === "done" && !isLast
-        ? `  ${chalk.hex(theme.green)}│`
+        ? `  ${chalk.hex(theme.greenDim)("│")}`
         : s.state === "active" && !isLast
-          ? `  ${chalk.hex(theme.cyan)}│`
+          ? `  ${chalk.hex(theme.amber)("│")}`
           : ""
       return connector ? `${line}\n${connector}` : line
     })
     .join("\n")
 }
 
+//
+// ─── STATUS / PROGRESS / HUD ──────────────────────────────────────────────────
+//
 export function statusIcon(type: "success" | "error" | "warning" | "info" | "cmd"): string {
   const map = {
     success: chalk.hex(theme.green)("◆"),
     error: chalk.hex(theme.red)("◆"),
-    warning: chalk.hex(theme.warning)("◆"),
-    info: chalk.hex(theme.cyan)("◇"),
-    cmd: chalk.hex(theme.cyan)("▸"),
+    warning: chalk.hex(theme.amber)("◆"),
+    info: chalk.hex(theme.greenGlow)("◇"),
+    cmd: chalk.hex(theme.amber)("▸"),
   }
   return map[type]
 }
 
-export function codeBlock(code: string, language?: string): string {
-  const lines = code.split("\n")
-  const header = language ? ` ${chalk.hex(theme.muted)(language)} ` : ""
-  const wrapped = lines
-    .map((line) => `  ${chalk.hex(theme.cyan)(line)}`)
-    .join("\n")
-  return boxen(header + "\n" + wrapped, {
-    padding: { top: 1, bottom: 1, left: 2, right: 2 },
-    borderStyle: "single",
-    borderColor: theme.darker,
-    dimBorder: true,
-    float: "left",
-  })
-}
-
-export function createSpinner(text: string) {
-  return yoctoSpinner({
-    text: chalk.hex(theme.muted)(text),
-    color: "cyan",
-  })
-}
-
-export function successBox(message: string, subtitle?: string): string {
-  return boxen(
-    [
-      `  ${chalk.hex(theme.green)("◆")}  ${chalk.hex(theme.green).bold(message)}`,
-      ...(subtitle ? [`     ${chalk.hex(theme.muted)(subtitle)}`] : []),
-    ].join("\n"),
-    {
-      padding: { top: 1, bottom: 1, left: 2, right: 2 },
-      borderStyle: "round",
-      borderColor: theme.darker,
-      float: "left",
-    },
-  )
-}
-
-export function errorBox(message: string): string {
-  return boxen(
-    `  ${chalk.hex(theme.red)("◆")}  ${chalk.hex(theme.red)(message)}`,
-    {
-      padding: { top: 1, bottom: 1, left: 2, right: 2 },
-      borderStyle: "round",
-      borderColor: theme.darker,
-      float: "left",
-    },
-  )
-}
-
-export function infoBox(message: string): string {
-  return boxen(
-    `  ${chalk.hex(theme.cyan)("◇")}  ${chalk.hex(theme.muted)(message)}`,
-    {
-      padding: { top: 1, bottom: 1, left: 2, right: 2 },
-      borderStyle: "round",
-      borderColor: theme.darker,
-      dimBorder: true,
-      float: "left",
-    },
-  )
-}
-
-export function heading(text: string): string {
-  return `${chalk.hex(theme.cyan)("┃")} ${chalk.hex(theme.text).bold(text)}`
-}
-
 export function bullet(text: string, color?: string): string {
-  return `  ${chalk.hex(theme.dim)("•")} ${chalk.hex(color ?? theme.muted)(text)}`
+  return `  ${chalk.hex(theme.greenDim)("•")} ${chalk.hex(color ?? theme.greenMute)(text)}`
 }
 
 export function dimmed(text: string): string {
-  return chalk.hex(theme.dim)(text)
+  return chalk.hex(theme.greenDim)(text)
 }
 
 export function progressBar(current: number, total: number, width = 20): string {
@@ -305,10 +686,10 @@ export function progressBar(current: number, total: number, width = 20): string 
   const filled = Math.round(ratio * width)
   const empty = width - filled
   const bar = [
-    chalk.hex(theme.cyan)("█".repeat(filled)),
-    chalk.hex(theme.dim)("█".repeat(empty)),
+    chalk.hex(theme.green)("█".repeat(filled)),
+    chalk.hex(theme.greenDim)("░".repeat(empty)),
   ].join("")
-  const pct = chalk.hex(theme.muted)(`${Math.round(ratio * 100)}%`)
+  const pct = chalk.hex(theme.greenGlow)(`${Math.round(ratio * 100)}%`)
   return `${bar} ${pct}`
 }
 
@@ -318,76 +699,183 @@ export function hudPanel(options: {
   status?: "ok" | "warn" | "err"
   accent?: string
 }): string {
-  const color = options.accent ?? theme.cyan
+  const color = options.accent ?? theme.green
   const statusMap = {
     ok: chalk.hex(theme.green)("●"),
-    warn: chalk.hex(theme.warning)("●"),
+    warn: chalk.hex(theme.amber)("●"),
     err: chalk.hex(theme.red)("●"),
   }
   const statusDot = options.status ? statusMap[options.status] : ""
   const statusPart = statusDot ? ` ${statusDot}` : ""
-  return `${chalk.hex(theme.dim)("┃")} ${chalk.hex(color).bold(options.label)}: ${chalk.hex(theme.text)(options.value)}${statusPart}`
+  return `${chalk.hex(theme.greenDim)("┃")} ${chalk.hex(color).bold(options.label.padEnd(10))} ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.white)(options.value)}${statusPart}`
 }
 
-export function keyValue(key: string, value: string, keyColor?: string): string {
-  return `  ${chalk.hex(keyColor ?? theme.cyan).bold(key)}: ${chalk.hex(theme.text)(value)}`
+//
+// ─── BOTTOM STATUS BAR ────────────────────────────────────────────────────────
+//
+// Mimics the freebuff footer: bracketed status chips, middot separators,
+// file path, line/col counter, mode chip in [BRACKETS]. Always renders to the
+// full terminal width with no internal gaps.
+//
+export function statusBar(opts: {
+  left?: string[]
+  right?: string[]
+}): string {
+  const w = process.stdout.columns ?? 80
+  const dim = (s: string) => chalk.hex(theme.greenDim)(s)
+  const mid = " " + dim("·") + " "
+
+  const leftStr = (opts.left ?? []).join(mid)
+  const rightStr = (opts.right ?? []).join(mid)
+
+  // Total budget = terminal width. We always render exactly `w` visible cols.
+  const leftVisible = stripAnsi(leftStr).length
+  const rightVisible = stripAnsi(rightStr).length
+  const overhead = 4 // `┣━ ` prefix + ` ━┫` suffix with single spaces
+  const fillLen = Math.max(1, w - leftVisible - rightVisible - overhead)
+
+  return `${dim("┣━")} ${leftStr} ${dim("─".repeat(fillLen))} ${rightStr} ${dim("━┫")}`
 }
 
-export function table(headers: string[], rows: string[][]): string {
-  const colWidths: number[] = headers.map((h, i) =>
-    Math.max(
-      stripAnsi(h).length,
-      ...rows.map((r) => {
-        const v = r[i]
-        return stripAnsi(v ?? "").length
-      }),
-    ),
-  )
-  const gw = (i: number) => colWidths[i] ?? 0
-  const hr = colWidths.map((_, i) => "─".repeat(gw(i) + 2)).join("┼")
-  const headerLine = headers
-    .map((h, i) => ` ${chalk.hex(theme.cyan)(h.padEnd(gw(i)))} `)
-    .join("│")
-  const separatorLine = chalk.hex(theme.dim)(hr)
-  const bodyLines = rows.map((row) =>
-    row
-      .map((cell, i) => ` ${cell.padEnd(gw(i) + (stripAnsi(cell).length !== cell.length ? 0 : 0))} `)
-      .join("│"),
-  )
+// Standalone two-line status footer (used in chat). Brackets always reach the
+// terminal edges; only the inner `─` fill shrinks to make room for content.
+export function chatStatusBar(opts: {
+  mode: string
+  model: string
+  usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number }
+  elapsed?: number
+  cumulativeTokens?: number
+  contextWindow?: number
+  cwd?: string
+}) {
+  const w = process.stdout.columns ?? 80
+  const dim = (s: string) => chalk.hex(theme.greenDim)(s)
+  const mid = " " + dim("·") + " "
 
+  const tags: string[] = []
+  tags.push(chalk.bgHex(theme.green).hex(theme.black).bold(` ${opts.mode} `))
+  tags.push(chalk.hex(theme.greenGlow)(opts.model))
+
+  if (opts.cumulativeTokens !== undefined) {
+    const formatted = formatTokenCount(opts.cumulativeTokens)
+    if (opts.contextWindow) {
+      const pct = Math.min(100, Math.round((opts.cumulativeTokens / opts.contextWindow) * 100))
+      tags.push(chalk.hex(theme.amber)(`${formatted} (${pct}%)`))
+    } else {
+      tags.push(chalk.hex(theme.amber)(formatted))
+    }
+  } else if (opts.usage) {
+    const t = opts.usage.totalTokens ?? (opts.usage.promptTokens ?? 0) + (opts.usage.completionTokens ?? 0)
+    tags.push(chalk.hex(theme.amber)(formatTokenCount(t)))
+  }
+  if (opts.elapsed !== undefined) {
+    const time = opts.elapsed < 1000 ? `${opts.elapsed}ms` : `${(opts.elapsed / 1000).toFixed(1)}s`
+    tags.push(chalk.hex(theme.greenGlow)(time))
+  }
+
+  const inner = tags.join(mid)
+  const innerVisible = stripAnsi(inner).length
+  const overhead = 5 // `┣━ ` + ` ━┫`
+  const fillLen = Math.max(1, w - innerVisible - overhead)
+
+  const line = `${dim("┣━")} ${inner} ${dim("─".repeat(fillLen))} ${dim("━┫")}`
+  console.log(line)
+}
+
+//
+// ─── HEADINGS / MESSAGES ──────────────────────────────────────────────────────
+//
+export function heading(text: string): string {
+  return `${chalk.hex(theme.green)("┃")} ${chalk.hex(theme.white).bold(text)}`
+}
+
+// Section heading with double-line frame above and below
+export function sectionHeading(text: string): string {
+  const w = process.stdout.columns ?? 80
+  const innerW = w - 4
+  const pad = Math.max(0, Math.floor((innerW - text.length) / 2))
   return [
-    chalk.hex(theme.dim)(`┌${colWidths.map((_, i) => "─".repeat(gw(i) + 2)).join("┬")}┐`),
-    `│${headerLine}│`,
-    separatorLine,
-    ...bodyLines.map((l) => `│${l}│`),
-    chalk.hex(theme.dim)(`└${colWidths.map((_, i) => "─".repeat(gw(i) + 2)).join("┴")}┘`),
+    chalk.hex(theme.greenDim)("━".repeat(w - 1)),
+    `  ${chalk.hex(theme.green)("┃")} ${chalk.hex(theme.greenGlow).bold(text)} ${chalk.hex(theme.green)("┃")}`,
+    chalk.hex(theme.greenDim)("━".repeat(w - 1)),
   ].join("\n")
 }
 
-export function systemLine(text: string): string {
-  const ts = chalk.hex(theme.dim)(new Date().toLocaleTimeString())
-  return `${chalk.hex(theme.dim)("[")}${ts}${chalk.hex(theme.dim)("]")} ${chalk.hex(theme.muted)(text)}`
+export function codeBlock(code: string, language?: string): string {
+  const lines = code.split("\n")
+  const header = language ? ` ${chalk.hex(theme.amber)(language)} ` : ""
+  const wrapped = lines
+    .map((line) => `  ${chalk.hex(theme.green)(line)}`)
+    .join("\n")
+  return boxen(header + "\n" + wrapped, {
+    padding: { top: 0, bottom: 0, left: 2, right: 2 },
+    margin: 0,
+    borderStyle: "single",
+    borderColor: theme.greenDim,
+    dimBorder: true,
+    float: "left",
+  })
 }
 
-export function ornamentalDivider(width?: number): string {
-  const w = width ?? Math.min(process.stdout.columns ?? 80, 60)
-  const left = "▓".repeat(2)
-  const mid = "▒".repeat(Math.max(0, w - 6))
-  const right = "▓".repeat(2)
-  return chalk.hex(theme.dim)(`${left}${mid}${right}`)
+export function successBox(message: string, subtitle?: string): string {
+  return boxen(
+    [
+      `  ${chalk.hex(theme.green)("◆")}  ${chalk.hex(theme.green).bold(message)}`,
+      ...(subtitle ? [`     ${chalk.hex(theme.greenMute)(subtitle)}`] : []),
+    ].join("\n"),
+    {
+      padding: { top: 0, bottom: 0, left: 2, right: 2 },
+      margin: 0,
+      borderStyle: "single",
+      borderColor: theme.greenDim,
+      float: "left",
+    },
+  )
 }
 
-export function stripAnsi(str: string): string {
-  return str.replace(/\x1b\[[0-9;]*m/g, "")
+export function errorBox(message: string): string {
+  return boxen(
+    `  ${chalk.hex(theme.red)("◆")}  ${chalk.hex(theme.red).bold(message)}`,
+    {
+      padding: { top: 0, bottom: 0, left: 2, right: 2 },
+      margin: 0,
+      borderStyle: "single",
+      borderColor: theme.red,
+      float: "left",
+    },
+  )
+}
+
+export function infoBox(message: string): string {
+  return boxen(
+    `  ${chalk.hex(theme.greenGlow)("◇")}  ${chalk.hex(theme.greenMute)(message)}`,
+    {
+      padding: { top: 0, bottom: 0, left: 2, right: 2 },
+      margin: 0,
+      borderStyle: "single",
+      borderColor: theme.greenDim,
+      dimBorder: true,
+      float: "left",
+    },
+  )
 }
 
 //
-// ─── REFINED TUI FUNCTIONS ───────────────────────────────────
-// New rendering primitives designed for the chat UI.
-// Uses the same theme tokens as above.
+// ─── SPINNERS / PROGRESS ──────────────────────────────────────────────────────
 //
+export function createSpinner(text: string) {
+  return yoctoSpinner({
+    text: chalk.hex(theme.greenMute)(text),
+    color: "green",
+  })
+}
 
-const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+// Block-cursor caret used in the input prompt (amber, half-block style)
+export const CARET = "▌"
+export const ARROW = "▸"
+
+// Persistent thinking display with frames that look like phosphor scan
+const THINKING_FRAMES = ["▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"]
 
 export function createThinking(label = "thinking"): { stop: () => void; succeed: (text?: string) => void; fail: (text?: string) => void; setLabel: (text: string) => void } {
   let i = 0
@@ -395,8 +883,8 @@ export function createThinking(label = "thinking"): { stop: () => void; succeed:
   let currentLabel = label
   const id = setInterval(() => {
     if (!running) return
-    process.stdout.write(`\r${chalk.hex(theme.cyan)(SPINNER_FRAMES[i])} ${chalk.hex(theme.muted)(currentLabel)}`)
-    i = (i + 1) % SPINNER_FRAMES.length
+    process.stdout.write(`\r${chalk.hex(theme.amber)(THINKING_FRAMES[i])} ${chalk.hex(theme.greenMute)(currentLabel)}`)
+    i = (i + 1) % THINKING_FRAMES.length
   }, 80)
 
   function clear() {
@@ -414,7 +902,7 @@ export function createThinking(label = "thinking"): { stop: () => void; succeed:
       running = false
       clearInterval(id)
       clear()
-      if (text) console.log(` ${chalk.hex(theme.green)("◆")} ${chalk.hex(theme.muted)(text)}`)
+      if (text) console.log(` ${chalk.hex(theme.green)("◆")} ${chalk.hex(theme.greenMute)(text)}`)
     },
     fail: (text?: string) => {
       running = false
@@ -428,33 +916,55 @@ export function createThinking(label = "thinking"): { stop: () => void; succeed:
   }
 }
 
+//
+// ─── CHAT-SPECIFIC BLOCKS ─────────────────────────────────────────────────────
+//
 export type MessageRole = "user" | "assistant" | "system"
 
 export function messageBlock(content: string, opts?: { role?: MessageRole; title?: string; compact?: boolean }) {
   const role = opts?.role ?? "assistant"
-  const color = role === "user" ? theme.cyan : role === "system" ? theme.amber : theme.green
+  const color = role === "user" ? theme.greenGlow : role === "system" ? theme.amber : theme.green
   const defaultTitle = role === "user" ? "you" : "supercode"
   const title = opts?.title ?? defaultTitle
   const lines = content.split("\n")
-  const terminalWidth = process.stdout.columns ?? 80
-  const innerWidth = terminalWidth - 6
+  const w = process.stdout.columns ?? 80
+  // Total visible width of the box: terminal width, with a small right margin.
+  const boxW = Math.max(20, w - 2)
+  const innerW = boxW - 4 // `┃ ` left + ` ┃` right = 4 cols
 
-  const topBorder = `┏${"━".repeat(Math.min(title.length + 2, innerWidth))} ${chalk.hex(color).bold(title)} ${"━".repeat(Math.max(0, innerWidth - title.length - 4))}`
+  // Top border: `┏━ title ─...─┓` filling exactly the box width
+  const titlePart = `┏━ ${chalk.hex(color).bold(title)} `
+  const titlePartVisible = stripAnsi(titlePart).length
+  const topFill = Math.max(0, boxW - titlePartVisible - 1) // -1 for trailing ┓
+  const top = chalk.hex(color)(titlePart) + chalk.hex(color)("─".repeat(topFill)) + chalk.hex(color)("┓")
 
+  // Body: each line gets `┃ ` prefix and is padded to innerW, then ` ┃`
   const body = opts?.compact
-    ? lines.slice(0, 3).map((l) => `${chalk.hex(color)("┃")} ${l}`).join("\n") + (lines.length > 3 ? `\n${chalk.hex(color)("┃")} ${chalk.hex(theme.muted)(`... +${lines.length - 3} more lines`)}` : "")
-    : lines.map((l) => `${chalk.hex(color)("┃")} ${l}`).join("\n")
+    ? lines.slice(0, 3).map((l) => {
+        const visible = l.length
+        const pad = Math.max(0, innerW - visible)
+        return `${chalk.hex(color)("┃")} ${l}${" ".repeat(pad)} ${chalk.hex(color)("┃")}`
+      }).join("\n") + (lines.length > 3 ? `\n${chalk.hex(color)("┃")} ${" ".repeat(innerW - 2)} ${chalk.hex(color)("┃")}\n${chalk.hex(color)("┃")} ${chalk.hex(theme.greenMute)(`... +${lines.length - 3} more lines`).padEnd(innerW - 2)} ${chalk.hex(color)("┃")}` : "")
+    : lines.map((l) => {
+        const visible = stripAnsi(l).length
+        const pad = Math.max(0, innerW - visible - 1)
+        return `${chalk.hex(color)("┃")} ${l}${" ".repeat(pad)}${chalk.hex(color)("┃")}`
+      }).join("\n")
 
-  const bottomBorder = `${chalk.hex(color)("┗")}${chalk.hex(theme.dim)("━".repeat(Math.max(0, innerWidth + 2)))}`
+  const bottom = chalk.hex(theme.greenDim)("┗" + "─".repeat(boxW - 2) + "┛")
 
-  return [chalk.hex(color)(topBorder), body, bottomBorder].join("\n")
+  return [top, body, bottom].join("\n")
 }
 
 export function streamHeader(model: string, label = "supercode") {
   const ts = new Date().toLocaleTimeString()
   const w = process.stdout.columns ?? 80
-  const line = `┏━━ ${chalk.hex(theme.green).bold(label)} ${chalk.hex(theme.muted)(`· ${model} · ${ts}`)} ${"━".repeat(Math.max(0, w - label.length - model.length - ts.length - 18))}`
-  console.log(chalk.hex(theme.green)(line))
+  const boxW = Math.max(20, w - 2)
+  const titlePart = `┏━ ${chalk.hex(theme.green).bold(label)} ${chalk.hex(theme.greenMute)(`· ${model} · ${ts}`)} `
+  const titlePartVisible = stripAnsi(titlePart).length
+  const topFill = Math.max(0, boxW - titlePartVisible - 1)
+  const top = chalk.hex(theme.green)(titlePart) + chalk.hex(theme.green)("─".repeat(topFill)) + chalk.hex(theme.green)("┓")
+  console.log(top)
 }
 
 export function formatTokenCount(n: number): string {
@@ -474,16 +984,17 @@ export function streamFooter(usage?: { promptTokens?: number; completionTokens?:
     parts.push(time)
   }
   if (model) parts.push(model)
-  const meta = parts.length > 0 ? ` ${chalk.hex(theme.muted)(parts.join(" · "))}` : ""
+  const meta = parts.length > 0 ? ` ${chalk.hex(theme.greenMute)(parts.join(" · "))}` : ""
 
   const w = process.stdout.columns ?? 80
-  const base = `┗${"━".repeat(Math.max(0, w - 2))}`
-  console.log(chalk.hex(theme.dim)(base + meta.slice(0, w - base.length)))
+  const boxW = Math.max(20, w - 2)
+  const base = `┗${"─".repeat(boxW - 2)}┛`
+  console.log(chalk.hex(theme.greenDim)(base + meta))
 }
 
 export function responseDivider() {
   const w = process.stdout.columns ?? 80
-  console.log(chalk.hex(theme.dim)(` ${"─".repeat(Math.max(0, w - 2))}`))
+  console.log(chalk.hex(theme.greenDim)(` ${"─".repeat(Math.max(0, w - 2))}`))
 }
 
 export function streamingLine(text: string) {
@@ -492,20 +1003,30 @@ export function streamingLine(text: string) {
 
 export function userMessage(content: string) {
   const lines = content.split("\n")
-  console.log(chalk.hex(theme.cyan)(`┏━━ ${chalk.bold("you")} ${"━".repeat(Math.max(0, (process.stdout.columns ?? 80) - 10))}`))
+  const w = process.stdout.columns ?? 80
+  const boxW = Math.max(20, w - 2)
+  const innerW = boxW - 4
+
+  const titlePart = `┏━ ${chalk.hex(theme.greenGlow).bold("you")} `
+  const titlePartVisible = stripAnsi(titlePart).length
+  const topFill = Math.max(0, boxW - titlePartVisible - 1)
+  const top = chalk.hex(theme.greenGlow)(titlePart) + chalk.hex(theme.greenGlow)("─".repeat(topFill)) + chalk.hex(theme.greenGlow)("┓")
+  console.log(top)
+
   for (const line of lines) {
-    console.log(`${chalk.hex(theme.cyan)("┃")} ${line}`)
+    const visible = stripAnsi(line).length
+    const pad = Math.max(0, innerW - visible - 1)
+    console.log(`${chalk.hex(theme.greenGlow)("┃")} ${line}${" ".repeat(pad)}${chalk.hex(theme.greenGlow)("┃")}`)
   }
-  console.log(chalk.hex(theme.cyan)(`┗${"━".repeat(Math.max(0, (process.stdout.columns ?? 80) - 4))}`))
+  console.log(chalk.hex(theme.greenDim)("┗" + "─".repeat(boxW - 2) + "┛"))
   console.log()
 }
 
 export function compactMessageSummary(role: string, content: string, index: number) {
-  const color = role === "user" ? theme.cyan : theme.green
-  const icon = role === "user" ? "─" : "─"
+  const color = role === "user" ? theme.greenGlow : theme.green
   const firstLine = content.split("\n")[0] ?? ""
   const truncated = firstLine.length > 72 ? firstLine.slice(0, 69) + "..." : firstLine
-  console.log(` ${chalk.hex(theme.dim)(`${index}.`)} ${chalk.hex(color)(icon)} ${chalk.hex(theme.muted)(truncated)}`)
+  console.log(` ${chalk.hex(theme.greenDim)(`${String(index).padStart(3)}.`)} ${chalk.hex(color)("─")} ${chalk.hex(theme.greenMute)(truncated)}`)
 }
 
 export function sessionSummary(conversation: { id: string; title: string | null; mode: string; createdAt: Date; messages?: { role: string }[] }) {
@@ -515,65 +1036,96 @@ export function sessionSummary(conversation: { id: string; title: string | null;
   return panel(
     [
       `  ${chalk.hex(theme.green).bold(title)}`,
-      `  ${chalk.hex(theme.muted)(`${msgCount} messages · ${date} · ${conversation.mode}`)}`,
-      `  ${chalk.hex(theme.dim)(conversation.id)}`,
+      `  ${chalk.hex(theme.greenMute)(`${msgCount} messages · ${date} · ${conversation.mode}`)}`,
+      `  ${chalk.hex(theme.greenDim)(conversation.id)}`,
     ].join("\n"),
-    { title: "session", borderColor: theme.dim },
+    { title: "session", borderColor: theme.greenDim },
   )
 }
 
 export function chatHelp() {
   const lines = [
-    ` ${chalk.hex(theme.cyan)("Enter")}     send message`,
-    ` ${chalk.hex(theme.cyan)("Esc")}      clear input / cancel response`,
-    ` ${chalk.hex(theme.cyan)("↑/↓")}     navigate history`,
+    ` ${chalk.hex(theme.amber)("Enter")}     send message`,
+    ` ${chalk.hex(theme.amber)("Esc")}      clear input / cancel response`,
+    ` ${chalk.hex(theme.amber)("Tab")}      cycle mode · ${chalk.hex(theme.greenGlow)("[chat] [tools] [agent]")}`,
+    ` ${chalk.hex(theme.amber)("↑/↓")}     navigate history`,
+    ` ${chalk.hex(theme.amber)("Ctrl+C")}   exit`,
   ]
-  return panel(lines.join("\n"), { title: "keys", borderColor: theme.dim })
+  return panel(lines.join("\n"), { title: "keys", borderColor: theme.greenDim })
 }
 
-export function chatStatusBar(opts: {
-  mode: string
-  model: string
-  usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number }
-  elapsed?: number
-  cumulativeTokens?: number
-  contextWindow?: number
-}) {
-  const w = process.stdout.columns ?? 80
-  const dim = (s: string) => chalk.hex(theme.dim)(s)
-
-  const tags: string[] = []
-  tags.push(chalk.hex(theme.muted)(opts.mode))
-  tags.push(chalk.hex(theme.green)(opts.model))
-
-  if (opts.cumulativeTokens !== undefined) {
-    const formatted = formatTokenCount(opts.cumulativeTokens)
-    if (opts.contextWindow) {
-      const pct = Math.min(100, Math.round((opts.cumulativeTokens / opts.contextWindow) * 100))
-      tags.push(chalk.hex(theme.amber)(`${formatted} (${pct}%)`))
-    } else {
-      tags.push(chalk.hex(theme.amber)(formatted))
-    }
-  } else if (opts.usage) {
-    const t = opts.usage.totalTokens ?? (opts.usage.promptTokens ?? 0) + (opts.usage.completionTokens ?? 0)
-    tags.push(chalk.hex(theme.amber)(formatTokenCount(t)))
-  }
-  if (opts.elapsed !== undefined) {
-    const time = opts.elapsed < 1000 ? `${opts.elapsed}ms` : `${(opts.elapsed / 1000).toFixed(1)}s`
-    tags.push(chalk.hex(theme.muted)(time))
-  }
-
-  const inner = tags.join(` ${dim("·")} `)
-  const fillLen = Math.max(0, w - stripAnsi(inner).length - 5)
-
-  const line = `${dim("┣━")} ${inner} ${dim("━".repeat(fillLen))}${dim("┫")}`
-  console.log(line)
+export function systemLine(text: string): string {
+  const ts = chalk.hex(theme.greenDim)(new Date().toLocaleTimeString())
+  return `${chalk.hex(theme.greenDim)("[")}${ts}${chalk.hex(theme.greenDim)("]")} ${chalk.hex(theme.greenMute)(text)}`
 }
 
+export function ornamentalDivider(width?: number): string {
+  const w = width ?? Math.min(process.stdout.columns ?? 80, 60)
+  const left = chalk.hex(theme.green)("▓▓")
+  const mid = chalk.hex(theme.greenDim)("▒".repeat(Math.max(0, w - 6)))
+  const right = chalk.hex(theme.green)("▓▓")
+  return `${left}${mid}${right}`
+}
+
+//
+// ─── ANSI STRIPPING ───────────────────────────────────────────────────────────
+//
+export function stripAnsi(str: string): string {
+  return str.replace(/\x1b\[[0-9;]*m/g, "")
+}
+
+//
+// ─── TABLE ────────────────────────────────────────────────────────────────────
+//
+export function table(headers: string[], rows: string[][]): string {
+  const colWidths: number[] = headers.map((h, i) =>
+    Math.max(
+      stripAnsi(h).length,
+      ...rows.map((r) => {
+        const v = r[i]
+        return stripAnsi(v ?? "").length
+      }),
+    ),
+  )
+  const gw = (i: number) => colWidths[i] ?? 0
+  const hr = colWidths.map((_, i) => "─".repeat(gw(i) + 2)).join("┼")
+  const headerLine = headers
+    .map((h, i) => ` ${chalk.hex(theme.green).bold(h.padEnd(gw(i)))} `)
+    .join("│")
+  const separatorLine = chalk.hex(theme.greenDim)(hr)
+  const bodyLines = rows.map((row) =>
+    row
+      .map((cell, i) => ` ${chalk.hex(theme.greenGlow)(cell.padEnd(gw(i)))} `)
+      .join("│"),
+  )
+
+  return [
+    chalk.hex(theme.greenDim)(`┌${colWidths.map((_, i) => "─".repeat(gw(i) + 2)).join("┬")}┐`),
+    `│${headerLine}│`,
+    separatorLine,
+    ...bodyLines.map((l) => `│${l}│`),
+    chalk.hex(theme.greenDim)(`└${colWidths.map((_, i) => "─".repeat(gw(i) + 2)).join("┴")}┘`),
+  ].join("\n")
+}
+
+//
+// ─── TIMING ───────────────────────────────────────────────────────────────────
+//
 export function timediff(ms: number): string {
   if (ms < 1000) return `${ms}ms`
   if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
   const m = Math.floor(ms / 60000)
   const s = Math.round((ms % 60000) / 1000)
   return `${m}m ${s}s`
+}
+
+//
+// ─── STREAM RENDERER ──────────────────────────────────────────────────────────
+//
+// Inline marked-terminal renderer wrapper that respects our palette overrides.
+// Used to render markdown AI responses in green.
+//
+export function streamChunk(chunk: string) {
+  // Just emit raw — downstream can pipe through marked-terminal if desired.
+  process.stdout.write(chunk)
 }
