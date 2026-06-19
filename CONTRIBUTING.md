@@ -1,6 +1,6 @@
 # Contributing to Supercode
 
-Thank you for your interest in contributing to Supercode! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Supercode! This document provides guidelines and instructions for contributing to this monorepo.
 
 ## Table of Contents
 
@@ -23,8 +23,8 @@ Be respectful and inclusive. Treat all contributors with courtesy and profession
 
 ### Prerequisites
 
-- **Node.js** 18+ or **Bun** (recommended)
-- **PostgreSQL** database
+- **Bun** 1.2+ ([Install](https://bun.sh))
+- **PostgreSQL** database (dashboard + optional terminal database)
 - **Git**
 
 ### Package Manager
@@ -47,23 +47,23 @@ powershell -c "irm bun.sh/install.ps1 | iex"
    cd supercli
    ```
 
-2. **Install dependencies**
+2. **Install dependencies** (also runs Prisma client generation via `postinstall`)
    ```bash
    bun install
    ```
 
 3. **Set up environment variables**
    ```bash
-   cp apps/web/.env.example apps/web/.env
+   cp .env.example .env
    ```
-   
-   Configure the following required variables:
+
+   Configure the following required variables in `.env`:
    ```env
    DATABASE_URL="postgresql://..."
-   GITHUB_CLIENT_ID="..."
-   GITHUB_CLIENT_SECRET="..."
-   NEXT_PUBLIC_BETTER_AUTH_URL="http://localhost:3000"
-   BETTER_AUTH_SECRET="..."
+   BETTER_AUTH_SECRET="your-secret-key"
+   BETTER_AUTH_URL="http://localhost:3000"
+   GITHUB_CLIENT_ID="your-github-oauth-id"
+   GITHUB_CLIENT_SECRET="your-github-oauth-secret"
    ```
 
 4. **Set up the database**
@@ -71,17 +71,29 @@ powershell -c "irm bun.sh/install.ps1 | iex"
    cd packages/db
    bun run db:generate
    bunx prisma migrate dev
+   cd ../..
    ```
 
-5. **Start the development server**
+   If you're also working on the terminal CLI, set up its database:
    ```bash
-   # From root - starts all apps
+   cd packages/db-terminal
+   bun run db:generate
+   bunx prisma migrate dev
+   cd ../..
+   ```
+
+5. **Start the development servers**
+   ```bash
+   # Start all apps
    bun run dev
 
-   # Or start specific apps
-   bun run dev:web      # Dashboard (port 3000)
-   bun run dev:docs     # Documentation (port 3001)
-   bun run dev:terminal # Terminal client
+   # Or start a specific app
+   bun run dev:web              # Dashboard (port 3000)
+   bun run dev:docs             # Documentation (port 3001)
+   bun run dev:terminal         # Terminal web client
+   bun run dev:terminal-server  # CLI agent dev loop
+   bun run dev:api              # API server
+   bun run dev:video            # Remotion studio
    ```
 
 6. **Open your browser**
@@ -93,40 +105,44 @@ powershell -c "irm bun.sh/install.ps1 | iex"
 ```
 supercli/
 ├── apps/
-│   ├── web/                 # Next.js dashboard app → supercli.com
-│   │   ├── app/             # App router pages
-│   │   ├── components/      # React components
-│   │   ├── lib/             # Utility libraries
-│   │   └── modules/         # Feature modules
+│   ├── web/                          # Dashboard → supercli.com
+│   │   ├── app/                      # App router pages
+│   │   ├── components/               # React components
+│   │   ├── hooks/                    # Custom React hooks
+│   │   ├── lib/                      # Utility libraries
+│   │   ├── modules/                  # Feature modules
+│   │   ├── inngest/                  # Background jobs (Inngest)
+│   │   └── public/                   # Static assets
 │   │
-│   ├── docs/                # Documentation site
-│   │   ├── app/             # App router pages
-│   │   └── content/         # MDX documentation files
+│   ├── docs/                         # MDX documentation site
+│   │   ├── app/                      # App router pages
+│   │   ├── components/
+│   │   ├── content/                  # MDX docs
+│   │   └── lib/
 │   │
-│   ├── video/               # Remotion video generation
+│   ├── supercode-cli/
+│   │   ├── client/                   # Terminal web UI → terminal.supercli.com
+│   │   └── server/                   # AI CLI agent (published as `supercode` on npm)
 │   │
-│   ├── api/                 # API server (scaffolded)
-│   │
-│   └── supercode-cli/       # Terminal AI app
-│       ├── client/          # Terminal web client
-│       └── server/          # WebSocket server
+│   ├── api/                          # Shared API server (scaffolded)
+│   └── video/                        # Remotion video generation
 │
 ├── packages/
-│   ├── db/                  # Prisma database client
-│   │   └── prisma/
-│   │       └── schema.prisma
-│   │
-│   ├── auth/                # Better-Auth configuration
-│   │   ├── server.ts        # Server-side auth
-│   │   └── client.ts        # Client-side auth
-│   │
-│   ├── ui/                  # Shared UI components
-│   ├── sdk/                 # SDK package
-│   ├── config/              # Shared configuration
-│   └── dashboard/           # Dashboard components
+│   ├── db/                           # Prisma schema + client (dashboard)
+│   ├── db-terminal/                  # Prisma schema + client (terminal CLI)
+│   ├── auth/                         # Better-Auth config (server.ts, client.ts)
+│   ├── claude-sdk/                   # Claude / Anthropic provider wrapper
+│   ├── embeddings-sdk/               # Embeddings provider wrapper
+│   ├── skills/                       # Shared AI agent skills
+│   ├── ui/                           # Shared UI components
+│   ├── sdk/                          # Internal SDK
+│   ├── config/                       # Shared ESLint/TS config
+│   └── dashboard/                    # Dashboard-specific components
 │
-├── turbo.json               # Turborepo configuration
-└── package.json             # Root package.json
+├── supercode-openmodel/              # LLM fine-tuning project
+├── scripts/                          # Repo-level scripts
+├── turbo.json                        # Turborepo config
+└── package.json                      # Root package
 ```
 
 ## Development Workflow
@@ -139,26 +155,32 @@ supercli/
 | `bun run build` | Build all packages and apps |
 | `bun run lint` | Run ESLint across all packages |
 | `bun run typecheck` | Run TypeScript checks |
-| `bun run dev:web` | Start only web app |
-| `bun run dev:docs` | Start only docs app |
-| `bun run dev:terminal` | Start terminal client |
+| `bun run dev:web` | Start only the dashboard |
+| `bun run dev:docs` | Start only the docs site |
+| `bun run dev:terminal` | Start the terminal web client |
+| `bun run dev:terminal-server` | Run the CLI agent in dev mode |
+| `bun run dev:api` | Start the API server |
+| `bun run dev:video` | Start the Remotion studio |
+| `bun run supercode` | Run the CLI agent in dev mode (alias for server dev loop) |
 
 ### Database Commands
 
+**Dashboard database** (`packages/db/`):
+
 ```bash
 cd packages/db
+bun run db:generate                 # Clean + regenerate Prisma client
+bun run db:migrate                  # Deploy migrations
+bunx prisma migrate dev --name name # Create a new migration
+bunx prisma studio                  # Open Prisma Studio
+```
 
-# Generate Prisma client
+**Terminal CLI database** (`packages/db-terminal/`):
+
+```bash
+cd packages/db-terminal
 bun run db:generate
-
-# Deploy migrations
-bun run db:migrate
-
-# Create a new migration
-bunx prisma migrate dev --name your_migration_name
-
-# Open Prisma Studio
-bunx prisma studio
+bunx prisma migrate dev --name name
 ```
 
 ## Code Style Guidelines
@@ -172,7 +194,7 @@ bunx prisma studio
 
 ### Imports
 
-Order your imports as follows (separated by blank lines):
+Order imports by category, separated by blank lines:
 
 ```typescript
 // 1. React/Next
@@ -183,7 +205,7 @@ import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { z } from "zod"
 
-// 3. Internal aliases
+// 3. Internal aliases (workspace packages)
 import { Button } from "@/components/ui/button"
 import { auth } from "@super/auth"
 
@@ -228,7 +250,7 @@ function Button(props: ButtonProps) {
 
 ### Styling (Tailwind CSS v4)
 
-- Use `cn()` utility for conditional classes
+- Use `cn()` utility from `@/lib/utils` (web) or `lib/utils` (client) for conditional classes
 - Prefer semantic CSS variables over hardcoded values
 - Follow CVA (class-variance-authority) pattern for component variants
 
@@ -255,10 +277,33 @@ interface ButtonProps extends VariantProps<typeof buttonVariants> {
 
 ### Database (Prisma)
 
-- Schema location: `packages/db/prisma/schema.prisma`
-- Always regenerate client after schema changes: `bun run db:generate`
+- Dashboard schema: `packages/db/prisma/schema.prisma`
+- Terminal schema: `packages/db-terminal/prisma/schema.prisma`
+- Always regenerate after schema changes: `bun run db:generate`
 - Use `@map()` for custom table names in snake_case
 - Add indexes for frequently queried foreign keys
+
+### CLI Pattern (supercode-cli/server)
+
+The server app follows a structured CLI pattern:
+
+```
+apps/supercode-cli/server/src/
+├── index.ts          # Entry point (dev mode)
+├── cli/
+│   ├── main.ts       # CLI bootstrap
+│   ├── commands/     # `supercode <command>` implementations
+│   ├── chat/         # Interactive chat loop
+│   ├── ai/           # AI provider orchestration
+│   ├── tools/        # Tool definitions (read_file, execute_command, etc.)
+│   ├── workspace/    # Workspace management
+│   └── utils/        # CLI utilities
+├── service/          # AI provider integration layer
+├── tools/            # Tool execution engine
+├── lib/              # Shared libraries
+├── config/           # Configuration
+└── types/            # TypeScript types
+```
 
 ## Commit Guidelines
 
@@ -289,6 +334,7 @@ feat(auth): add GitHub OAuth support
 fix(db): resolve connection pooling issue
 docs(readme): update installation instructions
 refactor(ui): extract button component to shared package
+feat(cli): add workspace list command
 ```
 
 ## Pull Request Process
@@ -327,12 +373,22 @@ refactor(ui): extract button component to shared package
 - Bug fix: `fix/bug-name`
 - Documentation: `docs/doc-name`
 - Refactor: `refactor/component-name`
+- Issue-linked: `supercli-#<issue-number>` (for Linear-tracked issues)
 
 ## Testing
 
-**No test framework is currently configured.** The project is in early development.
+**No test framework is currently configured for the monorepo root.** The project is in early development.
 
-When tests are added, follow this pattern:
+The `supercode-cli/server` app has initial test infrastructure with `bun test`. If you're working on the CLI:
+
+```bash
+cd apps/supercode-cli/server
+bun test                # Run all tests
+bun test path/to/file   # Run a single test file
+bun test --watch        # Watch mode
+```
+
+When adding tests to other packages, follow this pattern:
 
 ```bash
 # Run all tests
@@ -347,8 +403,10 @@ bun test --watch
 
 ## Database Changes
 
-1. **Modify the schema**
-   Edit `packages/db/prisma/schema.prisma`
+### Dashboard Schema
+
+1. **Edit the schema**
+   `packages/db/prisma/schema.prisma`
 
 2. **Create a migration**
    ```bash
@@ -364,6 +422,17 @@ bun test --watch
 4. **Update dependent code**
    - Check for TypeScript errors
    - Update any affected queries
+
+### Terminal CLI Schema
+
+The terminal CLI has its own isolated schema:
+
+```bash
+cd packages/db-terminal
+# Edit prisma/schema.prisma
+bunx prisma migrate dev --name your_migration_name
+bun run db:generate
+```
 
 ## Need Help?
 
