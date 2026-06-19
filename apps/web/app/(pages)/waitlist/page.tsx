@@ -34,17 +34,7 @@ export default function WaitlistPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#070708] dark relative flex flex-col">
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[900px] rounded-full"
-          style={{
-            background:
-              "radial-gradient(ellipse at center, oklch(0.7214 0.1337 49.9802 / 0.06) 0%, oklch(0.7214 0.1337 49.9802 / 0.02) 40%, transparent 70%)",
-          }}
-        />
-      </div>
-
+    <main className="min-h-screen bg-background dark relative flex flex-col">
       <Navbar />
 
       <div className="flex-1 flex items-start justify-center px-6 pt-32 pb-20">
