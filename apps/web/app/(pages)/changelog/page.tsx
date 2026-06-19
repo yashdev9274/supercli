@@ -22,6 +22,47 @@ export default function ChangelogPage() {
             <div className="flex items-baseline gap-4 mb-8">
               <h2 className="text-[24px] font-semibold tracking-tight">
                 <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.7"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.7
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jun 19, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Phosphor CRT terminal theme — green phosphor on black, amber accent for cursor/badges, green glow highlights. New <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">pixelWordmark()</code> renders "SUPERCODE" as ASCII pixel art.</li>
+                  <li>- Main screen redesigned with <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">sectionHeader</code>, <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">cardStack</code>, <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">rowCard</code>, <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">keyValue</code>, <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">statusBar</code> utilities — centered pixel wordmark, system HUD panel, command card stack, and a footer status bar.</li>
+                  <li>- Chat startup overhauled: pixel wordmark header, status bar with mode/model info, <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/model</code> / <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/help</code> / <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">Tab</code> quick-start hint row.</li>
+                  <li>- Framed "goodbye" message on exit instead of a single line.</li>
+                  <li>- Animated thinking spinner with live tool call and reasoning updates (existing, refined).</li>
+                  <li>- 1,048 insertions across 7 files — the TUI is now the primary surface identity.</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Docs</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- README rewritten with new branding ("AI-Powered SWE Agent"), updated app/package table, Terminal Stack architecture section, and new badges (Next.js 16, License).</li>
+                  <li>- CONTRIBUTING rewritten from scratch: Bun-first setup, both database setup steps (dashboard + terminal CLI), expanded project tree, full command reference, code style guidelines, CLI pattern doc, DB migration workflows.</li>
+                  <li>- Config documentation updated with production URL guidance for OAuth setup — thanks <a href="https://github.com/aviisharma238" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">@aviisharma238</a>!</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
                   href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.6"
                   target="_blank"
                   rel="noopener noreferrer"
