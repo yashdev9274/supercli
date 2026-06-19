@@ -18,6 +18,9 @@ const Footer = () => {
           </div>
           
           <div className="flex items-center gap-6">
+            <a href='/launch' className="text-[13px] text-muted-foreground hover:text-foreground transition-colors font-mono">
+                Launch
+            </a>
             <a href="#" className="text-[13px] text-muted-foreground hover:text-foreground transition-colors font-mono">
               Privacy
             </a>
