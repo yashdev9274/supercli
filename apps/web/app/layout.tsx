@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     siteName: "Supercode",
     images: [
       {
-        url: "/og-image.png",
+        url: "/og-image2.png",
         width: 1200,
         height: 630,
         alt: "Supercode - CLI AI Coding Agent",
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Supercode - The open source SWE agent",
     description: "Work with superCli directly in your codebase. Build, debug, and ship from your terminal, IDE, Slack, or the web.",
-    images: ["/og-image.png"],
+    images: ["/og-image2.png"],
   },
 };
 
