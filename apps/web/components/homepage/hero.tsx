@@ -40,7 +40,7 @@ const HeroSection = () => {
 
   return (
     <>
-      <section className="min-h-screen flex flex-col justify-center items-center pt-[70px] px-6">
+      <section className="min-h-screen flex flex-col justify-center items-center pt-[110px] px-6">
         <div className="max-w-[900px] mx-auto w-full text-center">
           {/* Version tag */}
           <div className="flex justify-center mb-4">

@@ -1,7 +1,8 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
+import BetaCountdownBanner from "./beta-countdown-banner"
 
 const DOCS_URL =
   process.env.NEXT_PUBLIC_DOCS_URL || "http://localhost:3001/docs/intro"
@@ -141,6 +142,11 @@ const PixelLogo = () => (
 
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [bannerVisible, setBannerVisible] = useState(false)
+
+  const handleBannerChange = useCallback((visible: boolean) => {
+    setBannerVisible(visible)
+  }, [])
 
   useEffect(() => {
     if (menuOpen) {
@@ -161,8 +167,10 @@ const Navbar = () => {
   ]
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-[100] bg-background/95 backdrop-blur-sm">
-      <div className="h-[70px] flex items-center justify-between px-5 md:px-12 max-w-[1400px] mx-auto w-full">
+    <header className="fixed top-0 left-0 right-0 z-[100]">
+      <BetaCountdownBanner onVisibilityChange={handleBannerChange} />
+      <div className={`bg-background/95 backdrop-blur-sm transition-all duration-300 ${bannerVisible ? "border-t-0" : ""}`}>
+        <div className="h-[70px] flex items-center justify-between px-5 md:px-12 max-w-[1400px] mx-auto w-full">
         <div className="flex items-center gap-4">
           <button
             onClick={() => setMenuOpen(!menuOpen)}
@@ -224,9 +232,12 @@ const Navbar = () => {
           Login
         </Link>
       </div>
+      </div>
 
       <div
-        className={`fixed inset-0 top-[70px] z-40 transition-all duration-500 ${
+        className={`fixed inset-0 z-40 transition-all duration-500 ${
+          bannerVisible ? "top-[114px] sm:top-[110px]" : "top-[70px]"
+        } ${
           menuOpen
             ? "opacity-100 pointer-events-auto"
             : "opacity-0 pointer-events-none"
