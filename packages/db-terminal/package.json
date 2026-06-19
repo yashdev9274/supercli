@@ -17,7 +17,8 @@
     "postinstall": "bun run db:generate",
     "db:clean": "rm -rf src/generated",
     "db:generate": "prisma generate --schema ./prisma/schema.prisma",
-    "db:migrate": "prisma migrate deploy --schema ./prisma/schema.prisma"
+    "db:migrate": "prisma migrate deploy --schema ./prisma/schema.prisma",
+    "db:studio": "prisma studio --config=./prisma.config.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

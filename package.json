@@ -13,6 +13,8 @@
     "typecheck": "turbo typecheck",
     "postinstall": "bun run --cwd packages/db db:generate",
     "dev:web": "turbo dev --filter=web",
+    "db:generate:terminal": "bun run --cwd packages/db-terminal db:generate",
+    "db:studio:terminal": "bun run --cwd packages/db-terminal db:studio",
     "dev:api": "turbo dev --filter=api",
     "dev:terminal": "turbo dev --filter=supercode-cli-client",
     "dev:terminal-server": "turbo dev --filter=supercode-cli-server",
