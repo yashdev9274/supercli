@@ -161,6 +161,7 @@ const Navbar = () => {
 
   const navItems = [
     { label: "GitHub", href: "https://github.com/yashdev9274/superCli", external: true },
+    { label: "Compare", href: "/compare" },
     { label: "Docs", href: DOCS_URL, external: true },
     { label: "Changelog", href: "/changelog" },
     { label: "Waitlist", href: "/waitlist", accent: true },
