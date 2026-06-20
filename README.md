@@ -6,7 +6,7 @@
 
   A monorepo containing the Supercode dashboard, documentation, terminal web client, CLI coding agent, and shared packages.
 
-  [![Website](https://img.shields.io/badge/Website-supercli.com-blue)](https://supercli.com)
+  [![Website](https://img.shields.io/badge/Website-supercli.com-blue)](https://supercli.vercel.app)
   [![Built with Bun](https://img.shields.io/badge/Runtime-Bun-black)](https://bun.sh)
   [![Turborepo](https://img.shields.io/badge/Built%20with-Turborepo-EF4444)](https://turbo.build)
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6)](https://www.typescriptlang.org/)
