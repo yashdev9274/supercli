@@ -3,6 +3,7 @@ import { theme, cardStack, cardRow, heavyDivider, sectionHeader } from "src/cli/
 
 const COMMANDS = [
   { cmd: "/model", desc: "Switch AI provider or model" },
+  { cmd: "/connect", desc: "Connect API key for direct access" },
   { cmd: "/help", desc: "Show this help screen" },
   { cmd: "/exit", desc: "End the session" },
 ]

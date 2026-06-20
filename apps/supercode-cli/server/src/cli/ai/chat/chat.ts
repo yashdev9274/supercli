@@ -199,11 +199,12 @@ let stdinPrevWrapLines = 1
 
 const SLASH_COMMANDS = [
   { cmd: "/model", desc: "Switch AI provider or model" },
+  { cmd: "/connect", desc: "Connect API key for direct access" },
   { cmd: "/help", desc: "Show available commands and models" },
   { cmd: "/exit", desc: "End the session" },
 ]
 
-const SLASH_LIST_HEIGHT = 2 + 3 + 2 // dividers + header + 3 commands + bottom divider
+const SLASH_LIST_HEIGHT = 2 + 4 + 2 // dividers + header + 4 commands + bottom divider
 
 let slashListLines = 0
 let slashSelected = -1
@@ -721,7 +722,7 @@ export async function startChat(
 
     // ── Quick-start hint ────────────────────────────────────────
     console.log(
-      `  ${chalk.hex(theme.greenDim)("hint")} ${chalk.hex(theme.green)("·")} ${chalk.hex(theme.greenGlow)("/model")} to switch  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("/help")} for commands  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("Tab")} to cycle mode`,
+      `  ${chalk.hex(theme.greenDim)("hint")} ${chalk.hex(theme.green)("·")} ${chalk.hex(theme.greenGlow)("/model")} to switch  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("/connect")} api key  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("/help")} for commands  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("Tab")} to cycle mode`,
     )
     console.log()
 
