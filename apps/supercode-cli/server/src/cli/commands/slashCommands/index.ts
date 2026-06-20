@@ -1,12 +1,13 @@
 import { select, isCancel } from "@clack/prompts"
 import chalk from "chalk"
 import { pickModel, formatModelChange } from "./model.ts"
+import { connectProvider } from "./connect.ts"
 import { renderHelp } from "./help.ts"
 import { theme, heavyDivider } from "src/cli/utils/tui.ts"
 import type { ModelProvider } from "src/cli/ai/provider.ts"
 
 export interface SlashCommandResult {
-  type: "model_change" | "help" | "unknown" | "exit"
+  type: "model_change" | "help" | "unknown" | "exit" | "connect"
   provider?: ModelProvider
   model?: string
   label?: string
@@ -14,6 +15,7 @@ export interface SlashCommandResult {
 
 const COMMANDS = [
   { cmd: "/model", desc: "Switch AI provider or model" },
+  { cmd: "/connect", desc: "Connect API key for direct access" },
   { cmd: "/help", desc: "Show available commands and models" },
   { cmd: "/exit", desc: "End the session" },
 ]
@@ -27,6 +29,9 @@ const handlers: Record<string, (args: string) => Promise<SlashCommandResult>> = 
       model: result.model,
       label: formatModelChange(result.provider, result.model),
     }
+  },
+  connect: async () => {
+    return connectProvider()
   },
   help: async () => {
     renderHelp()

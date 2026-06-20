@@ -605,6 +605,15 @@ export async function chatLoop(
             process.stdout.write(`\r\n ${chalk.hex(theme.green)("◆")} switched to ${chalk.hex(theme.cyan)(label)}\r\n\n`)
             saveCliConfig({ provider: result.provider!, model: result.model || provider.modelName, mode: conversation.mode as "chat" | "tools" | "agent" })
           }
+        } else if (result?.type === "connect") {
+          if (result.provider) {
+            const newProvider = createProvider(result.provider, provider.modelName)
+            if (newProvider) {
+              provider = newProvider
+              contextWindow = getContextWindow(provider.modelName)
+            }
+          }
+          process.stdout.write(`\r\n`)
         } else if (result?.type === "unknown") {
           process.stdout.write(`\r\n ${chalk.hex(theme.red)("◆")} unknown slash command: ${trimmed.split(" ")[0]}\r\n\n`)
         } else {

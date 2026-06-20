@@ -6,7 +6,7 @@ import { startAgentChat } from "src/cli/ai/chat/chatAgent"
 import { theme, frame, createThinking, errorBox } from "src/cli/utils/tui"
 import { scanWorkspace } from "src/cli/workspace/scanner.ts"
 import { renderWorkspaceBanner } from "src/cli/workspace/format.ts"
-import { getCliConfig, saveCliConfig } from "src/lib/cli-config"
+import { getCliConfig, saveCliConfig, applyStoredApiKeys } from "src/lib/cli-config"
 
 export const wakeUpAction = async () => {
   const token = await getStoredToken()
@@ -45,6 +45,7 @@ export const wakeUpAction = async () => {
   }
 
   const stored = await getCliConfig()
+  await applyStoredApiKeys()
   if (stored) {
     switch (stored.mode) {
       case "agent":
