@@ -3,9 +3,37 @@ import { streamText, stepCountIs, type ModelMessage, type LanguageModel } from "
 import { openRouterConfig } from "../../config/openrouter.config.ts"
 import chalk from "chalk"
 
+const MODEL_MAX_TOKENS: Record<string, number> = {
+  "moonshotai/kimi-k2.6": 4096,
+  "deepseek/deepseek-v4-flash": 8192,
+  "deepseek-ai/deepseek-v4-flash": 8192,
+  "minimax/minimax-m3": 1024,
+  "minimax/minimax-m3.5": 1024,
+  "minimax/minimax-m2.5": 1024,
+  "minimaxai/minimax-m2.7": 1024,
+  "z-ai/glm-5.1": 512,
+}
+
+function getModelMaxTokens(modelName: string): number {
+  const direct = MODEL_MAX_TOKENS[modelName]
+  if (direct != null) return direct
+  for (const [key, value] of Object.entries(MODEL_MAX_TOKENS)) {
+    if (modelName.includes(key) || key.includes(modelName)) return value
+  }
+  for (const key of Object.keys(MODEL_MAX_TOKENS)) {
+    const keyParts = key.split("/").pop()
+    if (keyParts && modelName.includes(keyParts)) {
+      const val = MODEL_MAX_TOKENS[key]
+      if (val != null) return val
+    }
+  }
+  return Math.min(openRouterConfig.maxTokens, 8192)
+}
+
 export class OpenRouterService {
   model: LanguageModel
   readonly modelName: string
+  readonly maxTokens: number
 
   constructor(modelName?: string) {
     if (!openRouterConfig.apiKey) {
@@ -13,12 +41,15 @@ export class OpenRouterService {
     }
 
     this.modelName = modelName || openRouterConfig.model
+    this.maxTokens = getModelMaxTokens(this.modelName)
 
     const openrouter = createOpenRouter({
       apiKey: openRouterConfig.apiKey,
     })
 
-    this.model = openrouter.chat(this.modelName)
+    this.model = openrouter.chat(this.modelName, {
+      maxTokens: this.maxTokens,
+    })
   }
 
   async sendMessage(

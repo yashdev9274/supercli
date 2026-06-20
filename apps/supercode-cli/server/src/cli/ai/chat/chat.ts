@@ -24,7 +24,6 @@ import {
   createThinking,
   stripAnsi,
   formatTokenCount,
-  pixelWordmark,
   statusBar,
   sectionHeader,
   cardStack,
@@ -38,6 +37,7 @@ import { buildSystemPrompt } from "src/cli/workspace/context.ts"
 import { tools } from "src/tools/registry.ts"
 import { renderWorkspaceBanner } from "src/cli/workspace/format.ts"
 import { handleSlashCommand, isSlashCommand } from "src/cli/commands/slashCommands/index.ts"
+import { saveCliConfig } from "src/lib/cli-config"
 
 async function getUserFromToken() {
   const token = await getStoredToken()
@@ -197,6 +197,22 @@ let stdinResolve: ((value: { input: string; mode: string }) => void) | null = nu
 let stdinPromptLen = 0
 let stdinPrevWrapLines = 1
 
+const SLASH_COMMANDS = [
+  { cmd: "/model", desc: "Switch AI provider or model" },
+  { cmd: "/help", desc: "Show available commands and models" },
+  { cmd: "/exit", desc: "End the session" },
+]
+
+const SLASH_LIST_HEIGHT = 2 + 3 + 2 // dividers + header + 3 commands + bottom divider
+
+let slashListLines = 0
+let slashSelected = -1
+
+// Message history (up/down arrow navigation)
+let messageHistory: string[] = []
+let historyIndex = -1
+let savedDraft = ""
+
 function promptText(): string {
   const color = chalk.hex(modeColors[stdinMode] ?? theme.cyan)
   const caret = chalk.hex(theme.amber)("▌")
@@ -214,21 +230,52 @@ function renderInput() {
   const totalChars = promptLen + stdinInput.length
   const wrapLines = Math.max(1, Math.ceil(totalChars / cols))
 
-  for (let i = 0; i < stdinPrevWrapLines; i++) {
+  // Clear old list + input from bottom to top
+  const totalPrev = stdinPrevWrapLines + slashListLines
+  // Move cursor down past all old content
+  for (let i = 0; i < slashListLines; i++) {
+    readline.moveCursor(process.stdout, 0, 1)
+  }
+  // Now clear from bottom to top
+  for (let i = 0; i < totalPrev; i++) {
     readline.cursorTo(process.stdout, 0)
     readline.clearLine(process.stdout, 0)
-    if (i < stdinPrevWrapLines - 1) {
+    if (i < totalPrev - 1) {
       readline.moveCursor(process.stdout, 0, -1)
     }
   }
+
+  // Write prompt + input
   readline.cursorTo(process.stdout, 0)
   process.stdout.write(promptText() + stdinInput)
   stdinPrevWrapLines = wrapLines
 
-  const absPos = promptLen + stdinCursor
-  if (absPos !== promptLen + stdinInput.length) {
-    readline.cursorTo(process.stdout, absPos)
+  // Show slash list when input is exactly /
+  slashListLines = 0
+  if (stdinInput.startsWith("/") && stdinInput.length === 1) {
+    const divider = heavyDivider()
+    process.stdout.write(`\r\n${divider}\r\n`)
+    if (slashSelected === -1) {
+      process.stdout.write(` ${chalk.hex(theme.amber)("❯")} /\r\n`)
+    }
+    process.stdout.write(`${divider}\r\n`)
+    SLASH_COMMANDS.forEach((c, i) => {
+      if (slashSelected === i) {
+        process.stdout.write(` ${chalk.hex(theme.amber)("▸")} ${chalk.hex(theme.green).bold(c.cmd.padEnd(22))}${chalk.hex(theme.text)(c.desc)}\r\n`)
+      } else {
+        process.stdout.write(` ${chalk.hex(theme.muted)(" ")} ${chalk.hex(theme.cyan)(c.cmd.padEnd(22))}${chalk.hex(theme.muted)(c.desc)}\r\n`)
+      }
+    })
+    process.stdout.write(`${divider}`)
+    slashListLines = SLASH_LIST_HEIGHT - (slashSelected === -1 ? 0 : 1)
+
+    // Move cursor back up past the list to the input line
+    for (let i = 0; i < slashListLines; i++) {
+      readline.moveCursor(process.stdout, 0, -1)
+    }
   }
+
+  readline.cursorTo(process.stdout, promptLen + stdinCursor)
 }
 
 function stdinKeypress(_str: string, key: any) {
@@ -257,14 +304,50 @@ function stdinKeypress(_str: string, key: any) {
   }
 
   if (key.name === "return" || key.name === "enter") {
+    // If a slash command is selected via keyboard, execute it directly
+    if (slashSelected >= 0 && slashSelected < SLASH_COMMANDS.length) {
+      const cmd = "/" + SLASH_COMMANDS[slashSelected]!.cmd.slice(1)
+      slashSelected = -1
+      // Clear list
+      for (let i = 0; i < stdinPrevWrapLines + slashListLines; i++) {
+        readline.moveCursor(process.stdout, 0, 1)
+      }
+      for (let i = 0; i < stdinPrevWrapLines + slashListLines; i++) {
+        readline.cursorTo(process.stdout, 0)
+        readline.clearLine(process.stdout, 0)
+        if (i < stdinPrevWrapLines + slashListLines - 1) {
+          readline.moveCursor(process.stdout, 0, -1)
+        }
+      }
+      slashListLines = 0
+      process.stdout.write("\r\n")
+      const resolve = stdinResolve
+      stdinResolve = null
+      resolve({ input: cmd, mode: stdinMode })
+      return
+    }
+
     const resolve = stdinResolve
     stdinResolve = null
+    // Clear slash list (content below input line)
+    for (let i = 0; i < slashListLines; i++) {
+      readline.moveCursor(process.stdout, 0, 1)
+    }
+    for (let i = 0; i < slashListLines; i++) {
+      readline.cursorTo(process.stdout, 0)
+      readline.clearLine(process.stdout, 0)
+      if (i < slashListLines - 1) {
+        readline.moveCursor(process.stdout, 0, -1)
+      }
+    }
+    slashListLines = 0
     process.stdout.write("\r\n")
     resolve({ input: stdinInput, mode: stdinMode })
     return
   }
 
   if (key.name === "escape") {
+    slashSelected = -1
     stdinInput = ""
     stdinCursor = 0
     renderInput()
@@ -277,9 +360,23 @@ function stdinKeypress(_str: string, key: any) {
   }
 
   if (key.name === "backspace") {
-    if (stdinCursor > 0) {
+    if (key.meta) {
+      const before = stdinInput.slice(0, stdinCursor)
+      const after = stdinInput.slice(stdinCursor)
+      const match = before.match(/\s*\S+\s*$/)
+      if (match) {
+        const wordLen = match[0].length
+        stdinInput = before.slice(0, before.length - wordLen) + after
+        stdinCursor -= wordLen
+        slashSelected = -1
+        historyIndex = -1
+        renderInput()
+      }
+    } else if (stdinCursor > 0) {
       stdinInput = stdinInput.slice(0, stdinCursor - 1) + stdinInput.slice(stdinCursor)
       stdinCursor--
+      slashSelected = -1
+      historyIndex = -1
       renderInput()
     }
     return
@@ -293,8 +390,59 @@ function stdinKeypress(_str: string, key: any) {
     return
   }
 
+  if (key.name === "up") {
+    if (slashListLines > 0) {
+      if (slashSelected === -1) {
+        slashSelected = SLASH_COMMANDS.length - 1
+      } else {
+        slashSelected = (slashSelected - 1 + SLASH_COMMANDS.length) % SLASH_COMMANDS.length
+      }
+      renderInput()
+    } else if (messageHistory.length > 0) {
+      if (historyIndex === -1) {
+        savedDraft = stdinInput
+        historyIndex = messageHistory.length - 1
+      } else if (historyIndex > 0) {
+        historyIndex--
+      }
+      stdinInput = messageHistory[historyIndex] ?? ""
+      stdinCursor = stdinInput.length
+      renderInput()
+    }
+    return
+  }
+
+  if (key.name === "down") {
+    if (slashListLines > 0) {
+      if (slashSelected === -1) {
+        slashSelected = 0
+      } else {
+        slashSelected = (slashSelected + 1) % SLASH_COMMANDS.length
+      }
+      renderInput()
+    } else if (historyIndex !== -1) {
+      if (historyIndex < messageHistory.length - 1) {
+        historyIndex++
+        stdinInput = messageHistory[historyIndex] ?? ""
+      } else {
+        historyIndex = -1
+        stdinInput = savedDraft
+        savedDraft = ""
+      }
+      stdinCursor = stdinInput.length
+      renderInput()
+    }
+    return
+  }
+
   if (key.name === "left") {
-    if (stdinCursor > 0) {
+    if (key.meta) {
+      // Option+Left: jump to start of previous word
+      const before = stdinInput.slice(0, stdinCursor)
+      const start = before.trimEnd().lastIndexOf(" ") + 1
+      stdinCursor = Math.max(0, start || 0)
+      readline.cursorTo(process.stdout, stdinPromptLen + stdinCursor)
+    } else if (stdinCursor > 0) {
       stdinCursor--
       readline.cursorTo(process.stdout, stdinPromptLen + stdinCursor)
     }
@@ -302,7 +450,17 @@ function stdinKeypress(_str: string, key: any) {
   }
 
   if (key.name === "right") {
-    if (stdinCursor < stdinInput.length) {
+    if (key.meta) {
+      // Option+Right: jump to start of next word
+      const after = stdinInput.slice(stdinCursor)
+      const firstNonWs = after.search(/\S/)
+      if (firstNonWs !== -1) {
+        stdinCursor += firstNonWs
+      } else {
+        stdinCursor = stdinInput.length
+      }
+      readline.cursorTo(process.stdout, stdinPromptLen + stdinCursor)
+    } else if (stdinCursor < stdinInput.length) {
       stdinCursor++
       readline.cursorTo(process.stdout, stdinPromptLen + stdinCursor)
     }
@@ -324,10 +482,9 @@ function stdinKeypress(_str: string, key: any) {
   if (_str && _str.length === 1 && !key.ctrl && !key.meta) {
     stdinInput = stdinInput.slice(0, stdinCursor) + _str + stdinInput.slice(stdinCursor)
     stdinCursor++
-    readline.clearLine(process.stdout, 0)
-    readline.cursorTo(process.stdout, 0)
-    process.stdout.write(promptText() + stdinInput)
-    readline.cursorTo(process.stdout, stdinPromptLen + stdinCursor)
+    slashSelected = -1
+    historyIndex = -1
+    renderInput()
     return
   }
 }
@@ -359,6 +516,7 @@ async function chatInput(currentMode: string): Promise<{ input: string; mode: st
   stdinInput = ""
   stdinCursor = 0
   stdinPrevWrapLines = 1
+  slashListLines = 0
   ensureStdinHandler()
   try {
     renderInput()
@@ -418,6 +576,14 @@ export async function chatLoop(
 
       if (trimmed.length === 0) continue
 
+      // Track non-slash messages in history
+      if (!isSlashCommand(trimmed)) {
+        messageHistory.push(trimmed)
+        if (messageHistory.length > 100) messageHistory.shift()
+      }
+      historyIndex = -1
+      savedDraft = ""
+
       if (isSlashCommand(trimmed)) {
         if (process.stdin.isTTY) process.stdin.setRawMode(false)
         const result = await handleSlashCommand(trimmed)
@@ -426,6 +592,10 @@ export async function chatLoop(
         stdinPrevWrapLines = 1
         if (process.stdin.isTTY) process.stdin.setRawMode(true)
         ensureStdinHandler()
+        if (result?.type === "exit") {
+          process.stdout.write("\r\n")
+          process.exit(0)
+        }
         if (result?.type === "model_change") {
           const newProvider = result.provider ? createProvider(result.provider, result.model) : null
           if (newProvider) {
@@ -433,6 +603,7 @@ export async function chatLoop(
             contextWindow = getContextWindow(provider.modelName)
             const label = result.label || provider.modelName
             process.stdout.write(`\r\n ${chalk.hex(theme.green)("◆")} switched to ${chalk.hex(theme.cyan)(label)}\r\n\n`)
+            saveCliConfig({ provider: result.provider!, model: result.model || provider.modelName, mode: conversation.mode as "chat" | "tools" | "agent" })
           }
         } else if (result?.type === "unknown") {
           process.stdout.write(`\r\n ${chalk.hex(theme.red)("◆")} unknown slash command: ${trimmed.split(" ")[0]}\r\n\n`)
@@ -474,7 +645,7 @@ export async function chatLoop(
             cumulativeTokens: sessionTokens,
             contextWindow,
           })
-          process.stdout.write("\r\n")
+          process.stdout.write("\r\n\r\n")
         } catch {
           // status bar may fail after tool output; continue loop
         }
@@ -516,11 +687,13 @@ export async function startChat(
     const modeLabel = initialMode === "tool" ? "tools" : initialMode === "agent" ? "agent" : "chat"
     const subtitle = modeLabel === "chat" ? `ai chat · ${aiProvider.modelName}` : `${modeLabel} · ${aiProvider.modelName}`
 
-    // ── Pixel wordmark header ───────────────────────────────────
-    const wordmark = pixelWordmark("SUPERCODE", { color: theme.green, shadow: theme.greenDim })
+    // ── Header ───────────────────────────────────────────────────
     const w = process.stdout.columns ?? 80
-    const strippedW = wordmark.split("\n")[0]!.replace(/\x1b\[[0-9;]*m/g, "").length
-    console.log(" ".repeat(Math.max(0, Math.floor((w - strippedW) / 2))) + wordmark)
+    const title = chalk.hex(theme.green).bold("SUPERCODE")
+    const tagline = chalk.hex(theme.greenDim)(`${subtitle}`)
+    const headerText = `${title}  ${tagline}`
+    const headerLen = stripAnsi(headerText).length
+    console.log(" ".repeat(Math.max(0, Math.floor((w - headerLen) / 2))) + headerText)
     console.log()
 
     // ── Mode + model status row ─────────────────────────────────

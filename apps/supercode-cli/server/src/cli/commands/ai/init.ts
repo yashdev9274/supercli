@@ -1,27 +1,12 @@
-import chalk from "chalk"
 import { Command } from "commander"
 import { getStoredToken } from "src/lib/token"
 import { getCurrentUser } from "src/lib/api-client"
-import { select, isCancel } from "@clack/prompts"
 import { startChat, type ModelProvider } from "src/cli/ai/chat/chat"
 import { startAgentChat } from "src/cli/ai/chat/chatAgent"
 import { theme, frame, createThinking, errorBox } from "src/cli/utils/tui"
 import { scanWorkspace } from "src/cli/workspace/scanner.ts"
-import { renderWorkspaceBanner, renderFileTree } from "src/cli/workspace/format.ts"
-
-const NVIDIA_MODELS = {
-  "minimaxai/minimax-m2.7": "MiniMax M2.7",
-  "deepseek-ai/deepseek-v4-flash": "DeepSeek V4 Flash",
-  "meta/llama-3.3-70b-instruct": "Llama 3.3 70B",
-} as const
-
-const OPENROUTER_MODELS = {
-  "openai/gpt-oss-120b:free": "GPT OSS 120B (free)",
-  "deepseek/deepseek-v4-flash": "DeepSeek V4 Flash",
-  "minimax/minimax-m3": "MiniMax M3",
-  "z-ai/glm-5.1": "GLM 5.1",
-  "moonshotai/kimi-k2.6:free": "Kimi K2.6 (free)",
-} as const
+import { renderWorkspaceBanner } from "src/cli/workspace/format.ts"
+import { getCliConfig, saveCliConfig } from "src/lib/cli-config"
 
 export const wakeUpAction = async () => {
   const token = await getStoredToken()
@@ -59,87 +44,26 @@ export const wakeUpAction = async () => {
     wsThinking.fail("Could not scan workspace")
   }
 
-  let modelChoice: ModelProvider
-  let selectedModel: string | undefined
-
-  const providerChoice = await select({
-    message: chalk.hex(theme.cyan)("select model"),
-    options: [
-      // { value: "server", label: "Supercloud", hint: "server-hosted · no API key needed (Recommended)" },
-      { value: "google", label: "Gemini 2.5 Flash", hint: "free · fast" },
-      // { value: "minimax", label: "MiniMax M2", hint: "reasoning · powerful" },
-      { value: "openrouter", label: "OpenRouter", hint: "multi-provider · bring your own key" },
-      { value: "nvidia", label: "NVIDIA NIM", hint: "free API" },
-    ],
-  })
-
-  if (isCancel(providerChoice)) {
-    console.log(chalk.hex(theme.muted)("cancelled"))
-    process.exit(0)
-  }
-
-  console.log()
-
-  if (providerChoice === "nvidia") {
-    const nvidiaModel = await select({
-      message: chalk.hex(theme.cyan)("select NVIDIA NIM model"),
-      options: Object.entries(NVIDIA_MODELS).map(([value, label]) => ({
-        value,
-        label,
-      })),
-    })
-
-    if (isCancel(nvidiaModel)) {
-      console.log(chalk.hex(theme.muted)("cancelled"))
-      process.exit(0)
+  const stored = await getCliConfig()
+  if (stored) {
+    switch (stored.mode) {
+      case "agent":
+        await startAgentChat(stored.provider, stored.model)
+        break
+      default:
+        await startChat(stored.provider, stored.model, null, workspaceInfo ?? undefined, stored.mode)
+        break
     }
-
-    modelChoice = "nvidia"
-    selectedModel = nvidiaModel as string
-    console.log()
-  } else if (providerChoice === "openrouter") {
-    const orModel = await select({
-      message: chalk.hex(theme.cyan)("select OpenRouter model"),
-      options: Object.entries(OPENROUTER_MODELS).map(([value, label]) => ({
-        value,
-        label,
-      })),
-    })
-
-    if (isCancel(orModel)) {
-      console.log(chalk.hex(theme.muted)("cancelled"))
-      process.exit(0)
-    }
-
-    modelChoice = "openrouter"
-    selectedModel = orModel as string
-    console.log()
-  } else {
-    modelChoice = providerChoice as ModelProvider
+    return
   }
 
-  const modeChoice = await select({
-    message: chalk.hex(theme.cyan)("select mode"),
-    options: [
-      { value: "chat", label: "Chat", hint: "conversation with AI" },
-      { value: "tools", label: "Tools", hint: "AI with file read & search" },
-      { value: "agent", label: "Agent", hint: "autonomous coding agent (coming soon)" },
-    ],
-  })
-
-  if (isCancel(modeChoice)) {
-    console.log(chalk.hex(theme.muted)("cancelled"))
-    process.exit(0)
-  }
-
-  console.log()
-
-  switch (modeChoice) {
+  const defaults = await saveCliConfig({})
+  switch (defaults.mode) {
     case "agent":
-      await startAgentChat(modelChoice, selectedModel)
+      await startAgentChat(defaults.provider, defaults.model)
       break
     default:
-      await startChat(modelChoice, selectedModel, null, workspaceInfo ?? undefined, modeChoice as string)
+      await startChat(defaults.provider, defaults.model, null, workspaceInfo ?? undefined, defaults.mode)
       break
   }
 }
