@@ -20,6 +20,22 @@ function getTimeRemaining(target: number) {
 
 type TimeRemaining = ReturnType<typeof getTimeRemaining>
 
+const betaFeatures = [
+  "5 free models included",
+  "bring your own API key",
+  "action commands",
+  "full OS access — read files, run commands, edit code, open apps, search the web",
+  "persistent memory across sessions",
+  "you approve every action on your command",
+]
+
+const comingNext = [
+  "screen-actuation agent (sees your screen, hears your voice, moves your cursor)",
+  "MCPs & more providers",
+  "app integrations",
+  "and more",
+]
+
 const features = [
   {
     cmd: "supercode --model free",
@@ -134,19 +150,73 @@ export default function LaunchPage() {
           )}
 
           {launched && (
-            <div className="mb-12">
-              <h2 className="text-[42px] sm:text-[64px] font-bold font-mono text-primary tracking-tight leading-none">
-                LAUNCHED
+            <div className="mb-16">
+              <h2 className="text-[36px] sm:text-[56px] font-bold font-mono text-primary tracking-tight leading-none mb-3">
+                SUPERCODE BETA IS LIVE. <span className="inline-block animate-bounce">🎉</span>
               </h2>
-              <p className="text-muted-foreground font-mono text-sm mt-4">
-                supercode is now live. install it from your terminal.
-              </p>
-              <Link
-                href="/"
-                className="inline-flex items-center gap-2 mt-6 px-6 py-3 rounded-lg bg-primary/10 border border-primary/20 text-primary font-mono text-sm hover:bg-primary/15 transition-all duration-300"
+              <a
+                href="https://supercli.vercel.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block font-mono text-[15px] text-primary/70 hover:text-primary underline underline-offset-4 mb-8 transition-colors"
               >
-                go to homepage →
-              </Link>
+                supercli.vercel.app ↗
+              </a>
+              <p className="font-mono text-[15px] text-foreground/85 leading-relaxed max-w-[600px] mx-auto mb-10">
+                An open-source AI agent in your terminal that controls your whole machine.
+              </p>
+
+              {/* In beta now */}
+              <div className="text-left max-w-[640px] mx-auto mb-12">
+                <div className="font-mono text-[11px] text-muted-foreground/40 tracking-wider uppercase mb-5">
+                  $ cat /beta/now
+                </div>
+                <div className="space-y-3">
+                  {betaFeatures.map((f, i) => (
+                    <div key={i} className="flex items-start gap-3">
+                      <span className="font-mono text-[12px] text-green-500/70 shrink-0 mt-0.5">✦</span>
+                      <span className="font-mono text-[14px] text-foreground/85">{f}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Coming next */}
+              <div className="text-left max-w-[640px] mx-auto mb-12">
+                <div className="font-mono text-[11px] text-muted-foreground/40 tracking-wider uppercase mb-5">
+                  $ cat /beta/next
+                </div>
+                <div className="space-y-3">
+                  {comingNext.map((f, i) => (
+                    <div key={i} className="flex items-start gap-3">
+                      <span className="font-mono text-[12px] text-primary/50 shrink-0 mt-0.5">→</span>
+                      <span className="font-mono text-[14px] text-muted-foreground">{f}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Install command */}
+              <div className="max-w-[560px] mx-auto">
+                <div className="font-mono text-[11px] text-muted-foreground/40 tracking-wider uppercase mb-3">
+                  $ install
+                </div>
+                <div className="group relative">
+                  <pre className="font-mono text-[14px] bg-black/40 border border-border/40 rounded-lg px-5 py-4 text-foreground/80 overflow-x-auto">
+                    <span className="text-muted-foreground/50">$</span> npm install -g supercode-cli@latest
+                  </pre>
+                  <button
+                    onClick={() => navigator.clipboard.writeText("npm install -g supercode-cli@latest")}
+                    className="absolute top-3 right-3 p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-border/40 transition-all duration-200"
+                    aria-label="Copy install command"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -207,18 +277,37 @@ export default function LaunchPage() {
 
           {/* CTA */}
           <div className="max-w-[420px] mx-auto mt-12">
-            <Link
-              href="/waitlist"
-              className="relative w-full py-4 rounded-xl font-mono text-sm font-medium text-primary-foreground block text-center transition-all duration-300 hover:shadow-[0_0_40px_-10px] hover:shadow-primary/50"
-              style={{
-                background: "oklch(0.7214 0.1337 49.9802)",
-              }}
-            >
-              <span className="relative z-10">join the waitlist →</span>
-            </Link>
-            <p className="font-mono text-[11px] text-muted-foreground/30 mt-3">
-              early access starts june 22
-            </p>
+            {launched ? (
+              <>
+                <Link
+                  href="/docs/quickstart"
+                  className="relative w-full py-4 rounded-xl font-mono text-sm font-medium text-primary-foreground block text-center transition-all duration-300 hover:shadow-[0_0_40px_-10px] hover:shadow-primary/50"
+                  style={{
+                    background: "oklch(0.7214 0.1337 49.9802)",
+                  }}
+                >
+                  <span className="relative z-10">quickstart guide →</span>
+                </Link>
+                <p className="font-mono text-[11px] text-muted-foreground/30 mt-3">
+                  npm install -g supercode-cli@latest
+                </p>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/waitlist"
+                  className="relative w-full py-4 rounded-xl font-mono text-sm font-medium text-primary-foreground block text-center transition-all duration-300 hover:shadow-[0_0_40px_-10px] hover:shadow-primary/50"
+                  style={{
+                    background: "oklch(0.7214 0.1337 49.9802)",
+                  }}
+                >
+                  <span className="relative z-10">join the waitlist →</span>
+                </Link>
+                <p className="font-mono text-[11px] text-muted-foreground/30 mt-3">
+                  early access starts june 22
+                </p>
+              </>
+            )}
           </div>
         </div>
       </section>
