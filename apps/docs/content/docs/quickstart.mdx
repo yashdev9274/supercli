@@ -1,0 +1,111 @@
+---
+title: Quickstart
+description: Get up and running with Supercode in under 5 minutes.
+---
+
+# Quickstart
+
+In this quickstart guide, we'll walk you through the steps to get started with Supercode. By the end, you'll have a working setup and be ready to start building.
+
+## 1. Install Supercode
+
+Use your preferred package manager:
+
+```bash
+curl -fsSL https://supercli.vercel.app/install | bash
+```
+
+```bash
+npm install -g supercode-cli@latest
+```
+
+```bash
+bun install -g supercode-cli
+```
+
+```bash
+npx supercode-cli
+```
+
+```bash
+brew install supercode
+```
+
+Verify the install:
+
+```bash
+supercode --version
+```
+
+## 2. Log in
+
+Run the following command to log in to the CLI:
+
+```bash
+supercode login
+```
+
+This opens a browser to authenticate. Click **Authorize** to sign in and return to the terminal after the login successful message appears.
+
+**Tip:** Chrome may ask to allow access to your local network. Supercode runs a temporary local server to complete the OAuth callback. This is safe and expected. Click **Allow** to proceed.
+
+## 3. Start coding
+
+Navigate to a project directory and run:
+
+```bash
+cd /path/to/your-project
+supercode
+```
+
+The first time you run `supercode` in a project, it asks whether to trust the files in that folder. Select **Yes** to continue. Supercode asks this once per project.
+
+**Tip:** Skip this prompt with `supercode --trust`.
+
+Next, Supercode checks for your coding preferences. It builds a taste profile as you work — learning which package manager you use, which libraries you prefer, and how you structure code.
+
+## 4. Run your first prompt
+
+Let's run a small prompt. Type the following in the input box:
+
+```bash
+Create a date.js CLI that outputs the ISO format of the current date. Use commander.js.
+```
+
+Supercode will analyze the request, create the file, and report back when it's done. Review the changes and type `y` to accept.
+
+After Supercode finishes executing, check what it learned about your preferences:
+
+```bash
+supercode taste
+```
+
+As you work, Supercode builds a taste profile that carries into future sessions — and only relevant taste context loads per session.
+
+## Useful shortcuts
+
+| Shortcut | Action |
+| -------- | ------ |
+| `?` | Show all keyboard shortcuts |
+| `Ctrl + T` | View taste profile |
+| `/undo` | Undo last change |
+| `/redo` | Redo undone change |
+| `/connect` | Connect an AI provider |
+
+## Conclusion
+
+You've installed Supercode, logged in, and run your first prompt. From here, every session only gets smarter as Supercode adapts to your patterns and learns your preferences.
+
+## Updating
+
+Keep Supercode up to date for the latest features and fixes:
+
+```bash
+npm update -g supercode-cli@latest
+```
+
+## What's next
+
+- [Intro](/docs/intro) — Full overview of Supercode
+- [Authentication](/docs/authentication) — Auth setup and API keys
+- [Architecture](/docs/terminal-architecture) — How Supercode works under the hood

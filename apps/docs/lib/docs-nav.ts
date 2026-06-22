@@ -1,12 +1,21 @@
-export const DOCS_NAV: { title: string; slug: string }[] = [
-  // Dashboard
-  { title: "Intro", slug: "intro" },
-  { title: "Authentication", slug: "authentication" },
-  { title: "Architecture", slug: "terminal-architecture" },
-  // { title: "Repositories", slug: "repositories" },
-  // { title: "Settings", slug: "settings" },
-  
-  // // Terminal
-  // { title: "Terminal", slug: "terminal-intro" },
-  // { title: "Getting Started", slug: "terminal-getting-started" },
+export type NavSection = {
+  title: string
+  items: { title: string; slug: string }[]
+}
+
+export const DOCS_NAV: NavSection[] = [
+  {
+    title: "Getting Started",
+    items: [
+      { title: "Intro", slug: "intro" },
+      { title: "Quickstart", slug: "quickstart" },
+      { title: "Authentication", slug: "authentication" },
+    ],
+  },
+  {
+    title: "Terminal",
+    items: [
+      { title: "Architecture", slug: "terminal-architecture" },
+    ],
+  },
 ]
