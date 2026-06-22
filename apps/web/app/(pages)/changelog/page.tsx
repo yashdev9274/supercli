@@ -22,6 +22,114 @@ export default function ChangelogPage() {
             <div className="flex items-baseline gap-4 mb-8">
               <h2 className="text-[24px] font-semibold tracking-tight">
                 <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.10"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.10
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jun 22, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Docs</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- New <strong>Quickstart</strong> guide — step-by-step install/login/first-prompt walkthrough at <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/docs/quickstart</code>.</li>
+                  <li>- Docs site redesign: typography overhaul, section-grouped sidebar (Getting Started / Terminal), prev/next page pagination, scroll-aware "On this page" TOC with active highlights.</li>
+                  <li>- Polished terminal blocks with macOS-style title bar and copy feedback animation.</li>
+                  <li>- New header with pixel logo, Docs / Home / GitHub nav links, and improved footer with prev/next navigation.</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Redesigned device approval screen with terminal-themed UI, <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">PixelLogo</code> component, and simplified device code entry form.</li>
+                  <li>- Cleaned-up login form and server dependency updates.</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Homepage</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Updated hero, footer, and navbar with beta launch links and version metadata.</li>
+                  <li>- Tabbed install commands (curl / npm / bun / npx / brew) with copy-to-clipboard.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.9"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.9
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jun 21, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- New <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/connect</code> command — interactive provider setup for OpenAI, Anthropic, Google Gemini, and more.</li>
+                  <li>- AI model management enhanced with provider-specific configuration and model lists.</li>
+                  <li>- Provider connection functionality with API key validation and persistence.</li>
+                  <li>- CLI help documentation updated with new commands and configuration options.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.8"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.8
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jun 20, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Web App</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Waitlist feature with email notifications and Inngest integration.</li>
+                  <li>- Beta launch countdown page with animated banner component.</li>
+                  <li>- Launch page added to footer navigation.</li>
+                  <li>- Open Graph images updated for social sharing.</li>
+                  <li>- Comparison page — Supercode vs other SWE agents with highlighted differentiators.</li>
+                  <li>- Changelog page published at <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/changelog</code>.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
                   href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.7"
                   target="_blank"
                   rel="noopener noreferrer"
