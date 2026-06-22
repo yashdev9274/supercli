@@ -35,12 +35,12 @@ export function OnThisPage({ headings }: Props) {
   if (headings.length === 0) return null
 
   return (
-    <aside className="w-52 shrink-0 hidden xl:block overflow-y-auto sticky top-8 max-h-[calc(100vh-7rem)]">
+    <aside className="w-48 shrink-0 hidden xl:block sticky top-20 max-h-[calc(100vh-8rem)] overflow-y-auto">
       <nav>
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)] mb-3">
+        <h2 className="text-[11px] font-semibold uppercase tracking-widest text-[var(--muted-foreground)] mb-3">
           On this page
         </h2>
-        <ul className="space-y-1.5 text-sm">
+        <ul className="space-y-1">
           {headings.map((h) => (
             <li
               key={h.id}
@@ -49,9 +49,10 @@ export function OnThisPage({ headings }: Props) {
               <a
                 href={`#${h.id}`}
                 className={cn(
-                  "block py-0.5 text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors",
-                  activeId === h.id &&
-                    "font-medium text-[var(--foreground)]"
+                  "block py-0.5 text-[13px] transition-all duration-150 ease-out border-l-2 pl-3 -ml-[2px]",
+                  activeId === h.id
+                    ? "border-[var(--primary)] font-medium text-[var(--primary)]"
+                    : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:border-[var(--border)]"
                 )}
               >
                 {h.text}

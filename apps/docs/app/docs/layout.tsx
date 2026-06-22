@@ -7,9 +7,9 @@ export default function DocsLayout({
   return (
     <div className="min-h-screen flex flex-col">
       <DocsHeader />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1">
         <DocsSidebar />
-        <main className="flex-1 min-w-0 py-8 px-8 lg:px-12 overflow-y-auto">
+        <main className="flex-1 min-w-0 py-10 px-6 sm:px-10 lg:px-14 max-w-4xl">
           {children}
         </main>
       </div>

@@ -2,119 +2,58 @@ import Link from "next/link"
 
 const PixelLogo = () => {
   return (
-    <svg width="140" height="18" viewBox="0 0 140 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* s */}
-      <rect x="0" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="3" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="6" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="0" y="3" width="3" height="3" fill="#71717a"/>
-      <rect x="0" y="6" width="3" height="3" fill="#71717a"/>
-      <rect x="3" y="6" width="3" height="3" fill="#71717a"/>
-      <rect x="6" y="6" width="3" height="3" fill="#71717a"/>
-      <rect x="6" y="9" width="3" height="3" fill="#52525b"/>
-      <rect x="0" y="12" width="3" height="3" fill="#52525b"/>
-      <rect x="3" y="12" width="3" height="3" fill="#52525b"/>
-      <rect x="6" y="12" width="3" height="3" fill="#52525b"/>
-      
-      {/* u */}
-      <rect x="12" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="18" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="12" y="3" width="3" height="3" fill="#71717a"/>
-      <rect x="18" y="3" width="3" height="3" fill="#71717a"/>
-      <rect x="12" y="6" width="3" height="3" fill="#71717a"/>
-      <rect x="18" y="6" width="3" height="3" fill="#71717a"/>
-      <rect x="12" y="9" width="3" height="3" fill="#52525b"/>
-      <rect x="18" y="9" width="3" height="3" fill="#52525b"/>
-      <rect x="12" y="12" width="3" height="3" fill="#52525b"/>
-      <rect x="15" y="12" width="3" height="3" fill="#52525b"/>
-      <rect x="18" y="12" width="3" height="3" fill="#52525b"/>
-      
-      {/* p */}
-      <rect x="24" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="27" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="30" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="24" y="3" width="3" height="3" fill="#71717a"/>
-      <rect x="30" y="3" width="3" height="3" fill="#71717a"/>
-      <rect x="24" y="6" width="3" height="3" fill="#71717a"/>
-      <rect x="27" y="6" width="3" height="3" fill="#71717a"/>
-      <rect x="30" y="6" width="3" height="3" fill="#71717a"/>
-      <rect x="24" y="9" width="3" height="3" fill="#52525b"/>
-      <rect x="24" y="12" width="3" height="3" fill="#52525b"/>
-      
-      {/* e */}
-      <rect x="36" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="39" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="42" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="36" y="3" width="3" height="3" fill="#71717a"/>
-      <rect x="36" y="6" width="3" height="3" fill="#71717a"/>
-      <rect x="39" y="6" width="3" height="3" fill="#71717a"/>
-      <rect x="36" y="9" width="3" height="3" fill="#52525b"/>
-      <rect x="36" y="12" width="3" height="3" fill="#52525b"/>
-      <rect x="39" y="12" width="3" height="3" fill="#52525b"/>
-      <rect x="42" y="12" width="3" height="3" fill="#52525b"/>
-      
-      {/* r */}
-      <rect x="48" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="51" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="54" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="48" y="3" width="3" height="3" fill="#71717a"/>
-      <rect x="54" y="3" width="3" height="3" fill="#71717a"/>
-      <rect x="48" y="6" width="3" height="3" fill="#71717a"/>
-      <rect x="51" y="6" width="3" height="3" fill="#71717a"/>
-      <rect x="54" y="6" width="3" height="3" fill="#71717a"/>
-      <rect x="48" y="9" width="3" height="3" fill="#52525b"/>
-      <rect x="51" y="9" width="3" height="3" fill="#52525b"/>
-      <rect x="48" y="12" width="3" height="3" fill="#52525b"/>
-      <rect x="54" y="12" width="3" height="3" fill="#52525b"/>
-      
+    <svg width="70" height="22" viewBox="0 0 70 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* D */}
+      <rect x="0" y="0" width="4" height="4" rx="0.5" fill="#a1a1aa"/>
+      <rect x="5" y="0" width="4" height="4" rx="0.5" fill="#a1a1aa"/>
+      <rect x="10" y="0" width="4" height="4" rx="0.5" fill="#a1a1aa"/>
+      <rect x="0" y="5" width="4" height="4" rx="0.5" fill="#71717a"/>
+      <rect x="14" y="5" width="4" height="4" rx="0.5" fill="#71717a"/>
+      <rect x="0" y="10" width="4" height="4" rx="0.5" fill="#71717a"/>
+      <rect x="14" y="10" width="4" height="4" rx="0.5" fill="#71717a"/>
+      <rect x="0" y="15" width="4" height="4" rx="0.5" fill="#52525b"/>
+      <rect x="14" y="15" width="4" height="4" rx="0.5" fill="#52525b"/>
+      <rect x="0" y="20" width="4" height="4" rx="0.5" fill="#52525b"/>
+      <rect x="5" y="20" width="4" height="4" rx="0.5" fill="#52525b"/>
+      <rect x="10" y="20" width="4" height="4" rx="0.5" fill="#52525b"/>
+
+      {/* O */}
+      <rect x="22" y="0" width="4" height="4" rx="0.5" fill="#a1a1aa"/>
+      <rect x="26" y="0" width="4" height="4" rx="0.5" fill="#a1a1aa"/>
+      <rect x="30" y="0" width="4" height="4" rx="0.5" fill="#a1a1aa"/>
+      <rect x="20" y="5" width="4" height="4" rx="0.5" fill="#71717a"/>
+      <rect x="33" y="5" width="4" height="4" rx="0.5" fill="#71717a"/>
+      <rect x="20" y="10" width="4" height="4" rx="0.5" fill="#71717a"/>
+      <rect x="33" y="10" width="4" height="4" rx="0.5" fill="#71717a"/>
+      <rect x="20" y="15" width="4" height="4" rx="0.5" fill="#52525b"/>
+      <rect x="33" y="15" width="4" height="4" rx="0.5" fill="#52525b"/>
+      <rect x="22" y="20" width="4" height="4" rx="0.5" fill="#52525b"/>
+      <rect x="26" y="20" width="4" height="4" rx="0.5" fill="#52525b"/>
+      <rect x="30" y="20" width="4" height="4" rx="0.5" fill="#52525b"/>
+
       {/* C */}
-      <rect x="62" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="65" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="68" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="62" y="3" width="3" height="3" fill="#71717a"/>
-      <rect x="62" y="6" width="3" height="3" fill="#71717a"/>
-      <rect x="62" y="9" width="3" height="3" fill="#52525b"/>
-      <rect x="62" y="12" width="3" height="3" fill="#52525b"/>
-      <rect x="65" y="12" width="3" height="3" fill="#52525b"/>
-      <rect x="68" y="12" width="3" height="3" fill="#52525b"/>
-      
-      {/* o */}
-      <rect x="74" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="77" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="80" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="74" y="3" width="3" height="3" fill="#71717a"/>
-      <rect x="80" y="3" width="3" height="3" fill="#71717a"/>
-      <rect x="74" y="6" width="3" height="3" fill="#71717a"/>
-      <rect x="80" y="6" width="3" height="3" fill="#71717a"/>
-      <rect x="74" y="9" width="3" height="3" fill="#52525b"/>
-      <rect x="80" y="9" width="3" height="3" fill="#52525b"/>
-      <rect x="74" y="12" width="3" height="3" fill="#52525b"/>
-      <rect x="77" y="12" width="3" height="3" fill="#52525b"/>
-      <rect x="80" y="12" width="3" height="3" fill="#52525b"/>
-      
-      {/* d */}
-      <rect x="86" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="89" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="86" y="3" width="3" height="3" fill="#71717a"/>
-      <rect x="92" y="3" width="3" height="3" fill="#71717a"/>
-      <rect x="86" y="6" width="3" height="3" fill="#71717a"/>
-      <rect x="92" y="6" width="3" height="3" fill="#71717a"/>
-      <rect x="86" y="9" width="3" height="3" fill="#52525b"/>
-      <rect x="92" y="9" width="3" height="3" fill="#52525b"/>
-      <rect x="86" y="12" width="3" height="3" fill="#52525b"/>
-      <rect x="89" y="12" width="3" height="3" fill="#52525b"/>
-      
-      {/* e */}
-      <rect x="98" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="101" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="104" y="0" width="3" height="3" fill="#a1a1aa"/>
-      <rect x="98" y="3" width="3" height="3" fill="#71717a"/>
-      <rect x="98" y="6" width="3" height="3" fill="#71717a"/>
-      <rect x="101" y="6" width="3" height="3" fill="#71717a"/>
-      <rect x="98" y="9" width="3" height="3" fill="#52525b"/>
-      <rect x="98" y="12" width="3" height="3" fill="#52525b"/>
-      <rect x="101" y="12" width="3" height="3" fill="#52525b"/>
-      <rect x="104" y="12" width="3" height="3" fill="#52525b"/>
+      <rect x="41" y="0" width="4" height="4" rx="0.5" fill="#a1a1aa"/>
+      <rect x="45" y="0" width="4" height="4" rx="0.5" fill="#a1a1aa"/>
+      <rect x="49" y="0" width="4" height="4" rx="0.5" fill="#a1a1aa"/>
+      <rect x="40" y="5" width="4" height="4" rx="0.5" fill="#71717a"/>
+      <rect x="40" y="10" width="4" height="4" rx="0.5" fill="#71717a"/>
+      <rect x="40" y="15" width="4" height="4" rx="0.5" fill="#52525b"/>
+      <rect x="41" y="20" width="4" height="4" rx="0.5" fill="#52525b"/>
+      <rect x="45" y="20" width="4" height="4" rx="0.5" fill="#52525b"/>
+      <rect x="49" y="20" width="4" height="4" rx="0.5" fill="#52525b"/>
+
+      {/* S */}
+      <rect x="58" y="0" width="4" height="4" rx="0.5" fill="#a1a1aa"/>
+      <rect x="62" y="0" width="4" height="4" rx="0.5" fill="#a1a1aa"/>
+      <rect x="66" y="0" width="4" height="4" rx="0.5" fill="#a1a1aa"/>
+      <rect x="56" y="5" width="4" height="4" rx="0.5" fill="#71717a"/>
+      <rect x="58" y="10" width="4" height="4" rx="0.5" fill="#71717a"/>
+      <rect x="62" y="10" width="4" height="4" rx="0.5" fill="#71717a"/>
+      <rect x="66" y="10" width="4" height="4" rx="0.5" fill="#71717a"/>
+      <rect x="67" y="15" width="4" height="4" rx="0.5" fill="#52525b"/>
+      <rect x="58" y="20" width="4" height="4" rx="0.5" fill="#52525b"/>
+      <rect x="62" y="20" width="4" height="4" rx="0.5" fill="#52525b"/>
+      <rect x="66" y="20" width="4" height="4" rx="0.5" fill="#52525b"/>
     </svg>
   );
 };
@@ -122,13 +61,37 @@ const PixelLogo = () => {
 export function DocsHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--background)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--background)]/80">
-      <div className="flex h-14 items-center gap-6 px-6">
+      <div className="flex h-14 items-center justify-between px-6">
         <Link
           href="/"
           className="font-semibold text-[var(--foreground)] hover:opacity-80"
         >
           <PixelLogo/>
         </Link>
+        <nav className="flex items-center gap-5 text-[13px]">
+          <a
+            href="/docs/intro"
+            className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+          >
+            Docs
+          </a>
+          <a
+            href="https://supercli.vercel.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+          >
+            Supercode
+          </a>
+          <a
+            href="https://github.com/yashdev9274/superCli"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+          >
+            GitHub
+          </a>
+        </nav>
       </div>
     </header>
   )

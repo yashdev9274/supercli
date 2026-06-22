@@ -177,7 +177,7 @@ interface LinkGroupProps {
 const LinkGroup = ({ title, links }: LinkGroupProps) => (
   <div>
     <h3 className="text-[11px] font-mono text-primary uppercase tracking-[0.15em] mb-5">
-      ${title}
+      $ {title}
     </h3>
     <ul className="space-y-3">
       {links.map((link, i) => (

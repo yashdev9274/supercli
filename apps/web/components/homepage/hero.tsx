@@ -9,7 +9,7 @@ type InstallMethod = 'curl' | 'npm' | 'bun' | 'brew' | 'npx';
 
 const installCommands: Record<InstallMethod, { command: string; highlight: string }> = {
   curl: { command: 'curl -fsSL https://supercli.vercel.app/install', highlight: 'supercli.vercel.app/install' },
-  npm: { command: 'npm install -g supercode-cli', highlight: 'supercode-cli' },
+  npm: { command: 'npm install -g supercode-cli@latest', highlight: 'supercode-cli' },
   bun: { command: 'bun install -g supercode-cli', highlight: 'supercode-cli' },
   npx: { command: 'npx supercode-cli', highlight: 'supercode-cli' },
   brew: { command: 'brew install supercode', highlight: 'supercode' },
