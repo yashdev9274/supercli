@@ -682,7 +682,7 @@ export async function chatLoop(
 }
 
 export async function startChat(
-  provider: ModelProvider = "openrouter",
+  provider: ModelProvider = "concentrateai",
   model?: string,
   conversationId?: string | null,
   workspaceInfo?: WorkspaceInfo,

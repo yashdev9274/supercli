@@ -1,89 +1,121 @@
-import { select, isCancel } from "@clack/prompts"
+import { select, isCancel, confirm } from "@clack/prompts"
 import chalk from "chalk"
-import { theme, heavyDivider } from "src/cli/utils/tui.ts"
-import { createProvider, type ModelProvider } from "src/cli/ai/provider.ts"
+import { theme, sectionHeader } from "src/cli/utils/tui.ts"
+import type { ModelProvider } from "src/cli/ai/provider.ts"
+import { getCliConfig, saveCliConfig } from "src/lib/cli-config.ts"
 
-function defaultModel(provider: ModelProvider): string | undefined {
-  if (provider === "google") return "gemini-2.5-flash"
-  if (provider === "openrouter") return "openai/gpt-oss-120b:free"
-  if (provider === "nvidia") return "minimaxai/minimax-m2.7"
-  return undefined
+interface ModelEntry {
+  value: string
+  label: string
+  provider: ModelProvider
+  cost: string
+  desc: string
 }
 
-const PROVIDER_DISPLAY: Record<string, { name: string; models: Array<{ value: string; label: string; desc: string }> }> = {
-  google: {
-    name: "Google Gemini",
-    models: [
-      { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", desc: "Smart & fast · multimodal" },
-      { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", desc: "Smartest · deep reasoning" },
-    ],
-  },
-  openrouter: {
-    name: "OpenRouter",
-    models: [
-      { value: "openai/gpt-oss-120b:free", label: "GPT OSS 120B", desc: "Free · OpenAI open-weight" },
-      { value: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash", desc: "Smart · collects data for training" },
-      { value: "minimax/minimax-m3", label: "MiniMax M3", desc: "Smartest & fastest" },
-      { value: "z-ai/glm-5.1", label: "GLM 5.1", desc: "Balanced multilingual" },
-      { value: "moonshotai/kimi-k2.6", label: "Kimi K2.6", desc: "Long context · paid" },
-    ],
-  },
-  nvidia: {
-    name: "NVIDIA NIM",
-    models: [
-      { value: "minimaxai/minimax-m2.7", label: "MiniMax M2.7", desc: "Smartest & fast" },
-      { value: "deepseek-ai/deepseek-v4-flash", label: "DeepSeek V4 Flash", desc: "Smart · collects data for training" },
-      { value: "meta/llama-3.3-70b-instruct", label: "Llama 3.3 70B", desc: "Open weights · long context" },
-    ],
-  },
-}
+const MODELS: ModelEntry[] = [
+  { value: "glm-5.1", label: "GLM 5.1", provider: "concentrateai", cost: "0.4x", desc: "Balanced multilingual" },
+  { value: "kimi-k2-6", label: "Kimi K2.6", provider: "concentrateai", cost: "0.8x", desc: "Long context" },
+  { value: "deepseek-v4-flash", label: "DeepSeek V4 Flash", provider: "concentrateai", cost: "1.0x", desc: "Fast & capable" },
+  { value: "minimax-m2-7", label: "MiniMax M2.7", provider: "concentrateai", cost: "0.5x", desc: "Fast & smart" },
+  { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", provider: "google", cost: "2.0x", desc: "Smart & fast" },
+  { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", provider: "google", cost: "4.0x", desc: "Deep reasoning" },
+  { value: "minimaxai/minimax-m2.7", label: "MiniMax M2.7", provider: "nvidia", cost: "0.5x", desc: "Via NVIDIA NIM" },
+  { value: "deepseek-ai/deepseek-v4-flash", label: "DeepSeek V4 Flash", provider: "nvidia", cost: "1.0x", desc: "Via NVIDIA NIM" },
+  { value: "meta/llama-3.3-70b-instruct", label: "Llama 3.3 70B", provider: "nvidia", cost: "1.2x", desc: "Open weights" },
+  { value: "openai/gpt-oss-120b:free", label: "GPT OSS 120B", provider: "openrouter", cost: "free", desc: "OpenAI open-weight" },
+  { value: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash", provider: "openrouter", cost: "1.2x", desc: "Via OpenRouter" },
+  { value: "minimax/minimax-m3", label: "MiniMax M3", provider: "openrouter", cost: "3.0x", desc: "Via OpenRouter" },
+  { value: "z-ai/glm-5.1", label: "GLM 5.1", provider: "openrouter", cost: "1.0x", desc: "Via OpenRouter" },
+  { value: "moonshotai/kimi-k2.6", label: "Kimi K2.6", provider: "openrouter", cost: "1.5x", desc: "Via OpenRouter" },
+]
 
-function renderProviderList(providers: Record<string, { name: string; models: Array<{ value: string; label: string; desc: string }> }>): void {
-  const divider = heavyDivider()
-  process.stdout.write(`\r\n${divider}\r\n`)
-  for (const [key, p] of Object.entries(providers)) {
-    process.stdout.write(` ${chalk.hex(theme.cyan)(p.name)}\r\n`)
-    for (const m of p.models) {
-      process.stdout.write(`   ${chalk.hex(theme.greenGlow)(m.label.padEnd(28))}${chalk.hex(theme.muted)(m.desc)}\r\n`)
-    }
+function renderModelBrowser(currentProvider: string, currentModel: string): void {
+  const w = Math.min(process.stdout.columns ?? 80, 72)
+
+  console.log(`  ${chalk.hex(theme.greenGlow).bold("Select Model For This Session")}`)
+  console.log(`  ${chalk.hex(theme.muted)("Multipliers represent cost in Standard Tokens")}`)
+  console.log()
+
+  const grouped: Record<string, ModelEntry[]> = {}
+  for (const m of MODELS) {
+    if (!grouped[m.provider]) grouped[m.provider] = []
+    grouped[m.provider]!.push(m)
   }
-  process.stdout.write(`${divider}\r\n`)
+
+  for (const [providerKey, models] of Object.entries(grouped)) {
+    const isDefault = providerKey === "concentrateai"
+    const label = isDefault
+      ? "ConcentrateAI (default)"
+      : providerKey === "google" ? "Google Gemini"
+      : providerKey === "openrouter" ? "OpenRouter"
+      : "NVIDIA NIM"
+    console.log(`  ${sectionHeader(label, { accent: isDefault ? "amber" : "green", width: w - 4 })}`)
+    for (const m of models) {
+      const isCurrent = providerKey === currentProvider && m.value === currentModel
+      const prefix = isCurrent ? chalk.hex(theme.amber)("❯") : " "
+      const name = chalk.hex(isCurrent ? theme.green : theme.greenGlow)(m.label.padEnd(22))
+      const cost = chalk.hex(m.cost === "free" ? theme.greenGlow : theme.muted)(m.cost.padEnd(6))
+      const desc = chalk.hex(theme.muted)(m.desc.padEnd(20))
+      const marker = isCurrent ? ` ${chalk.bgHex(theme.amber).hex(theme.black).bold(" current ")}` : ""
+      console.log(`  ${prefix} ${name} ${cost}${desc}${marker}`)
+    }
+    console.log()
+  }
 }
 
 export async function pickModel(): Promise<{ provider: ModelProvider; model?: string }> {
-  console.log()
-  console.log(heavyDivider())
-  console.log()
+  const stored = await getCliConfig()
+  const currentProvider = stored?.provider || "concentrateai"
+  const currentModel = stored?.model || "glm-5.1"
 
-  renderProviderList(PROVIDER_DISPLAY)
-  console.log()
+  renderModelBrowser(currentProvider, currentModel)
 
-  const providerChoice = await select({
-    message: chalk.hex(theme.green)("switch model"),
-    options: [
-      { value: "google", label: "Google Gemini", hint: "default" },
-      { value: "openrouter", label: "OpenRouter", hint: "multi-provider" },
-      { value: "nvidia", label: "NVIDIA NIM", hint: "free tier" },
-    ],
+  const flatOptions: { value: string; label: string; hint?: string }[] = MODELS.map(m => {
+    const isCurrent = m.provider === currentProvider && m.value === currentModel
+    const label = m.provider === "concentrateai"
+      ? `${m.label} (${m.cost})`
+      : `${m.label} (${m.cost}) · ${m.provider}`
+    const hint = isCurrent ? `[current] ${m.desc}` : m.desc
+    return { value: `${m.provider}:${m.value}`, label, hint }
   })
 
-  if (isCancel(providerChoice)) {
-    return { provider: "google", model: "gemini-2.5-flash" }
+  flatOptions.push({
+    value: "__cancel",
+    label: "Cancel — keep current selection",
+    hint: `${currentProvider} · ${currentModel}`,
+  })
+
+  const modelChoice = await select({
+    message: chalk.hex(theme.green)("switch model"),
+    options: flatOptions,
+  })
+
+  if (isCancel(modelChoice) || modelChoice === "__cancel") {
+    return { provider: currentProvider as ModelProvider, model: currentModel }
   }
 
-  const provider = PROVIDER_DISPLAY[providerChoice as string]
-  if (!provider) return { provider: providerChoice as ModelProvider }
+  const choice = modelChoice as string
+  const [provider, ...modelParts] = choice.split(":")
+  const model = modelParts.join(":")
 
   console.log()
-  const model = await select({
-    message: chalk.hex(theme.green)(`select ${provider.name} model`),
-    options: provider.models.map((m) => ({ value: m.value, label: m.label, hint: m.desc })),
+  const setAsDefault = await confirm({
+    message: chalk.hex(theme.greenMute)("Set as default for new sessions?"),
+    initialValue: false,
   })
-  if (isCancel(model)) return { provider: providerChoice as ModelProvider, model: provider.models[0]?.value ?? defaultModel(providerChoice as ModelProvider) }
-  return { provider: providerChoice as ModelProvider, model: model as string }
+
+  if (!isCancel(setAsDefault) && setAsDefault) {
+    const newConfig = await saveCliConfig({ provider: provider as ModelProvider, model })
+    const label = formatModelChange(provider as ModelProvider, model)
+    console.log(`  ${chalk.hex(theme.green)("◆")} saved default: ${chalk.hex(theme.greenGlow)(label)}\n`)
+  }
+
+  return { provider: provider as ModelProvider, model }
 }
 
 export function formatModelChange(p: ModelProvider, m?: string): string {
-  const label = p === "google" ? "Gemini" : p === "nvidia" ? "NVIDIA" : "OpenRouter"
+  const label = p === "concentrateai" ? "ConcentrateAI" :
+    p === "google" ? "Gemini" :
+    p === "nvidia" ? "NVIDIA" : p === "minimax" ? "MiniMax" : "OpenRouter"
   return `${label}${m ? ` · ${m}` : ""}`
 }

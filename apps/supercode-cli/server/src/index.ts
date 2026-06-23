@@ -17,8 +17,14 @@ const MODEL_MAX_TOKENS: Record<string, number> = {
   "minimax/minimax-m2.5": 1024,
   "minimaxai/minimax-m2.7": 1024,
   "z-ai/glm-5.1": 512,
+  "deepseek-v4-flash": 8192,
+  "kimi-k2-6": 8192,
+  "glm-5.1": 4096,
+  "minimax-m2-7": 8192,
 }
 function getModelMaxTokens(model: string): number {
+  const exact = MODEL_MAX_TOKENS[model]
+  if (exact !== undefined) return exact
   for (const [key, value] of Object.entries(MODEL_MAX_TOKENS)) {
     if (model.includes(key) || key.includes(model)) return value
   }
@@ -331,6 +337,67 @@ app.post("/api/ai/chat", async (req, res) => {
         res.end()
         break
       }
+      case "concentrateai": {
+        const apiKey = process.env.CONCENTRATEAI_API_KEY
+        if (!apiKey) { res.status(500).json({ error: "ConcentrateAI not configured on server" }); return }
+        const modelName = modelParam || "deepseek-v4-flash"
+        const bodyObj: any = {
+          model: modelName,
+          messages: nonSystemMessages.map((m: any) => ({ role: m.role, content: String(m.content) })),
+          max_tokens: getModelMaxTokens(modelName),
+          temperature: 0.7,
+          stream: true,
+        }
+        if (system && nonSystemMessages.length > 0) {
+          bodyObj.messages = [{ role: "system", content: system }, ...bodyObj.messages]
+        }
+        const response = await fetch("https://api.concentrate.ai/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify(bodyObj),
+        })
+        if (!response.ok) {
+          const errText = await response.text().catch(() => "unknown error")
+          res.status(response.status).json({ error: `ConcentrateAI API ${response.status}: ${errText}` })
+          return
+        }
+        const reader = response.body?.getReader()
+        if (!reader) { res.status(500).json({ error: "No response body" }); return }
+        const decoder = new TextDecoder()
+        let buffer = ""
+        let inputTokens = 0
+        let outputTokens = 0
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split("\n")
+          buffer = lines.pop() || ""
+          for (const line of lines) {
+            const trimmed = line.trim()
+            if (!trimmed || !trimmed.startsWith("data: ")) continue
+            const jsonStr = trimmed.slice(6)
+            if (jsonStr === "[DONE]") break
+            try {
+              const data = JSON.parse(jsonStr)
+              const delta = data.choices?.[0]?.delta
+              if (delta?.content) {
+                res.write(JSON.stringify({ type: "text", content: delta.content }) + "\n")
+              }
+              if (data.usage) {
+                inputTokens = data.usage.prompt_tokens ?? 0
+                outputTokens = data.usage.completion_tokens ?? 0
+              }
+            } catch { /* skip malformed */ }
+          }
+        }
+        res.write(JSON.stringify({
+          type: "finish", reason: "stop",
+          usage: { inputTokens, outputTokenDetails: { textTokens: outputTokens, reasoningTokens: 0 }, outputTokens, inputTokenDetails: { noCacheTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, totalTokens: inputTokens + outputTokens }
+        }) + "\n")
+        res.end()
+        break
+      }
       default: {
         res.status(400).json({ error: `Unknown provider: ${provider}` })
       }
@@ -390,6 +457,30 @@ app.post("/api/ai/generate-object", async (req, res) => {
         const modelName = modelParam || "MiniMax-M2"
         const result = await generateObject({ model: minimax(modelName), schema: schema as any, prompt })
         res.json({ object: result.object })
+        break
+      }
+      case "concentrateai": {
+        const apiKey = process.env.CONCENTRATEAI_API_KEY
+        if (!apiKey) { res.status(500).json({ error: "ConcentrateAI not configured on server" }); return }
+        const modelName = modelParam || "deepseek-v4-flash"
+        const response = await fetch("https://api.concentrate.ai/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: modelName,
+            messages: [{ role: "user", content: prompt }],
+            max_tokens: getModelMaxTokens(modelName),
+            temperature: 0.7,
+            stream: false,
+          }),
+        })
+        if (!response.ok) {
+          const errText = await response.text().catch(() => "unknown error")
+          res.status(response.status).json({ error: `ConcentrateAI API ${response.status}: ${errText}` })
+          return
+        }
+        const data: any = await response.json()
+        res.json({ object: { content: data.choices?.[0]?.message?.content || "" } })
         break
       }
       default: {

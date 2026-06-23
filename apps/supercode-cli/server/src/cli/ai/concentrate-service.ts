@@ -1,55 +1,30 @@
-import { createOpenRouter } from "@openrouter/ai-sdk-provider"
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
 import { streamText, stepCountIs, type ModelMessage, type LanguageModel } from "ai"
-import { openRouterConfig } from "../../config/openrouter.config.ts"
 import chalk from "chalk"
 
-const MODEL_MAX_TOKENS: Record<string, number> = {
-  "moonshotai/kimi-k2.6": 256,
-  "deepseek/deepseek-v4-flash": 4096,
-  "deepseek-ai/deepseek-v4-flash": 4096,
-  "minimax/minimax-m3": 1024,
-  "minimax/minimax-m3.5": 1024,
-  "minimax/minimax-m2.5": 1024,
-  "minimaxai/minimax-m2.7": 1024,
-  "z-ai/glm-5.1": 256,
-}
+const CONCENTRATE_API_KEY = process.env.CONCENTRATEAI_API_KEY || ""
+const BASE_URL = "https://api.concentrate.ai/v1"
 
-function getModelMaxTokens(modelName: string): number {
-  const direct = MODEL_MAX_TOKENS[modelName]
-  if (direct != null) return direct
-  for (const [key, value] of Object.entries(MODEL_MAX_TOKENS)) {
-    if (modelName.includes(key) || key.includes(modelName)) return value
-  }
-  for (const key of Object.keys(MODEL_MAX_TOKENS)) {
-    const keyParts = key.split("/").pop()
-    if (keyParts && modelName.includes(keyParts)) {
-      const val = MODEL_MAX_TOKENS[key]
-      if (val != null) return val
-    }
-  }
-  return Math.min(openRouterConfig.maxTokens, 8192)
-}
-
-export class OpenRouterService {
+export class ConcentrateService {
   model: LanguageModel
   readonly modelName: string
-  readonly maxTokens: number
 
   constructor(modelName?: string) {
-    if (!openRouterConfig.apiKey) {
-      throw new Error("OpenRouter is not configured.\n\n  Set OPENROUTER_API_KEY in your environment:\n    export OPENROUTER_API_KEY=<your-key>\n\n  Get a key at: https://openrouter.ai/keys")
+    if (!CONCENTRATE_API_KEY) {
+      throw new Error("ConcentrateAI is not configured.\n\n  Set CONCENTRATEAI_API_KEY in your environment:\n    export CONCENTRATEAI_API_KEY=<your-key>\n\n  Get a key at: https://concentrate.ai")
     }
 
-    this.modelName = modelName || openRouterConfig.model
-    this.maxTokens = getModelMaxTokens(this.modelName)
+    this.modelName = modelName || "deepseek-v4-flash"
 
-    const openrouter = createOpenRouter({
-      apiKey: openRouterConfig.apiKey,
+    const concentrate = createOpenAICompatible({
+      name: "concentrate",
+      baseURL: BASE_URL,
+      headers: {
+        Authorization: `Bearer ${CONCENTRATE_API_KEY}`,
+      },
     })
 
-    this.model = openrouter.chat(this.modelName, {
-      maxTokens: this.maxTokens,
-    })
+    this.model = concentrate.chatModel(this.modelName)
   }
 
   async sendMessage(
@@ -128,7 +103,7 @@ export class OpenRouterService {
       }
     } catch (error: any) {
       if (error?.name === "AbortError") throw error
-      console.error(chalk.red("OpenRouter Service Error:"), error instanceof Error ? error.message : String(error))
+      console.error(chalk.red("ConcentrateAI Service Error:"), error instanceof Error ? error.message : String(error))
       throw error
     }
   }
