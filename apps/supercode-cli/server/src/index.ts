@@ -360,7 +360,7 @@ app.post("/api/ai/generate-object", async (req, res) => {
         const { createOpenRouter } = await import("@openrouter/ai-sdk-provider")
         const openrouter = createOpenRouter({ apiKey })
         const modelName = modelParam || process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free"
-        const result = await generateObject({ model: openrouter(modelName), schema: schema as any, prompt })
+        const result = await generateObject({ model: openrouter.chat(modelName, { maxTokens: 8192 }), schema: schema as any, prompt })
         res.json({ object: result.object })
         break
       }
