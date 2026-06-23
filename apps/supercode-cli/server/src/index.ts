@@ -232,22 +232,68 @@ app.post("/api/ai/chat", async (req, res) => {
         const apiKey = process.env.OPENROUTER_API_KEY
         if (!apiKey) { res.status(500).json({ error: "OpenRouter not configured on server" }); return }
         const modelName = modelParam || process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free"
-        const maxTokens = getModelMaxTokens(modelName)
-        const { createOpenRouter } = await import("@openrouter/ai-sdk-provider")
-        const { streamText } = await import("ai")
-        const openrouter = createOpenRouter({ apiKey })
-        const opts: any = {
-          model: openrouter.chat(modelName, { maxTokens }),
-          messages: nonSystemMessages,
+        const bodyObj: any = {
+          model: modelName,
+          messages: nonSystemMessages.map((m: any) => ({ role: m.role, content: String(m.content) })),
+          max_tokens: getModelMaxTokens(modelName),
+          temperature: 0.7,
+          stream: true,
         }
-        if (system) opts.system = system
-        if (tools) { opts.tools = tools; opts.maxSteps = 5 }
-        const result = streamText(opts)
-        for await (const chunk of result.textStream) {
-          res.write(JSON.stringify({ type: "text", content: chunk }) + "\n")
+        if (system && nonSystemMessages.length > 0) {
+          bodyObj.messages = [{ role: "system", content: system }, ...bodyObj.messages]
         }
-        const usage = await result.usage
-        res.write(JSON.stringify({ type: "finish", reason: await result.finishReason, usage }) + "\n")
+        if (tools) bodyObj.tools = tools
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify(bodyObj),
+        })
+        if (!response.ok) {
+          const errText = await response.text().catch(() => "unknown error")
+          res.status(response.status).json({ error: `OpenRouter API ${response.status}: ${errText}` })
+          return
+        }
+        const reader = response.body?.getReader()
+        if (!reader) { res.status(500).json({ error: "No response body" }); return }
+        const decoder = new TextDecoder()
+        let buffer = ""
+        let inputTokens = 0
+        let outputTokens = 0
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split("\n")
+          buffer = lines.pop() || ""
+          for (const line of lines) {
+            const trimmed = line.trim()
+            if (!trimmed || !trimmed.startsWith("data: ")) continue
+            const jsonStr = trimmed.slice(6)
+            if (jsonStr === "[DONE]") break
+            try {
+              const data = JSON.parse(jsonStr)
+              const delta = data.choices?.[0]?.delta
+              if (delta?.content) {
+                res.write(JSON.stringify({ type: "text", content: delta.content }) + "\n")
+              }
+              if (delta?.tool_calls) {
+                for (const tc of delta.tool_calls) {
+                  if (tc.function?.name && tc.function?.arguments) {
+                    res.write(JSON.stringify({ type: "tool-call", toolName: tc.function.name, args: JSON.parse(tc.function.arguments) }) + "\n")
+                  }
+                }
+              }
+              if (data.usage) {
+                inputTokens = data.usage.prompt_tokens ?? 0
+                outputTokens = data.usage.completion_tokens ?? 0
+              }
+            } catch { /* skip malformed */ }
+          }
+        }
+        res.write(JSON.stringify({
+          type: "finish", reason: "stop",
+          usage: { inputTokens, outputTokenDetails: { textTokens: outputTokens, reasoningTokens: 0 }, outputTokens, inputTokenDetails: { noCacheTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, totalTokens: inputTokens + outputTokens }
+        }) + "\n")
         res.end()
         break
       }
@@ -442,11 +488,25 @@ app.post("/api/ai/generate-object", async (req, res) => {
       case "openrouter": {
         const apiKey = process.env.OPENROUTER_API_KEY
         if (!apiKey) { res.status(500).json({ error: "OpenRouter not configured on server" }); return }
-        const { createOpenRouter } = await import("@openrouter/ai-sdk-provider")
-        const openrouter = createOpenRouter({ apiKey })
         const modelName = modelParam || process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free"
-        const result = await generateObject({ model: openrouter.chat(modelName, { maxTokens: getModelMaxTokens(modelName) }), schema: schema as any, prompt })
-        res.json({ object: result.object })
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: modelName,
+            messages: [{ role: "user", content: prompt }],
+            max_tokens: getModelMaxTokens(modelName),
+            temperature: 0.7,
+            stream: false,
+          }),
+        })
+        if (!response.ok) {
+          const errText = await response.text().catch(() => "unknown error")
+          res.status(response.status).json({ error: `OpenRouter API ${response.status}: ${errText}` })
+          return
+        }
+        const data: any = await response.json()
+        res.json({ object: { content: data.choices?.[0]?.message?.content || "" } })
         break
       }
       case "minimax": {

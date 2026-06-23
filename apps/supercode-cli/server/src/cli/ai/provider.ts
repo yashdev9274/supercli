@@ -75,7 +75,6 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
       return {
         name: "openrouter",
         modelName: svc.modelName,
-        model: svc.model,
         sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning) => svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning),
       }
     }
