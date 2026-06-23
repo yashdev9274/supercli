@@ -209,135 +209,22 @@ app.post("/api/ai/chat", async (req, res) => {
         const apiKey = process.env.OPENROUTER_API_KEY
         if (!apiKey) { res.status(500).json({ error: "OpenRouter not configured on server" }); return }
         const modelName = modelParam || process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free"
-
-        const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-
-        const apiMessages: any[] = []
-        if (system) apiMessages.push({ role: "system", content: system })
-        for (const m of nonSystemMessages) {
-          apiMessages.push({ role: m.role, content: m.content as string })
+        const { createOpenRouter } = await import("@openrouter/ai-sdk-provider")
+        const { streamText } = await import("ai")
+        const openrouter = createOpenRouter({ apiKey })
+        const opts: any = {
+          model: openrouter.chat(modelName, { maxTokens: 8192 }),
+          messages: nonSystemMessages,
         }
-
-        const apiTools: any[] = []
-        if (tools) {
-          for (const key of Object.keys(tools)) {
-            if (key === "web_search") {
-              apiTools.push({ type: "openrouter:web_search" })
-            } else if (key === "url_fetch") {
-              apiTools.push({ type: "openrouter:web_fetch" })
-            } else {
-              const def = (tools as any)[key]
-              const params = def.parameters
-                ? (typeof def.parameters === "object" && "toJSON" in (def.parameters as any)
-                  ? (def.parameters as any).toJSON()
-                  : def.parameters)
-                : undefined
-              apiTools.push({
-                type: "function",
-                function: { name: key, description: def.description || "", parameters: params },
-              })
-            }
-          }
+        if (system) opts.system = system
+        if (tools) { opts.tools = tools; opts.maxSteps = 5 }
+        const result = streamText(opts)
+        for await (const chunk of result.textStream) {
+          res.write(JSON.stringify({ type: "text", content: chunk }) + "\n")
         }
-
-        const allMessages = [...apiMessages]
-        const maxIter = 10
-
-        for (let iter = 0; iter < maxIter; iter++) {
-          const body: any = { model: modelName, messages: allMessages, stream: true }
-          if (apiTools.length > 0) body.tools = apiTools
-          if (modelName.includes("minimax-m3") || modelName.includes("glm-5.1")) body.max_tokens = 8192
-
-          const orRes = await fetch(OPENROUTER_API_URL, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          })
-
-          if (!orRes.ok) {
-            const errText = await orRes.text().catch(() => "unknown error")
-            res.status(orRes.status).json({ error: `OpenRouter API ${orRes.status}: ${errText.slice(0, 500)}` })
-            return
-          }
-
-          const reader = orRes.body?.getReader()
-          if (!reader) { res.status(500).json({ error: "No response body" }); return }
-
-          const decoder = new TextDecoder()
-          let buffer = ""
-          let toolCalls: Array<{ id: string; type: string; function: { name: string; arguments: string } }> = []
-          let finishReason = ""
-          let hasContent = false
-
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-            buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split("\n")
-            buffer = lines.pop() || ""
-            for (const line of lines) {
-              const trimmed = line.trim()
-              if (!trimmed || !trimmed.startsWith("data: ")) continue
-              const jsonStr = trimmed.slice(6)
-              if (jsonStr === "[DONE]") continue
-              try {
-                const data = JSON.parse(jsonStr)
-                const delta = data.choices?.[0]?.delta
-                const finish = data.choices?.[0]?.finish_reason
-                if (finish) finishReason = finish
-                if (delta?.content) {
-                  hasContent = true
-                  res.write(JSON.stringify({ type: "text", content: delta.content }) + "\n")
-                }
-                if (delta?.tool_calls) {
-                  for (const tc of delta.tool_calls) {
-                    const existing = toolCalls.find(t => t.id === tc.id)
-                    if (existing) {
-                      if (tc.function?.arguments) existing.function.arguments += tc.function.arguments
-                    } else {
-                      toolCalls.push({
-                        id: tc.id,
-                        type: tc.type || "function",
-                        function: { name: tc.function?.name || "", arguments: tc.function?.arguments || "" },
-                      })
-                    }
-                  }
-                }
-              } catch { /* skip */ }
-            }
-          }
-
-          if (finishReason === "tool_calls" && toolCalls.length > 0) {
-            const assistantMsg: any = { role: "assistant", content: null }
-            assistantMsg.tool_calls = toolCalls.map(tc => ({
-              id: tc.id, type: tc.type,
-              function: { name: tc.function.name, arguments: tc.function.arguments },
-            }))
-            allMessages.push(assistantMsg)
-
-            for (const tc of toolCalls) {
-              const toolName = tc.function.name
-              const toolDef = (tools as any)?.[toolName]
-              const resultStr = toolDef
-                ? `Tool "${toolName}" requires client-side execution` : `Tool "${toolName}" is not available`
-              allMessages.push({ role: "tool", tool_call_id: tc.id, content: resultStr })
-            }
-
-            toolCalls = []
-            finishReason = ""
-            continue
-          }
-
-          if (!hasContent) {
-            res.write(JSON.stringify({ type: "text", content: "" }) + "\n")
-          }
-          res.write(JSON.stringify({
-            type: "finish", reason: "stop",
-            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-          }) + "\n")
-          res.end()
-          break
-        }
+        const usage = await result.usage
+        res.write(JSON.stringify({ type: "finish", reason: await result.finishReason, usage }) + "\n")
+        res.end()
         break
       }
       case "minimax": {
