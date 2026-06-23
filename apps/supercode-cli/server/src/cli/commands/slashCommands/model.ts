@@ -25,7 +25,7 @@ const PROVIDER_DISPLAY: Record<string, { name: string; models: Array<{ value: st
       { value: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash", desc: "Smart · collects data for training" },
       { value: "minimax/minimax-m3", label: "MiniMax M3", desc: "Smartest & fastest" },
       { value: "z-ai/glm-5.1", label: "GLM 5.1", desc: "Balanced multilingual" },
-      { value: "moonshotai/kimi-k2.6:free", label: "Kimi K2.6", desc: "Free · long context" },
+      { value: "moonshotai/kimi-k2.6", label: "Kimi K2.6", desc: "Long context · paid" },
     ],
   },
   nvidia: {

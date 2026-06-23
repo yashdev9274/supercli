@@ -1,7 +1,7 @@
 const CONTEXT_WINDOWS: Record<string, number> = {
   "minimax/minimax-m3": 1_048_576,
   "z-ai/glm-5.1": 203_000,
-  "moonshotai/kimi-k2.6:free": 262_144,
+  "moonshotai/kimi-k2.6": 262_144,
   "minimax/minimax-m3.5": 1_000_000,
   "minimax/minimax-m2.5": 1_000_000,
   "openai/gpt-oss-120b:free": 128_000,

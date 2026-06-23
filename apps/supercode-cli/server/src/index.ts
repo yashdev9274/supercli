@@ -7,6 +7,23 @@ import prisma from "@super/db-terminal"
 const port = process.env.PORT || 10000
 const serverUrl = process.env.BETTER_AUTH_URL || `http://localhost:${port}`
 const clientUrl = process.env.CLIENT_URL || "http://localhost:3000"
+
+const MODEL_MAX_TOKENS: Record<string, number> = {
+  "moonshotai/kimi-k2.6": 384,
+  "deepseek/deepseek-v4-flash": 8192,
+  "deepseek-ai/deepseek-v4-flash": 8192,
+  "minimax/minimax-m3": 1024,
+  "minimax/minimax-m3.5": 1024,
+  "minimax/minimax-m2.5": 1024,
+  "minimaxai/minimax-m2.7": 1024,
+  "z-ai/glm-5.1": 512,
+}
+function getModelMaxTokens(model: string): number {
+  for (const [key, value] of Object.entries(MODEL_MAX_TOKENS)) {
+    if (model.includes(key) || key.includes(model)) return value
+  }
+  return 8192
+}
 const app = express()
 
 app.use(
@@ -209,11 +226,12 @@ app.post("/api/ai/chat", async (req, res) => {
         const apiKey = process.env.OPENROUTER_API_KEY
         if (!apiKey) { res.status(500).json({ error: "OpenRouter not configured on server" }); return }
         const modelName = modelParam || process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free"
+        const maxTokens = getModelMaxTokens(modelName)
         const { createOpenRouter } = await import("@openrouter/ai-sdk-provider")
         const { streamText } = await import("ai")
         const openrouter = createOpenRouter({ apiKey })
         const opts: any = {
-          model: openrouter.chat(modelName, { maxTokens: 8192 }),
+          model: openrouter.chat(modelName, { maxTokens }),
           messages: nonSystemMessages,
         }
         if (system) opts.system = system
@@ -360,7 +378,7 @@ app.post("/api/ai/generate-object", async (req, res) => {
         const { createOpenRouter } = await import("@openrouter/ai-sdk-provider")
         const openrouter = createOpenRouter({ apiKey })
         const modelName = modelParam || process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free"
-        const result = await generateObject({ model: openrouter.chat(modelName, { maxTokens: 8192 }), schema: schema as any, prompt })
+        const result = await generateObject({ model: openrouter.chat(modelName, { maxTokens: getModelMaxTokens(modelName) }), schema: schema as any, prompt })
         res.json({ object: result.object })
         break
       }

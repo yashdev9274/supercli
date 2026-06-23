@@ -4,7 +4,7 @@ import { openRouterConfig } from "../../config/openrouter.config.ts"
 import chalk from "chalk"
 
 const MODEL_MAX_TOKENS: Record<string, number> = {
-  "moonshotai/kimi-k2.6": 4096,
+  "moonshotai/kimi-k2.6": 384,
   "deepseek/deepseek-v4-flash": 8192,
   "deepseek-ai/deepseek-v4-flash": 8192,
   "minimax/minimax-m3": 1024,
