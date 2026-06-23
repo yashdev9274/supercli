@@ -42,7 +42,7 @@ async function getUserFromToken() {
 async function getAIResponse(conversationId: string, onChunk?: (chunk: string) => void): Promise<string> {
   const dbMessages = await getChatService().getMessages(conversationId)
   const messages = getChatService().formatMessagesForAI(dbMessages)
-  const provider = createProvider("google")
+  const provider = createProvider("concentrateai")
   const result = await provider.sendMessage(
     messages as any,
     onChunk,

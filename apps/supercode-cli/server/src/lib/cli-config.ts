@@ -17,8 +17,8 @@ export interface CliConfig {
 
 const DEFAULTS: CliConfig = {
   version,
-  provider: "google",
-  model: "gemini-2.5-flash",
+  provider: "concentrateai",
+  model: "glm-5.1",
   mode: "chat",
 }
 
@@ -27,6 +27,7 @@ const API_KEY_ENV_MAP: Record<ModelProvider, string> = {
   minimax: "MINIMAX_API_KEY",
   openrouter: "OPENROUTER_API_KEY",
   nvidia: "NVIDIA_API_KEY",
+  concentrateai: "CONCENTRATEAI_API_KEY",
 }
 
 export function getProviderApiKeys(): Partial<Record<ModelProvider, string>> {

@@ -182,7 +182,7 @@ async function saveMessage(conversationId: string, role: string, content: string
 }
 
 export async function startAgentChat(
-  provider: ModelProvider = "google",
+  provider: ModelProvider = "concentrateai",
   model?: string,
   conversationId: string | null = null,
 ) {

@@ -3,13 +3,14 @@ import { AIService } from "./google-service.ts"
 import { MinimaxService } from "./minimax-service.ts"
 import { OpenRouterService } from "./openrouter-service.ts"
 import { NvidiaService } from "./nvidia-service.ts"
+import { ConcentrateService } from "./concentrate-service.ts"
 import { ServerProxyService } from "./server-proxy-service.ts"
 import { config } from "../../config/google.config.ts"
 import { minimaxConfig } from "../../config/minimax.config.ts"
 import { openRouterConfig } from "../../config/openrouter.config.ts"
 import { nvidiaConfig } from "../../config/nvidia.config.ts"
 
-export type ModelProvider = "google" | "minimax" | "openrouter" | "nvidia"
+export type ModelProvider = "google" | "minimax" | "openrouter" | "nvidia" | "concentrateai"
 
 export interface AIProvider {
   readonly name: string
@@ -35,6 +36,7 @@ const providerMeta: Record<ModelProvider, { env: string; label: string; defaultM
   minimax: { env: "MINIMAX_API_KEY", label: "MiniMax", defaultModel: "MiniMax-M2" },
   openrouter: { env: "OPENROUTER_API_KEY", label: "OpenRouter", defaultModel: "openai/gpt-oss-120b:free", link: "https://openrouter.ai/keys" },
   nvidia: { env: "NVIDIA_API_KEY", label: "NVIDIA NIM", defaultModel: "minimaxai/minimax-m2.7" },
+  concentrateai: { env: "CONCENTRATEAI_API_KEY", label: "ConcentrateAI", defaultModel: "deepseek-v4-flash", link: "https://concentrate.ai" },
 }
 
 const providerConfigs: Record<ModelProvider, () => string> = {
@@ -42,6 +44,7 @@ const providerConfigs: Record<ModelProvider, () => string> = {
   minimax: () => minimaxConfig.apiKey,
   openrouter: () => openRouterConfig.apiKey,
   nvidia: () => nvidiaConfig.apiKey,
+  concentrateai: () => process.env.CONCENTRATEAI_API_KEY || "",
 }
 
 export function createProvider(provider: ModelProvider, model?: string): AIProvider {
@@ -80,6 +83,15 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
       const svc = new NvidiaService(model)
       return {
         name: "nvidia",
+        modelName: svc.modelName,
+        model: svc.model,
+        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning) => svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning),
+      }
+    }
+    case "concentrateai": {
+      const svc = new ConcentrateService(model)
+      return {
+        name: "concentrateai",
         modelName: svc.modelName,
         model: svc.model,
         sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning) => svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning),
