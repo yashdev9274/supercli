@@ -159,12 +159,12 @@ const Navbar = () => {
     }
   }, [menuOpen])
 
-  const navItems = [
+  const navItems: Array<{ label: string; href: string; external?: boolean; accent?: boolean }> = [
     { label: "GitHub", href: "https://github.com/yashdev9274/superCli", external: true },
     // { label: "Compare", href: "/compare" },
     { label: "Docs", href: DOCS_URL, external: true },
     { label: "Changelog", href: "/changelog" },
-    { label: "Waitlist", href: "/waitlist", accent: true },
+    // { label: "Waitlist", href: "/waitlist", accent: true },
   ]
 
   return (
@@ -196,9 +196,9 @@ const Navbar = () => {
               />
             </div>
           </button>
-          <a href="/" className="flex items-center shrink-0">
+          <Link href="/" className="flex items-center shrink-0">
             <PixelLogo />
-          </a>
+          </Link>
         </div>
 
         <nav className="hidden md:flex items-center gap-10">

@@ -22,6 +22,132 @@ export default function ChangelogPage() {
             <div className="flex items-baseline gap-4 mb-8">
               <h2 className="text-[24px] font-semibold tracking-tight">
                 <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.14"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.14
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jun 23, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- OpenRouter integration rewritten: dropped <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">@openrouter/ai-sdk-provider</code> dependency, migrated to raw <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">fetch</code> API with SSE streaming and proper token usage tracking.</li>
+                  <li>- Server-side OpenRouter chat endpoint now streams tool calls with <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">tool-call</code> typed events.</li>
+                  <li>- OpenRouter structured generation endpoint migrated from SDK to raw API.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.13"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.13
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jun 23, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- New <strong>ConcentrateAI</strong> provider — OpenAI-compatible AI gateway with models: DeepSeek V4 Flash, Kimi K2.6, GLM 5.1, and MiniMax M2.7.</li>
+                  <li>- ConcentrateAI set as <strong>default provider</strong> for chat, agent, and tools modes (replaces Google Gemini).</li>
+                  <li>- New <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">ConcentrateService</code> with streaming, tool calling, <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">maxSteps: 25</code> tool loop, and abort signal support.</li>
+                  <li>- Model browser redesigned: unified interface across all providers with cost multipliers, current-model indicators, and "Set as default" persistence via config file.</li>
+                  <li>- Context window tracking added for ConcentrateAI models.</li>
+                  <li>- Server-side endpoints for ConcentrateAI: streaming chat and object generation.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.12"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.12
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jun 23, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Per-model <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">maxTokens</code> configuration for server-side chat and object generation endpoints, preventing 402 errors on paid models.</li>
+                  <li>- Kimi K2.6 model reference updated (removed <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">:free</code> suffix) — now a paid model across model lists, help docs, and context window config.</li>
+                  <li>- Default OpenRouter model max tokens tuned per model (Kimi K2.6: 256, DeepSeek V4 Flash: 4096, GLM 5.1: 256).</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.11"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.11
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jun 23, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Server-side chat endpoint refactored to use <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">@openrouter/ai-sdk-provider</code> with <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">streamText</code> — cleaner streaming, built-in tool loop (<code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">maxSteps: 5</code>), and proper usage reporting.</li>
+                  <li>- Removed 200+ lines of manual SSE parsing and tool loop logic in favor of SDK handling.</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Homepage</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Launch page enhanced with beta features list, "coming next" roadmap, and install command section.</li>
+                  <li>- Post-launch CTA updated to link to Quickstart guide with <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">npm install -g supercode-cli@latest</code> hint.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
                   href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.10"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -34,6 +160,16 @@ export default function ChangelogPage() {
             </div>
 
             <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Launch</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- <strong>Public beta launch</strong> 🚀 — supercode is now live and available for everyone to install.</li>
+                  <li>- Beta countdown page with animated banner and launch celebration UI.</li>
+                  <li>- Launch page redesigned with beta features list, "coming next" roadmap, and inline install command.</li>
+                  <li>- Post-launch CTA links to Quickstart guide for first-time users.</li>
+                </ul>
+              </div>
+
               <div>
                 <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Docs</h3>
                 <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
