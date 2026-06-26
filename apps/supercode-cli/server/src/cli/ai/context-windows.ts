@@ -14,6 +14,7 @@ const CONTEXT_WINDOWS: Record<string, number> = {
   "minimaxai/minimax-m2.7": 1_000_000,
   "deepseek-v4-flash": 128_000,
   "kimi-k2-6": 262_144,
+  "glm-5.2": 203_000,
   "glm-5.1": 203_000,
   "minimax-m2-7": 1_000_000,
 }
