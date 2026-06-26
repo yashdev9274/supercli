@@ -22,6 +22,44 @@ export default function ChangelogPage() {
             <div className="flex items-baseline gap-4 mb-8">
               <h2 className="text-[24px] font-semibold tracking-tight">
                 <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.16"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.16
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jun 26, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- <strong>4 modes → 2.</strong> Chat, tool, agent, and plan modes collapsed into two: <strong>chat</strong> (read-only tools: search, fetch, browse) and <strong>agent</strong> (full workspace + all tools).</li>
+                  <li>- New <strong>AgentService</strong> with 7 built-in agents (build, plan, general, explore, compaction, title, summary) each with permission profiles and prompt files.</li>
+                  <li>- New <strong>permission module</strong> — Ruleset types, wildcard matching, and <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">mergePermissions</code> for granular tool access control.</li>
+                  <li>- New <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/context-window</code> slash command — shows token usage breakdown per message with context percentage. 240-line implementation with detailed rendering.</li>
+                  <li>- Narrowed <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">CliConfig.mode</code> type to <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">"chat" | "agent"</code>.</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Web App</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Comparison page (<code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/compare</code>) redesigned with detailed feature breakdown and improved layout.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
                   href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.14"
                   target="_blank"
                   rel="noopener noreferrer"
