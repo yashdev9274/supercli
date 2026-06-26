@@ -11,7 +11,7 @@ export interface CliConfig {
   version: string
   provider: ModelProvider
   model: string
-  mode: "chat" | "tools" | "agent"
+  mode: "chat" | "agent"
   apiKeys?: Partial<Record<ModelProvider, string>>
 }
 
