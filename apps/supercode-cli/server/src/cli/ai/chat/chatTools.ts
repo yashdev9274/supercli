@@ -1,7 +1,7 @@
 import prisma from "@super/db-terminal"
 import chalk from "chalk"
 import { multiselect, isCancel, text } from "@clack/prompts"
-import { createThinking, theme, frame, panel, userMessage, streamFooter } from "src/cli/utils/tui"
+import { createThinking, theme, frame, panel, userMessage, streamFooter, streamHeader } from "src/cli/utils/tui"
 import { getStoredToken } from "src/lib/token"
 import { ChatService } from "src/service/chat-service"
 import { createProvider } from "src/cli/ai/provider"
@@ -150,6 +150,7 @@ async function toolChatLoop(conversation: Conversation) {
     const startTime = Date.now()
     let fullResponse = ""
     let isFirstChunk = true
+    const modelName = "concentrateai"
 
     const thinking = createThinking("thinking")
 
@@ -159,8 +160,7 @@ async function toolChatLoop(conversation: Conversation) {
         if (isFirstChunk) {
           thinking.stop()
           isFirstChunk = false
-          const w = process.stdout.columns ?? 80
-          console.log(chalk.hex(theme.green)(`┏━━ ${chalk.hex(theme.green).bold("supercode")} ${chalk.hex(theme.muted)(`· ${new Date().toLocaleTimeString()}`)} ${"━".repeat(Math.max(0, w - 38))}`))
+          streamHeader(modelName)
         }
         process.stdout.write(chunk)
         fullResponse += chunk
@@ -170,14 +170,11 @@ async function toolChatLoop(conversation: Conversation) {
     const elapsed = Date.now() - startTime
     if (isFirstChunk) {
       thinking.stop()
-      const w = process.stdout.columns ?? 80
-      console.log(chalk.hex(theme.green)(`┏━━ ${chalk.hex(theme.green).bold("supercode")} ${chalk.hex(theme.muted)(`· ${new Date().toLocaleTimeString()}`)} ${"━".repeat(Math.max(0, w - 38))}`))
+      streamHeader(modelName)
       process.stdout.write(fullResponse)
     }
 
-    console.log()
     streamFooter(undefined, elapsed)
-    console.log()
 
     await saveMessage(conversation.id, "assistant", aiResponse)
 

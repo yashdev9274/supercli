@@ -218,23 +218,10 @@ export function renderContextBreakdown(state: ContextState) {
     //   - Fixed title in the center-left, then dim fill to the right edge
     //
     const content = lines.join("\n")
-  
-    // Construct the title section of the top border
-    const title = `${dim("┏━━")} ${chalk.hex(theme.green).bold("Context Window")} ${dim("━━")}`
-    const titlePart = chalk.hex(theme.green)(`${title}`)
-    const titleVisible = title.length
-    const topFill = Math.max(0, w - titleVisible - 1)
-  
-    // top: full top border line
-    const top = chalk.hex(theme.green)(titlePart) + chalk.hex(theme.greenDim)("━".repeat(topFill)) + chalk.hex(theme.green)("┓")
-  
-    // bottom: full bottom border line (just fill + corner)
-    const bottom = chalk.hex(theme.greenDim)("━".repeat(w - 2)) + chalk.hex(theme.green)("┛")
-  
-    // ── Write to stdout ──
-    //
-    // Single write call (one I/O operation) for the entire box.
-    // \r\n ensures correct behavior on both Unix and Windows terminals.
-    //
-    process.stdout.write(`\r\n${top}\r\n${content}\r\n${bottom}\r\n`)
+
+    const titleVisible = `┃ Context Window`.length
+    const topFill = Math.max(0, w - titleVisible - 2)
+    const header = ` ${chalk.hex(theme.green)("┃")} ${chalk.hex(theme.green).bold("Context Window")} ${dim("─".repeat(topFill))}`
+
+    process.stdout.write(`\r\n${header}\r\n${content}\r\n`)
   }

@@ -728,13 +728,11 @@ export function statusBar(opts: {
   const leftStr = (opts.left ?? []).join(mid)
   const rightStr = (opts.right ?? []).join(mid)
 
-  // Total budget = terminal width. We always render exactly `w` visible cols.
   const leftVisible = stripAnsi(leftStr).length
   const rightVisible = stripAnsi(rightStr).length
-  const overhead = 4 // `┣━ ` prefix + ` ━┫` suffix with single spaces
-  const fillLen = Math.max(1, w - leftVisible - rightVisible - overhead)
+  const fillLen = Math.max(1, w - leftVisible - rightVisible - 3)
 
-  return `${dim("┣━")} ${leftStr} ${dim("─".repeat(fillLen))} ${rightStr} ${dim("━┫")}`
+  return `${dim("┃")} ${leftStr} ${dim("─".repeat(fillLen))} ${rightStr}`
 }
 
 // Standalone two-line status footer (used in chat). Brackets always reach the
@@ -775,10 +773,9 @@ export function chatStatusBar(opts: {
 
   const inner = tags.join(mid)
   const innerVisible = stripAnsi(inner).length
-  const overhead = 5 // `┣━ ` + ` ━┫`
-  const fillLen = Math.max(1, w - innerVisible - overhead)
+  const fillLen = Math.max(1, w - innerVisible - 3)
 
-  const line = `${dim("┣━")} ${inner} ${dim("─".repeat(fillLen))} ${dim("━┫")}`
+  const line = `${dim("┃")} ${inner} ${dim("─".repeat(fillLen))}`
   console.log(line)
 }
 
@@ -959,12 +956,11 @@ export function messageBlock(content: string, opts?: { role?: MessageRole; title
 export function streamHeader(model: string, label = "supercode") {
   const ts = new Date().toLocaleTimeString()
   const w = process.stdout.columns ?? 80
-  const boxW = Math.max(20, w - 2)
-  const titlePart = `┏━ ${chalk.hex(theme.green).bold(label)} ${chalk.hex(theme.greenMute)(`· ${model} · ${ts}`)} `
-  const titlePartVisible = stripAnsi(titlePart).length
-  const topFill = Math.max(0, boxW - titlePartVisible - 1)
-  const top = chalk.hex(theme.green)(titlePart) + chalk.hex(theme.green)("─".repeat(topFill)) + chalk.hex(theme.green)("┓")
-  console.log(top)
+  const dim = (s: string) => chalk.hex(theme.greenDim)(s)
+  const title = `${chalk.hex(theme.green).bold(label)} ${dim("·")} ${chalk.hex(theme.greenMute)(model)} ${dim("·")} ${chalk.hex(theme.greenMute)(ts)}`
+  const titleLen = stripAnsi(title).length
+  const fill = Math.max(0, w - titleLen - 4)
+  console.log(` ${chalk.hex(theme.green)("┃")} ${title} ${dim("─".repeat(fill))}`)
 }
 
 export function formatTokenCount(n: number): string {
@@ -987,9 +983,9 @@ export function streamFooter(usage?: { promptTokens?: number; completionTokens?:
   const meta = parts.length > 0 ? ` ${chalk.hex(theme.greenMute)(parts.join(" · "))}` : ""
 
   const w = process.stdout.columns ?? 80
-  const boxW = Math.max(20, w - 2)
-  const base = `┗${"─".repeat(boxW - 2)}┛`
-  console.log(chalk.hex(theme.greenDim)(base + meta))
+  const dim = (s: string) => chalk.hex(theme.greenDim)(s)
+  const fill = Math.max(0, w - stripAnsi(meta).length - 2)
+  console.log(`${dim("└")}${dim("─".repeat(fill))}${meta}`)
 }
 
 export function responseDivider() {
@@ -1003,22 +999,16 @@ export function streamingLine(text: string) {
 
 export function userMessage(content: string) {
   const lines = content.split("\n")
-  const w = process.stdout.columns ?? 80
-  const boxW = Math.max(20, w - 2)
-  const innerW = boxW - 4
-
-  const titlePart = `┏━ ${chalk.hex(theme.greenGlow).bold("you")} `
-  const titlePartVisible = stripAnsi(titlePart).length
-  const topFill = Math.max(0, boxW - titlePartVisible - 1)
-  const top = chalk.hex(theme.greenGlow)(titlePart) + chalk.hex(theme.greenGlow)("─".repeat(topFill)) + chalk.hex(theme.greenGlow)("┓")
-  console.log(top)
-
-  for (const line of lines) {
-    const visible = stripAnsi(line).length
-    const pad = Math.max(0, innerW - visible - 1)
-    console.log(`${chalk.hex(theme.greenGlow)("┃")} ${line}${" ".repeat(pad)}${chalk.hex(theme.greenGlow)("┃")}`)
+  const arrow = chalk.hex(theme.amber)("▌")
+  const label = chalk.hex(theme.greenGlow).bold("you")
+  const indent = "  "
+  for (let i = 0; i < lines.length; i++) {
+    if (i === 0) {
+      console.log(`${arrow} ${label} ${chalk.hex(theme.greenMute)(">")} ${lines[i]}`)
+    } else {
+      console.log(`${indent}${chalk.hex(theme.greenMute)(lines[i])}`)
+    }
   }
-  console.log(chalk.hex(theme.greenDim)("┗" + "─".repeat(boxW - 2) + "┛"))
   console.log()
 }
 
@@ -1129,3 +1119,6 @@ export function streamChunk(chunk: string) {
   // Just emit raw — downstream can pipe through marked-terminal if desired.
   process.stdout.write(chunk)
 }
+
+// NOTE: fileViewer utilities live in ./fileViewer — import directly
+// (avoiding circular dependency since fileViewer imports theme from here)
