@@ -687,7 +687,7 @@ export async function chatLoop(
             cumulativeTokens: sessionTokens,
             contextWindow,
           })
-          process.stdout.write("\r\n\r\n")
+          process.stdout.write("\r\n")
         } catch {
           // status bar may fail after tool output; continue loop
         }

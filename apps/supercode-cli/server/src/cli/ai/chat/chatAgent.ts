@@ -1,7 +1,7 @@
 import prisma from "@super/db-terminal"
 import chalk from "chalk"
 import { text, confirm, isCancel } from "@clack/prompts"
-import { createThinking, theme, frame, panel, userMessage, streamFooter } from "src/cli/utils/tui"
+import { createThinking, theme, userMessage, streamFooter, streamHeader } from "src/cli/utils/tui"
 import { getStoredToken } from "src/lib/token"
 import { ChatService } from "src/service/chat-service"
 import { createProvider, type ModelProvider } from "src/cli/ai/provider"
@@ -49,14 +49,13 @@ async function initAgentConversation(userId: string, conversationId: string | nu
   )
   thinking.succeed()
 
-  const detail = [
-    chalk.hex(theme.text).bold(conversation.title ?? "Untitled"),
-    chalk.hex(theme.muted)(`${conversation.id.slice(0, 12)} · agent mode`),
-    chalk.hex(theme.warning)("creates apps by executing commands step-by-step"),
-  ]
+  const w = process.stdout.columns ?? 80
+  const header = ` ${chalk.hex(theme.warning)("┃")} ${chalk.hex(theme.warning).bold(conversation.title ?? "Untitled")} ${chalk.hex(theme.muted)(`· ${conversation.id.slice(0, 12)} · agent mode ──`)}`
+  const desc = ` ${chalk.hex(theme.warning)("┃")} ${chalk.hex(theme.muted)("creates apps by executing commands step-by-step")}`
 
   console.log()
-  console.log(panel(detail.join("\n"), { title: "session" }))
+  console.log(header)
+  console.log(desc)
   console.log()
 
   return conversation
@@ -133,8 +132,9 @@ async function agentLoop(
       })
 
       thinking.succeed("done")
-      console.log()
-      console.log(chalk.hex(theme.green)(`┏━━ ${chalk.hex(theme.green).bold("Result")}`))
+      const w = process.stdout.columns ?? 80
+      const dim = (s: string) => chalk.hex(theme.greenDim)(s)
+      console.log(` ${chalk.hex(theme.green)("┃")} ${chalk.hex(theme.green).bold("Result")} ${dim("─".repeat(Math.max(0, w - 15)))}`)
       console.log(chalk.white(result.text || "Application created successfully."))
       console.log()
 
@@ -143,7 +143,6 @@ async function agentLoop(
 
       const elapsed = Date.now() - startTime
       streamFooter(undefined, elapsed)
-      console.log()
 
       const continueApp = await confirm({
         message: chalk.hex(theme.cyan)("Would you like to generate another application?"),
@@ -188,12 +187,10 @@ export async function startAgentChat(
   conversationId: string | null = null,
 ) {
   try {
-    console.log(
-      frame(
-        ` ${chalk.hex(theme.warning).bold("supercode")} ${chalk.hex(theme.muted)("· agent mode")} `,
-        { borderColor: theme.warning },
-      ),
-    )
+    const w = process.stdout.columns ?? 80
+    const title = ` ${chalk.hex(theme.warning)("┃")} ${chalk.hex(theme.warning).bold("supercode")} ${chalk.hex(theme.muted)("· agent mode ──")}`
+    const fillLen = Math.max(0, w - title.length - 1)
+    console.log(`\n${title}${chalk.hex(theme.greenDim)("─".repeat(fillLen))}`)
     console.log()
 
     const user = await getUserFromToken()
