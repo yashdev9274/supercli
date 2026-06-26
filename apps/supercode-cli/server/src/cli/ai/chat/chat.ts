@@ -13,6 +13,7 @@ import {
 import type { ModelMessage } from "ai"
 import { createProvider, type ModelProvider, type AIProvider } from "src/cli/ai/provider.ts"
 import { permissionManager } from "src/tools/permission-manager.ts"
+import { pendingModeSwitch } from "src/tools/definitions/switch-to-agent-mode.ts"
 export type { ModelProvider } from "src/cli/ai/provider.ts"
 import {
   theme,
@@ -39,7 +40,7 @@ import { renderWorkspaceBanner } from "src/cli/workspace/format.ts"
 import { handleSlashCommand, isSlashCommand } from "src/cli/commands/slashCommands/index.ts"
 import { renderContextBreakdown } from "src/cli/commands/slashCommands/context-window.ts"
 import { saveCliConfig } from "src/lib/cli-config"
-import { agentService } from "src/agent"
+
 
 async function getUserFromToken() {
   const token = await getStoredToken()
@@ -83,7 +84,14 @@ async function streamAIResponse(
   conversationId: string,
   mode: string,
   workspaceInfo?: WorkspaceInfo,
-): Promise<{ content: string; elapsed: number; usage: any; aborted?: boolean }> {
+): Promise<{
+  content: string
+  elapsed: number
+  usage: any
+  aborted?: boolean
+  modeSwitchRequested?: boolean
+  modeSwitchReason?: string
+}> {
   const dbMessages = await getMessages(conversationId)
   let aiMessages = formatMessagesForAI(dbMessages as any)
 
@@ -91,8 +99,12 @@ async function streamAIResponse(
     process.env.SUPERCODE_WORKSPACE_ROOT = workspaceInfo.workspaceRoot
     const hasTools = mode === "agent" || mode === "chat"
     const systemPrompt = buildSystemPrompt(workspaceInfo, hasTools)
+    let promptContent = systemPrompt
+    if (mode === "chat") {
+      promptContent += `\n\n## Chat Mode Note\n\nYou are in chat mode. You have access to\ntools, but shell commands, file writes, and code execution require per-call\npermission prompts. If the user's task genuinely needs multiple such operations\nwithout interruptions, you may call the \`switch_to_agent_mode\` tool to request\nswitching to agent mode where all tools are auto-allowed. Call it ONCE with\na clear reason — the system will ask for user approval. Do NOT attempt\nrun_command/write_file/code_exec in the same response where you call\nswitch_to_agent_mode.`
+    }
     aiMessages = [
-      { role: "system", content: systemPrompt },
+      { role: "system", content: promptContent },
       ...aiMessages,
     ]
   }
@@ -107,22 +119,11 @@ async function streamAIResponse(
   thinking.start("thinking")
 
   let toolsToUse: Record<string, unknown> | undefined
-  if (workspaceInfo && mode === "agent") {
+  if (workspaceInfo) {
     toolsToUse = { ...tools }
-  } else if (workspaceInfo && mode === "chat") {
-    const chatAgent = agentService.get("plan")
-    if (chatAgent) {
-      const allowed = new Set<string>()
-      for (const r of chatAgent.info.permission) {
-        if (r.action === "allow" && r.permission !== "*") {
-          allowed.add(r.permission)
-        }
-      }
-      toolsToUse = Object.fromEntries(
-        Object.entries(tools).filter(([name]) => allowed.has(name)),
-      )
-    }
   }
+
+  pendingModeSwitch.requested = false
 
   function emitHeader() {
     if (hasOutputHeader) return
@@ -162,7 +163,13 @@ async function streamAIResponse(
     thinking.stop()
     console.log()
 
-    return { content: fullResponse, elapsed, usage }
+    return {
+      content: fullResponse,
+      elapsed,
+      usage,
+      modeSwitchRequested: pendingModeSwitch.requested,
+      modeSwitchReason: pendingModeSwitch.reason,
+    }
   } catch (error: any) {
     if (error?.name === "AbortError" || abortController.signal.aborted) {
       thinking.stop()
@@ -569,6 +576,10 @@ export async function chatLoop(
 
   setupStdin()
 
+  if (workspaceInfo?.workspaceRoot) {
+    process.env.SUPERCODE_WORKSPACE_ROOT = workspaceInfo.workspaceRoot
+  }
+
   let messageCount = 0
   let sessionTokens = 0
   let provider = initialProvider
@@ -668,6 +679,55 @@ export async function chatLoop(
           }
           process.stdout.write(`\r\n ${chalk.hex(theme.amber)("◆")} cancelled\r\n`)
           continue
+        }
+
+        if (result.modeSwitchRequested) {
+          const wasRaw = process.stdin.isTTY && process.stdin.isRaw
+          if (process.stdin.isTTY) process.stdin.setRawMode(false)
+          const switchRl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout,
+          })
+          const switchAnswer = await new Promise<string>((resolve) => {
+            switchRl.question(
+              `\r\n ${chalk.hex(theme.warning)("◆")} ${chalk.bold("Switch to agent mode?")} ${result.modeSwitchReason ? `(${result.modeSwitchReason}) ` : ""}[y/N] `,
+              resolve,
+            )
+          })
+          switchRl.close()
+          if (wasRaw && process.stdin.isTTY) process.stdin.setRawMode(true)
+
+          if (switchAnswer.trim().toLowerCase() === "y" || switchAnswer.trim().toLowerCase() === "yes") {
+            conversation.mode = "agent"
+            await updateConversationMode(conversation.id, "agent")
+            const agentResult = await streamAIResponse(
+              provider,
+              conversation.id,
+              "agent",
+              workspaceInfo,
+            )
+            if (agentResult.aborted) {
+              process.stdout.write(`\r\n ${chalk.hex(theme.amber)("◆")} cancelled\r\n`)
+              continue
+            }
+            await addMessage(conversation.id, "assistant", agentResult.content)
+            const agentTokens = agentResult.usage?.totalTokens ?? 0
+            sessionTokens += agentTokens
+            lastUsage = agentResult.usage
+            lastElapsed = agentResult.elapsed
+            try {
+              chatStatusBar({
+                mode: "agent",
+                model: provider.modelName,
+                usage: agentResult.usage,
+                elapsed: agentResult.elapsed,
+                cumulativeTokens: sessionTokens,
+                contextWindow,
+              })
+              process.stdout.write("\r\n")
+            } catch {}
+            continue
+          }
         }
 
         await addMessage(conversation.id, "assistant", result.content)

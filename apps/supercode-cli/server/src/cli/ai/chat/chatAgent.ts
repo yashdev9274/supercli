@@ -6,7 +6,9 @@ import { getStoredToken } from "src/lib/token"
 import { ChatService } from "src/service/chat-service"
 import { createProvider, type ModelProvider } from "src/cli/ai/provider"
 import { createAppAgent } from "src/config/agent-config"
+import { type WorkspaceInfo } from "src/cli/workspace/scanner"
 import { agentService } from "src/agent"
+import { buildSystemPrompt } from "src/cli/workspace/context"
 
 let _chatService: ChatService
 
@@ -73,7 +75,14 @@ interface Conversation {
 async function agentLoop(
   conversation: Conversation,
   model: import("ai").LanguageModel,
+  workspaceInfo?: WorkspaceInfo,
 ) {
+  if (workspaceInfo) {
+    process.env.SUPERCODE_WORKSPACE_ROOT = workspaceInfo.workspaceRoot
+  }
+
+  const agentSystemPrompt = workspaceInfo ? buildSystemPrompt(workspaceInfo, true) : undefined
+
   console.log(` ${chalk.hex(theme.warning)("◆")} ${chalk.hex(theme.muted)("Describe an application to generate")}`)
   console.log(` ${chalk.hex(theme.muted)('•')} Type "exit" to end`)
   console.log()
@@ -110,7 +119,7 @@ async function agentLoop(
     const startTime = Date.now()
 
     try {
-      const agent = createAppAgent(model)
+      const agent = createAppAgent(model, agentSystemPrompt)
 
       const thinking = createThinking("generating")
 
@@ -185,6 +194,7 @@ export async function startAgentChat(
   provider: ModelProvider = "concentrateai",
   model?: string,
   conversationId: string | null = null,
+  workspaceInfo?: WorkspaceInfo,
 ) {
   try {
     const w = process.stdout.columns ?? 80
@@ -215,7 +225,7 @@ export async function startAgentChat(
     }
 
     const conversation = await initAgentConversation(user.id, conversationId)
-    await agentLoop(conversation, languageModel)
+    await agentLoop(conversation, languageModel, workspaceInfo)
 
     console.log()
     console.log(chalk.hex(theme.green)("◆") + " " + chalk.hex(theme.muted)("agent session ended"))

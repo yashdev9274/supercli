@@ -6,6 +6,7 @@ import { urlFetchTool } from "./definitions/url-fetch.ts"
 import { webSearchTool } from "./definitions/web-search.ts"
 import { codeExecTool } from "./definitions/code-exec.ts"
 import { readInstructionsTool } from "./definitions/read-instructions.ts"
+import { switchToAgentModeTool } from "./definitions/switch-to-agent-mode.ts"
 import { permissionManager } from "./permission-manager.ts"
 
 function withPermission(name: string, tool: Record<string, unknown>): Record<string, unknown> {
@@ -32,4 +33,5 @@ export const tools = {
   web_search: webSearchTool,
   code_exec: withPermission("code_exec", codeExecTool as unknown as Record<string, unknown>),
   read_instructions: readInstructionsTool,
+  switch_to_agent_mode: switchToAgentModeTool,
 }
