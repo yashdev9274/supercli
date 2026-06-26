@@ -7,7 +7,7 @@ import { theme, heavyDivider } from "src/cli/utils/tui.ts"
 import type { ModelProvider } from "src/cli/ai/provider.ts"
 
 export interface SlashCommandResult {
-  type: "model_change" | "help" | "unknown" | "exit" | "connect"
+  type: "model_change" | "help" | "unknown" | "exit" | "connect" | "context"
   provider?: ModelProvider
   model?: string
   label?: string
@@ -16,6 +16,7 @@ export interface SlashCommandResult {
 const COMMANDS = [
   { cmd: "/model", desc: "Switch AI provider or model" },
   { cmd: "/connect", desc: "Connect API key for direct access" },
+  { cmd: "/context", desc: "Show context window usage and breakdown" },
   { cmd: "/help", desc: "Show available commands and models" },
   { cmd: "/exit", desc: "End the session" },
 ]
@@ -36,6 +37,9 @@ const handlers: Record<string, (args: string) => Promise<SlashCommandResult>> = 
   help: async () => {
     renderHelp()
     return { type: "help" }
+  },
+  context: async () => {
+    return { type: "context" }
   },
 }
 

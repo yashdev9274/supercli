@@ -276,7 +276,8 @@ const Footer = () => {
               { label: "vs Cursor", href: "/compare" },
               { label: "vs OpenCode", href: "/compare" },
               { label: "vs Claude Code", href: "/compare" },
-              { label: "vs Hermes Agent", href: "/compare" },
+              { label: "vs CommandCode", href: "/compare" },
+              { label: "vs FreeBuff", href: "/compare" },
             ]}
           />
           <LinkGroup

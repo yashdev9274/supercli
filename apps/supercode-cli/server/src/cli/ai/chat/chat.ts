@@ -37,6 +37,7 @@ import { buildSystemPrompt } from "src/cli/workspace/context.ts"
 import { tools } from "src/tools/registry.ts"
 import { renderWorkspaceBanner } from "src/cli/workspace/format.ts"
 import { handleSlashCommand, isSlashCommand } from "src/cli/commands/slashCommands/index.ts"
+import { renderContextBreakdown } from "src/cli/commands/slashCommands/context-window.ts"
 import { saveCliConfig } from "src/lib/cli-config"
 
 async function getUserFromToken() {
@@ -200,11 +201,12 @@ let stdinPrevWrapLines = 1
 const SLASH_COMMANDS = [
   { cmd: "/model", desc: "Switch AI provider or model" },
   { cmd: "/connect", desc: "Connect API key for direct access" },
+  { cmd: "/context", desc: "Show context window usage and breakdown" },
   { cmd: "/help", desc: "Show available commands and models" },
   { cmd: "/exit", desc: "End the session" },
 ]
 
-const SLASH_LIST_HEIGHT = 2 + 4 + 2 // dividers + header + 4 commands + bottom divider
+const SLASH_LIST_HEIGHT = 2 + 5 + 2 // dividers + header + 5 commands + bottom divider
 
 let slashListLines = 0
 let slashSelected = -1
@@ -559,6 +561,9 @@ export async function chatLoop(
   let sessionTokens = 0
   let provider = initialProvider
   let contextWindow = getContextWindow(provider.modelName)
+  let sessionStartTime = Date.now()
+  let lastUsage: { promptTokens?: number; completionTokens?: number; totalTokens?: number } | undefined = undefined
+  let lastElapsed: number | undefined = undefined
 
   while (true) {
     try {
@@ -615,6 +620,18 @@ export async function chatLoop(
             }
           }
           process.stdout.write(`\r\n`)
+        } else if (result?.type === "context") {
+          renderContextBreakdown({
+            modelName: provider.modelName,
+            contextWindow,
+            sessionTokens,
+            messageCount,
+            lastUsage,
+            lastElapsed,
+            sessionStartTime,
+            mode: conversation.mode,
+          })
+          process.stdout.write(`\r\n`)
         } else if (result?.type === "unknown") {
           process.stdout.write(`\r\n ${chalk.hex(theme.red)("◆")} unknown slash command: ${trimmed.split(" ")[0]}\r\n\n`)
         } else {
@@ -645,6 +662,9 @@ export async function chatLoop(
 
         const responseTokens = result.usage?.totalTokens ?? 0
         sessionTokens += responseTokens
+
+        lastUsage = result.usage
+        lastElapsed = result.elapsed
 
         try {
           chatStatusBar({
