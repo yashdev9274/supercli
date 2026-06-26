@@ -19,6 +19,7 @@ const MODEL_MAX_TOKENS: Record<string, number> = {
   "z-ai/glm-5.1": 512,
   "deepseek-v4-flash": 8192,
   "kimi-k2-6": 8192,
+  "glm-5.2": 4096,
   "glm-5.1": 4096,
   "minimax-m2-7": 8192,
 }

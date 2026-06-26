@@ -13,6 +13,7 @@ interface ModelEntry {
 }
 
 const MODELS: ModelEntry[] = [
+  { value: "glm-5.2", label: "GLM 5.2", provider: "concentrateai", cost: "0.5x", desc: "Latest GLM" },
   { value: "glm-5.1", label: "GLM 5.1", provider: "concentrateai", cost: "0.4x", desc: "Balanced multilingual" },
   { value: "kimi-k2-6", label: "Kimi K2.6", provider: "concentrateai", cost: "0.8x", desc: "Long context" },
   { value: "deepseek-v4-flash", label: "DeepSeek V4 Flash", provider: "concentrateai", cost: "1.0x", desc: "Fast & capable" },

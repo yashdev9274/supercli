@@ -37,9 +37,10 @@ export default function ChangelogPage() {
               <div>
                 <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
                 <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
-                  <li>- <strong>4 modes → 2.</strong> Chat, tool, agent, and plan modes collapsed into two: <strong>chat</strong> (read-only tools: search, fetch, browse) and <strong>agent</strong> (full workspace + all tools).</li>
+                  <li>- <strong>4 modes → 2.</strong> Chat, tool, agent, and plan modes collapsed into two: <strong>chat</strong> (read-only workspace access: read_file, search_files, url_fetch, browse, etc.) and <strong>agent</strong> (full workspace + all tools, including write).</li>
                   <li>- New <strong>AgentService</strong> with 7 built-in agents (build, plan, general, explore, compaction, title, summary) each with permission profiles and prompt files.</li>
                   <li>- New <strong>permission module</strong> — Ruleset types, wildcard matching, and <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">mergePermissions</code> for granular tool access control.</li>
+                  <li>- <strong>GLM 5.2</strong> added to ConcentrateAI provider.</li>
                   <li>- New <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/context-window</code> slash command — shows token usage breakdown per message with context percentage. 240-line implementation with detailed rendering.</li>
                   <li>- Narrowed <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">CliConfig.mode</code> type to <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">"chat" | "agent"</code>.</li>
                 </ul>
