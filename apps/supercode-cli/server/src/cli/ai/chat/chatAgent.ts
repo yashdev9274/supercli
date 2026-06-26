@@ -6,6 +6,7 @@ import { getStoredToken } from "src/lib/token"
 import { ChatService } from "src/service/chat-service"
 import { createProvider, type ModelProvider } from "src/cli/ai/provider"
 import { createAppAgent } from "src/config/agent-config"
+import { agentService } from "src/agent"
 
 let _chatService: ChatService
 

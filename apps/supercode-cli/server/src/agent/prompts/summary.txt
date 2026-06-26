@@ -1,0 +1,2 @@
+Summarize the key topics, decisions, and open items from this conversation.
+Focus on actionable information. Be concise. Output only the summary.

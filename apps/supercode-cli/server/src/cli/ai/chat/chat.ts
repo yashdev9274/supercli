@@ -39,6 +39,7 @@ import { renderWorkspaceBanner } from "src/cli/workspace/format.ts"
 import { handleSlashCommand, isSlashCommand } from "src/cli/commands/slashCommands/index.ts"
 import { renderContextBreakdown } from "src/cli/commands/slashCommands/context-window.ts"
 import { saveCliConfig } from "src/lib/cli-config"
+import { agentService } from "src/agent"
 
 async function getUserFromToken() {
   const token = await getStoredToken()
@@ -88,7 +89,7 @@ async function streamAIResponse(
 
   if (workspaceInfo) {
     process.env.SUPERCODE_WORKSPACE_ROOT = workspaceInfo.workspaceRoot
-    const hasTools = mode === "tool" || mode === "agent"
+    const hasTools = mode === "agent" || mode === "chat"
     const systemPrompt = buildSystemPrompt(workspaceInfo, hasTools)
     aiMessages = [
       { role: "system", content: systemPrompt },
@@ -106,8 +107,21 @@ async function streamAIResponse(
   thinking.start("thinking")
 
   let toolsToUse: Record<string, unknown> | undefined
-  if (workspaceInfo && (mode === "tool" || mode === "agent")) {
+  if (workspaceInfo && mode === "agent") {
     toolsToUse = { ...tools }
+  } else if (workspaceInfo && mode === "chat") {
+    const chatAgent = agentService.get("plan")
+    if (chatAgent) {
+      const allowed = new Set<string>()
+      for (const r of chatAgent.info.permission) {
+        if (r.action === "allow" && r.permission !== "*") {
+          allowed.add(r.permission)
+        }
+      }
+      toolsToUse = Object.fromEntries(
+        Object.entries(tools).filter(([name]) => allowed.has(name)),
+      )
+    }
   }
 
   function emitHeader() {
@@ -177,15 +191,13 @@ interface Conversation {
   updatedAt: Date
 }
 
-const modes = ["chat", "tool", "agent"]
+const modes = ["chat", "agent"]
 const modeColors: Record<string, string> = {
   chat: theme.cyan,
-  tool: theme.green,
   agent: theme.warning,
 }
 const modeDisplay: Record<string, string> = {
   chat: "chat",
-  tool: "tools",
   agent: "agent",
 }
 
@@ -297,7 +309,7 @@ function stdinKeypress(_str: string, key: any) {
   if (key.name === "tab") {
     const idx = modes.indexOf(stdinMode)
     stdinMode = modes[(idx + 1) % modes.length]!
-    if (stdinMode === "agent" || stdinMode === "tool") {
+    if (stdinMode === "agent") {
       permissionManager.setSessionLevel("allow")
     } else {
       permissionManager.setSessionLevel(null)
@@ -511,7 +523,7 @@ function setupStdin() {
 
 async function chatInput(currentMode: string): Promise<{ input: string; mode: string }> {
   stdinMode = modes.includes(currentMode) ? currentMode : "chat"
-  if (stdinMode === "agent" || stdinMode === "tool") {
+  if (stdinMode === "agent") {
     permissionManager.setSessionLevel("allow")
   } else {
     permissionManager.setSessionLevel(null)
@@ -609,7 +621,7 @@ export async function chatLoop(
             contextWindow = getContextWindow(provider.modelName)
             const label = result.label || provider.modelName
             process.stdout.write(`\r\n ${chalk.hex(theme.green)("◆")} switched to ${chalk.hex(theme.cyan)(label)}\r\n\n`)
-            saveCliConfig({ provider: result.provider!, model: result.model || provider.modelName, mode: conversation.mode as "chat" | "tools" | "agent" })
+            saveCliConfig({ provider: result.provider!, model: result.model || provider.modelName, mode: conversation.mode as "chat" | "agent" })
           }
         } else if (result?.type === "connect") {
           if (result.provider) {
@@ -714,8 +726,8 @@ export async function startChat(
 
     const aiProvider = createProvider(provider, model)
 
-    const modeLabel = initialMode === "tool" ? "tools" : initialMode === "agent" ? "agent" : "chat"
-    const subtitle = modeLabel === "chat" ? `ai chat · ${aiProvider.modelName}` : `${modeLabel} · ${aiProvider.modelName}`
+    const modeLabel = initialMode === "agent" ? "agent" : "chat"
+    const subtitle = modeLabel === "chat" ? `ai chat · ${aiProvider.modelName}` : `agent · ${aiProvider.modelName}`
 
     // ── Header ───────────────────────────────────────────────────
     const w = process.stdout.columns ?? 80

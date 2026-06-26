@@ -1047,7 +1047,7 @@ export function chatHelp() {
   const lines = [
     ` ${chalk.hex(theme.amber)("Enter")}     send message`,
     ` ${chalk.hex(theme.amber)("Esc")}      clear input / cancel response`,
-    ` ${chalk.hex(theme.amber)("Tab")}      cycle mode · ${chalk.hex(theme.greenGlow)("[chat] [tools] [agent]")}`,
+    ` ${chalk.hex(theme.amber)("Tab")}      cycle mode · ${chalk.hex(theme.greenGlow)("[chat] [agent]")}`,
     ` ${chalk.hex(theme.amber)("↑/↓")}     navigate history`,
     ` ${chalk.hex(theme.amber)("Ctrl+C")}   exit`,
   ]
