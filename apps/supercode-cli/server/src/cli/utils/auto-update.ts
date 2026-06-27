@@ -6,13 +6,13 @@ import { confirm, isCancel } from "@clack/prompts"
 const NPM_PACKAGE = "supercode-cli"
 
 export async function checkForUpdate(): Promise<void> {
+  const thinking = createThinking("checking for update")
   try {
-    const thinking = createThinking("checking for update")
     const res = await fetch(`https://registry.npmjs.org/${NPM_PACKAGE}/latest`, {
       signal: AbortSignal.timeout(5000),
     })
     if (!res.ok) {
-      thinking.fail()
+      thinking.fail("could not reach registry")
       return
     }
     const data = (await res.json()) as { version: string }
@@ -56,6 +56,6 @@ export async function checkForUpdate(): Promise<void> {
       console.log()
     }
   } catch {
-    // Network error or timeout — continue silently
+    thinking.fail("update check failed")
   }
 }
