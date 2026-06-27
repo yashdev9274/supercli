@@ -26,10 +26,10 @@ CRITICAL RULES:
 - Use the cwd parameter in run_command — do NOT use "cd" in command strings.
 - For scaffolding, use npx --yes <package> with interactive: true.`
 
-export function createAppAgent(model: LanguageModel) {
+export function createAppAgent(model: LanguageModel, systemPrompt?: string) {
   return new ToolLoopAgent({
     model,
-    instructions: agentInstructions,
+    instructions: systemPrompt ?? agentInstructions,
     tools: {
       write_file: tool({
         description: writeFileTool.description,

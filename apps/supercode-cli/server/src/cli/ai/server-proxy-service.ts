@@ -12,14 +12,22 @@ export class ServerProxyService {
     this.modelName = model || "default"
   }
 
-  async sendMessage(
+  private collectedToolCalls: Array<{ toolName: string; args: Record<string, unknown>; toolCallId: string }> = []
+
+  private async request(
     messages: ModelMessage[],
-    onChunk?: (chunk: string) => void,
     tools?: any,
+    onChunk?: (chunk: string) => void,
     onToolCall?: (call: { toolName: string; args: Record<string, unknown> }) => void,
     signal?: AbortSignal,
     onReasoning?: (chunk: string) => void,
-  ) {
+  ): Promise<{
+    content: string
+    finishReason: FinishReason
+    usage: LanguageModelUsage
+    toolCalls: Array<{ toolName: string; args: Record<string, unknown>; toolCallId: string }>
+  }> {
+    const toolCalls: Array<{ toolName: string; args: Record<string, unknown>; toolCallId: string }> = []
     const token = await getStoredToken()
     if (!token?.access_token) {
       throw new Error("Not authenticated. Please login first.")
@@ -82,6 +90,11 @@ export class ServerProxyService {
               onReasoning?.(event.content)
               break
             case "tool-call":
+              toolCalls.push({
+                toolName: event.toolName,
+                args: event.args,
+                toolCallId: event.toolCallId || `call_${Date.now()}_${toolCalls.length}`,
+              })
               onToolCall?.({ toolName: event.toolName, args: event.args })
               break
             case "finish":
@@ -93,8 +106,84 @@ export class ServerProxyService {
       }
     }
 
+    return { content: fullResponse, finishReason, usage, toolCalls }
+  }
+
+  async sendMessage(
+    messages: ModelMessage[],
+    onChunk?: (chunk: string) => void,
+    tools?: any,
+    onToolCall?: (call: { toolName: string; args: Record<string, unknown> }) => void,
+    signal?: AbortSignal,
+    onReasoning?: (chunk: string) => void,
+  ) {
+    let currentMessages = [...messages]
+    let accumulatedContent = ""
+    let finishReason: FinishReason = "stop"
+    let usage: LanguageModelUsage = {
+      inputTokens: 0,
+      inputTokenDetails: { noCacheTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+      outputTokens: 0,
+      outputTokenDetails: { textTokens: 0, reasoningTokens: 0 },
+      totalTokens: 0,
+    }
+
+    this.collectedToolCalls = []
+
+    // Multi-turn loop: keep calling the server as long as the AI requests tool calls
+    while (true) {
+      const result = await this.request(currentMessages, tools, onChunk, onToolCall, signal, onReasoning)
+
+      accumulatedContent += result.content
+      finishReason = result.finishReason
+      usage = result.usage
+
+      if (result.toolCalls.length === 0) break
+
+      // Execute each tool and build the continuation messages
+      for (const call of result.toolCalls) {
+        const toolFn = tools?.[call.toolName]
+        let toolResult: string
+
+        if (toolFn?.execute) {
+          try {
+            toolResult = await toolFn.execute(call.args)
+          } catch (err: any) {
+            toolResult = JSON.stringify({ error: err.message || "Tool execution failed" })
+          }
+        } else {
+          toolResult = JSON.stringify({ error: `Tool "${call.toolName}" is not available locally` })
+        }
+
+        // Add the assistant's tool call request to the message history
+        currentMessages.push({
+          role: "assistant",
+          content: null,
+          tool_calls: [
+            {
+              id: call.toolCallId,
+              type: "function",
+              function: {
+                name: call.toolName,
+                arguments: JSON.stringify(call.args),
+              },
+            },
+          ],
+        } as any)
+
+        // Add the tool execution result
+        currentMessages.push({
+          role: "tool",
+          tool_call_id: call.toolCallId,
+          content: toolResult,
+        } as any)
+
+        this.collectedToolCalls.push(call)
+      }
+    }
+
     return {
-      content: fullResponse,
+      content: accumulatedContent,
       finishReason,
       usage,
     }

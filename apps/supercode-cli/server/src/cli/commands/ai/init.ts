@@ -49,7 +49,7 @@ export const wakeUpAction = async () => {
   if (stored) {
     switch (stored.mode) {
       case "agent":
-        await startAgentChat(stored.provider, stored.model)
+        await startAgentChat(stored.provider, stored.model, null, workspaceInfo ?? undefined)
         break
       default:
         await startChat(stored.provider, stored.model, null, workspaceInfo ?? undefined, stored.mode)
@@ -61,7 +61,7 @@ export const wakeUpAction = async () => {
   const defaults = await saveCliConfig({})
   switch (defaults.mode) {
     case "agent":
-      await startAgentChat(defaults.provider, defaults.model)
+      await startAgentChat(defaults.provider, defaults.model, null, workspaceInfo ?? undefined)
       break
     default:
       await startChat(defaults.provider, defaults.model, null, workspaceInfo ?? undefined, defaults.mode)

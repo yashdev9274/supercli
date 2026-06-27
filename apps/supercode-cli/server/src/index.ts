@@ -260,6 +260,7 @@ app.post("/api/ai/chat", async (req, res) => {
         let buffer = ""
         let inputTokens = 0
         let outputTokens = 0
+        let pendingToolCalls: Record<number, { id: string; name: string; args: string }> = {}
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
@@ -279,10 +280,26 @@ app.post("/api/ai/chat", async (req, res) => {
               }
               if (delta?.tool_calls) {
                 for (const tc of delta.tool_calls) {
-                  if (tc.function?.name && tc.function?.arguments) {
-                    res.write(JSON.stringify({ type: "tool-call", toolName: tc.function.name, args: JSON.parse(tc.function.arguments) }) + "\n")
+                  const index = tc.index ?? 0
+                  if (!pendingToolCalls[index]) {
+                    pendingToolCalls[index] = { id: "", name: "", args: "" }
+                  }
+                  if (tc.id) pendingToolCalls[index].id = tc.id
+                  if (tc.function?.name) pendingToolCalls[index].name = tc.function.name
+                  if (tc.function?.arguments) pendingToolCalls[index].args += tc.function.arguments
+                }
+              }
+              const finishReason = data.choices?.[0]?.finish_reason
+              if (finishReason === "tool_calls") {
+                for (const [, call] of Object.entries(pendingToolCalls)) {
+                  if (call.name && call.args) {
+                    try {
+                      const parsed = JSON.parse(call.args)
+                      res.write(JSON.stringify({ type: "tool-call", toolName: call.name, args: parsed, toolCallId: call.id }) + "\n")
+                    } catch { /* skip malformed args */ }
                   }
                 }
+                pendingToolCalls = {}
               }
               if (data.usage) {
                 inputTokens = data.usage.prompt_tokens ?? 0
@@ -337,6 +354,7 @@ app.post("/api/ai/chat", async (req, res) => {
         if (system && nonSystemMessages.length > 0) {
           bodyObj.messages = [{ role: "system", content: system }, ...bodyObj.messages]
         }
+        if (tools) bodyObj.tools = tools
         const response = await fetch(`${baseUrl}/chat/completions`, {
           method: "POST",
           headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -353,6 +371,7 @@ app.post("/api/ai/chat", async (req, res) => {
         let buffer = ""
         let inputTokens = 0
         let outputTokens = 0
+        let pendingToolCalls: Record<number, { id: string; name: string; args: string }> = {}
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
@@ -369,6 +388,29 @@ app.post("/api/ai/chat", async (req, res) => {
               const delta = data.choices?.[0]?.delta
               if (delta?.content) {
                 res.write(JSON.stringify({ type: "text", content: delta.content }) + "\n")
+              }
+              if (delta?.tool_calls) {
+                for (const tc of delta.tool_calls) {
+                  const index = tc.index ?? 0
+                  if (!pendingToolCalls[index]) {
+                    pendingToolCalls[index] = { id: "", name: "", args: "" }
+                  }
+                  if (tc.id) pendingToolCalls[index].id = tc.id
+                  if (tc.function?.name) pendingToolCalls[index].name = tc.function.name
+                  if (tc.function?.arguments) pendingToolCalls[index].args += tc.function.arguments
+                }
+              }
+              const finishReason = data.choices?.[0]?.finish_reason
+              if (finishReason === "tool_calls") {
+                for (const [, call] of Object.entries(pendingToolCalls)) {
+                  if (call.name && call.args) {
+                    try {
+                      const parsed = JSON.parse(call.args)
+                      res.write(JSON.stringify({ type: "tool-call", toolName: call.name, args: parsed, toolCallId: call.id }) + "\n")
+                    } catch { /* skip malformed args */ }
+                  }
+                }
+                pendingToolCalls = {}
               }
               if (data.usage) {
                 inputTokens = data.usage.prompt_tokens ?? 0
@@ -398,6 +440,7 @@ app.post("/api/ai/chat", async (req, res) => {
         if (system && nonSystemMessages.length > 0) {
           bodyObj.messages = [{ role: "system", content: system }, ...bodyObj.messages]
         }
+        if (tools) bodyObj.tools = tools
         const response = await fetch("https://api.concentrate.ai/v1/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -414,6 +457,7 @@ app.post("/api/ai/chat", async (req, res) => {
         let buffer = ""
         let inputTokens = 0
         let outputTokens = 0
+        let pendingToolCalls: Record<number, { id: string; name: string; args: string }> = {}
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
@@ -430,6 +474,29 @@ app.post("/api/ai/chat", async (req, res) => {
               const delta = data.choices?.[0]?.delta
               if (delta?.content) {
                 res.write(JSON.stringify({ type: "text", content: delta.content }) + "\n")
+              }
+              if (delta?.tool_calls) {
+                for (const tc of delta.tool_calls) {
+                  const index = tc.index ?? 0
+                  if (!pendingToolCalls[index]) {
+                    pendingToolCalls[index] = { id: "", name: "", args: "" }
+                  }
+                  if (tc.id) pendingToolCalls[index].id = tc.id
+                  if (tc.function?.name) pendingToolCalls[index].name = tc.function.name
+                  if (tc.function?.arguments) pendingToolCalls[index].args += tc.function.arguments
+                }
+              }
+              const finishReason = data.choices?.[0]?.finish_reason
+              if (finishReason === "tool_calls") {
+                for (const [, call] of Object.entries(pendingToolCalls)) {
+                  if (call.name && call.args) {
+                    try {
+                      const parsed = JSON.parse(call.args)
+                      res.write(JSON.stringify({ type: "tool-call", toolName: call.name, args: parsed, toolCallId: call.id }) + "\n")
+                    } catch { /* skip malformed args */ }
+                  }
+                }
+                pendingToolCalls = {}
               }
               if (data.usage) {
                 inputTokens = data.usage.prompt_tokens ?? 0
