@@ -243,7 +243,12 @@ app.post("/api/ai/chat", async (req, res) => {
         if (system && nonSystemMessages.length > 0) {
           bodyObj.messages = [{ role: "system", content: system }, ...bodyObj.messages]
         }
-        if (tools) bodyObj.tools = tools
+        if (tools) {
+          bodyObj.tools = Object.entries(tools).map(([name, fn]: [string, any]) => ({
+            type: "function",
+            function: { name, description: fn.description || "", parameters: fn.parameters || {} },
+          }))
+        }
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -354,7 +359,12 @@ app.post("/api/ai/chat", async (req, res) => {
         if (system && nonSystemMessages.length > 0) {
           bodyObj.messages = [{ role: "system", content: system }, ...bodyObj.messages]
         }
-        if (tools) bodyObj.tools = tools
+        if (tools) {
+          bodyObj.tools = Object.entries(tools).map(([name, fn]: [string, any]) => ({
+            type: "function",
+            function: { name, description: fn.description || "", parameters: fn.parameters || {} },
+          }))
+        }
         const response = await fetch(`${baseUrl}/chat/completions`, {
           method: "POST",
           headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -440,7 +450,12 @@ app.post("/api/ai/chat", async (req, res) => {
         if (system && nonSystemMessages.length > 0) {
           bodyObj.messages = [{ role: "system", content: system }, ...bodyObj.messages]
         }
-        if (tools) bodyObj.tools = tools
+        if (tools) {
+          bodyObj.tools = Object.entries(tools).map(([name, fn]: [string, any]) => ({
+            type: "function",
+            function: { name, description: fn.description || "", parameters: fn.parameters || {} },
+          }))
+        }
         const response = await fetch("https://api.concentrate.ai/v1/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
