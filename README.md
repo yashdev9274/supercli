@@ -19,6 +19,18 @@
 
 ---
 
+## Star History
+
+<a href="https://www.star-history.com/?repos=yashdev9274%2Fsupercli&type=date&legend=bottom-right">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=yashdev9274/supercli&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=yashdev9274/supercli&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=yashdev9274/supercli&type=date&legend=top-left" />
+ </picture>
+</a>
+
+---
+
 ## Overview
 
 Supercode is a full-stack AI-powered development platform built as a Bun + Turborepo monorepo. It includes a web dashboard, an MDX documentation site, an AI coding agent CLI, a terminal-style web client, and a parallel project for fine-tuning open-source LLMs.
