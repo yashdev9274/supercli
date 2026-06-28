@@ -2,6 +2,7 @@ import prisma from "../../../lib/prisma"
 import chalk from "chalk"
 import { multiselect, isCancel, text } from "@clack/prompts"
 import { createThinking, theme, frame, panel, userMessage, streamFooter, streamHeader } from "src/cli/utils/tui"
+import { MarkdownStream } from "src/cli/utils/markdown-stream"
 import { getStoredToken } from "src/lib/token"
 import { ChatService } from "src/service/chat-service"
 import { createProvider } from "src/cli/ai/provider"
@@ -58,7 +59,7 @@ async function selectTools() {
   }))
 
   const selectedTools = await multiselect({
-    message: chalk.hex(theme.cyan)("Select tools to enable (Space to select, Enter to confirm):"),
+    message: chalk.hex(theme.green)("Select tools to enable (Space to select, Enter to confirm):"),
     options: toolOptions,
     required: false,
   })
@@ -91,7 +92,7 @@ async function initToolConversation(userId: string, conversationId: string | nul
 
   const enabledToolNames = getEnabledToolNames()
   const detail = [
-    chalk.hex(theme.text).bold(conversation.title ?? "Untitled"),
+    chalk.hex(theme.white).bold(conversation.title ?? "Untitled"),
     chalk.hex(theme.muted)(`${conversation.id.slice(0, 12)} · tool mode`),
   ]
   if (enabledToolNames.length > 0) {
@@ -123,7 +124,7 @@ async function toolChatLoop(conversation: Conversation) {
 
   while (true) {
     const userInput = await text({
-      message: chalk.hex(theme.cyan)("your message"),
+      message: chalk.hex(theme.green)("your message"),
       placeholder: "Type your message...",
       validate(value: string | undefined) {
         if (!value || value.trim().length === 0) {
@@ -153,6 +154,7 @@ async function toolChatLoop(conversation: Conversation) {
     const modelName = "concentrateai"
 
     const thinking = createThinking("thinking")
+    const md = new MarkdownStream()
 
     const aiResponse = await getAIResponse(
       conversation.id,
@@ -162,7 +164,7 @@ async function toolChatLoop(conversation: Conversation) {
           isFirstChunk = false
           streamHeader(modelName)
         }
-        process.stdout.write(chunk)
+        md.push(chunk)
         fullResponse += chunk
       }
     )
@@ -171,8 +173,9 @@ async function toolChatLoop(conversation: Conversation) {
     if (isFirstChunk) {
       thinking.stop()
       streamHeader(modelName)
-      process.stdout.write(fullResponse)
+      md.push(fullResponse)
     }
+    md.end()
 
     streamFooter(undefined, elapsed)
 
@@ -197,8 +200,8 @@ export async function startToolChat(conversationId: string | null = null) {
   try {
     console.log(
       frame(
-        ` ${chalk.hex(theme.cyan).bold("supercode")} ${chalk.hex(theme.muted)("· tool mode")} `,
-        { borderColor: theme.cyan }
+        ` ${chalk.hex(theme.green).bold("supercode")} ${chalk.hex(theme.muted)("· tool mode")} `,
+        { borderColor: theme.green }
       )
     )
     console.log()

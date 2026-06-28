@@ -79,7 +79,7 @@ function progressBar(pct: number, width: number): string {
 // + 2 chars padding, so all values start at column 21.
 //
 const label = (s: string) => chalk.hex(theme.greenGlow)(s.padEnd(18))
-const value = (s: string) => chalk.hex(theme.text)(s)
+const value = (s: string) => chalk.hex(theme.white)(s)
 const dim = (s: string) => chalk.hex(theme.greenDim)(s)
 const amber = (s: string) => chalk.hex(theme.amber)(s)
 

@@ -7,5 +7,7 @@ export {
 } from "./agent"
 
 export { DefaultAgentService } from "./agent-service"
-export { registerBuiltInAgents } from "./built-in"
+export { registerBuiltInAgents, getAgentPrompt } from "./built-in"
 export { agentService } from "./singleton"
+export { runAgent } from "./runner"
+export { loadPrompt, loadPromptSync, promptExists, promptPath } from "./prompt-loader"

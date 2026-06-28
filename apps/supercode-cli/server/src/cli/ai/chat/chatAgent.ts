@@ -2,6 +2,7 @@ import prisma from "../../../lib/prisma"
 import chalk from "chalk"
 import { text, confirm, isCancel } from "@clack/prompts"
 import { createThinking, theme, userMessage, streamFooter, streamHeader } from "src/cli/utils/tui"
+import { MarkdownStream } from "src/cli/utils/markdown-stream"
 import { getStoredToken } from "src/lib/token"
 import { ChatService } from "src/service/chat-service"
 import { createProvider, type ModelProvider } from "src/cli/ai/provider"
@@ -9,6 +10,7 @@ import { createAppAgent } from "src/config/agent-config"
 import { type WorkspaceInfo } from "src/cli/workspace/scanner"
 import { agentService } from "src/agent"
 import { buildSystemPrompt } from "src/cli/workspace/context"
+import { ThinkingDisplay, ThoughtChain } from "src/cli/ai/chat/thinking"
 
 let _chatService: ChatService
 
@@ -52,8 +54,8 @@ async function initAgentConversation(userId: string, conversationId: string | nu
   thinking.succeed()
 
   const w = process.stdout.columns ?? 80
-  const header = ` ${chalk.hex(theme.warning)("┃")} ${chalk.hex(theme.warning).bold(conversation.title ?? "Untitled")} ${chalk.hex(theme.muted)(`· ${conversation.id.slice(0, 12)} · agent mode ──`)}`
-  const desc = ` ${chalk.hex(theme.warning)("┃")} ${chalk.hex(theme.muted)("creates apps by executing commands step-by-step")}`
+  const header = ` ${chalk.hex(theme.amber)("┃")} ${chalk.hex(theme.amber).bold(conversation.title ?? "Untitled")} ${chalk.hex(theme.muted)(`· ${conversation.id.slice(0, 12)} · agent mode ──`)}`
+  const desc = ` ${chalk.hex(theme.amber)("┃")} ${chalk.hex(theme.muted)("creates apps by executing commands step-by-step")}`
 
   console.log()
   console.log(header)
@@ -83,13 +85,13 @@ async function agentLoop(
 
   const agentSystemPrompt = workspaceInfo ? buildSystemPrompt(workspaceInfo, true) : undefined
 
-  console.log(` ${chalk.hex(theme.warning)("◆")} ${chalk.hex(theme.muted)("Describe an application to generate")}`)
+  console.log(` ${chalk.hex(theme.amber)("◆")} ${chalk.hex(theme.muted)("Describe an application to generate")}`)
   console.log(` ${chalk.hex(theme.muted)('•')} Type "exit" to end`)
   console.log()
 
   while (true) {
     const userInput = await text({
-      message: chalk.hex(theme.warning)("what would you like to build?"),
+      message: chalk.hex(theme.amber)("what would you like to build?"),
       placeholder: "Describe your application...",
       validate(value: string | undefined) {
         if (!value || value.trim().length === 0) {
@@ -121,40 +123,68 @@ async function agentLoop(
     try {
       const agent = createAppAgent(model, agentSystemPrompt)
 
-      const thinking = createThinking("generating")
-
-      let lastToolCall = ""
+      // Collapsed-thought pattern (matches chat mode + opencode TUI):
+      // accumulate tool calls + reasoning into a ThoughtChain during
+      // streaming, render the whole chain as a single "▼ Thought" toggle
+      // BEFORE the final markdown output.
+      const thinking = new ThinkingDisplay()
+      thinking.start("thinking")
+      const chain = new ThoughtChain()
+      const seenToolCalls = new Set<string>()
+      let accumulatedText = ""
 
       const result = await agent.generate({
         prompt: userInput,
         onStepFinish: async ({ stepNumber, text, toolCalls, finishReason }) => {
+          // Reasoning text arrived with this step — feed it into the chain.
+          if (text) {
+            chain.begin()
+            chain.append(text)
+            chain.finish()
+            accumulatedText += text
+          }
+          // Track tool calls. The AI SDK sometimes emits the same call
+          // across consecutive steps — dedupe so we don't double-count.
           if (toolCalls?.length) {
             for (const tc of toolCalls) {
               const label = `${tc.toolName}(${JSON.stringify((tc as any).input)})`
-              if (label !== lastToolCall) {
-                lastToolCall = label
-                thinking.setLabel(tc.toolName)
-              }
+              if (seenToolCalls.has(label)) continue
+              seenToolCalls.add(label)
+              chain.begin()
+              chain.addTool(tc.toolName, JSON.stringify((tc as any).input ?? {}))
+              chain.finish()
+              thinking.showToolCall(tc.toolName, (tc as any).input)
             }
           }
         },
       })
 
-      thinking.succeed("done")
+      thinking.stop()
+      const elapsed = Date.now() - startTime
+
+      // Render the collapsed Thought block above the final output.
+      if (chain.thoughts.length > 0) {
+        console.log()
+        chain.printUnified()
+      }
+
       const w = process.stdout.columns ?? 80
       const dim = (s: string) => chalk.hex(theme.greenDim)(s)
       console.log(` ${chalk.hex(theme.green)("┃")} ${chalk.hex(theme.green).bold("Result")} ${dim("─".repeat(Math.max(0, w - 15)))}`)
-      console.log(chalk.white(result.text || "Application created successfully."))
+      // Render the agent's response through the markdown stream so headings,
+      // lists, code fences, and bold get the proper terminal styling.
+      const md = new MarkdownStream()
+      md.push(result.text || accumulatedText || "Application created successfully.")
+      md.end()
       console.log()
 
-      const responseMessage = result.text || "Application created successfully."
+      const responseMessage = result.text || accumulatedText || "Application created successfully."
       await saveMessage(conversation.id, "assistant", responseMessage)
 
-      const elapsed = Date.now() - startTime
       streamFooter(undefined, elapsed)
 
       const continueApp = await confirm({
-        message: chalk.hex(theme.cyan)("Would you like to generate another application?"),
+        message: chalk.hex(theme.green)("Would you like to generate another application?"),
         initialValue: false,
       })
 
@@ -175,7 +205,7 @@ async function agentLoop(
       )
 
       const retry = await confirm({
-        message: chalk.hex(theme.cyan)("Would you like to try again?"),
+        message: chalk.hex(theme.green)("Would you like to try again?"),
         initialValue: true,
       })
 
@@ -198,7 +228,7 @@ export async function startAgentChat(
 ) {
   try {
     const w = process.stdout.columns ?? 80
-    const title = ` ${chalk.hex(theme.warning)("┃")} ${chalk.hex(theme.warning).bold("supercode")} ${chalk.hex(theme.muted)("· agent mode ──")}`
+    const title = ` ${chalk.hex(theme.amber)("┃")} ${chalk.hex(theme.amber).bold("supercode")} ${chalk.hex(theme.muted)("· agent mode ──")}`
     const fillLen = Math.max(0, w - title.length - 1)
     console.log(`\n${title}${chalk.hex(theme.greenDim)("─".repeat(fillLen))}`)
     console.log()

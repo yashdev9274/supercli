@@ -1,10 +1,12 @@
 import { streamText, type ModelMessage, type ToolSet } from "ai"
 import { z } from "zod"
+import { isEmptyToolResult, isDeniedToolResult, summarizeToolResult } from "./tool-result"
 
 export interface ToolExecutorCallbacks {
   onChunk?: (chunk: string) => void
   onToolCall?: (params: { toolName: string; args: Record<string, unknown> }) => void
   onReasoning?: (chunk: string) => void
+  onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void
   signal?: AbortSignal
 }
 
@@ -31,11 +33,16 @@ export async function executeToolLoop(
   callbacks: ToolExecutorCallbacks,
 ): Promise<{ content: string; usage: Promise<any> }> {
   const functions = getFunctions(tools)
-  const maxIterations = 25
+  const maxIterations = 8
   let messages = [...initialMessages]
 
   let accumulatedContent = ""
   let accumulatedUsage: any = {}
+  // Track every tool result so we can detect the "all empty" case and stop
+  // the model from inventing content.
+  const allToolResults: Array<{ toolName: string; result: string }> = []
+  const deniedCounts = new Map<string, number>()
+  let stopForDenialLoop = false
 
   for (let iter = 0; iter < maxIterations; iter++) {
     if (callbacks.signal?.aborted) throw new DOMException("Aborted", "AbortError")
@@ -134,11 +141,51 @@ export async function executeToolLoop(
         resultStr = `Tool "${tc.toolName}" is not available locally`
       }
 
+      allToolResults.push({ toolName: tc.toolName, result: resultStr })
+      if (callbacks.onToolResult) {
+        callbacks.onToolResult({ toolName: tc.toolName, args: tc.args, result: resultStr })
+      }
+      if (isDeniedToolResult(resultStr)) {
+        const prev = deniedCounts.get(tc.toolName) ?? 0
+        deniedCounts.set(tc.toolName, prev + 1)
+        if (prev + 1 >= 2) stopForDenialLoop = true
+      } else {
+        deniedCounts.set(tc.toolName, 0)
+      }
+
       ;(messages as any).push({
         role: "tool",
         content: resultStr,
         tool_call_id: tc.toolCallId,
       })
+    }
+
+    // Permission-denial loop guard
+    if (stopForDenialLoop) {
+      ;(messages as any).push({
+        role: "system",
+        content:
+          "SYSTEM NOTICE: You have called the same permission-protected tool multiple " +
+          "times after the user denied it. Stop calling it. Respond to the user with " +
+          "what you have so far and ask for guidance.",
+      })
+      iter = maxIterations
+    } else if (allToolResults.length > 0 && allToolResults.every((r) => isEmptyToolResult(r.result))) {
+      // All-empty sentinel: push a system message into the next iteration
+      // forcing the model to admit it has no source material.
+      const summary = allToolResults
+        .map((r) => `- ${r.toolName}: ${summarizeToolResult(r.result)}`)
+        .join("\n")
+      ;(messages as any).push({
+        role: "system",
+        content:
+          "SYSTEM NOTICE: All tool calls so far have returned empty or error results. " +
+          "You have NO source material to answer with. Do NOT invent specifications, pricing, " +
+          "dates, leaderboard rankings, or any factual claims. Tell the user which tools failed " +
+          "and what you would need to proceed.\n\nTool outcomes:\n" + summary,
+      })
+      // Break after one sentinel injection — the model should respond next.
+      iter = maxIterations
     }
 
     // Merge usage data from this iteration

@@ -116,6 +116,7 @@ export class ServerProxyService {
     onToolCall?: (call: { toolName: string; args: Record<string, unknown> }) => void,
     signal?: AbortSignal,
     onReasoning?: (chunk: string) => void,
+    onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void,
   ) {
     let currentMessages = [...messages]
     let accumulatedContent = ""
@@ -153,6 +154,10 @@ export class ServerProxyService {
           }
         } else {
           toolResult = JSON.stringify({ error: `Tool "${call.toolName}" is not available locally` })
+        }
+
+        if (onToolResult) {
+          onToolResult({ toolName: call.toolName, args: call.args, result: toolResult })
         }
 
         // Add the assistant's tool call request to the message history

@@ -73,3 +73,7 @@ apps/supercode-cli/plan
 /supercode-test
 
 apps/supercode-cli/server/src/generated
+
+apps/web/app/(pages)/pitch
+apps/web/app/api/pitch
+apps/web/components/pitch

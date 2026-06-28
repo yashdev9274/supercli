@@ -1,18 +1,9 @@
 import { z } from "zod"
 
-export interface ModeSwitchRequest {
-  requested: boolean
-  reason?: string
-}
-
-export let pendingModeSwitch: ModeSwitchRequest = { requested: false }
-
 const switchToAgentSchema = z.object({
   reason: z
     .string()
-    .describe(
-      "Brief explanation of why agent mode is needed for this task",
-    ),
+    .describe("Brief explanation of why agent mode is needed for this task"),
 })
 
 export type SwitchToAgentArgs = z.infer<typeof switchToAgentSchema>
@@ -29,9 +20,10 @@ export const switchToAgentModeTool = {
     "let the agent mode handle it.",
   parameters: switchToAgentSchema,
   execute: async ({ reason }: SwitchToAgentArgs) => {
-    pendingModeSwitch = { requested: true, reason }
     return JSON.stringify({
       success: true,
+      modeSwitchRequested: true,
+      reason,
       message:
         "Mode switch requested. The system will ask the user for approval.",
     })

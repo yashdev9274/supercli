@@ -7,7 +7,7 @@ import { theme, heavyDivider } from "src/cli/utils/tui.ts"
 import type { ModelProvider } from "src/cli/ai/provider.ts"
 
 export interface SlashCommandResult {
-  type: "model_change" | "help" | "unknown" | "exit" | "connect" | "context"
+  type: "model_change" | "help" | "unknown" | "exit" | "connect" | "context" | "compact" | "plan" | "scratch"
   provider?: ModelProvider
   model?: string
   label?: string
@@ -17,6 +17,9 @@ const COMMANDS = [
   { cmd: "/model", desc: "Switch AI provider or model" },
   { cmd: "/connect", desc: "Connect API key for direct access" },
   { cmd: "/context", desc: "Show context window usage and breakdown" },
+  { cmd: "/compact", desc: "Compress conversation history (uses the compaction agent)" },
+  { cmd: "/plan", desc: "Switch to plan mode (read-only)" },
+  { cmd: "/scratch", desc: "List/show/delete subagent artifacts in .super/scratch/" },
   { cmd: "/help", desc: "Show available commands and models" },
   { cmd: "/exit", desc: "End the session" },
 ]
@@ -41,6 +44,19 @@ const handlers: Record<string, (args: string) => Promise<SlashCommandResult>> = 
   context: async () => {
     return { type: "context" }
   },
+  compact: async () => {
+    return { type: "compact" }
+  },
+  plan: async (args: string) => {
+    const { planCommand } = await import("./plan.ts")
+    // Conversation ID is threaded in via handleSlashCommand's outer scope.
+    return planCommand(args, currentConversationId)
+  },
+  scratch: async (args: string) => {
+    const { scratchCommand } = await import("./scratch.ts")
+    await scratchCommand(args)
+    return { type: "scratch" }
+  },
 }
 
 function renderCommandList(): void {
@@ -49,9 +65,17 @@ function renderCommandList(): void {
   process.stdout.write(` ${chalk.hex(theme.amber)("❯")} /\r\n`)
   process.stdout.write(`${divider}\r\n`)
   for (const c of COMMANDS) {
-    process.stdout.write(` ${chalk.hex(theme.cyan)(c.cmd.padEnd(24))}${chalk.hex(theme.muted)(c.desc)}\r\n`)
+    process.stdout.write(` ${chalk.hex(theme.green)(c.cmd.padEnd(24))}${chalk.hex(theme.muted)(c.desc)}\r\n`)
   }
   process.stdout.write(`${divider}\r\n`)
+}
+
+// Outer-scope variable so /plan subcommands can access the current conversation.
+// Set by handleSlashCommand before dispatching.
+let currentConversationId = ""
+
+export function setCurrentConversationId(id: string) {
+  currentConversationId = id
 }
 
 export async function handleSlashCommand(input: string): Promise<SlashCommandResult | null> {
