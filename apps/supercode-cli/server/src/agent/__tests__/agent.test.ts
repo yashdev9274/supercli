@@ -24,12 +24,12 @@ describe("AgentService", () => {
     expect(agents.length).toBe(7)
   })
 
-  test("plan agent denies write_file", () => {
+  test("plan agent denies everything by default (catch-all)", () => {
     const agent = service.get("plan")
-    const writeRule = agent!.info.permission.find(
-      (r) => r.permission === "write_file",
+    const catchAll = agent!.info.permission.find(
+      (r) => r.permission === "*" && r.pattern === "*",
     )
-    expect(writeRule?.action).toBe("deny")
+    expect(catchAll?.action).toBe("deny")
   })
 
   test("build agent allows all tools", () => {

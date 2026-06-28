@@ -12,8 +12,12 @@ import {
 } from "src/lib/api-client.ts"
 import type { ModelMessage } from "ai"
 import { createProvider, type ModelProvider, type AIProvider } from "src/cli/ai/provider.ts"
-import { permissionManager } from "src/tools/permission-manager.ts"
-import { pendingModeSwitch } from "src/tools/definitions/switch-to-agent-mode.ts"
+import {
+  permissionManager,
+  setCurrentAgent,
+  type PermissionPromptReply,
+} from "src/tools/permission-manager.ts"
+import { agentService, loadPrompt } from "src/agent/index.ts"
 export type { ModelProvider } from "src/cli/ai/provider.ts"
 import {
   theme,
@@ -37,6 +41,7 @@ import type { WorkspaceInfo } from "src/cli/workspace/scanner.ts"
 import { buildSystemPrompt } from "src/cli/workspace/context.ts"
 import { tools } from "src/tools/registry.ts"
 import { setDelegateRuntime } from "src/tools/definitions/delegate.ts"
+import { CitationTracker } from "src/lib/citation-tracker.ts"
 import { renderWorkspaceBanner } from "src/cli/workspace/format.ts"
 import { handleSlashCommand, isSlashCommand } from "src/cli/commands/slashCommands/index.ts"
 import { renderContextBreakdown } from "src/cli/commands/slashCommands/context-window.ts"
@@ -99,12 +104,38 @@ async function streamAIResponse(
 
   if (workspaceInfo) {
     process.env.SUPERCODE_WORKSPACE_ROOT = workspaceInfo.workspaceRoot
-    const hasTools = mode === "agent" || mode === "chat"
-    const systemPrompt = buildSystemPrompt(workspaceInfo, hasTools)
-    let promptContent = systemPrompt
+    const hasTools = mode === "agent" || mode === "chat" || mode === "plan"
+    const basePrompt = buildSystemPrompt(workspaceInfo, hasTools)
+
+    // Resolve the agent that matches the current mode (Phase 2):
+    // - "agent"  → build agent
+    // - "plan"   → plan agent
+    // - "chat"   → no agent prompt (chat has its own tail note)
+    const agentForMode =
+      mode === "agent"
+        ? agentService.get("build")
+        : mode === "plan"
+          ? agentService.get("plan")
+          : undefined
+
+    let agentPrompt: string | undefined
+    if (agentForMode?.info.prompt) {
+      agentPrompt = await loadPrompt(agentForMode.info.prompt)
+    }
+
+    let promptContent = basePrompt
+    if (agentPrompt) {
+      promptContent += `\n\n## ${agentForMode!.info.name} agent\n\n${agentPrompt}\n`
+    }
+
     if (mode === "chat") {
       promptContent += `\n\n## Chat Mode Note\n\nYou are in chat mode. You have access to\ntools, but shell commands, file writes, and code execution require per-call\npermission prompts. If the user's task genuinely needs multiple such operations\nwithout interruptions, you may call the \`switch_to_agent_mode\` tool to request\nswitching to agent mode where all tools are auto-allowed. Call it ONCE with\na clear reason — the system will ask for user approval. Do NOT attempt\nrun_command/write_file/code_exec in the same response where you call\nswitch_to_agent_mode.`
     }
+
+    if (mode === "plan") {
+      promptContent += `\n\n## Plan Mode Note\n\nYou are in plan mode. You MUST NOT write files, run commands, or execute code. Produce a structured plan and stop. The user will review with /plan execute.`
+    }
+
     aiMessages = [
       { role: "system", content: promptContent },
       ...aiMessages,
@@ -125,6 +156,10 @@ async function streamAIResponse(
   // (the hallucination precursor) and to render empty tool calls in red.
   const turnTracker = new TurnTracker()
 
+  // Phase 7: citation tracker — records every URL/file/search the model
+  // uses so we can flag uncited factual claims in the response.
+  const citationTracker = new CitationTracker()
+
   // Incremental markdown renderer. Buffers chunks and emits styled
   // terminal output (headings bold, lists bulleted, etc.) via marked-terminal.
   const md = new MarkdownStream()
@@ -140,6 +175,8 @@ async function streamAIResponse(
   }
 
   let toolsToUse: Record<string, unknown> | undefined
+  let modeSwitchRequest: { requested: boolean; reason?: string } = { requested: false }
+
   if (workspaceInfo) {
     toolsToUse = { ...tools }
     // Wire the subagent runtime so the `delegate` tool can spawn focused subtasks.
@@ -161,7 +198,7 @@ async function streamAIResponse(
     })
   }
 
-  pendingModeSwitch.requested = false
+  pendingModeSwitch: { requested: false }
 
   function emitHeader() {
     if (hasOutputHeader) return
@@ -207,6 +244,27 @@ async function streamAIResponse(
       ({ toolName, args, result }) => {
         // Capture tool result for the post-turn warning + tracker.
         const entry = turnTracker.recordCall(toolName, args, result)
+
+        // Phase 7: record the source as a citation if it's a research tool.
+        citationTracker.recordFromToolCall(toolName, args)
+
+        // Detect a mode-switch request (Phase 2: clean function-call return
+        // instead of the old `pendingModeSwitch` module global). The tool
+        // returns `{ modeSwitchRequested: true, reason }` as a JSON string.
+        if (toolName === "switch_to_agent_mode") {
+          try {
+            const parsed =
+              typeof result === "string" ? JSON.parse(result) : (result as any)
+            if (parsed?.modeSwitchRequested) {
+              modeSwitchRequest = {
+                requested: true,
+                reason: typeof parsed.reason === "string" ? parsed.reason : undefined,
+              }
+            }
+          } catch {
+            // non-JSON result; ignore
+          }
+        }
         if (entry.empty) {
           // Re-render the tool call line in red to flag empty/error results
           // the moment they happen, not just at turn end.
@@ -221,6 +279,17 @@ async function streamAIResponse(
     const usage = await result.usage
     thinking.stop()
     cleanupStreamingTicker()
+
+    // Render the ThoughtChain (reasoning + tool calls) as a SINGLE COLLAPSIBLE
+    // "▼ Thought" block BEFORE flushing the final output. Mirrors the
+    // opencode TUI style: the user sees the model's final answer first,
+    // with reasoning + tool calls tucked under one collapsible toggle.
+    const chain = thinking.getChain()
+    if (chain.thoughts.length > 0) {
+      console.log()
+      chain.printUnified()
+    }
+
     // Flush any trailing markdown — finalizes the open block.
     md.end()
 
@@ -231,47 +300,81 @@ async function streamAIResponse(
       statusBar.update({ isStreaming: false, elapsed: 0 })
     }
 
-    // Print the completed ThoughtChain as a compact summary
-    const chain = thinking.getChain()
-    if (chain.thoughts.length > 0) {
-      chain.collapseAll()
-      const last = chain.thoughts[chain.thoughts.length - 1]
-      if (last) last.collapsed = false
-      chain.printAll({ collapseAfter: 5 })
-    }
-
     // End-of-turn warning: if every tool result was empty/error, surface that
     // loudly so the user knows the answer may be unreliable. Catches the case
     // where the model invented an answer despite the sentinel injection.
+    //
+    // Two distinct cases worth surfacing differently:
+    //   (a) "all denied" — user said no to every tool. This is a normal
+    //       interaction, NOT a hallucination. Show as amber info, not red.
+    //   (b) "all empty"  — at least one tool succeeded but returned empty
+    //       content, OR a tool returned success:false without being denied.
+    //       This is the hallucination precursor. Show as red.
     if (turnTracker.allResultsEmpty() && turnTracker.hasAnyToolCalls()) {
+      const calls = turnTracker.allCalls()
+      const allDenied = calls.every((c) => c.permissionDenied)
       const empty = turnTracker.emptyCount()
       const total = turnTracker.totalCount()
-      const summary = turnTracker.allCalls()
+      const summary = calls
         .map((c) => {
           const reason = c.error ?? "empty result"
           return `${c.name}: ${reason}`
         })
         .join(" · ")
+
+      console.log()
+      if (allDenied) {
+        console.log(
+          ` ${chalk.hex(theme.amber)("⚠")}  ${chalk.hex(theme.amber).bold(`${total}/${total} tool call${total === 1 ? "" : "s"} denied by user`)} ${chalk.hex(theme.muted)(`— ${summary}`)}`,
+        )
+        console.log(
+          `   ${chalk.hex(theme.muted)("The model's answer reflects your denials, not a failed retrieval. Approve or retry.")}`,
+        )
+      } else {
+        console.log(
+          ` ${chalk.hex(theme.red)("⚠")}  ${chalk.hex(theme.red).bold(`${empty}/${total} tool calls returned no content`)} ${chalk.hex(theme.redMute)(`— ${summary}`)}`,
+        )
+        console.log(
+          `   ${chalk.hex(theme.amber)("If the answer above cites facts, they were not retrieved from any tool. Treat with skepticism.")}`,
+        )
+      }
+    }
+
+    // Phase 7: citation-check warning — flag uncited URLs/file paths in
+    // the response so the user can investigate.
+    const suspects = citationTracker.suspectClaims(fullResponse)
+    if (suspects.length > 0) {
       console.log()
       console.log(
-        ` ${chalk.hex(theme.red)("⚠")}  ${chalk.hex(theme.red).bold(`${empty}/${total} tool calls returned no content`)} ${chalk.hex(theme.redMute)(`— ${summary}`)}`,
+        ` ${chalk.hex(theme.amber)("⚠")}  ${chalk.hex(theme.amber).bold(`${suspects.length} uncited claim${suspects.length === 1 ? "" : "s"}`)}`,
       )
-      console.log(
-        `   ${chalk.hex(theme.amber)("If the answer above cites facts, they were not retrieved from any tool. Treat with skepticism.")}`,
-      )
+      for (const s of suspects.slice(0, 5)) {
+        console.log(
+          `   ${chalk.hex(theme.amber)("·")} ${chalk.hex(theme.muted)(s)}`,
+        )
+      }
+      if (suspects.length > 5) {
+        console.log(
+          `   ${chalk.hex(theme.muted)(`…and ${suspects.length - 5} more`)}`,
+        )
+      }
     }
 
     return {
       content: fullResponse,
       elapsed,
       usage,
-      modeSwitchRequested: pendingModeSwitch.requested,
-      modeSwitchReason: pendingModeSwitch.reason,
+      modeSwitchRequested: modeSwitchRequest.requested,
+      modeSwitchReason: modeSwitchRequest.reason,
     }
   } catch (error: any) {
     cleanupStreamingTicker()
     if (error?.name === "AbortError" || abortController.signal.aborted) {
       thinking.stop()
+      const abortChain = thinking.getChain()
+      if (abortChain.thoughts.length > 0) {
+        abortChain.printUnified()
+      }
       md.end()
       if (statusBar) statusBar.update({ isStreaming: false, elapsed: 0 })
       console.log()
@@ -306,14 +409,40 @@ interface Conversation {
   updatedAt: Date
 }
 
-const modes = ["chat", "agent"]
+const modes = ["chat", "plan", "agent"]
 const modeColors: Record<string, string> = {
   chat: theme.green,
+  plan: theme.greenDim,
   agent: theme.amber,
 }
 const modeDisplay: Record<string, string> = {
   chat: "chat",
+  plan: "plan",
   agent: "agent",
+}
+
+/**
+ * Map a chat-loop mode to its agent name (or undefined for chat).
+ * Drives `setCurrentAgent` so the permission manager scopes its
+ * ruleset correctly when the chat loop is the top-level caller.
+ */
+function agentForMode(mode: string): string | undefined {
+  if (mode === "agent") return "build"
+  if (mode === "plan") return "plan"
+  return undefined
+}
+
+/**
+ * Apply both pieces of permission state for a given mode:
+ *   - sessionLevel: "allow" for agent mode, null otherwise
+ *   - currentAgent: "build" for agent mode, "plan" for plan mode,
+ *     undefined for chat mode (so DEFAULT rules apply)
+ *
+ * Call this whenever the mode changes (Tab, /plan, /plan execute, etc.).
+ */
+function applyModePermissions(mode: string): void {
+  permissionManager.setSessionLevel(mode === "agent" ? "allow" : null)
+  setCurrentAgent(agentForMode(mode))
 }
 
 // Persistent stdin state
@@ -324,6 +453,22 @@ let stdinMode = "chat"
 let stdinResolve: ((value: { input: string; mode: string }) => void) | null = null
 let stdinPromptLen = 0
 let stdinPrevWrapLines = 1
+
+//
+// Active permission prompt state. When `permissionPromptActive` is non-null,
+// the keypress handler is hijacked: every y/a/n/Escape routes into the
+// permission reply instead of the chat-input line. This is how the chat
+// loop and the permission manager cooperate on a single raw-mode stdin.
+//
+type PermissionPromptSession = {
+  isDangerous: boolean
+  onReply: (reply: PermissionPromptReply) => void
+  /** Snapshot of the previous input state so we can restore on cancel. */
+  savedInput: string
+  savedCursor: number
+}
+
+let permissionPromptActive: PermissionPromptSession | null = null
 let activeFooter: PersistentStatusBar | null = null
 
 const SLASH_COMMANDS = [
@@ -418,6 +563,26 @@ function stdinKeypress(_str: string, key: any) {
     return
   }
 
+  // ─── Permission-prompt hijack ────────────────────────────────────────────
+  //
+  // While a permission prompt is active, the keypress handler is owned by
+  // the permission manager — NOT by the chat input line. We consume the
+  // key, route y/a/n/Escape into the prompt reply, and *return early*
+  // before any of the chat-input logic below can run. This is what fixes
+  // the bug where the default readline-based prompt raced with this
+  // handler and the user's keystrokes were silently dropped.
+  //
+  if (permissionPromptActive) {
+    const session = permissionPromptActive
+    const reply = keyToPermissionReply(key, session.isDangerous)
+    if (reply) {
+      permissionPromptActive = null
+      clearPermissionPromptLine()
+      session.onReply(reply)
+    }
+    return
+  }
+
   // No input handler active
   if (!stdinResolve) return
 
@@ -425,11 +590,7 @@ function stdinKeypress(_str: string, key: any) {
   if (key.name === "tab") {
     const idx = modes.indexOf(stdinMode)
     stdinMode = modes[(idx + 1) % modes.length]!
-    if (stdinMode === "agent") {
-      permissionManager.setSessionLevel("allow")
-    } else {
-      permissionManager.setSessionLevel(null)
-    }
+    applyModePermissions(stdinMode)
     if (activeFooter) activeFooter.setMode(stdinMode)
     renderInput()
     return
@@ -638,13 +799,155 @@ function setupStdin() {
   ensureStdinHandler()
 }
 
+// ─── Permission prompt: chat-loop-native driver ────────────────────────────
+//
+// `setPermissionPrompt` is called once on chat startup. It registers a
+// prompt function on the global `permissionManager` that:
+//   1. Renders the same boxen UI the old default did (so the look is
+//      unchanged).
+//   2. Stores an active-prompt session in `permissionPromptActive`,
+//      which `stdinKeypress` checks at the top of every keystroke.
+//   3. Resolves when the user types y/a/n (or Escape for cancel).
+//
+// Crucially, this runs WITHOUT spawning a new `readline.createInterface`.
+// It reuses the same raw-mode stdin that the chat input loop already
+// drives, so there are no competing listeners.
+
+function setPermissionPrompt(): void {
+  permissionManager.setPromptFunction(async (req) => {
+    return new Promise<PermissionPromptReply>((resolve) => {
+      renderPermissionPrompt(req)
+      permissionPromptActive = {
+        isDangerous: req.isDangerous,
+        savedInput: stdinInput,
+        savedCursor: stdinCursor,
+        onReply: (reply) => {
+          // Restore the chat input line that was on screen behind the
+          // prompt. Re-render it from scratch so the cursor lands correctly.
+          stdinInput = permissionPromptActive?.savedInput ?? stdinInput
+          stdinCursor = permissionPromptActive?.savedCursor ?? stdinCursor
+          try {
+            renderInput()
+          } catch {
+            // Terminal may be in a transient bad state — keep going.
+          }
+          resolve(reply)
+        },
+      }
+      // Cursor down past the rendered prompt so the next re-render of the
+      // input line lands cleanly.
+      readline.moveCursor(process.stdout, 0, 6)
+    })
+  })
+}
+
+/**
+ * Render the permission box for an incoming request. Pure side-effect:
+ * writes the boxen frame + the answer hint to stdout.
+ */
+function renderPermissionPrompt(req: {
+  toolName: string
+  resource: string
+  args: Record<string, unknown>
+  isDangerous: boolean
+}): void {
+  // Make sure the chat input line is redrawn above the prompt so it
+  // doesn't visually vanish when we write the box below it.
+  try {
+    renderInput()
+  } catch {
+    // ignore — terminal may not be in a clean state
+  }
+  // Push below the chat input line.
+  process.stdout.write("\r\n")
+
+  const borderColor = req.isDangerous ? theme.red : theme.amber
+  const header = req.isDangerous ? " DANGEROUS OPERATION " : " Permission Request "
+
+  let content = ""
+  if (req.toolName === "write_file") {
+    content = `Supercode wants to write:\n  ${chalk.cyan(req.resource)}`
+    if (req.args.description) {
+      content += `\n  ${chalk.dim(String(req.args.description))}`
+    }
+  } else if (req.toolName === "run_command") {
+    content = `Run:\n  $ ${chalk.cyan(req.resource)}`
+    if (req.args.description) {
+      content += `\n  ${chalk.dim(String(req.args.description))}`
+    }
+  } else if (req.toolName === "code_exec") {
+    const preview =
+      req.resource.length > 80 ? req.resource.slice(0, 77) + "..." : req.resource
+    content = `Execute code:\n  ${chalk.cyan(preview)}`
+  }
+
+  if (req.isDangerous) {
+    content += `\n\n${chalk.red("This operation is potentially destructive.")}`
+  }
+
+  // boxen is a CommonJS default import — grab it from the same module path
+  // used by permission-manager.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const boxen = require("boxen").default ?? require("boxen")
+  const box = boxen(content, {
+    title: header,
+    borderColor,
+    padding: 1,
+    margin: 1,
+  })
+  process.stdout.write(box + "\n")
+
+  const hint = req.isDangerous
+    ? chalk.hex(theme.amber)("Allow? (y/N) ")
+    : chalk.hex(theme.green)("[y] once  [a] always for session  [n] deny  ")
+
+  process.stdout.write(hint)
+}
+
+/**
+ * Erase the prompt lines we just wrote so the chat input re-renders
+ * cleanly on top of them.
+ */
+function clearPermissionPromptLine(): void {
+  // The box + hint occupies roughly 8 lines (boxen 1px border + padding
+  // + content). Move cursor up past them and clear.
+  for (let i = 0; i < 9; i++) {
+    readline.moveCursor(process.stdout, 0, -1)
+    readline.cursorTo(process.stdout, 0)
+    readline.clearLine(process.stdout, 0)
+  }
+  // Repaint the chat input line at the new cursor position.
+  try {
+    renderInput()
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Translate a raw keypress into a permission reply, or undefined to
+ * ignore (so the user can still hit modifier-only keys etc. without
+ * accidentally denying).
+ */
+function keyToPermissionReply(
+  key: any,
+  isDangerous: boolean,
+): PermissionPromptReply | undefined {
+  // y or enter → once
+  if (key.name === "y" || key.name === "Y") return "once"
+  if (key.name === "return" || key.name === "enter") return "once"
+  // a → always (only when safe — dangerous commands can't be made "always")
+  if (!isDangerous && (key.name === "a" || key.name === "A")) return "always"
+  // n, Escape, Ctrl-C → reject
+  if (key.name === "n" || key.name === "N") return "reject"
+  if (key.name === "escape") return "reject"
+  if (key.ctrl && key.name === "c") return "reject"
+  return undefined
+}
+
 async function chatInput(currentMode: string): Promise<{ input: string; mode: string }> {
   stdinMode = modes.includes(currentMode) ? currentMode : "chat"
-  if (stdinMode === "agent") {
-    permissionManager.setSessionLevel("allow")
-  } else {
-    permissionManager.setSessionLevel(null)
-  }
+  applyModePermissions(stdinMode)
   stdinInput = ""
   stdinCursor = 0
   stdinPrevWrapLines = 1
@@ -683,6 +986,13 @@ export async function chatLoop(
   process.on("exit", exitHandler)
 
   setupStdin()
+
+  // Register a chat-loop-native permission prompt that uses the existing
+  // keypress handler. Without this, the default readline-based prompt in
+  // permission-manager.ts races with the chat loop's stdin keypress
+  // listener (both fight for stdin in raw mode and the readline question
+  // never receives a complete line). See setPermissionPrompt below.
+  setPermissionPrompt()
 
   if (workspaceInfo?.workspaceRoot) {
     process.env.SUPERCODE_WORKSPACE_ROOT = workspaceInfo.workspaceRoot
@@ -795,6 +1105,68 @@ export async function chatLoop(
             mode: conversation.mode,
           })
           process.stdout.write(`\r\n`)
+        } else if (result?.type === "compact") {
+          const { compactCommand } = await import("src/cli/commands/slashCommands/compact.ts")
+          await compactCommand({
+            provider,
+            conversationId: conversation.id,
+            getMessages: async (id) => {
+              const msgs = await getMessages(id)
+              return msgs.map((m: any) => ({
+                role: typeof m.role === "string" ? m.role : "user",
+                content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
+              }))
+            },
+            saveSummary: async (id, summary) => {
+              // Phase 4: replace the older half of the conversation with a
+              // single summary message. Full implementation will rewrite the
+              // message table; for now we annotate the first user message
+              // with a marker that the next /context will show.
+              await addMessage(id, "system", `[compaction] ${summary}`)
+            },
+          })
+          process.stdout.write(`\r\n`)
+        } else if (result?.type === "plan") {
+          // The plan handler distinguishes "switch into plan mode" (label
+          // undefined) from "/plan execute" (label: "execute").
+          if (result.label === "execute") {
+            const { readScratch, latestScratch } = await import(
+              "src/lib/scratch.ts"
+            )
+            const plan = await latestScratch("plan-")
+            if (!plan) {
+              process.stdout.write(
+                `\r\n ${chalk.hex(theme.red)("◆")} ${chalk.hex(theme.red)("no plan found. run /plan first.")}\r\n\n`,
+              )
+            } else {
+              const body = await readScratch(plan.name)
+              if (body) {
+                // Switch to agent mode for the execution and inject the plan
+                // as the next user message.
+                conversation.mode = "agent"
+                await updateConversationMode(conversation.id, "agent")
+                footer.setMode("agent")
+                applyModePermissions("agent")
+                process.stdout.write(
+                  `\r\n ${chalk.hex(theme.green)("◆")} ${chalk.hex(theme.amber)(`executing plan: ${plan.name}`)}\r\n\n`,
+                )
+                userMessage(`Execute this plan:\n\n${body}`)
+                await addMessage(conversation.id, "user", `Execute this plan:\n\n${body}`)
+                messageCount++
+                continue // skip the normal user-prompt path
+              }
+            }
+          } else {
+            // Plain /plan — switch mode for the next turn.
+            conversation.mode = "plan"
+            await updateConversationMode(conversation.id, "plan")
+            footer.setMode("plan")
+            process.stdout.write(
+              `\r\n ${chalk.hex(theme.amber)("◆")} plan mode — read-only. next response will be a plan.\r\n\n`,
+            )
+          }
+        } else if (result?.type === "scratch") {
+          process.stdout.write(`\r\n`)
         } else if (result?.type === "unknown") {
           process.stdout.write(`\r\n ${chalk.hex(theme.red)("◆")} unknown slash command: ${trimmed.split(" ")[0]}\r\n\n`)
         } else {
@@ -860,6 +1232,23 @@ export async function chatLoop(
         }
 
         await addMessage(conversation.id, "assistant", result.content)
+
+        // Phase 8: in plan mode, persist the assistant's response to scratch
+        // so /plan execute can pick it up.
+        if (conversation.mode === "plan") {
+          try {
+            const { writeScratchMarkdown } = await import("src/lib/scratch.ts")
+            const planPath = await writeScratchMarkdown("plan", result.content)
+            process.stdout.write(
+              `\r\n ${chalk.hex(theme.green)("◆")} ${chalk.hex(theme.muted)(`plan saved: ${planPath}`)} ${chalk.hex(theme.amber)("— /plan execute to run")}\r\n`,
+            )
+          } catch (err: any) {
+            // Non-fatal — the plan is still in conversation history
+            process.stdout.write(
+              `\r\n ${chalk.hex(theme.muted)("◆")} ${chalk.hex(theme.muted)(`could not save plan: ${err?.message ?? "unknown"}`)}\r\n`,
+            )
+          }
+        }
 
         lastUsage = result.usage
         lastElapsed = result.elapsed

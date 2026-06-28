@@ -9,7 +9,7 @@ import { renderWorkspaceBanner } from "src/cli/workspace/format.ts"
 import { getCliConfig, saveCliConfig, applyStoredApiKeys } from "src/lib/cli-config"
 import { checkForUpdate } from "src/cli/utils/auto-update"
 
-export const wakeUpAction = async () => {
+export const wakeUpAction = async (resumeId: string | null = null) => {
   const token = await getStoredToken()
 
   if (!token?.access_token) {
@@ -52,10 +52,10 @@ export const wakeUpAction = async () => {
   if (stored) {
     switch (stored.mode) {
       case "agent":
-        await startAgentChat(stored.provider, stored.model, null, workspaceInfo ?? undefined)
+        await startAgentChat(stored.provider, stored.model, resumeId, workspaceInfo ?? undefined)
         break
       default:
-        await startChat(stored.provider, stored.model, null, workspaceInfo ?? undefined, stored.mode)
+        await startChat(stored.provider, stored.model, resumeId, workspaceInfo ?? undefined, stored.mode)
         break
     }
     return
@@ -64,14 +64,20 @@ export const wakeUpAction = async () => {
   const defaults = await saveCliConfig({})
   switch (defaults.mode) {
     case "agent":
-      await startAgentChat(defaults.provider, defaults.model, null, workspaceInfo ?? undefined)
+      await startAgentChat(defaults.provider, defaults.model, resumeId, workspaceInfo ?? undefined)
       break
     default:
-      await startChat(defaults.provider, defaults.model, null, workspaceInfo ?? undefined, defaults.mode)
+      await startChat(defaults.provider, defaults.model, resumeId, workspaceInfo ?? undefined, defaults.mode)
       break
   }
 }
 
 export const supercodeInit = new Command("init")
   .description("Start supercode interactive session")
-  .action(wakeUpAction)
+  .option(
+    "--resume <conversationId>",
+    "Resume a previous conversation by ID",
+  )
+  .action(async (opts: { resume?: string }) => {
+    await wakeUpAction(opts.resume ?? null)
+  })

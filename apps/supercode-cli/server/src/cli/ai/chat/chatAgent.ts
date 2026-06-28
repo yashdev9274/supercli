@@ -10,6 +10,7 @@ import { createAppAgent } from "src/config/agent-config"
 import { type WorkspaceInfo } from "src/cli/workspace/scanner"
 import { agentService } from "src/agent"
 import { buildSystemPrompt } from "src/cli/workspace/context"
+import { ThinkingDisplay, ThoughtChain } from "src/cli/ai/chat/thinking"
 
 let _chatService: ChatService
 
@@ -122,40 +123,64 @@ async function agentLoop(
     try {
       const agent = createAppAgent(model, agentSystemPrompt)
 
-      const thinking = createThinking("generating")
-
-      let lastToolCall = ""
+      // Collapsed-thought pattern (matches chat mode + opencode TUI):
+      // accumulate tool calls + reasoning into a ThoughtChain during
+      // streaming, render the whole chain as a single "▼ Thought" toggle
+      // BEFORE the final markdown output.
+      const thinking = new ThinkingDisplay()
+      thinking.start("thinking")
+      const chain = new ThoughtChain()
+      const seenToolCalls = new Set<string>()
+      let accumulatedText = ""
 
       const result = await agent.generate({
         prompt: userInput,
         onStepFinish: async ({ stepNumber, text, toolCalls, finishReason }) => {
+          // Reasoning text arrived with this step — feed it into the chain.
+          if (text) {
+            chain.begin()
+            chain.append(text)
+            chain.finish()
+            accumulatedText += text
+          }
+          // Track tool calls. The AI SDK sometimes emits the same call
+          // across consecutive steps — dedupe so we don't double-count.
           if (toolCalls?.length) {
             for (const tc of toolCalls) {
               const label = `${tc.toolName}(${JSON.stringify((tc as any).input)})`
-              if (label !== lastToolCall) {
-                lastToolCall = label
-                thinking.setLabel(tc.toolName)
-              }
+              if (seenToolCalls.has(label)) continue
+              seenToolCalls.add(label)
+              chain.begin()
+              chain.addTool(tc.toolName, JSON.stringify((tc as any).input ?? {}))
+              chain.finish()
+              thinking.showToolCall(tc.toolName, (tc as any).input)
             }
           }
         },
       })
 
-      thinking.succeed("done")
+      thinking.stop()
+      const elapsed = Date.now() - startTime
+
+      // Render the collapsed Thought block above the final output.
+      if (chain.thoughts.length > 0) {
+        console.log()
+        chain.printUnified()
+      }
+
       const w = process.stdout.columns ?? 80
       const dim = (s: string) => chalk.hex(theme.greenDim)(s)
       console.log(` ${chalk.hex(theme.green)("┃")} ${chalk.hex(theme.green).bold("Result")} ${dim("─".repeat(Math.max(0, w - 15)))}`)
       // Render the agent's response through the markdown stream so headings,
       // lists, code fences, and bold get the proper terminal styling.
       const md = new MarkdownStream()
-      md.push(result.text || "Application created successfully.")
+      md.push(result.text || accumulatedText || "Application created successfully.")
       md.end()
       console.log()
 
-      const responseMessage = result.text || "Application created successfully."
+      const responseMessage = result.text || accumulatedText || "Application created successfully."
       await saveMessage(conversation.id, "assistant", responseMessage)
 
-      const elapsed = Date.now() - startTime
       streamFooter(undefined, elapsed)
 
       const continueApp = await confirm({

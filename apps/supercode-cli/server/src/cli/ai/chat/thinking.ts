@@ -218,20 +218,21 @@ export class ThinkingDisplay {
   }
 
   showToolCall(toolName: string, args?: unknown) {
-    if (this.running) {
-      this.running = false
-      if (this.intervalId) { clearInterval(this.intervalId); this.intervalId = null }
-      if (this.elapsedTimer) { clearInterval(this.elapsedTimer); this.elapsedTimer = null }
-      if (this.speedTimer) { clearTimeout(this.speedTimer); this.speedTimer = null }
-      if (process.stdout.isTTY) {
-        process.stdout.write("\x1b7")
-        process.stdout.write("\r\x1b[2K")
-        process.stdout.write("\x1b8")
-      }
-    }
+    // Track the tool call in the chain so it can be rendered in the post-turn
+    // collapsible "▼ Thought" block. We do NOT print it live — only the
+    // spinner shows on the input row during streaming. The full chain
+    // (tool name + args + reasoning) renders together once streaming ends.
     this.chain.addTool(toolName, args ? JSON.stringify(args) : undefined)
     this.toolCount++
-    console.log(toolLabel(toolName, args))
+
+    // Update the spinner label so the user sees which tool is running,
+    // without leaking the full tool-call line into the output scroll.
+    this.currentToolName = toolName
+    this.currentToolArgs = args
+    this.currentPhase = "tool"
+    if (!this.headerEmitted) {
+      this.setLabel(`${toolName}`)
+    }
   }
 
   showReasoning(content: string) {
@@ -593,6 +594,78 @@ export class ThoughtChain {
 
   printAll(opts?: { collapseAfter?: number }) {
     const out = this.renderAll(opts)
+    if (out) console.log(out)
+  }
+
+  //
+  // Render all thoughts as a SINGLE collapsible "▼ Thought: ..." block.
+  // This is the opencode TUI style: one toggle containing the full chain,
+  // collapsed by default. Reasoning + tool calls are listed inside; if the
+  // chain is empty, returns "" so the caller can skip the print.
+  //
+  renderUnified(): string {
+    if (this.thoughts.length === 0) return ""
+
+    // Merge every thought's body + tools into one block. Total elapsed is
+    // from first thought start to last thought end.
+    const first = this.thoughts[0]!
+    const last = this.thoughts[this.thoughts.length - 1]!
+    const elapsedMs = (last.endTime ?? Date.now()) - first.startTime
+    const elapsed =
+      elapsedMs < 1000 ? `${elapsedMs}ms` : `${(elapsedMs / 1000).toFixed(1)}s`
+
+    const indent = chalk.hex(theme.greenDim)("┃")
+    const toggle = chalk.hex(theme.greenGlow)("▼")
+    const label = chalk.hex(theme.greenMute)("Thought")
+    const time = chalk.hex(theme.greenDim)(elapsed)
+
+    const lines: string[] = []
+    lines.push(`${indent} ${toggle} ${label} ${chalk.hex(theme.greenDim)("·")} ${time}`)
+
+    // Tool count summary line — keeps the collapsed block informative.
+    const toolCount = this.thoughts.reduce((n, t) => n + t.tools.length, 0)
+    if (toolCount > 0) {
+      lines.push(
+        `${indent}   ${chalk.hex(theme.greenDim)("↳")} ${chalk.hex(theme.greenMute)(`${toolCount} tool call${toolCount === 1 ? "" : "s"}`)}`,
+      )
+    }
+
+    // Expand the block: list each thought's reasoning + tool calls. Group
+    // consecutive identical tool calls so a tight loop doesn't spam the view.
+    for (const thought of this.thoughts) {
+      const body = thought.body.trim()
+      if (body) {
+        for (const bl of body.split("\n")) {
+          const trimmed = bl.trim()
+          if (trimmed) {
+            lines.push(
+              `${indent}   ${chalk.hex(theme.greenMute)(trimmed)}`,
+            )
+          }
+        }
+      }
+      if (thought.tools.length > 0) {
+        const grouped = this.groupTools(thought.tools)
+        for (const [toolName, argsList] of grouped) {
+          const lastArg = argsList[argsList.length - 1]
+          if (argsList.length <= 1) {
+            lines.push(
+              `${indent}   ${toolLabel(toolName, lastArg ? JSON.parse(lastArg) : undefined)}`,
+            )
+          } else {
+            lines.push(
+              `${indent}   ${formatToolGroup(toolName, argsList.length, lastArg)}`,
+            )
+          }
+        }
+      }
+    }
+
+    return lines.join("\n")
+  }
+
+  printUnified() {
+    const out = this.renderUnified()
     if (out) console.log(out)
   }
 

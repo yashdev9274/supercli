@@ -9,7 +9,7 @@ import { webSearchTool } from "./definitions/web-search.ts"
 import { codeExecTool } from "./definitions/code-exec.ts"
 import { readInstructionsTool } from "./definitions/read-instructions.ts"
 import { switchToAgentModeTool } from "./definitions/switch-to-agent-mode.ts"
-import { delegateTool } from "./definitions/delegate.ts"
+import { delegateTool, taskTool } from "./definitions/delegate.ts"
 import { permissionManager } from "./permission-manager.ts"
 
 //
@@ -63,4 +63,5 @@ export const tools = {
   read_instructions: defineTool(readInstructionsTool),
   switch_to_agent_mode: defineTool(switchToAgentModeTool),
   delegate: defineTool(delegateTool),
+  task: defineTool(taskTool),
 }

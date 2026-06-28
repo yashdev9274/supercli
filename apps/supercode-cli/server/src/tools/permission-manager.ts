@@ -2,33 +2,54 @@ import chalk from "chalk"
 import * as readline from "readline"
 import boxen from "boxen"
 import { theme } from "src/cli/utils/tui.ts"
+import type { RulesetArray } from "src/permission"
+import { agentService } from "src/agent"
 
-// ---- Types (aligned with opencode) ----
+// ---- Types ----
+//
+// We use the unified `RulesetArray` shape from src/permission/index.ts
+// ({ permission, pattern, action, reason? }) — same shape as the
+// AgentInfo.permission rulesets, so agent rules can be merged directly.
 
 export type Effect = "allow" | "deny" | "ask"
 
-export interface Rule {
-  action: string
-  resource: string
-  effect: Effect
-}
-
-export type Ruleset = Rule[]
-
-export type Reply = "once" | "always" | "reject"
+type Reply = "once" | "always" | "reject"
 
 interface PendingRequest {
   id: string
   action: string
   resource: string
+  agent?: string
   resolve: (value: boolean) => void
   reject: () => void
 }
 
+/**
+ * A strategy for asking the user whether a tool call should be allowed.
+ *
+ * The chat loop registers its own prompt function that uses the existing
+ * keypress handler (so the user's keystrokes are captured reliably while
+ * the permission prompt is on-screen). When no function is registered,
+ * the manager falls back to the default `readline`-based prompt — which
+ * works for non-TTY callers (tests, server-side invocations).
+ */
+export type PermissionPromptRequest = {
+  toolName: string
+  resource: string
+  args: Record<string, unknown>
+  isDangerous: boolean
+}
+
+export type PermissionPromptReply = "once" | "always" | "reject"
+
+export type PermissionPromptFunction = (
+  req: PermissionPromptRequest,
+) => Promise<PermissionPromptReply>
+
 // ---- Wildcard matching (from opencode) ----
 
 function wildcardMatch(input: string, pattern: string): boolean {
-  let escaped = pattern
+  const escaped = pattern
     .replace(/[.+^${}()|[\]\\]/g, "\\$&")
     .replace(/\*/g, ".*")
     .replace(/\?/g, ".")
@@ -38,14 +59,34 @@ function wildcardMatch(input: string, pattern: string): boolean {
 
 // ---- Evaluate: find last matching rule (opencode pattern) ----
 
-function evaluate(action: string, resource: string, ...rulesets: Ruleset[]): Rule {
-  const match = rulesets
-    .flat()
-    .findLast(
-      (rule) => wildcardMatch(action, rule.action) && wildcardMatch(resource, rule.resource),
-    )
+function findLastMatch(
+  action: string,
+  resource: string,
+  ruleset: RulesetArray,
+): { effect: Effect; reason?: string } | undefined {
+  let match: { effect: Effect; reason?: string } | undefined
+  for (const rule of ruleset) {
+    if (
+      wildcardMatch(action, rule.permission) &&
+      wildcardMatch(resource, rule.pattern)
+    ) {
+      match = { effect: rule.action, reason: rule.reason }
+    }
+  }
+  return match
+}
 
-  return match ?? { action, resource: "*", effect: "ask" }
+function evaluate(
+  action: string,
+  resource: string,
+  ...rulesets: RulesetArray[]
+): { effect: Effect; reason?: string } {
+  const merged = rulesets.flat()
+  return (
+    findLastMatch(action, resource, merged) ?? {
+      effect: "ask",
+    }
+  )
 }
 
 // ---- Dangerous patterns ----
@@ -74,26 +115,49 @@ const DANGEROUS_PATTERNS: RegExp[] = [
 ]
 
 // ---- Default rulesets ----
+//
+// Uses the unified RulesetArray shape so agent rulesets merge seamlessly.
+// Read-only tools are allow; write/exec are ask; orchestration tools
+// (task, delegate, switch_to_agent_mode) are allow because they gate
+// their own actions.
 
-const DEFAULT_RULES: Ruleset = [
+const DEFAULT_RULES: RulesetArray = [
   // Read-only tools: always allowed
-  { action: "read_file", resource: "*", effect: "allow" },
-  { action: "search_files", resource: "*", effect: "allow" },
-  { action: "url_fetch", resource: "*", effect: "allow" },
-  { action: "web_search", resource: "*", effect: "allow" },
-  { action: "read_instructions", resource: "*", effect: "allow" },
-  { action: "todo_read", resource: "*", effect: "allow" },
-  { action: "todo_write", resource: "*", effect: "allow" },
+  { permission: "read_file", pattern: "*", action: "allow" },
+  { permission: "search_files", pattern: "*", action: "allow" },
+  { permission: "url_fetch", pattern: "*", action: "allow" },
+  { permission: "web_search", pattern: "*", action: "allow" },
+  { permission: "read_instructions", pattern: "*", action: "allow" },
+  { permission: "todo_read", pattern: "*", action: "allow" },
+  { permission: "todo_write", pattern: "*", action: "allow" },
+  { permission: "task", pattern: "*", action: "allow" },
+  { permission: "delegate", pattern: "*", action: "allow" },
+  { permission: "switch_to_agent_mode", pattern: "*", action: "allow" },
 
   // Write/execute tools: ask by default
-  { action: "write_file", resource: "*", effect: "ask" },
-  { action: "run_command", resource: "*", effect: "ask" },
-  { action: "code_exec", resource: "*", effect: "ask" },
+  { permission: "write_file", pattern: "*", action: "ask" },
+  { permission: "run_command", pattern: "*", action: "ask" },
+  { permission: "code_exec", pattern: "*", action: "ask" },
 ]
 
 // ---- In-memory saved rules (persisted for the session) ----
 
-let sessionSavedRules: Ruleset = []
+let sessionSavedRules: RulesetArray = []
+
+// ---- Current-agent thread-local ----
+//
+// Wrapped tools set this so permissionManager.check() can scope its ruleset
+// to the calling agent without having to thread agentName through every
+// call site (AI SDK execute signatures don't pass it).
+let currentAgent: string | undefined = undefined
+
+export function setCurrentAgent(name: string | undefined): void {
+  currentAgent = name
+}
+
+export function getCurrentAgent(): string | undefined {
+  return currentAgent
+}
 
 // ---- Resource extraction ----
 
@@ -110,12 +174,17 @@ function getResource(toolName: string, args: Record<string, unknown>): string {
   }
 }
 
+export interface PermissionCheckOptions {
+  agentName?: string
+}
+
 // ---- PermissionManager ----
 
 export class PermissionManager {
   private pendingRequests: Map<string, PendingRequest> = new Map()
   private requestCounter = 0
   private sessionLevel: "allow" | "deny" | "ask" | null = null
+  private promptFn: PermissionPromptFunction | null = null
 
   setSessionLevel(level: "allow" | "deny" | "ask" | null): void {
     this.sessionLevel = level
@@ -125,11 +194,24 @@ export class PermissionManager {
     return this.sessionLevel
   }
 
+  /**
+   * Register a prompt strategy. The chat loop registers its own (which
+   * uses the keypress handler); tests can register a stub; the default
+   * is a `readline`-based prompt for non-TTY environments.
+   */
+  setPromptFunction(fn: PermissionPromptFunction | null): void {
+    this.promptFn = fn
+  }
+
   isDangerousCommand(command: string): boolean {
     return DANGEROUS_PATTERNS.some((pattern) => pattern.test(command))
   }
 
-  async check(toolName: string, args: Record<string, unknown>): Promise<boolean> {
+  async check(
+    toolName: string,
+    args: Record<string, unknown>,
+    opts: PermissionCheckOptions = {},
+  ): Promise<boolean> {
     // 1. Session-level override
     if (this.sessionLevel === "allow") return true
     if (this.sessionLevel === "deny") return false
@@ -137,16 +219,35 @@ export class PermissionManager {
     // 2. Extract resource
     const resource = getResource(toolName, args)
 
-    // 3. Evaluate rules (opencode pattern: findLast match)
-    const allRules: Ruleset = [...DEFAULT_RULES, ...sessionSavedRules]
+    // 3. Resolve agent ruleset (if a subagent is the caller)
+    const resolvedAgent = opts.agentName ?? currentAgent
+    const agentRuleset = resolvedAgent
+      ? agentService.get(resolvedAgent)?.info.permission
+      : undefined
+
+    // 4. Evaluate rules — order matters (later rules override earlier,
+    //    via findLast):
+    //    1. DEFAULT_RULES (broad: "write_file → ask", "read_file → allow")
+    //    2. agent ruleset (specific overrides — `*` catch-all means
+    //       "allow everything the agent has no specific rule for")
+    //    3. sessionSavedRules (user's "always" grants win over agent)
+    const allRules: RulesetArray = [
+      ...DEFAULT_RULES,
+      ...(agentRuleset ?? []),
+      ...sessionSavedRules,
+    ]
     const rule = evaluate(toolName, resource, allRules)
 
-    // 4. Short-circuit
+    // 5. Short-circuit
     if (rule.effect === "allow") return true
     if (rule.effect === "deny") return false
 
-    // 5. Ask the user
+    // 6. Ask the user (only top-level agent prompts; subagent failures
+    //    just deny silently to avoid spamming the user mid-task)
     const isDangerous = toolName === "run_command" && this.isDangerousCommand(resource)
+    if (resolvedAgent) {
+      return false
+    }
     return this.promptUser(toolName, resource, args, isDangerous)
   }
 
@@ -156,34 +257,92 @@ export class PermissionManager {
     args: Record<string, unknown>,
     isDangerous: boolean,
   ): Promise<boolean> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const id = `req_${++this.requestCounter}`
-
       this.pendingRequests.set(id, {
         id,
         action: toolName,
         resource,
         resolve,
-        reject: () => {
-          resolve(false)
-        },
+        reject: () => resolve(false),
       })
 
-      this.renderPrompt(toolName, resource, args, isDangerous, id, resolve)
+      const replyHandler = (reply: PermissionPromptReply) => {
+        this.pendingRequests.delete(id)
+        if (reply === "once") {
+          this.onReplied(toolName, resource, "once")
+          resolve(true)
+        } else if (reply === "always") {
+          sessionSavedRules.push({
+            permission: toolName,
+            pattern: this.alwaysPattern(toolName, resource),
+            action: "allow",
+          })
+          this.onReplied(toolName, resource, "always")
+          resolve(true)
+        } else {
+          this.onReplied(toolName, resource, "reject")
+          resolve(false)
+        }
+      }
+
+      // If a prompt function is registered (chat loop, tests, ...), delegate
+      // to it. Otherwise fall back to the default `readline` prompt that
+      // works in non-TTY environments.
+      if (this.promptFn) {
+        this.promptFn({
+          toolName,
+          resource,
+          args,
+          isDangerous,
+        }).then(replyHandler)
+        return
+      }
+
+      // Default path: non-TTY, server-side, or tests without a registered fn.
+      this.renderReadlinePrompt(
+        toolName,
+        resource,
+        args,
+        isDangerous,
+        replyHandler,
+      )
     })
   }
 
-  private renderPrompt(
+  /**
+   * Render the permission box via boxen (same UI as the chat-loop
+   * registered prompt) and capture a single y/a/n answer via raw readline.
+   *
+   * This is the fallback for environments where no prompt function has
+   * been registered. The chat loop registers its own so this path is
+   * mostly hit by tests + non-TTY callers.
+   *
+   * If stdin is not a TTY (test environments, server-side), we don't
+   * block waiting for input — we reject immediately and emit a clear
+   * warning. Callers that need to handle non-interactive flows should
+   * register a prompt function explicitly.
+   */
+  private renderReadlinePrompt(
     toolName: string,
     resource: string,
     args: Record<string, unknown>,
     isDangerous: boolean,
-    requestId: string,
-    resolve: (value: boolean) => void,
+    onReply: (reply: PermissionPromptReply) => void,
   ) {
     const stdin = process.stdin
-    const wasRaw = stdin.isRaw
 
+    // Non-interactive fallback: don't hang waiting for stdin. Caller
+    // should have registered a prompt function for real interactions.
+    if (!stdin.isTTY) {
+      console.warn(
+        `[permission-manager] No prompt function registered and stdin is not a TTY; denying ${toolName}(${resource})`,
+      )
+      onReply("reject")
+      return
+    }
+
+    const wasRaw = stdin.isRaw
     if (stdin.isTTY) {
       stdin.setRawMode(false)
     }
@@ -235,19 +394,11 @@ export class PermissionManager {
       const a = answer.trim().toLowerCase()
 
       if (a === "y" || a === "yes") {
-        this.pendingRequests.delete(requestId)
-        this.onReplied(toolName, resource, "once")
-        resolve(true)
+        onReply("once")
       } else if ((a === "a" || a === "always") && !isDangerous) {
-        // Save as "always allow" rule for this action+resource pattern
-        sessionSavedRules.push({ action: toolName, resource: this.alwaysPattern(toolName, resource), effect: "allow" })
-        this.pendingRequests.delete(requestId)
-        this.onReplied(toolName, resource, "always")
-        resolve(true)
+        onReply("always")
       } else {
-        this.pendingRequests.delete(requestId)
-        this.onReplied(toolName, resource, "reject")
-        resolve(false)
+        onReply("reject")
       }
     })
   }
@@ -264,14 +415,9 @@ export class PermissionManager {
     return resource
   }
 
-  // ---- Cascade (opencode pattern) ----
-  // When a user says "always allow", auto-approve pending requests
-  // that also match the saved rules.
-  // When a user says "reject", reject all pending requests for this tool.
-
   private onReplied(action: string, resource: string, reply: Reply): void {
     if (reply === "always") {
-      const allRules: Ruleset = [...DEFAULT_RULES, ...sessionSavedRules]
+      const allRules: RulesetArray = [...DEFAULT_RULES, ...sessionSavedRules]
       for (const [id, pending] of this.pendingRequests) {
         if (pending.action !== action) continue
         const rule = evaluate(pending.action, pending.resource, allRules)
@@ -281,6 +427,7 @@ export class PermissionManager {
         }
       }
     }
+    // (no-op)
 
     if (reply === "reject") {
       for (const [id, pending] of this.pendingRequests) {
