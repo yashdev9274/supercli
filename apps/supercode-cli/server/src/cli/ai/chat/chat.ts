@@ -31,7 +31,7 @@ import {
   rowCard,
   heavyDivider,
 } from "src/cli/utils/tui.ts"
-import { ThinkingDisplay } from "./thinking.ts"
+import { ThinkingDisplay, renderReasoningBlock } from "./thinking.ts"
 import { getContextWindow } from "src/cli/ai/context-windows.ts"
 import type { WorkspaceInfo } from "src/cli/workspace/scanner.ts"
 import { buildSystemPrompt } from "src/cli/workspace/context.ts"
@@ -110,6 +110,7 @@ async function streamAIResponse(
   }
 
   let fullResponse = ""
+  let fullReasoning = ""
   let isFirstChunk = true
   let hasOutputHeader = false
   let firstChunkTime = 0
@@ -153,7 +154,7 @@ async function streamAIResponse(
       },
       abortController.signal,
       (reasoningChunk) => {
-        if (!hasOutputHeader) emitHeader()
+        fullReasoning += reasoningChunk
         thinking.showReasoning(reasoningChunk)
       },
     )
@@ -161,6 +162,9 @@ async function streamAIResponse(
     const elapsed = Date.now() - startTime
     const usage = await result.usage
     thinking.stop()
+    if (fullReasoning.trim()) {
+      console.log(renderReasoningBlock(fullReasoning, elapsed))
+    }
     console.log()
 
     return {

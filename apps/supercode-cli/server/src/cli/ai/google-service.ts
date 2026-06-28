@@ -2,6 +2,8 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { streamText, generateObject, stepCountIs, type ModelMessage } from "ai";
 import { config } from "../../config/google.config.ts";
 import chalk from "chalk";
+import { recordUsage } from "../../lib/track-usage"
+import { computeCost } from "../../lib/pricing"
 
 export class AIService {
   model: ReturnType<ReturnType<typeof createGoogleGenerativeAI>>
@@ -75,6 +77,17 @@ export class AIService {
           result.usage,
         ])
 
+        recordUsage({
+          provider: "google",
+          model: this.modelName,
+          inputTokens: usage.inputTokens ?? 0,
+          outputTokens: usage.outputTokens ?? 0,
+          cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
+          totalTokens: usage.totalTokens ?? 0,
+          costUsd: computeCost(this.modelName, usage.inputTokens ?? 0, usage.outputTokens ?? 0, usage.inputTokenDetails?.cacheReadTokens ?? 0),
+          durationMs: null,
+        })
+
         return {
           content: fullResponse,
           finishReason,
@@ -109,6 +122,17 @@ export class AIService {
         result.finishReason,
         result.usage,
       ])
+
+      recordUsage({
+        provider: "google",
+        model: this.modelName,
+        inputTokens: usage.inputTokens ?? 0,
+        outputTokens: usage.outputTokens ?? 0,
+        cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
+        totalTokens: usage.totalTokens ?? 0,
+        costUsd: computeCost(this.modelName, usage.inputTokens ?? 0, usage.outputTokens ?? 0, usage.inputTokenDetails?.cacheReadTokens ?? 0),
+        durationMs: null,
+      })
 
       return {
         content: fullResponse,

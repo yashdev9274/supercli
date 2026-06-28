@@ -2,6 +2,8 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
 import { streamText, stepCountIs, type ModelMessage, type LanguageModel } from "ai"
 import { nvidiaConfig } from "../../config/nvidia.config.ts"
 import chalk from "chalk"
+import { recordUsage } from "../../lib/track-usage"
+import { computeCost } from "../../lib/pricing"
 
 export class NvidiaService {
   model: LanguageModel
@@ -59,6 +61,17 @@ export class NvidiaService {
           result.usage,
         ])
 
+        recordUsage({
+          provider: "nvidia",
+          model: this.modelName,
+          inputTokens: usage.inputTokens ?? 0,
+          outputTokens: usage.outputTokens ?? 0,
+          cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
+          totalTokens: usage.totalTokens ?? 0,
+          costUsd: computeCost(this.modelName, usage.inputTokens ?? 0, usage.outputTokens ?? 0, usage.inputTokenDetails?.cacheReadTokens ?? 0),
+          durationMs: null,
+        })
+
         return {
           content: fullResponse,
           finishReason,
@@ -93,6 +106,17 @@ export class NvidiaService {
         result.finishReason,
         result.usage,
       ])
+
+      recordUsage({
+        provider: "nvidia",
+        model: this.modelName,
+        inputTokens: usage.inputTokens ?? 0,
+        outputTokens: usage.outputTokens ?? 0,
+        cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
+        totalTokens: usage.totalTokens ?? 0,
+        costUsd: computeCost(this.modelName, usage.inputTokens ?? 0, usage.outputTokens ?? 0, usage.inputTokenDetails?.cacheReadTokens ?? 0),
+        durationMs: null,
+      })
 
       return {
         content: fullResponse,

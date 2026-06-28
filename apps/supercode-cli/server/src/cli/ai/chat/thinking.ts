@@ -17,6 +17,26 @@ export function toolLabel(toolName: string): string {
   return ` ${chalk.hex(theme.amber)("%")} ${chalk.hex(theme.greenGlow)(toolName)}`
 }
 
+//
+// ─── COLLAPSIBLE REASONING BLOCK ──────────────────────────────────────────────
+//
+// Renders the model's internal reasoning as a collapsed terminal block:
+//
+//   ┃ ▶ Thinking · 5.6s
+//
+// The block is collapsed by default — the full reasoning text was already shown
+// in real time via the ThinkingDisplay spinner, so this serves as a persistent
+// bookmark indicating the model engaged in reasoning and how long it took.
+//
+export function renderReasoningBlock(reasoning: string, elapsedMs: number): string {
+  const elapsed = elapsedMs < 1000 ? `${elapsedMs}ms` : `${(elapsedMs / 1000).toFixed(1)}s`
+  const indent = chalk.hex(theme.greenDim)("┃")
+  const toggle = chalk.hex(theme.greenDim)("▶")
+  const label = chalk.hex(theme.greenMute)("Thinking")
+  const time = chalk.hex(theme.greenDim)(`· ${elapsed}`)
+  return `${indent} ${toggle} ${label} ${time}`
+}
+
 export class ThinkingDisplay {
   private i = 0
   private intervalId: ReturnType<typeof setInterval> | null = null

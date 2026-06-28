@@ -3,20 +3,25 @@ import { streamText, type ModelMessage, type FinishReason } from "ai"
 import { minimaxConfig } from "../../config/minimax.config.ts"
 import chalk from "chalk"
 import { executeToolLoop } from "./tool-executor.ts"
+import { recordUsage } from "../../lib/track-usage"
+import { computeCost } from "../../lib/pricing"
 
 export class MinimaxService {
   model: ReturnType<ReturnType<typeof createMinimax>>
+  readonly modelName: string
 
   constructor() {
     if (!minimaxConfig.apiKey) {
       throw new Error("MiniMax is not configured.\n\n  Set MINIMAX_API_KEY in your environment:\n    export MINIMAX_API_KEY=<your-key>")
     }
 
+    this.modelName = minimaxConfig.model
+
     const minimax = createMinimax({
       apiKey: minimaxConfig.apiKey,
     })
 
-    this.model = minimax(minimaxConfig.model)
+    this.model = minimax(this.modelName)
   }
 
   async sendMessage(
@@ -40,6 +45,17 @@ export class MinimaxService {
           tools,
           { onChunk, onToolCall, onReasoning, signal },
         )
+        const resolved = await usage
+        recordUsage({
+          provider: "minimax",
+          model: this.modelName,
+          inputTokens: resolved.inputTokens ?? 0,
+          outputTokens: resolved.outputTokens ?? 0,
+          cachedInputTokens: 0,
+          totalTokens: resolved.totalTokens ?? 0,
+          costUsd: computeCost(this.modelName, resolved.inputTokens ?? 0, resolved.outputTokens ?? 0, 0),
+          durationMs: null,
+        })
         return {
           content,
           finishReason: "stop" as FinishReason,
@@ -90,6 +106,17 @@ export class MinimaxService {
         result.finishReason,
         result.usage,
       ])
+
+      recordUsage({
+        provider: "minimax",
+        model: this.modelName,
+        inputTokens: usage.inputTokens ?? 0,
+        outputTokens: usage.outputTokens ?? 0,
+        cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
+        totalTokens: usage.totalTokens ?? 0,
+        costUsd: computeCost(this.modelName, usage.inputTokens ?? 0, usage.outputTokens ?? 0, usage.inputTokenDetails?.cacheReadTokens ?? 0),
+        durationMs: null,
+      })
 
       return {
         content: fullResponse,

@@ -1,6 +1,7 @@
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../src/generated"
 }
 
 datasource db {
@@ -102,6 +103,28 @@ model Conversation {
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages  Message[]
+
+  @@map("conversation")
+}
+
+model UsageEvent {
+  id                String   @id @default(cuid())
+  userId            String?
+  conversationId    String?
+  provider          String
+  model             String
+  inputTokens       Int      @default(0)
+  outputTokens      Int      @default(0)
+  cachedInputTokens Int      @default(0)
+  totalTokens       Int      @default(0)
+  costUsd           Float?
+  durationMs        Int?
+  createdAt         DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([model])
+  @@index([provider])
+  @@map("usage_event")
 }
 
 model Message {
@@ -114,4 +137,5 @@ model Message {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
+  @@map("message")
 }

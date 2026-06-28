@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant hoverable (@media (hover: hover) and (pointer: fine));
 
 :root {
   --background: oklch(1.0000 0 0);

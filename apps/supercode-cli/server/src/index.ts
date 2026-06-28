@@ -2,7 +2,10 @@ import express from "express"
 import { toNodeHandler } from "better-auth/node"
 import { auth } from "./lib/auth"
 import cors from "cors"
-import prisma from "@super/db-terminal"
+import prisma from "./lib/prisma"
+import { recordUsage } from "./lib/track-usage"
+import { computeCost } from "./lib/pricing"
+import { registerAnalyticsRoutes } from "./routes/analytics"
 
 const port = process.env.PORT || 10000
 const serverUrl = process.env.BETTER_AUTH_URL || `http://localhost:${port}`
@@ -60,6 +63,8 @@ app.get("/error", (req, res) => {
 })
 
 app.use(express.json())
+
+registerAnalyticsRoutes(app, prisma)
 
 app.get("/device", async (req, res) => {
   const { user_code } = req.query
@@ -214,6 +219,7 @@ app.post("/api/ai/chat", async (req, res) => {
         const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY
         if (!apiKey) { res.status(500).json({ error: "Google Gemini not configured on server" }); return }
         const modelName = modelParam || "gemini-2.5-flash"
+        const googleStart = Date.now()
         const { createGoogleGenerativeAI } = await import("@ai-sdk/google")
         const { streamText } = await import("ai")
         const google = createGoogleGenerativeAI({ apiKey })
@@ -225,6 +231,16 @@ app.post("/api/ai/chat", async (req, res) => {
           res.write(JSON.stringify({ type: "text", content: chunk }) + "\n")
         }
         const usage = await result.usage
+        const inputTokens = usage.inputTokens ?? 0
+        const outputTokens = usage.outputTokens ?? 0
+        const cachedInputTokens = usage.inputTokenDetails?.cacheReadTokens ?? 0
+        const totalTokens = usage.totalTokens ?? (inputTokens + outputTokens)
+        recordUsage({
+          provider: "google", model: modelName,
+          inputTokens, outputTokens, cachedInputTokens, totalTokens,
+          costUsd: computeCost(modelName, inputTokens, outputTokens, cachedInputTokens),
+          durationMs: Date.now() - googleStart,
+        })
         res.write(JSON.stringify({ type: "finish", reason: await result.finishReason, usage }) + "\n")
         res.end()
         break
@@ -233,6 +249,7 @@ app.post("/api/ai/chat", async (req, res) => {
         const apiKey = process.env.OPENROUTER_API_KEY
         if (!apiKey) { res.status(500).json({ error: "OpenRouter not configured on server" }); return }
         const modelName = modelParam || process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free"
+        const orStart = Date.now()
         const bodyObj: any = {
           model: modelName,
           messages: nonSystemMessages.map((m: any) => ({ role: m.role, content: String(m.content) })),
@@ -313,6 +330,13 @@ app.post("/api/ai/chat", async (req, res) => {
             } catch { /* skip malformed */ }
           }
         }
+        recordUsage({
+          provider: "openrouter", model: modelName,
+          inputTokens, outputTokens, cachedInputTokens: 0,
+          totalTokens: inputTokens + outputTokens,
+          costUsd: computeCost(modelName, inputTokens, outputTokens, 0),
+          durationMs: Date.now() - orStart,
+        })
         res.write(JSON.stringify({
           type: "finish", reason: "stop",
           usage: { inputTokens, outputTokenDetails: { textTokens: outputTokens, reasoningTokens: 0 }, outputTokens, inputTokenDetails: { noCacheTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, totalTokens: inputTokens + outputTokens }
@@ -324,6 +348,7 @@ app.post("/api/ai/chat", async (req, res) => {
         const apiKey = process.env.MINIMAX_API_KEY
         if (!apiKey) { res.status(500).json({ error: "MiniMax not configured on server" }); return }
         const modelName = modelParam || "MiniMax-M2"
+        const mmStart = Date.now()
         const { createMinimax } = await import("vercel-minimax-ai-provider")
         const { streamText } = await import("ai")
         const minimax = createMinimax({ apiKey })
@@ -339,6 +364,16 @@ app.post("/api/ai/chat", async (req, res) => {
           res.write(JSON.stringify({ type: "text", content: chunk }) + "\n")
         }
         const usage = await result.usage
+        const inputTokens = usage.inputTokens ?? 0
+        const outputTokens = usage.outputTokens ?? 0
+        const cachedInputTokens = usage.inputTokenDetails?.cacheReadTokens ?? 0
+        const totalTokens = usage.totalTokens ?? (inputTokens + outputTokens)
+        recordUsage({
+          provider: "minimax", model: modelName,
+          inputTokens, outputTokens, cachedInputTokens, totalTokens,
+          costUsd: computeCost(modelName, inputTokens, outputTokens, cachedInputTokens),
+          durationMs: Date.now() - mmStart,
+        })
         res.write(JSON.stringify({ type: "finish", reason: await result.finishReason, usage }) + "\n")
         res.end()
         break
@@ -347,6 +382,7 @@ app.post("/api/ai/chat", async (req, res) => {
         const apiKey = process.env.NVIDIA_API_KEY
         if (!apiKey) { res.status(500).json({ error: "NVIDIA not configured on server" }); return }
         const modelName = modelParam || process.env.NVIDIA_MODEL || "minimaxai/minimax-m2.7"
+        const nvidiaStart = Date.now()
         const baseUrl = process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1"
         const bodyObj: any = {
           model: modelName,
@@ -429,6 +465,13 @@ app.post("/api/ai/chat", async (req, res) => {
             } catch { /* skip malformed */ }
           }
         }
+        recordUsage({
+          provider: "nvidia", model: modelName,
+          inputTokens, outputTokens, cachedInputTokens: 0,
+          totalTokens: inputTokens + outputTokens,
+          costUsd: computeCost(modelName, inputTokens, outputTokens, 0),
+          durationMs: Date.now() - nvidiaStart,
+        })
         res.write(JSON.stringify({
           type: "finish", reason: "stop",
           usage: { inputTokens, outputTokenDetails: { textTokens: outputTokens, reasoningTokens: 0 }, outputTokens, inputTokenDetails: { noCacheTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, totalTokens: inputTokens + outputTokens }
@@ -440,6 +483,7 @@ app.post("/api/ai/chat", async (req, res) => {
         const apiKey = process.env.CONCENTRATEAI_API_KEY
         if (!apiKey) { res.status(500).json({ error: "ConcentrateAI not configured on server" }); return }
         const modelName = modelParam || "deepseek-v4-flash"
+        const caStart = Date.now()
         const bodyObj: any = {
           model: modelName,
           messages: nonSystemMessages.map((m: any) => ({ role: m.role, content: String(m.content) })),
@@ -520,6 +564,13 @@ app.post("/api/ai/chat", async (req, res) => {
             } catch { /* skip malformed */ }
           }
         }
+        recordUsage({
+          provider: "concentrateai", model: modelName,
+          inputTokens, outputTokens, cachedInputTokens: 0,
+          totalTokens: inputTokens + outputTokens,
+          costUsd: computeCost(modelName, inputTokens, outputTokens, 0),
+          durationMs: Date.now() - caStart,
+        })
         res.write(JSON.stringify({
           type: "finish", reason: "stop",
           usage: { inputTokens, outputTokenDetails: { textTokens: outputTokens, reasoningTokens: 0 }, outputTokens, inputTokenDetails: { noCacheTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, totalTokens: inputTokens + outputTokens }
