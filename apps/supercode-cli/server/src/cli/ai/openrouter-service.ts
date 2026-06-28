@@ -1,6 +1,8 @@
 import { openRouterConfig } from "../../config/openrouter.config.ts"
 import chalk from "chalk"
 import type { FinishReason, LanguageModelUsage } from "ai"
+import { recordUsage } from "../../lib/track-usage"
+import { computeCost } from "../../lib/pricing"
 
 const MODEL_MAX_TOKENS: Record<string, number> = {
   "moonshotai/kimi-k2.6": 256,
@@ -236,6 +238,17 @@ export class OpenRouterService {
         })
       }
     }
+
+    recordUsage({
+      provider: "openrouter",
+      model: this.modelName,
+      inputTokens: usage.inputTokens ?? 0,
+      outputTokens: usage.outputTokens ?? 0,
+      cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
+      totalTokens: usage.totalTokens ?? 0,
+      costUsd: computeCost(this.modelName, usage.inputTokens ?? 0, usage.outputTokens ?? 0, usage.inputTokenDetails?.cacheReadTokens ?? 0),
+      durationMs: null,
+    })
 
     return {
       content: accumulatedContent,

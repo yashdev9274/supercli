@@ -1,6 +1,8 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
 import { streamText, stepCountIs, type ModelMessage, type LanguageModel } from "ai"
 import chalk from "chalk"
+import { recordUsage } from "../../lib/track-usage"
+import { computeCost } from "../../lib/pricing"
 
 const CONCENTRATE_API_KEY = process.env.CONCENTRATEAI_API_KEY || ""
 const BASE_URL = "https://api.concentrate.ai/v1"
@@ -61,6 +63,17 @@ export class ConcentrateService {
           result.usage,
         ])
 
+        recordUsage({
+          provider: "concentrateai",
+          model: this.modelName,
+          inputTokens: usage.inputTokens ?? 0,
+          outputTokens: usage.outputTokens ?? 0,
+          cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
+          totalTokens: usage.totalTokens ?? 0,
+          costUsd: computeCost(this.modelName, usage.inputTokens ?? 0, usage.outputTokens ?? 0, usage.inputTokenDetails?.cacheReadTokens ?? 0),
+          durationMs: null,
+        })
+
         return {
           content: fullResponse,
           finishReason,
@@ -95,6 +108,17 @@ export class ConcentrateService {
         result.finishReason,
         result.usage,
       ])
+
+      recordUsage({
+        provider: "concentrateai",
+        model: this.modelName,
+        inputTokens: usage.inputTokens ?? 0,
+        outputTokens: usage.outputTokens ?? 0,
+        cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
+        totalTokens: usage.totalTokens ?? 0,
+        costUsd: computeCost(this.modelName, usage.inputTokens ?? 0, usage.outputTokens ?? 0, usage.inputTokenDetails?.cacheReadTokens ?? 0),
+        durationMs: null,
+      })
 
       return {
         content: fullResponse,
