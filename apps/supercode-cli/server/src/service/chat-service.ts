@@ -1,4 +1,4 @@
-import prisma from "@super/db-terminal"
+import prisma from "../lib/prisma"
 
 export class ChatService {
   async createConversation(userId: string, mode = "chat", title: string | null = null) {

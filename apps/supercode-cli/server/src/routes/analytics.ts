@@ -1,5 +1,5 @@
 import type { Express } from "express"
-import type { PrismaClient } from "@super/db-terminal"
+import type { PrismaClient } from "../lib/prisma"
 import { getProviderDisplayNameFromRaw, getProviderColor } from "../lib/pricing"
 
 type Range = "7d" | "30d" | "90d" | "all"

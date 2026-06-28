@@ -1,4 +1,4 @@
-import { PrismaClient } from "../generated"
+import prisma from "./prisma"
 
 type UsageRecord = {
   provider: string
@@ -9,20 +9,13 @@ type UsageRecord = {
   totalTokens: number
   costUsd: number | null
   durationMs: number | null
-}
-
-let prisma: PrismaClient | null = null
-
-function getPrisma(): PrismaClient {
-  if (!prisma) {
-    prisma = new PrismaClient()
-  }
-  return prisma
+  userId?: string
+  conversationId?: string
 }
 
 export async function recordUsage(record: UsageRecord): Promise<void> {
   try {
-    await getPrisma().usageEvent.create({
+    await prisma.usageEvent.create({
       data: {
         provider: record.provider,
         model: record.model,
@@ -32,6 +25,8 @@ export async function recordUsage(record: UsageRecord): Promise<void> {
         totalTokens: record.totalTokens,
         costUsd: record.costUsd,
         durationMs: record.durationMs,
+        userId: record.userId,
+        conversationId: record.conversationId,
       },
     })
   } catch (error) {

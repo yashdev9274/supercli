@@ -254,12 +254,7 @@ export default function DataPage() {
           </div>
         </motion.div>
 
-        {/* Market Share */}
-        <MarketShareSection
-          marketShare={data.marketShare ?? []}
-          providerColors={data.providerColors ?? {}}
-          variant={sectionVariant}
-        />
+        
 
         {/* Top Models */}
         <ModelLeaderboardSection
@@ -363,6 +358,13 @@ export default function DataPage() {
             </div>
           </motion.section>
         )}
+
+        {/* Market Share */}
+        <MarketShareSection
+          marketShare={data.marketShare ?? []}
+          providerColors={data.providerColors ?? {}}
+          variant={sectionVariant}
+        />
       </motion.div>
     </div>
   )

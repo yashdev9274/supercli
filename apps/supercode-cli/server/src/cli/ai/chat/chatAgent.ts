@@ -1,4 +1,4 @@
-import prisma from "@super/db-terminal"
+import prisma from "../../../lib/prisma"
 import chalk from "chalk"
 import { text, confirm, isCancel } from "@clack/prompts"
 import { createThinking, theme, userMessage, streamFooter, streamHeader } from "src/cli/utils/tui"
