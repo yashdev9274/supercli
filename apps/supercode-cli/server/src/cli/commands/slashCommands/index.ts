@@ -49,7 +49,7 @@ function renderCommandList(): void {
   process.stdout.write(` ${chalk.hex(theme.amber)("❯")} /\r\n`)
   process.stdout.write(`${divider}\r\n`)
   for (const c of COMMANDS) {
-    process.stdout.write(` ${chalk.hex(theme.cyan)(c.cmd.padEnd(24))}${chalk.hex(theme.muted)(c.desc)}\r\n`)
+    process.stdout.write(` ${chalk.hex(theme.green)(c.cmd.padEnd(24))}${chalk.hex(theme.muted)(c.desc)}\r\n`)
   }
   process.stdout.write(`${divider}\r\n`)
 }

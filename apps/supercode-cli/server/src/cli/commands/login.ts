@@ -174,12 +174,12 @@ export async function loginAction(opts: Record<string, unknown>) {
           `  ${glow("◆", theme.amber)} ${chalk.hex(theme.amber).bold("DEVICE AUTHORIZATION")}`,
           "",
           `  ${chalk.hex(theme.muted)("Open this URL in your browser:")}`,
-          `  ${chalk.hex(theme.cyan).underline(verification_uri_complete || verification_uri)}`,
+          `  ${chalk.hex(theme.green).underline(verification_uri_complete || verification_uri)}`,
           "",
           `  ${chalk.hex(theme.dim)("╭──────────────────────────────────────╮")}`,
           `  ${chalk.hex(theme.dim)("│")}         ${chalk.hex(theme.amber).bold("VERIFICATION CODE")}        ${chalk.hex(theme.dim)("│")}`,
           `  ${chalk.hex(theme.dim)("│")}                                       ${chalk.hex(theme.dim)("│")}`,
-          `  ${chalk.hex(theme.dim)("│")}     ${chalk.hex(theme.glowCyan).bold(` ${user_code.split("").join(" ")} `)}     ${chalk.hex(theme.dim)("│")}`,
+          `  ${chalk.hex(theme.dim)("│")}     ${chalk.hex(theme.greenGlow).bold(` ${user_code.split("").join(" ")} `)}     ${chalk.hex(theme.dim)("│")}`,
           `  ${chalk.hex(theme.dim)("│")}                                       ${chalk.hex(theme.dim)("│")}`,
           `  ${chalk.hex(theme.dim)("╰──────────────────────────────────────╯")}`,
           "",
@@ -235,12 +235,12 @@ export async function loginAction(opts: Record<string, unknown>) {
                   `  ${chalk.hex(theme.dim)(TOKEN_FILE)}`,
                 ]
               : [
-                  `  ${statusIcon("warning")} ${chalk.hex(theme.warning)("Warning:")} ${chalk.hex(theme.muted)("Could not save token to disk.")}`,
+                  `  ${statusIcon("warning")} ${chalk.hex(theme.amber)("Warning:")} ${chalk.hex(theme.muted)("Could not save token to disk.")}`,
                   `  ${dimmed("You may need to log in again on next use.")}`,
                 ]),
             "",
-            `  ${chalk.hex(theme.green)("▸")} ${chalk.hex(theme.text).bold("You are now authenticated.")}`,
-            `  ${chalk.hex(theme.green)("▸")} ${chalk.hex(theme.muted)("Run")} ${chalk.hex(theme.cyan)("supercode")} ${chalk.hex(theme.muted)("commands without re-authenticating.")}`,
+            `  ${chalk.hex(theme.green)("▸")} ${chalk.hex(theme.white).bold("You are now authenticated.")}`,
+            `  ${chalk.hex(theme.green)("▸")} ${chalk.hex(theme.muted)("Run")} ${chalk.hex(theme.green)("supercode")} ${chalk.hex(theme.muted)("commands without re-authenticating.")}`,
           ].join("\n"),
           { title: "authenticated", borderColor: theme.green, padding: 0 },
         ),
@@ -314,7 +314,7 @@ async function pollForToken(
               break
             case "slow_down":
               pollingInterval += 5
-              spinner.text = chalk.hex(theme.warning)(
+              spinner.text = chalk.hex(theme.amber)(
                 `Slowing down — server busy. Next poll in ${pollingInterval}s`,
               )
               break

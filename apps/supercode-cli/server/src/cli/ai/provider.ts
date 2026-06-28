@@ -23,6 +23,7 @@ export interface AIProvider {
     onToolCall?: any,
     signal?: AbortSignal,
     onReasoning?: (chunk: string) => void,
+    onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void,
   ): Promise<{
     content: string
     finishReason: FinishReason
@@ -55,7 +56,8 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
     return {
       name: provider,
       modelName: model || meta.defaultModel,
-      sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning) => svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning),
+      sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult) =>
+        svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult),
       generateObject: (schema, prompt) => svc.generateObject(schema, prompt),
     }
   }
@@ -67,7 +69,8 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
         name: "google",
         modelName: svc.modelName,
         model: svc.model,
-        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning) => svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning),
+        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult) =>
+          svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult),
       }
     }
     case "openrouter": {
@@ -75,7 +78,8 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
       return {
         name: "openrouter",
         modelName: svc.modelName,
-        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning) => svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning),
+        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult) =>
+          svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult),
       }
     }
     case "nvidia": {
@@ -84,7 +88,8 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
         name: "nvidia",
         modelName: svc.modelName,
         model: svc.model,
-        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning) => svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning),
+        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult) =>
+          svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult),
       }
     }
     case "concentrateai": {
@@ -93,7 +98,8 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
         name: "concentrateai",
         modelName: svc.modelName,
         model: svc.model,
-        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning) => svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning),
+        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult) =>
+          svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult),
       }
     }
     default: {

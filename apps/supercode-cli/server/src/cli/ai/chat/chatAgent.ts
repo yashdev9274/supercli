@@ -2,6 +2,7 @@ import prisma from "../../../lib/prisma"
 import chalk from "chalk"
 import { text, confirm, isCancel } from "@clack/prompts"
 import { createThinking, theme, userMessage, streamFooter, streamHeader } from "src/cli/utils/tui"
+import { MarkdownStream } from "src/cli/utils/markdown-stream"
 import { getStoredToken } from "src/lib/token"
 import { ChatService } from "src/service/chat-service"
 import { createProvider, type ModelProvider } from "src/cli/ai/provider"
@@ -52,8 +53,8 @@ async function initAgentConversation(userId: string, conversationId: string | nu
   thinking.succeed()
 
   const w = process.stdout.columns ?? 80
-  const header = ` ${chalk.hex(theme.warning)("┃")} ${chalk.hex(theme.warning).bold(conversation.title ?? "Untitled")} ${chalk.hex(theme.muted)(`· ${conversation.id.slice(0, 12)} · agent mode ──`)}`
-  const desc = ` ${chalk.hex(theme.warning)("┃")} ${chalk.hex(theme.muted)("creates apps by executing commands step-by-step")}`
+  const header = ` ${chalk.hex(theme.amber)("┃")} ${chalk.hex(theme.amber).bold(conversation.title ?? "Untitled")} ${chalk.hex(theme.muted)(`· ${conversation.id.slice(0, 12)} · agent mode ──`)}`
+  const desc = ` ${chalk.hex(theme.amber)("┃")} ${chalk.hex(theme.muted)("creates apps by executing commands step-by-step")}`
 
   console.log()
   console.log(header)
@@ -83,13 +84,13 @@ async function agentLoop(
 
   const agentSystemPrompt = workspaceInfo ? buildSystemPrompt(workspaceInfo, true) : undefined
 
-  console.log(` ${chalk.hex(theme.warning)("◆")} ${chalk.hex(theme.muted)("Describe an application to generate")}`)
+  console.log(` ${chalk.hex(theme.amber)("◆")} ${chalk.hex(theme.muted)("Describe an application to generate")}`)
   console.log(` ${chalk.hex(theme.muted)('•')} Type "exit" to end`)
   console.log()
 
   while (true) {
     const userInput = await text({
-      message: chalk.hex(theme.warning)("what would you like to build?"),
+      message: chalk.hex(theme.amber)("what would you like to build?"),
       placeholder: "Describe your application...",
       validate(value: string | undefined) {
         if (!value || value.trim().length === 0) {
@@ -144,7 +145,11 @@ async function agentLoop(
       const w = process.stdout.columns ?? 80
       const dim = (s: string) => chalk.hex(theme.greenDim)(s)
       console.log(` ${chalk.hex(theme.green)("┃")} ${chalk.hex(theme.green).bold("Result")} ${dim("─".repeat(Math.max(0, w - 15)))}`)
-      console.log(chalk.white(result.text || "Application created successfully."))
+      // Render the agent's response through the markdown stream so headings,
+      // lists, code fences, and bold get the proper terminal styling.
+      const md = new MarkdownStream()
+      md.push(result.text || "Application created successfully.")
+      md.end()
       console.log()
 
       const responseMessage = result.text || "Application created successfully."
@@ -154,7 +159,7 @@ async function agentLoop(
       streamFooter(undefined, elapsed)
 
       const continueApp = await confirm({
-        message: chalk.hex(theme.cyan)("Would you like to generate another application?"),
+        message: chalk.hex(theme.green)("Would you like to generate another application?"),
         initialValue: false,
       })
 
@@ -175,7 +180,7 @@ async function agentLoop(
       )
 
       const retry = await confirm({
-        message: chalk.hex(theme.cyan)("Would you like to try again?"),
+        message: chalk.hex(theme.green)("Would you like to try again?"),
         initialValue: true,
       })
 
@@ -198,7 +203,7 @@ export async function startAgentChat(
 ) {
   try {
     const w = process.stdout.columns ?? 80
-    const title = ` ${chalk.hex(theme.warning)("┃")} ${chalk.hex(theme.warning).bold("supercode")} ${chalk.hex(theme.muted)("· agent mode ──")}`
+    const title = ` ${chalk.hex(theme.amber)("┃")} ${chalk.hex(theme.amber).bold("supercode")} ${chalk.hex(theme.muted)("· agent mode ──")}`
     const fillLen = Math.max(0, w - title.length - 1)
     console.log(`\n${title}${chalk.hex(theme.greenDim)("─".repeat(fillLen))}`)
     console.log()

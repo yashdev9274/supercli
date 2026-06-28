@@ -31,6 +31,7 @@ export class MinimaxService {
     onToolCall?: any,
     signal?: AbortSignal,
     onReasoning?: (chunk: string) => void,
+    onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void,
   ) {
     try {
       const systemMessages = messages.filter(m => m.role === "system")
@@ -43,7 +44,7 @@ export class MinimaxService {
           nonSystemMessages,
           system,
           tools,
-          { onChunk, onToolCall, onReasoning, signal },
+          { onChunk, onToolCall, onReasoning, onToolResult, signal },
         )
         const resolved = await usage
         recordUsage({

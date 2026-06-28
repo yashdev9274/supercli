@@ -3,6 +3,7 @@ import chalk from "chalk"
 import type { FinishReason, LanguageModelUsage } from "ai"
 import { recordUsage } from "../../lib/track-usage"
 import { computeCost } from "../../lib/pricing"
+import { isEmptyToolResult, isDeniedToolResult, summarizeToolResult } from "./tool-result"
 
 const MODEL_MAX_TOKENS: Record<string, number> = {
   "moonshotai/kimi-k2.6": 256,
@@ -80,10 +81,15 @@ export class OpenRouterService {
       bodyObj.messages = [{ role: "system", content: system }, ...bodyObj.messages]
     }
     if (tools && Object.keys(tools).length > 0) {
-      bodyObj.tools = Object.entries(tools).map(([name, fn]: [string, any]) => ({
-        type: "function",
-        function: { name, description: fn.description || "", parameters: fn.parameters || {} },
-      }))
+      bodyObj.tools = Object.entries(tools).map(([name, fn]: [string, any]) => {
+        // AI SDK 6 tools expose `inputSchema`; legacy `parameters` is kept
+        // as a fallback so tools that haven't been wrapped still serialize.
+        const schema = fn.inputSchema ?? fn.parameters ?? {}
+        return {
+          type: "function",
+          function: { name, description: fn.description || "", parameters: schema },
+        }
+      })
     }
 
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -187,6 +193,7 @@ export class OpenRouterService {
     onToolCall?: any,
     signal?: AbortSignal,
     onReasoning?: (chunk: string) => void,
+    onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void,
   ) {
     let currentMessages = [...messages]
     let accumulatedContent = ""
@@ -199,7 +206,61 @@ export class OpenRouterService {
       totalTokens: 0,
     }
 
+    const TOOL_BUDGET = 8
+    let toolCallsThisTurn = 0
+    // Track every tool result so we can detect the "all empty" case and inject
+    // a system message forcing the model to stop inventing content.
+    const allToolResults: Array<{ toolName: string; result: string }> = []
+    const deniedCounts = new Map<string, number>()
+
     while (true) {
+      // Permission-denial loop guard
+      let stopForDenialLoop = false
+      for (const [name, count] of deniedCounts.entries()) {
+        if (count >= 2) {
+          stopForDenialLoop = true
+          break
+        }
+      }
+      if (stopForDenialLoop) {
+        currentMessages.push({
+          role: "system",
+          content:
+            "SYSTEM NOTICE: You have called the same permission-protected tool multiple " +
+            "times after the user denied it. Stop calling it. Respond to the user with " +
+            "what you have so far and ask for guidance.",
+        })
+        break
+      }
+
+      // If every tool result so far was empty AND the model just emitted
+      // another tool call, inject a sentinel message before continuing.
+      if (toolCallsThisTurn > 0 && allToolResults.length > 0) {
+        const allEmpty = allToolResults.every((r) => isEmptyToolResult(r.result))
+        if (allEmpty) {
+          const summary = allToolResults
+            .map((r) => `- ${r.toolName}: ${summarizeToolResult(r.result)}`)
+            .join("\n")
+          currentMessages.push({
+            role: "system",
+            content:
+              "SYSTEM NOTICE: All tool calls so far have returned empty or error results. " +
+              "You have NO source material to answer with. Do NOT invent specifications, pricing, " +
+              "dates, leaderboard rankings, or any factual claims. Tell the user which tools failed " +
+              "and what you would need to proceed.\n\nTool outcomes:\n" + summary,
+          })
+          // Stop the loop after one sentinel injection — the model should now respond.
+          break
+        }
+      }
+
+      if (toolCallsThisTurn >= TOOL_BUDGET) {
+        currentMessages.push({
+          role: "system",
+          content: `Tool call budget (${TOOL_BUDGET}) reached. Stop calling tools and respond to the user with what you have so far.`,
+        })
+      }
+
       const result = await this.request(
         currentMessages, tools, onChunk, onToolCall, signal, onReasoning,
       )
@@ -224,6 +285,17 @@ export class OpenRouterService {
           toolResult = JSON.stringify({ error: `Tool "${call.toolName}" is not available locally` })
         }
 
+        allToolResults.push({ toolName: call.toolName, result: toolResult })
+        if (onToolResult) {
+          onToolResult({ toolName: call.toolName, args: call.args, result: toolResult })
+        }
+        if (isDeniedToolResult(toolResult)) {
+          const prev = deniedCounts.get(call.toolName) ?? 0
+          deniedCounts.set(call.toolName, prev + 1)
+        } else {
+          deniedCounts.set(call.toolName, 0)
+        }
+
         currentMessages.push({
           role: "assistant",
           content: null,
@@ -236,7 +308,10 @@ export class OpenRouterService {
           tool_call_id: call.toolCallId,
           content: toolResult,
         })
+        toolCallsThisTurn += result.toolCalls.length
       }
+
+      if (toolCallsThisTurn >= TOOL_BUDGET) break
     }
 
     recordUsage({

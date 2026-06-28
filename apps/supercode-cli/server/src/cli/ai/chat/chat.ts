@@ -17,9 +17,8 @@ import { pendingModeSwitch } from "src/tools/definitions/switch-to-agent-mode.ts
 export type { ModelProvider } from "src/cli/ai/provider.ts"
 import {
   theme,
-  frame,
   streamHeader,
-  chatStatusBar,
+  PersistentStatusBar,
   userMessage,
   compactMessageSummary,
   createThinking,
@@ -31,11 +30,13 @@ import {
   rowCard,
   heavyDivider,
 } from "src/cli/utils/tui.ts"
-import { ThinkingDisplay, renderReasoningBlock } from "./thinking.ts"
+import { ThinkingDisplay, TurnTracker } from "./thinking.ts"
+import { MarkdownStream } from "src/cli/utils/markdown-stream.ts"
 import { getContextWindow } from "src/cli/ai/context-windows.ts"
 import type { WorkspaceInfo } from "src/cli/workspace/scanner.ts"
 import { buildSystemPrompt } from "src/cli/workspace/context.ts"
 import { tools } from "src/tools/registry.ts"
+import { setDelegateRuntime } from "src/tools/definitions/delegate.ts"
 import { renderWorkspaceBanner } from "src/cli/workspace/format.ts"
 import { handleSlashCommand, isSlashCommand } from "src/cli/commands/slashCommands/index.ts"
 import { renderContextBreakdown } from "src/cli/commands/slashCommands/context-window.ts"
@@ -84,6 +85,7 @@ async function streamAIResponse(
   conversationId: string,
   mode: string,
   workspaceInfo?: WorkspaceInfo,
+  statusBar?: PersistentStatusBar,
 ): Promise<{
   content: string
   elapsed: number
@@ -119,9 +121,44 @@ async function streamAIResponse(
   const thinking = new ThinkingDisplay()
   thinking.start("thinking")
 
+  // Per-turn tool result tracker. Used to detect "all tools returned empty"
+  // (the hallucination precursor) and to render empty tool calls in red.
+  const turnTracker = new TurnTracker()
+
+  // Incremental markdown renderer. Buffers chunks and emits styled
+  // terminal output (headings bold, lists bulleted, etc.) via marked-terminal.
+  const md = new MarkdownStream()
+
+  // Drive the persistent status bar during streaming
+  let elapsedInterval: ReturnType<typeof setInterval> | undefined
+  if (statusBar) {
+    statusBar.resetTools()
+    statusBar.update({ isStreaming: true, elapsed: 0 })
+    elapsedInterval = setInterval(() => {
+      statusBar.setElapsed(Date.now() - startTime)
+    }, 250)
+  }
+
   let toolsToUse: Record<string, unknown> | undefined
   if (workspaceInfo) {
     toolsToUse = { ...tools }
+    // Wire the subagent runtime so the `delegate` tool can spawn focused subtasks.
+    setDelegateRuntime({
+      model: (provider as any).model ?? null,
+      allTools: toolsToUse,
+      onChunk: (chunk) => {
+        if (isFirstChunk && !hasOutputHeader) {
+          emitHeader()
+          isFirstChunk = false
+        }
+        process.stdout.write(chalk.hex(theme.greenDim)(`  ${chunk}`))
+      },
+      onToolCall: ({ toolName, args }) => {
+        if (!hasOutputHeader) emitHeader()
+        thinking.showToolCall(toolName, args)
+        if (statusBar) statusBar.incTools()
+      },
+    })
   }
 
   pendingModeSwitch.requested = false
@@ -129,12 +166,20 @@ async function streamAIResponse(
   function emitHeader() {
     if (hasOutputHeader) return
     hasOutputHeader = true
+    thinking.markHeaderEmitted()
     thinking.stop()
     streamHeader(provider.modelName)
   }
 
   const abortController = new AbortController()
   streamAbort = abortController
+
+  function cleanupStreamingTicker() {
+    if (elapsedInterval) {
+      clearInterval(elapsedInterval)
+      elapsedInterval = undefined
+    }
+  }
 
   try {
     const result = await provider.sendMessage(
@@ -144,28 +189,77 @@ async function streamAIResponse(
           emitHeader()
           isFirstChunk = false
         }
-        process.stdout.write(chunk)
+        md.push(chunk)
         fullResponse += chunk
       },
       toolsToUse,
-      async ({ toolName }: { toolName: string }) => {
+      async ({ toolName, args }: { toolName: string; args?: unknown }) => {
         if (!hasOutputHeader) emitHeader()
-        thinking.showToolCall(toolName)
+        thinking.showToolCall(toolName, args)
+        // Mirror tool count to the status bar so users see "X tools" climb live.
+        if (statusBar) statusBar.incTools()
       },
       abortController.signal,
       (reasoningChunk) => {
         fullReasoning += reasoningChunk
         thinking.showReasoning(reasoningChunk)
       },
+      ({ toolName, args, result }) => {
+        // Capture tool result for the post-turn warning + tracker.
+        const entry = turnTracker.recordCall(toolName, args, result)
+        if (entry.empty) {
+          // Re-render the tool call line in red to flag empty/error results
+          // the moment they happen, not just at turn end.
+          // (We replace the just-printed line with a red marker.)
+          // Note: ANSI cursor math is fragile; instead we let the thought
+          // chain summary render it in red at end of turn.
+        }
+      },
     )
 
     const elapsed = Date.now() - startTime
     const usage = await result.usage
     thinking.stop()
-    if (fullReasoning.trim()) {
-      console.log(renderReasoningBlock(fullReasoning, elapsed))
+    cleanupStreamingTicker()
+    // Flush any trailing markdown — finalizes the open block.
+    md.end()
+
+    // Update the persistent status bar with final turn state
+    if (statusBar) {
+      const totalTokens = usage?.totalTokens ?? 0
+      if (totalTokens > 0) statusBar.addTokens(totalTokens)
+      statusBar.update({ isStreaming: false, elapsed: 0 })
     }
-    console.log()
+
+    // Print the completed ThoughtChain as a compact summary
+    const chain = thinking.getChain()
+    if (chain.thoughts.length > 0) {
+      chain.collapseAll()
+      const last = chain.thoughts[chain.thoughts.length - 1]
+      if (last) last.collapsed = false
+      chain.printAll({ collapseAfter: 5 })
+    }
+
+    // End-of-turn warning: if every tool result was empty/error, surface that
+    // loudly so the user knows the answer may be unreliable. Catches the case
+    // where the model invented an answer despite the sentinel injection.
+    if (turnTracker.allResultsEmpty() && turnTracker.hasAnyToolCalls()) {
+      const empty = turnTracker.emptyCount()
+      const total = turnTracker.totalCount()
+      const summary = turnTracker.allCalls()
+        .map((c) => {
+          const reason = c.error ?? "empty result"
+          return `${c.name}: ${reason}`
+        })
+        .join(" · ")
+      console.log()
+      console.log(
+        ` ${chalk.hex(theme.red)("⚠")}  ${chalk.hex(theme.red).bold(`${empty}/${total} tool calls returned no content`)} ${chalk.hex(theme.redMute)(`— ${summary}`)}`,
+      )
+      console.log(
+        `   ${chalk.hex(theme.amber)("If the answer above cites facts, they were not retrieved from any tool. Treat with skepticism.")}`,
+      )
+    }
 
     return {
       content: fullResponse,
@@ -175,12 +269,22 @@ async function streamAIResponse(
       modeSwitchReason: pendingModeSwitch.reason,
     }
   } catch (error: any) {
+    cleanupStreamingTicker()
     if (error?.name === "AbortError" || abortController.signal.aborted) {
       thinking.stop()
+      md.end()
+      if (statusBar) statusBar.update({ isStreaming: false, elapsed: 0 })
       console.log()
-      return { content: fullResponse || "(cancelled)", elapsed: Date.now() - startTime, usage: {}, aborted: true }
+      return {
+        content: fullResponse || "(cancelled)",
+        elapsed: Date.now() - startTime,
+        usage: {},
+        aborted: true,
+      }
     }
     thinking.stop()
+    md.end()
+    if (statusBar) statusBar.update({ isStreaming: false, elapsed: 0 })
     throw error
   } finally {
     streamAbort = null
@@ -204,8 +308,8 @@ interface Conversation {
 
 const modes = ["chat", "agent"]
 const modeColors: Record<string, string> = {
-  chat: theme.cyan,
-  agent: theme.warning,
+  chat: theme.green,
+  agent: theme.amber,
 }
 const modeDisplay: Record<string, string> = {
   chat: "chat",
@@ -220,6 +324,7 @@ let stdinMode = "chat"
 let stdinResolve: ((value: { input: string; mode: string }) => void) | null = null
 let stdinPromptLen = 0
 let stdinPrevWrapLines = 1
+let activeFooter: PersistentStatusBar | null = null
 
 const SLASH_COMMANDS = [
   { cmd: "/model", desc: "Switch AI provider or model" },
@@ -240,7 +345,7 @@ let historyIndex = -1
 let savedDraft = ""
 
 function promptText(): string {
-  const color = chalk.hex(modeColors[stdinMode] ?? theme.cyan)
+  const color = chalk.hex(modeColors[stdinMode] ?? theme.green)
   const caret = chalk.hex(theme.amber)("▌")
   return `${caret} ${chalk.hex(theme.green)("[")}${color(modeDisplay[stdinMode] ?? stdinMode)}${chalk.hex(theme.green)("]")} ${chalk.hex(theme.greenGlow)(">")} `
 }
@@ -287,9 +392,9 @@ function renderInput() {
     process.stdout.write(`${divider}\r\n`)
     SLASH_COMMANDS.forEach((c, i) => {
       if (slashSelected === i) {
-        process.stdout.write(` ${chalk.hex(theme.amber)("▸")} ${chalk.hex(theme.green).bold(c.cmd.padEnd(22))}${chalk.hex(theme.text)(c.desc)}\r\n`)
+        process.stdout.write(` ${chalk.hex(theme.amber)("▸")} ${chalk.hex(theme.green).bold(c.cmd.padEnd(22))}${chalk.hex(theme.white)(c.desc)}\r\n`)
       } else {
-        process.stdout.write(` ${chalk.hex(theme.muted)(" ")} ${chalk.hex(theme.cyan)(c.cmd.padEnd(22))}${chalk.hex(theme.muted)(c.desc)}\r\n`)
+        process.stdout.write(` ${chalk.hex(theme.muted)(" ")} ${chalk.hex(theme.green)(c.cmd.padEnd(22))}${chalk.hex(theme.muted)(c.desc)}\r\n`)
       }
     })
     process.stdout.write(`${divider}`)
@@ -325,6 +430,7 @@ function stdinKeypress(_str: string, key: any) {
     } else {
       permissionManager.setSessionLevel(null)
     }
+    if (activeFooter) activeFooter.setMode(stdinMode)
     renderInput()
     return
   }
@@ -562,16 +668,14 @@ export async function chatLoop(
   const exitHandler = (code: number) => {
     try {
       if (code === 0) {
+        // Drop the persistent footer before printing the goodbye line.
+        if (activeFooter) activeFooter.unmount()
         process.stdout.write("\r\n")
         process.stdout.write(
-          frame(
-            [
-              `  ${chalk.hex(theme.green)("◇")}  ${chalk.hex(theme.white).bold("thanks for being here")}  ${chalk.hex(theme.green)("◇")}`,
-              "",
-              `  ${chalk.hex(theme.greenMute)("see you next time · supercode ◆")}`,
-            ].join("\n"),
-            { borderColor: theme.greenDim, title: "goodbye" },
-          ) + "\r\n",
+          `  ${chalk.hex(theme.green)("◇")}  ${chalk.hex(theme.white).bold("thanks for being here")}  ${chalk.hex(theme.green)("◇")}\r\n`,
+        )
+        process.stdout.write(
+          `     ${chalk.hex(theme.greenMute)("see you next time · supercode ◆")}\r\n`,
         )
       }
     } catch {}
@@ -592,6 +696,26 @@ export async function chatLoop(
   let lastUsage: { promptTokens?: number; completionTokens?: number; totalTokens?: number } | undefined = undefined
   let lastElapsed: number | undefined = undefined
 
+  // Persistent footer bar (matches OpenCode's always-there status line).
+  // The bar reserves the row immediately below the prompt so it stays anchored
+  // through every keystroke, every tool call, and every response.
+  const footer = new PersistentStatusBar()
+  activeFooter = footer
+  footer.setMode(conversation.mode)
+  footer.setModel(provider.modelName)
+  footer.setContextWindow(contextWindow)
+  footer.setTokens(0)
+  footer.mount()
+
+  // Re-mount on terminal resize so the status row tracks the new bottom row.
+  const resizeHandler = () => {
+    if (activeFooter) {
+      activeFooter.unmount()
+      activeFooter.mount()
+    }
+  }
+  process.stdout.on("resize", resizeHandler)
+
   while (true) {
     try {
       const { input: userInput, mode } = await chatInput(conversation.mode)
@@ -602,16 +726,26 @@ export async function chatLoop(
       }
 
       const trimmed = userInput.trim()
-      if (trimmed.toLowerCase() === "exit") {
+      // If the user wrapped their entire input in matched single or double
+      // quotes (e.g. `'https://example.com'` or `"what is X"`), strip the
+      // outer pair. This prevents the quotes from being passed verbatim to
+      // tool calls like url_fetch.
+      const unquoted =
+        (trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length >= 2) ||
+        (trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2)
+          ? trimmed.slice(1, -1)
+          : trimmed
+      if (unquoted.toLowerCase() === "exit") {
         process.stdout.write("\r\n")
         process.exit(0)
       }
 
-      if (trimmed.length === 0) continue
+      if (unquoted.length === 0) continue
 
-      // Track non-slash messages in history
+      // Track non-slash messages in history. Use the unquoted form so message
+      // history reflects the user's actual intent (no stray quote chars).
       if (!isSlashCommand(trimmed)) {
-        messageHistory.push(trimmed)
+        messageHistory.push(unquoted)
         if (messageHistory.length > 100) messageHistory.shift()
       }
       historyIndex = -1
@@ -635,7 +769,9 @@ export async function chatLoop(
             provider = newProvider
             contextWindow = getContextWindow(provider.modelName)
             const label = result.label || provider.modelName
-            process.stdout.write(`\r\n ${chalk.hex(theme.green)("◆")} switched to ${chalk.hex(theme.cyan)(label)}\r\n\n`)
+            footer.setModel(provider.modelName)
+            footer.setContextWindow(contextWindow)
+            process.stdout.write(`\r\n ${chalk.hex(theme.green)("◆")} switched to ${chalk.hex(theme.green)(label)}\r\n\n`)
             saveCliConfig({ provider: result.provider!, model: result.model || provider.modelName, mode: conversation.mode as "chat" | "agent" })
           }
         } else if (result?.type === "connect") {
@@ -668,14 +804,14 @@ export async function chatLoop(
         continue
       }
 
-      userMessage(trimmed)
+      userMessage(unquoted)
       messageCount++
 
-      await addMessage(conversation.id, "user", trimmed)
-      await trySetAutoTitle(conversation.id, trimmed, messageCount)
+      await addMessage(conversation.id, "user", unquoted)
+      await trySetAutoTitle(conversation.id, unquoted, messageCount)
 
       try {
-        const result = await streamAIResponse(provider, conversation.id, conversation.mode, workspaceInfo)
+        const result = await streamAIResponse(provider, conversation.id, conversation.mode, workspaceInfo, footer)
 
         if (result.aborted) {
           if (result.content && result.content !== "(cancelled)") {
@@ -694,7 +830,7 @@ export async function chatLoop(
           })
           const switchAnswer = await new Promise<string>((resolve) => {
             switchRl.question(
-              `\r\n ${chalk.hex(theme.warning)("◆")} ${chalk.bold("Switch to agent mode?")} ${result.modeSwitchReason ? `(${result.modeSwitchReason}) ` : ""}[y/N] `,
+              `\r\n ${chalk.hex(theme.amber)("◆")} ${chalk.bold("Switch to agent mode?")} ${result.modeSwitchReason ? `(${result.modeSwitchReason}) ` : ""}[y/N] `,
               resolve,
             )
           })
@@ -704,57 +840,29 @@ export async function chatLoop(
           if (switchAnswer.trim().toLowerCase() === "y" || switchAnswer.trim().toLowerCase() === "yes") {
             conversation.mode = "agent"
             await updateConversationMode(conversation.id, "agent")
+            footer.setMode("agent")
             const agentResult = await streamAIResponse(
               provider,
               conversation.id,
               "agent",
               workspaceInfo,
+              footer,
             )
             if (agentResult.aborted) {
               process.stdout.write(`\r\n ${chalk.hex(theme.amber)("◆")} cancelled\r\n`)
               continue
             }
             await addMessage(conversation.id, "assistant", agentResult.content)
-            const agentTokens = agentResult.usage?.totalTokens ?? 0
-            sessionTokens += agentTokens
             lastUsage = agentResult.usage
             lastElapsed = agentResult.elapsed
-            try {
-              chatStatusBar({
-                mode: "agent",
-                model: provider.modelName,
-                usage: agentResult.usage,
-                elapsed: agentResult.elapsed,
-                cumulativeTokens: sessionTokens,
-                contextWindow,
-              })
-              process.stdout.write("\r\n")
-            } catch {}
             continue
           }
         }
 
         await addMessage(conversation.id, "assistant", result.content)
 
-        const responseTokens = result.usage?.totalTokens ?? 0
-        sessionTokens += responseTokens
-
         lastUsage = result.usage
         lastElapsed = result.elapsed
-
-        try {
-          chatStatusBar({
-            mode: conversation.mode,
-            model: provider.modelName,
-            usage: result.usage,
-            elapsed: result.elapsed,
-            cumulativeTokens: sessionTokens,
-            contextWindow,
-          })
-          process.stdout.write("\r\n")
-        } catch {
-          // status bar may fail after tool output; continue loop
-        }
       } catch (error: any) {
         const errMsg = error?.message ?? "Unknown error"
         process.stdout.write(`\r\n ${chalk.hex(theme.red)("◆")} ${chalk.hex(theme.red)(errMsg)}\r\n\n`)

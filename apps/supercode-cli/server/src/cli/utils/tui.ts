@@ -22,6 +22,8 @@ export const theme = {
   amber: "#ffb84d",        // RECOMMENDED badge, cursor caret
   amberDim: "#7a5520",
   red: "#ff4458",          // errors only
+  redMute: "#7a2a35",      // muted errors
+  redDim: "#5a1a25",       // very dim red borders
 
   // Greys (sparingly — terminal stays green)
   white: "#e6edf3",        // primary text
@@ -30,23 +32,6 @@ export const theme = {
 
   // Pure
   black: "#000000",
-
-  // Backwards-compat aliases for code that imports old names
-  cyan: "#00ff88",
-  pink: "#ff4458",
-  teal: "#00ff88",
-  magenta: "#ff4458",
-  blue: "#00ff88",
-  warning: "#ffb84d",
-  border: "#1a4a36",
-  text: "#e6edf3",
-  surface: "#000000",
-  darker: "#0a2a1c",
-  deep: "#000000",
-  accent: "#00ff88",
-  glowCyan: "#7fffb4",
-  glowPink: "#ff6688",
-  glowGreen: "#7fffb4",
 } as const
 
 function hexToRgb(hex: string) {
@@ -780,6 +765,196 @@ export function chatStatusBar(opts: {
 }
 
 //
+// ─── PERSISTENT STATUS BAR ────────────────────────────────────────────────────
+//
+// Single bottom row that anchors the chat session. Renders once, then rewrites
+// itself in place when state changes (mode, model, token count). Matches
+// OpenCode's "always-there" footer pattern. Reserves one terminal row so the
+// prompt always sits directly above it.
+//
+// Lifecycle:
+//   1. `mount()` — reserves the row (print a newline + render first state)
+//   2. `update(...)` — overwrites in place via `\r\x1b[K`
+//   3. `unmount()` — releases the reserved row
+//
+export class PersistentStatusBar {
+  private mounted = false
+  private state = {
+    mode: "chat",
+    model: "",
+    cumulativeTokens: 0,
+    contextWindow: 0,
+    elapsed: 0,
+    tools: 0,
+    isStreaming: false,
+  }
+  private lastRow = 0
+  private cols = 80
+
+  mount() {
+    if (this.mounted) return
+    if (!process.stdout.isTTY) {
+      // No TTY: skip scroll region trickery, degrade gracefully.
+      this.mounted = true
+      return
+    }
+    this.cols = process.stdout.columns ?? 80
+    this.lastRow = Math.max(1, (process.stdout.rows ?? 24) - 1)
+    // Save cursor, set scroll region to rows [1..lastRow-1], park on status
+    // row, render, restore cursor. Standard pinned-status-row pattern (tmux).
+    process.stdout.write("\x1b7")
+    process.stdout.write(`\x1b[1;${this.lastRow}r`)
+    process.stdout.write(`\x1b[${this.lastRow + 1};1H`)
+    this.renderLine()
+    process.stdout.write("\x1b8")
+    this.mounted = true
+  }
+
+  unmount() {
+    if (!this.mounted) return
+    this.mounted = false
+    if (!process.stdout.isTTY) return
+    // Restore full-screen scroll region; the status row stays visible as scrollback.
+    process.stdout.write("\x1b7")
+    process.stdout.write("\x1b[r")
+    process.stdout.write("\x1b8")
+  }
+
+  // Surrender the status row briefly (e.g. when input prompt needs to redraw).
+  pause() {
+    if (!this.mounted || !process.stdout.isTTY) return
+    process.stdout.write("\x1b7")
+    process.stdout.write("\x1b[r")
+    process.stdout.write(`\x1b[${this.lastRow + 1};1H`)
+    process.stdout.write("\x1b[K")
+    process.stdout.write("\x1b8")
+  }
+
+  resume() {
+    if (!this.mounted || !process.stdout.isTTY) return
+    process.stdout.write("\x1b7")
+    process.stdout.write(`\x1b[1;${this.lastRow}r`)
+    process.stdout.write(`\x1b[${this.lastRow + 1};1H`)
+    this.renderLine()
+    process.stdout.write("\x1b8")
+  }
+
+  update(partial: Partial<typeof this.state>) {
+    this.state = { ...this.state, ...partial }
+    if (!this.mounted) return
+    if (!process.stdout.isTTY) return
+    process.stdout.write("\x1b7")
+    process.stdout.write(`\x1b[${this.lastRow + 1};1H`)
+    this.renderLine()
+    process.stdout.write("\x1b8")
+  }
+
+  setMode(mode: string) {
+    this.update({ mode })
+  }
+
+  setModel(model: string) {
+    this.update({ model })
+  }
+
+  setStreaming(streaming: boolean) {
+    this.update({ isStreaming: streaming })
+  }
+
+  addTokens(delta: number) {
+    this.update({ cumulativeTokens: this.state.cumulativeTokens + delta })
+  }
+
+  setTokens(total: number) {
+    this.update({ cumulativeTokens: total })
+  }
+
+  setElapsed(ms: number) {
+    this.update({ elapsed: ms })
+  }
+
+  setContextWindow(n: number) {
+    this.update({ contextWindow: n })
+  }
+
+  incTools(delta = 1) {
+    this.update({ tools: this.state.tools + delta })
+  }
+
+  resetTools() {
+    this.update({ tools: 0 })
+  }
+
+  private renderLine() {
+    const sep = " " + ansiColor(theme.greenDim, "·") + " "
+    const parts: string[] = []
+    // Reverse-video mode chip
+    parts.push(
+      `\x1b[7;${ansiFg(theme.green)};${ansiBg(theme.black)}m ${this.state.mode} \x1b[0m`,
+    )
+    if (this.state.model) parts.push(ansiColor(theme.greenGlow, this.state.model))
+
+    if (this.state.cumulativeTokens > 0) {
+      const formatted = formatTokenCount(this.state.cumulativeTokens)
+      if (this.state.contextWindow > 0) {
+        const pct = Math.min(
+          100,
+          Math.round((this.state.cumulativeTokens / this.state.contextWindow) * 100),
+        )
+        const color = pct > 80 ? theme.red : theme.amber
+        parts.push(ansiColor(color, `${formatted} (${pct}%)`))
+      } else {
+        parts.push(ansiColor(theme.amber, formatted))
+      }
+    }
+
+    if (this.state.tools > 0) {
+      parts.push(ansiColor(theme.greenDim, `${this.state.tools} tools`))
+    }
+
+    if (this.state.isStreaming && this.state.elapsed > 0) {
+      const time =
+        this.state.elapsed < 1000
+          ? `${this.state.elapsed}ms`
+          : `${(this.state.elapsed / 1000).toFixed(1)}s`
+      parts.push(ansiColor(theme.greenGlow, time))
+    }
+
+    parts.push(
+      this.state.isStreaming
+        ? ansiColor(theme.greenDim, "esc interrupt")
+        : ansiColor(theme.greenDim, "tab mode"),
+    )
+
+    const inner = parts.join(sep)
+    const innerLen = stripAnsi(inner).length
+    const fill = Math.max(1, this.cols - innerLen - 3)
+    const leftBorder = ansiColor(theme.greenDim, "┃")
+    const fillLine = ansiColor(theme.greenDim, "─".repeat(fill))
+
+    process.stdout.write("\x1b[2K")
+    process.stdout.write(`${leftBorder} ${inner} ${fillLine}`)
+  }
+}
+
+function ansiColor(hex: string, text: string): string {
+  return `\x1b[38;2;${hexToAnsiRgb(hex)}m${text}\x1b[0m`
+}
+function ansiFg(hex: string): string {
+  return `38;2;${hexToAnsiRgb(hex)}`
+}
+function ansiBg(hex: string): string {
+  return `48;2;${hexToAnsiRgb(hex)}`
+}
+function hexToAnsiRgb(hex: string): string {
+  const h = hex.replace("#", "")
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  return `${r};${g};${b}`
+}
+
+//
 // ─── HEADINGS / MESSAGES ──────────────────────────────────────────────────────
 //
 export function heading(text: string): string {
@@ -954,13 +1129,11 @@ export function messageBlock(content: string, opts?: { role?: MessageRole; title
 }
 
 export function streamHeader(model: string, label = "supercode") {
-  const ts = new Date().toLocaleTimeString()
-  const w = process.stdout.columns ?? 80
   const dim = (s: string) => chalk.hex(theme.greenDim)(s)
-  const title = `${chalk.hex(theme.green).bold(label)} ${dim("·")} ${chalk.hex(theme.greenMute)(model)} ${dim("·")} ${chalk.hex(theme.greenMute)(ts)}`
-  const titleLen = stripAnsi(title).length
-  const fill = Math.max(0, w - titleLen - 4)
-  console.log(` ${chalk.hex(theme.green)("┃")} ${title} ${dim("─".repeat(fill))}`)
+  // Single-line assistant header. Just label · model — the timestamp was
+  // decorative noise that didn't earn its place.
+  const title = `${chalk.hex(theme.green).bold(label)} ${dim("·")} ${chalk.hex(theme.greenGlow)(model)}`
+  console.log(` ${chalk.hex(theme.green)("┃")} ${title}`)
 }
 
 export function formatTokenCount(n: number): string {

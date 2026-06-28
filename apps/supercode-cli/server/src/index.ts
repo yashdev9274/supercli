@@ -261,10 +261,17 @@ app.post("/api/ai/chat", async (req, res) => {
           bodyObj.messages = [{ role: "system", content: system }, ...bodyObj.messages]
         }
         if (tools) {
-          bodyObj.tools = Object.entries(tools).map(([name, fn]: [string, any]) => ({
-            type: "function",
-            function: { name, description: fn.description || "", parameters: fn.parameters || {} },
-          }))
+          bodyObj.tools = Object.entries(tools).map(([name, fn]: [string, any]) => {
+            // AI SDK 6 tools expose their schema as `inputSchema`; fall back
+            // to the legacy `parameters` key for tools that haven't been
+            // wrapped yet. The schema object is already a JSON-Schema-shaped
+            // value (or a Zod schema) — OpenRouter accepts the JSON Schema.
+            const schema = fn.inputSchema ?? fn.parameters ?? {}
+            return {
+              type: "function",
+              function: { name, description: fn.description || "", parameters: schema },
+            }
+          })
         }
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",

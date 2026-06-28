@@ -4,6 +4,7 @@ import { nvidiaConfig } from "../../config/nvidia.config.ts"
 import chalk from "chalk"
 import { recordUsage } from "../../lib/track-usage"
 import { computeCost } from "../../lib/pricing"
+import { isEmptyToolResult, isDeniedToolResult, summarizeToolResult, tcName } from "./tool-result"
 
 export class NvidiaService {
   model: LanguageModel
@@ -34,6 +35,7 @@ export class NvidiaService {
     onToolCall?: any,
     signal?: AbortSignal,
     onReasoning?: (chunk: string) => void,
+    onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void,
   ) {
     try {
       const systemMessages = messages.filter(m => m.role === "system")
@@ -81,17 +83,77 @@ export class NvidiaService {
 
       let fullResponse = ""
 
+      const seenStepResults: Array<{ toolName: string; result: string }> = []
+      const deniedCounts = new Map<string, number>()
+      let stopForDenialLoop = false
+
       const result = streamText({
         model: this.model,
         messages: nonSystemMessages,
         system,
         tools,
-        stopWhen: stepCountIs(25),
+        stopWhen: stepCountIs(8),
         abortSignal: signal,
+        prepareStep: async ({ messages }) => {
+          if (stopForDenialLoop) {
+            return {
+              messages: [
+                ...messages,
+                {
+                  role: "system" as const,
+                  content:
+                    "SYSTEM NOTICE: You have called the same permission-protected tool multiple " +
+                    "times after the user denied it. Stop calling it. Respond to the user with " +
+                    "what you have so far and ask for guidance.",
+                },
+              ],
+            }
+          }
+          if (seenStepResults.length === 0) return undefined
+          const allEmpty = seenStepResults.every((r) => isEmptyToolResult(r.result))
+          if (!allEmpty) return undefined
+          const summary = seenStepResults
+            .map((r) => `- ${r.toolName}: ${summarizeToolResult(r.result)}`)
+            .join("\n")
+          return {
+            messages: [
+              ...messages,
+              {
+                role: "system" as const,
+                content:
+                  "SYSTEM NOTICE: All tool calls so far have returned empty or error results. " +
+                  "You have NO source material to answer with. Do NOT invent specifications, pricing, " +
+                  "dates, leaderboard rankings, or any factual claims. Tell the user which tools failed " +
+                  "and what you would need to proceed.\n\nTool outcomes:\n" + summary,
+              },
+            ],
+          }
+        },
         onStepFinish: async (event) => {
           if (event.toolCalls?.length) {
             for (const tc of event.toolCalls) {
               onToolCall?.({ toolName: tc.toolName, args: (tc as any).input as Record<string, unknown> })
+            }
+          }
+          const toolResults = (event as any).toolResults as
+            | Array<{ toolName?: string; input?: unknown; result?: unknown }>
+            | undefined
+          if (toolResults?.length) {
+            for (const tr of toolResults) {
+              const name = tcName(tr.toolName) ?? "unknown"
+              const text = typeof tr.result === "string" ? tr.result : JSON.stringify(tr.result ?? "")
+              seenStepResults.push({ toolName: name, result: text })
+              if (onToolResult) {
+                onToolResult({ toolName: name, args: tr.input, result: text })
+              }
+              if (isDeniedToolResult(text)) {
+                const prev = deniedCounts.get(name) ?? 0
+                const next = prev + 1
+                deniedCounts.set(name, next)
+                if (next >= 2) stopForDenialLoop = true
+              } else {
+                deniedCounts.set(name, 0)
+              }
             }
           }
         },

@@ -188,7 +188,7 @@ export class PermissionManager {
       stdin.setRawMode(false)
     }
 
-    const borderColor = isDangerous ? theme.red : theme.warning
+    const borderColor = isDangerous ? theme.red : theme.amber
     const header = isDangerous ? " DANGEROUS OPERATION " : " Permission Request "
 
     let content = ""
