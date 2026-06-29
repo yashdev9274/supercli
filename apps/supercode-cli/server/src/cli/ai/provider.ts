@@ -24,6 +24,7 @@ export interface AIProvider {
     signal?: AbortSignal,
     onReasoning?: (chunk: string) => void,
     onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void,
+    onStepFinish?: (params: { stepNumber: number; toolCalls: Array<{ toolName: string; args: unknown }>; toolResults: Array<{ toolName: string; args: unknown; result: string }> }) => void,
   ): Promise<{
     content: string
     finishReason: FinishReason
@@ -36,7 +37,7 @@ const providerMeta: Record<ModelProvider, { env: string; label: string; defaultM
   google: { env: "GOOGLE_GENERATIVE_AI_API_KEY", label: "Google Gemini", defaultModel: "gemini-2.5-flash", link: "https://aistudio.google.com/apikey" },
   minimax: { env: "MINIMAX_API_KEY", label: "MiniMax", defaultModel: "MiniMax-M2" },
   openrouter: { env: "OPENROUTER_API_KEY", label: "OpenRouter", defaultModel: "openai/gpt-oss-120b:free", link: "https://openrouter.ai/keys" },
-  nvidia: { env: "NVIDIA_API_KEY", label: "NVIDIA NIM", defaultModel: "minimaxai/minimax-m2.7" },
+  nvidia: { env: "NVIDIA_API_KEY", label: "NVIDIA NIM", defaultModel: "minimaxai/minimax-m3" },
   concentrateai: { env: "CONCENTRATEAI_API_KEY", label: "ConcentrateAI", defaultModel: "deepseek-v4-flash", link: "https://concentrate.ai" },
 }
 

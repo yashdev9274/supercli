@@ -32,6 +32,7 @@ export class MinimaxService {
     signal?: AbortSignal,
     onReasoning?: (chunk: string) => void,
     onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void,
+    onStepFinish?: (params: { stepNumber: number; toolCalls: Array<{ toolName: string; args: unknown }>; toolResults: Array<{ toolName: string; args: unknown; result: string }> }) => void,
   ) {
     try {
       const systemMessages = messages.filter(m => m.role === "system")

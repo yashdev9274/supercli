@@ -1,8 +1,7 @@
 import chalk from "chalk"
-import { theme, stripAnsi } from "src/cli/utils/tui"
+import { theme } from "src/cli/utils/tui"
 
 const SPINNER_FRAMES = ["∴", "∵", "∴", "∵"]
-const BG_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 
 export function reasoningSummary(text: string) {
   const content = text.trim()
@@ -263,115 +262,7 @@ export class ThinkingDisplay {
 
 //
 // ─── AGENT BACKGROUND STATUS ──────────────────────────────────────────────────
-//
-// Persistent compact status line for ongoing agent/chat operations.
-// Shows model, elapsed time, current tool, and step count in a single
-// terminal line that gets refreshed in-place.
-//
-export class AgentStatusDisplay {
-  private startTime = 0
-  private elapsedInterval: ReturnType<typeof setInterval> | null = null
-  private renderInterval: ReturnType<typeof setInterval> | null = null
-  private frameIndex = 0
-  private running = false
-  private model = ""
-  private currentTool = ""
-  private stepCount = 0
-  private toolHistory: string[] = []
-  private foldToolHistory = false
 
-  start(model: string) {
-    this.startTime = Date.now()
-    this.model = model
-    this.currentTool = ""
-    this.stepCount = 0
-    this.toolHistory = []
-    this.foldToolHistory = false
-    if (this.running) return
-    this.running = true
-    this.frameIndex = 0
-    this.render()
-
-    this.elapsedInterval = setInterval(() => {
-      if (!this.running) return
-      this.render()
-    }, 1000)
-
-    this.renderInterval = setInterval(() => {
-      if (!this.running) return
-      this.frameIndex = (this.frameIndex + 1) % BG_FRAMES.length
-      this.render()
-    }, 100)
-  }
-
-  setTool(toolName: string) {
-    this.currentTool = toolName
-    // Track unique consecutive tool calls
-    const last = this.toolHistory[this.toolHistory.length - 1]
-    if (last !== toolName) {
-      this.toolHistory.push(toolName)
-    }
-    this.stepCount++
-    if (this.running) this.render()
-  }
-
-  stop() {
-    this.running = false
-    if (this.elapsedInterval) {
-      clearInterval(this.elapsedInterval)
-      this.elapsedInterval = null
-    }
-    if (this.renderInterval) {
-      clearInterval(this.renderInterval)
-      this.renderInterval = null
-    }
-    this.clear()
-  }
-
-  private elapsed(): string {
-    if (!this.startTime) return "0s"
-    const ms = Date.now() - this.startTime
-    if (ms < 1000) return `${ms}ms`
-    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
-    const m = Math.floor(ms / 60000)
-    const s = Math.round((ms % 60000) / 1000)
-    return `${m}m ${s}s`
-  }
-
-  private render() {
-    const frame = BG_FRAMES[this.frameIndex]
-    const spinner = chalk.hex(theme.amber)(frame)
-    const modelStr = chalk.hex(theme.greenGlow)(this.model)
-    const elapsed = chalk.hex(theme.greenMute)(this.elapsed())
-    const tool = this.currentTool
-      ? `${chalk.hex(theme.greenDim)("·")} ${toolLabel(this.currentTool)}`
-      : ""
-    const count = this.stepCount > 0
-      ? `${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenMute)(`${this.stepCount}`)}`
-      : ""
-
-    process.stdout.write(
-      `\r${spinner} ${modelStr} ${chalk.hex(theme.greenDim)("·")} ${elapsed} ${tool} ${count}`,
-    )
-  }
-
-  private clear() {
-    process.stdout.write("\r")
-    const cols = process.stdout.columns ?? 80
-    process.stdout.write(" ".repeat(cols - 1))
-    process.stdout.write("\r")
-  }
-
-  succeed(text?: string) {
-    this.stop()
-    if (text) console.log(` ${chalk.hex(theme.green)("◆")} ${chalk.hex(theme.greenMute)(text)}`)
-  }
-
-  fail(text?: string) {
-    this.stop()
-    if (text) console.log(` ${chalk.hex(theme.red)("◆")} ${chalk.hex(theme.red)(text)}`)
-  }
-}
 
 //
 // ─── TOOL CALL GROUP ──────────────────────────────────────────────────────────
@@ -402,22 +293,6 @@ function safeParse(s: string): unknown {
   }
 }
 
-export function showToolSequence(toolCalls: Array<{ name: string; args?: string }>) {
-  if (toolCalls.length === 0) return
-  const groups: Array<{ name: string; args?: string; count: number }> = []
-  for (const tc of toolCalls) {
-    const last = groups[groups.length - 1]
-    if (last && last.name === tc.name && last.args === tc.args) {
-      last.count++
-    } else {
-      groups.push({ name: tc.name, args: tc.args, count: 1 })
-    }
-  }
-  for (const g of groups) {
-    console.log(formatToolGroup(g.name, g.count, g.args))
-  }
-}
-
 //
 // ─── THOUGHT CHAIN ────────────────────────────────────────────────────────────
 //
@@ -436,6 +311,10 @@ export function showToolSequence(toolCalls: Array<{ name: string; args?: string 
 export interface ThoughtTool {
   name: string
   args?: string
+  // True when the tool's result was denied by the user or came back empty/error.
+  // Drives the red ✗ marker in the live per-step block and forces the block
+  // to stay expanded on finish so the user can see what failed.
+  flagged?: boolean
 }
 
 export interface ThoughtEntry {
@@ -444,6 +323,17 @@ export interface ThoughtEntry {
   startTime: number
   endTime: number | null
   collapsed: boolean
+  // Live-render state. Set when the block has been emitted to stdout so
+  // hotkeys (Ctrl+T) can re-render it in place without double-printing.
+  printed: boolean
+  // True while the step is in progress and the block is being appended to
+  // (we open with ▼ and add rows below as tools fire). When the step
+  // finishes we auto-collapse to + so the scrollback stays compact.
+  openInProgress: boolean
+  // True if any tool in this step returned empty / error / was denied.
+  // finishAndPrint forces keepExpanded=true when this is set so the user
+  // can see exactly which tool failed and what it returned.
+  hadFlaggedTool: boolean
 }
 
 export class ThoughtChain {
@@ -458,6 +348,9 @@ export class ThoughtChain {
       startTime: Date.now(),
       endTime: null,
       collapsed: false,
+      printed: false,
+      openInProgress: false,
+      hadFlaggedTool: false,
     }
     this.thoughts.push(entry)
     this.current = entry
@@ -471,21 +364,22 @@ export class ThoughtChain {
     }
   }
 
-  addTool(name: string, args?: string) {
+  addTool(name: string, args?: string, flagged = false) {
     if (!this.current && this.thoughts.length > 0) {
       this.current = this.thoughts[this.thoughts.length - 1]!
     }
     if (!this.current) {
       const entry = this.begin()
-      entry.tools.push({ name, args })
+      entry.tools.push({ name, args, flagged })
       return
     }
     const lastTool = this.current.tools[this.current.tools.length - 1]
-    if (lastTool && lastTool.name === name && !lastTool.args) {
+    if (lastTool && lastTool.name === name && !lastTool.args && !flagged) {
       // Deduplicate consecutive same-named bare tool calls
       return
     }
-    this.current.tools.push({ name, args })
+    this.current.tools.push({ name, args, flagged })
+    if (flagged) this.current.hadFlaggedTool = true
   }
 
   finish() {
@@ -493,6 +387,133 @@ export class ThoughtChain {
       this.current.endTime = Date.now()
       this.current = null
     }
+  }
+
+  // Mark the most recently appended tool row as flagged (denied/empty/error).
+  // Drives the red ✗ in the expanded block AND forces keepExpanded on finish
+  // so the user can see exactly which tool failed. No-op when there's no
+  // open step or the last tool was already flagged (avoids double-counting
+  // when a single call fans out to multiple result events).
+  markLastToolFlagged(): void {
+    if (!this.current) return
+    const last = this.current.tools[this.current.tools.length - 1]
+    if (!last) return
+    if (!last.flagged) {
+      last.flagged = true
+      this.current.hadFlaggedTool = true
+    }
+  }
+
+  // Per-step live render. Each call writes one ANSI line to stdout.
+  // `beginAndPrint` opens an expanded ▼ Thought: 0.0s block.
+  // `printToolRow` appends one ┃   → Read foo.ts line.
+  // `finishAndPrint` closes the block: flips to + and adds a summary line.
+  // All three are no-ops when stdout isn't a TTY (the chat loop already
+  // captures the alternative plain-text path via printUnified).
+  beginAndPrint(): ThoughtEntry | null {
+    if (!process.stdout.isTTY) return null
+    const entry = this.begin()
+    entry.openInProgress = true
+    const elapsedStr = "0.0s"
+    const indent = chalk.hex(theme.greenDim)("┃")
+    const toggle = chalk.hex(theme.greenGlow)("▼")
+    const label = chalk.hex(theme.greenMute)("Thought")
+    const time = chalk.hex(theme.greenDim)(elapsedStr)
+    process.stdout.write(
+      `${indent} ${toggle} ${label} ${chalk.hex(theme.greenDim)("·")} ${time}\n`,
+    )
+    entry.printed = true
+    return entry
+  }
+
+  printToolRow(name: string, args?: unknown, flagged = false): void {
+    if (!process.stdout.isTTY) return
+    if (!this.current || !this.current.openInProgress) return
+    const indent = chalk.hex(theme.greenDim)("┃")
+    const argsSerialized =
+      typeof args === "string" ? safeParse(args) : args
+    const row = toolLabel(name, argsSerialized)
+    // Red ✗ marker after the tool label when the call was denied or returned
+    // empty/error. Small visual hint that this row is the failure case.
+    const marker = flagged
+      ? ` ${chalk.hex(theme.red)("✗")}`
+      : ""
+    process.stdout.write(`${indent}   ${row}${marker}\n`)
+    // Keep entry.tools in sync so Ctrl+T toggle re-render matches what we
+    // just printed.
+    const serializedArgs =
+      typeof args === "string" ? args : JSON.stringify(args ?? null)
+    this.current.tools.push({ name, args: serializedArgs, flagged })
+    // Mark the entry printed so togglePrinted knows how many lines to redraw
+    this.current.printed = true
+    if (flagged) this.current.hadFlaggedTool = true
+  }
+
+  finishAndPrint(opts?: { autoCollapse?: boolean; keepExpanded?: boolean }): void {
+    if (!process.stdout.isTTY) return
+    if (!this.current) return
+    const entry = this.current
+    entry.endTime = Date.now()
+    entry.openInProgress = false
+    // keepExpanded (e.g. when a tool was denied/empty) wins over autoCollapse.
+    entry.collapsed =
+      entry.hadFlaggedTool ? false : (opts?.autoCollapse ?? true)
+    const elapsedMs = entry.endTime - entry.startTime
+    const elapsedStr =
+      elapsedMs < 1000 ? `${elapsedMs}ms` : `${(elapsedMs / 1000).toFixed(1)}s`
+
+    const indent = chalk.hex(theme.greenDim)("┃")
+    // Toggle: when auto-collapsing, move ▼ to +. When keeping open, keep ▼.
+    const toggle = entry.collapsed
+      ? chalk.hex(theme.greenGlow)("+")
+      : chalk.hex(theme.greenGlow)("▼")
+    const label = chalk.hex(theme.greenMute)("Thought")
+    const time = chalk.hex(theme.greenDim)(elapsedStr)
+    process.stdout.write(
+      `${indent} ${toggle} ${label} ${chalk.hex(theme.greenDim)("·")} ${time}\n`,
+    )
+
+    // When auto-collapsed we show a summary line; when expanded we reprint
+    // each tool so the user can see exactly what was called (with ✗ markers
+    // for denied/empty rows).
+    if (entry.collapsed) {
+      if (entry.tools.length > 0) {
+        const okCount = entry.tools.filter((t) => !t.flagged).length
+        const flaggedCount = entry.tools.filter((t) => t.flagged).length
+        const summary =
+          flaggedCount > 0
+            ? `${okCount} ok · ${chalk.hex(theme.red)(`${flaggedCount} failed`)}`
+            : `${entry.tools.length} tool call${entry.tools.length === 1 ? "" : "s"}`
+        process.stdout.write(
+          `${indent}   ${chalk.hex(theme.greenDim)("↳")} ${chalk.hex(theme.greenMute)(summary)}\n`,
+        )
+      }
+    } else {
+      // Expanded — list each tool row, with ✗ for flagged ones.
+      for (const t of entry.tools) {
+        const argsParsed =
+          typeof t.args === "string" ? safeParse(t.args) : t.args
+        const row = toolLabel(t.name, argsParsed)
+        const marker = t.flagged ? ` ${chalk.hex(theme.red)("✗")}` : ""
+        process.stdout.write(`${indent}   ${row}${marker}\n`)
+      }
+    }
+    entry.printed = true
+    this.current = null
+  }
+
+  // Toggle the chevron of the most-recently printed thought by re-emitting
+  // its block (collapsed ↔ expanded). Used by Ctrl+T.
+  togglePrinted(index: number = this.thoughts.length - 1): void {
+    if (!process.stdout.isTTY) return
+    const entry = this.thoughts[index]
+    if (!entry) return
+    if (entry.endTime === null) return // can't toggle an open step
+    entry.collapsed = !entry.collapsed
+    const out = this.renderThought(entry)
+    // renderThought doesn't write to stdout; emit it. The hotkey handler
+    // is responsible for clearing the previous block first using line math.
+    process.stdout.write(out + "\n")
   }
 
   get elapsed(): number {

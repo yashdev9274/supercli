@@ -36,11 +36,14 @@ export class NvidiaService {
     signal?: AbortSignal,
     onReasoning?: (chunk: string) => void,
     onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void,
+    onStepFinish?: (params: { stepNumber: number; toolCalls: Array<{ toolName: string; args: unknown }>; toolResults: Array<{ toolName: string; args: unknown; result: string }> }) => void,
   ) {
     try {
       const systemMessages = messages.filter(m => m.role === "system")
       const nonSystemMessages = messages.filter(m => m.role !== "system")
       const system = systemMessages.map(m => m.content).join("\n")
+      // Capture for closure use inside streamText's onStepFinish callback.
+      const onStepFinishRef = onStepFinish
 
       const hasTools = tools && Object.keys(tools).length > 0
 
@@ -155,6 +158,22 @@ export class NvidiaService {
                 deniedCounts.set(name, 0)
               }
             }
+          }
+          if (onStepFinishRef) {
+            const calls = (event.toolCalls ?? []).map((tc: any) => ({
+              toolName: tc.toolName as string,
+              args: (tc as any).input,
+            }))
+            const results = (toolResults ?? []).map((tr: any) => ({
+              toolName: (tcName(tr.toolName) ?? "unknown") as string,
+              args: tr.input,
+              result: typeof tr.result === "string" ? tr.result : JSON.stringify(tr.result ?? ""),
+            }))
+            onStepFinishRef({
+              stepNumber: (event as any).stepNumber ?? 0,
+              toolCalls: calls,
+              toolResults: results,
+            })
           }
         },
       })
