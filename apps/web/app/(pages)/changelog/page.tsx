@@ -22,6 +22,70 @@ export default function ChangelogPage() {
             <div className="flex items-baseline gap-4 mb-8">
               <h2 className="text-[24px] font-semibold tracking-tight">
                 <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.27"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.27
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jun 29, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Analytics</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- New usage tracking and analytics feature for monitoring CLI usage patterns.</li>
+                  <li>- Improved error handling in analytics route for better reliability.</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Agent Enhancements</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Enhanced agent functionality with improved tool call handling (v0.1.19, v0.1.24).</li>
+                  <li>- Better tool result processing for more reliable agent responses.</li>
+                  <li>- Refined output formatting across the CLI (v0.1.18).</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Auto-Update</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- New auto-update mechanism to keep supercode-cli up to date (v0.1.21).</li>
+                  <li>- Improved update error handling and diagnostics (v0.1.22).</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Model Support</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Added GLM 5.2 support to ConcentrateAI provider (v0.1.17).</li>
+                  <li>- Updated model references and configurations (v0.1.26).</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Infrastructure</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Refactored Prisma integration for cleaner database access (v0.1.23).</li>
+                  <li>- Dependency updates across the monorepo.</li>
+                  <li>- Device code timestamps migration for auth flows.</li>
+                  <li>- Removed remotion video sub-repo to clean up workspace.</li>
+                  <li>- Added Star History section to README.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
                   href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.16"
                   target="_blank"
                   rel="noopener noreferrer"
