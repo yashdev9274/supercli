@@ -8,6 +8,31 @@ import { isEmptyToolResult, isDeniedToolResult, summarizeToolResult, tcName } fr
 const CONCENTRATE_API_KEY = process.env.CONCENTRATEAI_API_KEY || ""
 const BASE_URL = "https://api.concentrate.ai/v1"
 
+interface NonStreamingResponse {
+  choices?: Array<{ message?: { content?: string } }>
+  usage?: { prompt_tokens?: number; completion_tokens?: number }
+}
+
+async function nonStreamingRequest(modelName: string, system: string, messages: Array<{ role: string; content: string }>): Promise<NonStreamingResponse> {
+  const body = {
+    model: modelName,
+    messages: system ? [{ role: "system", content: system }, ...messages] : messages,
+    max_tokens: 4096,
+    temperature: 0.7,
+    stream: false,
+  }
+  const res = await fetch(`${BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${CONCENTRATE_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "unknown error")
+    throw new Error(`ConcentrateAI API ${res.status}: ${errText}`)
+  }
+  return await res.json() as NonStreamingResponse
+}
+
 export class ConcentrateService {
   model: LanguageModel
   readonly modelName: string
@@ -44,9 +69,10 @@ export class ConcentrateService {
       const systemMessages = messages.filter(m => m.role === "system")
       const nonSystemMessages = messages.filter(m => m.role !== "system")
       const system = systemMessages.map(m => m.content).join("\n")
-      const onStepFinishRef = onStepFinish
 
       const hasTools = tools && Object.keys(tools).length > 0
+
+      // console.error(`[d] tools=${hasTools} count=${nonSystemMessages.length} keys=${hasTools ? Object.keys(tools).length : 0}`)
 
       if (!hasTools) {
         const result = streamText({
@@ -57,9 +83,50 @@ export class ConcentrateService {
         })
 
         let fullResponse = ""
+        let chunkCount = 0
         for await (const chunk of result.textStream) {
+          chunkCount++
           fullResponse += chunk
           onChunk?.(chunk)
+        }
+        // console.error(`[d] non-tools streamed ${chunkCount} chunks resp="${fullResponse}"`)
+
+        if (!fullResponse.trim()) {
+          const nonStreamData = await nonStreamingRequest(this.modelName, system, nonSystemMessages.map((m: any) => ({ role: m.role, content: typeof m.content === "string" ? m.content : JSON.stringify(m.content) })))
+          const content = nonStreamData?.choices?.[0]?.message?.content ?? ""
+          if (content) {
+            onChunk?.(content)
+          }
+          const inputTokens = nonStreamData?.usage?.prompt_tokens ?? 0
+          const outputTokens = nonStreamData?.usage?.completion_tokens ?? 0
+          recordUsage({
+            provider: "concentrateai",
+            model: this.modelName,
+            inputTokens,
+            outputTokens,
+            cachedInputTokens: 0,
+            totalTokens: inputTokens + outputTokens,
+            costUsd: computeCost(this.modelName, inputTokens, outputTokens, 0),
+            durationMs: null,
+          })
+          return {
+            content,
+            finishReason: "stop" as const,
+            usage: {
+              inputTokens,
+              outputTokens,
+              totalTokens: inputTokens + outputTokens,
+              inputTokenDetails: {
+                noCacheTokens: undefined,
+                cacheReadTokens: 0,
+                cacheWriteTokens: undefined,
+              },
+              outputTokenDetails: {
+                textTokens: undefined,
+                reasoningTokens: undefined,
+              },
+            },
+          }
         }
 
         const [finishReason, usage] = await Promise.all([
@@ -84,6 +151,8 @@ export class ConcentrateService {
           usage,
         }
       }
+
+      // console.error(`[d] tools path hit`)
 
       let fullResponse = ""
 
@@ -168,9 +237,52 @@ export class ConcentrateService {
         },
       })
 
+      let toolChunkCount = 0
       for await (const chunk of result.textStream) {
+        toolChunkCount++
         fullResponse += chunk
         onChunk?.(chunk)
+      }
+      // console.error(`[d] tools streamed ${toolChunkCount} chunks resp="${fullResponse}"`)
+
+      // Same empty-stream fallback as non-tools path — ConcentrateAI's
+      // Novita proxy intermittently drops content on streaming requests.
+      if (!fullResponse.trim()) {
+        const nonStreamData = await nonStreamingRequest(this.modelName, system, nonSystemMessages.map((m: any) => ({ role: m.role, content: typeof m.content === "string" ? m.content : JSON.stringify(m.content) })))
+        const content = nonStreamData?.choices?.[0]?.message?.content ?? ""
+        if (content) {
+          onChunk?.(content)
+        }
+        const inputTokens = nonStreamData?.usage?.prompt_tokens ?? 0
+        const outputTokens = nonStreamData?.usage?.completion_tokens ?? 0
+        recordUsage({
+          provider: "concentrateai",
+          model: this.modelName,
+          inputTokens,
+          outputTokens,
+          cachedInputTokens: 0,
+          totalTokens: inputTokens + outputTokens,
+          costUsd: computeCost(this.modelName, inputTokens, outputTokens, 0),
+          durationMs: null,
+        })
+        return {
+          content,
+          finishReason: "stop" as const,
+          usage: {
+            inputTokens,
+            outputTokens,
+            totalTokens: inputTokens + outputTokens,
+            inputTokenDetails: {
+              noCacheTokens: undefined,
+              cacheReadTokens: 0,
+              cacheWriteTokens: undefined,
+            },
+            outputTokenDetails: {
+              textTokens: undefined,
+              reasoningTokens: undefined,
+            },
+          },
+        }
       }
 
       const [finishReason, usage] = await Promise.all([

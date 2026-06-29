@@ -106,12 +106,6 @@ export class StepStatusRow {
       clearInterval(this.frameInterval)
       this.frameInterval = null
     }
-    // Clear the row we were overprinting.
-    if (process.stdout.isTTY) {
-      process.stdout.write("\x1b7")
-      process.stdout.write("\r\x1b[2K")
-      process.stdout.write("\x1b8")
-    }
   }
 
   private render() {

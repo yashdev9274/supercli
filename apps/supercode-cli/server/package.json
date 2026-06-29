@@ -1,6 +1,6 @@
 {
   "name": "supercode-cli",
-  "version": "0.1.26",
+  "version": "0.1.27",
   "description": "AI-powered coding agent CLI",
   "main": "dist/main.js",
   "bin": {
@@ -70,7 +70,6 @@
     "marked-terminal": "^7.3.0",
     "oas": "^34.0.1",
     "open": "^11.0.0",
-    "pg": "^8.20.0",
     "prisma": "^7.4.2",
     "typescript": "^5.7.0",
     "vercel-minimax-ai-provider": "^0.0.2",
