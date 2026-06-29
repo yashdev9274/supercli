@@ -34,7 +34,8 @@ import {
   rowCard,
   heavyDivider,
 } from "src/cli/utils/tui.ts"
-import { ThinkingDisplay, TurnTracker } from "./thinking.ts"
+import { ThinkingDisplay, TurnTracker, toolLabel } from "./thinking.ts"
+import { StepStatusRow } from "./step-status-row.ts"
 import { MarkdownStream } from "src/cli/utils/markdown-stream.ts"
 import { getContextWindow } from "src/cli/ai/context-windows.ts"
 import type { WorkspaceInfo } from "src/cli/workspace/scanner.ts"
@@ -152,6 +153,25 @@ async function streamAIResponse(
   const thinking = new ThinkingDisplay()
   thinking.start("thinking")
 
+  // Per-step live chain — ThinkingDisplay owns the spinner; we use the chain
+  // directly here for per-step block rendering. Each AI step opens a
+  // `▼ Thought: 0.0s` block, appends `┃   → Read foo.ts` rows as tools
+  // fire, then auto-collapses to `+ Thought: N.Ns` when the step finishes.
+  const chain = thinking.getChain()
+  activeChain = chain
+
+  // Live status row above the input prompt — shows model name, current
+  // step, current tool, and elapsed time. Replaces the on-input
+  // ThinkingDisplay spinner pattern (kept for non-TTY fallback) and the
+  // previous noisy per-tool debug lines.
+  const statusRow = new StepStatusRow()
+  const agentName = mode === "plan" ? "plan" : (mode === "chat" ? "chat" : "build")
+  statusRow.start(agentName, provider.modelName)
+  // Publish to the module-scoped slot so the persistent footer's resize
+  // handler can notify us too — StepStatusRow reserves no row of its own,
+  // but its render math depends on the current terminal width.
+  activeStatusRow = statusRow
+
   // Per-turn tool result tracker. Used to detect "all tools returned empty"
   // (the hallucination precursor) and to render empty tool calls in red.
   const turnTracker = new TurnTracker()
@@ -193,6 +213,10 @@ async function streamAIResponse(
       onToolCall: ({ toolName, args }) => {
         if (!hasOutputHeader) emitHeader()
         thinking.showToolCall(toolName, args)
+        chain.beginAndPrint()          // open per-step block (idempotent if already open)
+        chain.printToolRow(toolName, args)
+        statusRow.setCurrentTool(toolName, args)
+        verbosePrint(toolName, args, provider.modelName, Date.now())
         if (statusBar) statusBar.incTools()
       },
     })
@@ -225,6 +249,7 @@ async function streamAIResponse(
         if (isFirstChunk && !hasOutputHeader) {
           emitHeader()
           isFirstChunk = false
+          statusRow.setStreaming()
         }
         md.push(chunk)
         fullResponse += chunk
@@ -233,6 +258,13 @@ async function streamAIResponse(
       async ({ toolName, args }: { toolName: string; args?: unknown }) => {
         if (!hasOutputHeader) emitHeader()
         thinking.showToolCall(toolName, args)
+        // Open a fresh per-step block on the first tool call of a step,
+        // then append the tool row live. After onStepFinish we close +
+        // auto-collapse (see process.onStepFinish callback below).
+        chain.beginAndPrint()
+        chain.printToolRow(toolName, args)
+        statusRow.setCurrentTool(toolName, args)
+        verbosePrint(toolName, args, provider.modelName, Date.now())
         // Mirror tool count to the status bar so users see "X tools" climb live.
         if (statusBar) statusBar.incTools()
       },
@@ -241,12 +273,18 @@ async function streamAIResponse(
         fullReasoning += reasoningChunk
         thinking.showReasoning(reasoningChunk)
       },
-      ({ toolName, args, result }) => {
+      async ({ toolName, args, result, stepNumber }: { toolName: string; args?: unknown; result: unknown; stepNumber?: number }) => {
         // Capture tool result for the post-turn warning + tracker.
-        const entry = turnTracker.recordCall(toolName, args, result)
+        const entry = turnTracker.recordCall(toolName, args, result as string)
 
         // Phase 7: record the source as a citation if it's a research tool.
         citationTracker.recordFromToolCall(toolName, args)
+
+        // Empty/denied → mark the live Thought block's last tool row so the
+        // expanded view shows a red ✗ and finishAndPrint keeps the block open.
+        if (entry.empty || entry.permissionDenied) {
+          chain.markLastToolFlagged()
+        }
 
         // Detect a mode-switch request (Phase 2: clean function-call return
         // instead of the old `pendingModeSwitch` module global). The tool
@@ -265,13 +303,14 @@ async function streamAIResponse(
             // non-JSON result; ignore
           }
         }
-        if (entry.empty) {
-          // Re-render the tool call line in red to flag empty/error results
-          // the moment they happen, not just at turn end.
-          // (We replace the just-printed line with a red marker.)
-          // Note: ANSI cursor math is fragile; instead we let the thought
-          // chain summary render it in red at end of turn.
-        }
+      },
+      // Per-step finish: close the live Thought block and update the
+      // status row. This is the OpenCode-style render: each step writes
+      // its expanded tool list then auto-collapses to "+ Thought: N.Ns".
+      ({ stepNumber }) => {
+        chain.finishAndPrint({ autoCollapse: true })
+        statusRow.setPhase("thinking")
+        statusRow.setStepCount(stepNumber ?? chain.thoughts.length)
       },
     )
 
@@ -280,15 +319,22 @@ async function streamAIResponse(
     thinking.stop()
     cleanupStreamingTicker()
 
-    // Render the ThoughtChain (reasoning + tool calls) as a SINGLE COLLAPSIBLE
-    // "▼ Thought" block BEFORE flushing the final output. Mirrors the
-    // opencode TUI style: the user sees the model's final answer first,
-    // with reasoning + tool calls tucked under one collapsible toggle.
-    const chain = thinking.getChain()
+    // Make sure any in-progress step is closed cleanly. Normally onStepFinish
+    // has already fired for each step, but the last step's finishAndPrint
+    // could have raced with the text-delta stream — close defensively.
     if (chain.thoughts.length > 0) {
-      console.log()
-      chain.printUnified()
+      const last = chain.thoughts[chain.thoughts.length - 1]!
+      if (last.endTime === null) {
+        chain.finishAndPrint({ autoCollapse: true })
+      }
     }
+
+    // Each step already rendered itself in-context during streaming via
+    // chain.printToolRow + chain.finishAndPrint. No need for the legacy
+    // end-of-turn dump.
+    statusRow.stop()
+    activeStatusRow = null
+    activeChain = null
 
     // Flush any trailing markdown — finalizes the open block.
     md.end()
@@ -371,10 +417,15 @@ async function streamAIResponse(
     cleanupStreamingTicker()
     if (error?.name === "AbortError" || abortController.signal.aborted) {
       thinking.stop()
-      const abortChain = thinking.getChain()
-      if (abortChain.thoughts.length > 0) {
-        abortChain.printUnified()
+      // Close any in-progress per-step block so the live chat log stays clean.
+      if (chain && chain.thoughts.length > 0) {
+        const last = chain.thoughts[chain.thoughts.length - 1]!
+        if (last.endTime === null) {
+          chain.finishAndPrint({ autoCollapse: true })
+        }
       }
+      statusRow.stop()
+      activeStatusRow = null
       md.end()
       if (statusBar) statusBar.update({ isStreaming: false, elapsed: 0 })
       console.log()
@@ -386,6 +437,9 @@ async function streamAIResponse(
       }
     }
     thinking.stop()
+    statusRow.stop()
+    activeStatusRow = null
+    activeChain = null
     md.end()
     if (statusBar) statusBar.update({ isStreaming: false, elapsed: 0 })
     throw error
@@ -447,12 +501,39 @@ function applyModePermissions(mode: string): void {
 
 // Persistent stdin state
 let streamAbort: AbortController | null = null
+// The currently-streaming ThoughtChain (or null between turns). Exposed at
+// module scope so the stdin keypress handler can hit Ctrl+T without
+// threading the chain through every helper.
+let activeChain: { thoughts: { endTime: number | null }[]; togglePrinted: (i: number) => void } | null = null
 let stdinInput = ""
 let stdinCursor = 0
 let stdinMode = "chat"
 let stdinResolve: ((value: { input: string; mode: string }) => void) | null = null
 let stdinPromptLen = 0
 let stdinPrevWrapLines = 1
+
+// When true, prints the legacy ─ toolName · model · N.Ns · esc interrupt
+// debug lines on top of the new per-step UI. Used by /verbose for power users
+// debugging supercode's TUI itself. Default off because the new live
+// Thought blocks + StepStatusRow already convey the same info in context.
+let verboseMode = false
+
+// Emit one legacy debug line per tool call when verbose mode is on. Reuses
+// the same `─ toolName model · N.Ns · esc interrupt` shape as the cmd2.png
+// repro so people debugging supercode's TUI get the same output they used to.
+function verbosePrint(toolName: string, args: unknown, modelName: string, startMs: number) {
+  if (!verboseMode) return
+  if (!process.stdout.isTTY) return
+  const elapsedMs = Date.now() - startMs
+  const elapsedStr = elapsedMs < 1000 ? `${elapsedMs}ms` : `${(elapsedMs / 1000).toFixed(1)}s`
+  const label = toolLabel(toolName, args)
+  const modelStr = chalk.hex(theme.greenGlow)(modelName)
+  const elapsedColor = chalk.hex(theme.greenMute)(elapsedStr)
+  const dash = chalk.hex(theme.greenDim)("─")
+  process.stdout.write(
+    `${dash} ${label} ${chalk.hex(theme.greenDim)("·")} ${modelStr} ${chalk.hex(theme.greenDim)("·")} ${elapsedColor} ${chalk.hex(theme.greenDim)("· esc interrupt")}\n`,
+  )
+}
 
 //
 // Active permission prompt state. When `permissionPromptActive` is non-null,
@@ -470,16 +551,21 @@ type PermissionPromptSession = {
 
 let permissionPromptActive: PermissionPromptSession | null = null
 let activeFooter: PersistentStatusBar | null = null
+// The currently-streaming StepStatusRow, if any. The resize handler below
+// reads this and forwards the new width so the live status row tracks the
+// terminal even mid-turn.
+let activeStatusRow: StepStatusRow | null = null
 
 const SLASH_COMMANDS = [
   { cmd: "/model", desc: "Switch AI provider or model" },
   { cmd: "/connect", desc: "Connect API key for direct access" },
   { cmd: "/context", desc: "Show context window usage and breakdown" },
+  { cmd: "/verbose", desc: "Toggle live tool call debug logs" },
   { cmd: "/help", desc: "Show available commands and models" },
   { cmd: "/exit", desc: "End the session" },
 ]
 
-const SLASH_LIST_HEIGHT = 2 + 5 + 2 // dividers + header + 5 commands + bottom divider
+const SLASH_LIST_HEIGHT = 2 + 6 + 2 // dividers + header + 6 commands + bottom divider
 
 let slashListLines = 0
 let slashSelected = -1
@@ -649,6 +735,21 @@ function stdinKeypress(_str: string, key: any) {
 
   if (key.ctrl && key.name === "c") {
     process.exit(0)
+    return
+  }
+
+  // Ctrl+T — toggle the most recently printed Thought block (collapsed ↔ expanded).
+  // Cheap in-place redraw: clear the line at the current cursor, rewrite the
+  // chevron + body in the new state, then move the cursor back down. Only
+  // works on a TTY because the rendered Thought blocks live in ANSI scrollback.
+  if (key.ctrl && key.name === "t" && process.stdout.isTTY && activeChain) {
+    const thoughts = activeChain.thoughts
+    if (thoughts.length > 0) {
+      const last = thoughts[thoughts.length - 1]!
+      if (last.endTime !== null) {
+        activeChain.togglePrinted(thoughts.length - 1)
+      }
+    }
     return
   }
 
@@ -1023,6 +1124,9 @@ export async function chatLoop(
       activeFooter.unmount()
       activeFooter.mount()
     }
+    if (activeStatusRow) {
+      activeStatusRow.resize(process.stdout.columns ?? 80)
+    }
   }
   process.stdout.on("resize", resizeHandler)
 
@@ -1167,6 +1271,11 @@ export async function chatLoop(
           }
         } else if (result?.type === "scratch") {
           process.stdout.write(`\r\n`)
+        } else if (result?.type === "unknown" && trimmed === "/verbose") {
+          verboseMode = !verboseMode
+          process.stdout.write(
+            `\r\n ${chalk.hex(theme.green)("◆")} verbose mode ${verboseMode ? chalk.hex(theme.green)("on") : chalk.hex(theme.greenDim)("off")} — ${verboseMode ? "per-tool debug lines enabled" : "clean UI"}\r\n\n`,
+          )
         } else if (result?.type === "unknown") {
           process.stdout.write(`\r\n ${chalk.hex(theme.red)("◆")} unknown slash command: ${trimmed.split(" ")[0]}\r\n\n`)
         } else {

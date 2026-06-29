@@ -14,7 +14,7 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   "MiniMax-M2":                { inputPrice: 0.15,   outputPrice: 0.60,   cachedPrice: 0.025 },
   "MiniMax-M3":                { inputPrice: 0.20,   outputPrice: 0.80,   cachedPrice: 0.04 },
   "MiniMax-M2.5":              { inputPrice: 0.15,   outputPrice: 0.60,   cachedPrice: 0.025 },
-  "minimaxai/minimax-m2.7":   { inputPrice: 0.15,   outputPrice: 0.60,   cachedPrice: 0 },
+  "minimaxai/minimax-m3":   { inputPrice: 0.20,   outputPrice: 0.80,   cachedPrice: 0 },
   "minimax/minimax-m3":       { inputPrice: 0.20,   outputPrice: 0.80,   cachedPrice: 0 },
   "minimax/minimax-m3.5":     { inputPrice: 0.25,   outputPrice: 1.00,   cachedPrice: 0 },
   "minimax/minimax-m2.5":     { inputPrice: 0.15,   outputPrice: 0.60,   cachedPrice: 0 },
@@ -23,7 +23,7 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   "glm-5.2":                  { inputPrice: 0.10,   outputPrice: 0.40,   cachedPrice: 0 },
   "glm-5.1":                  { inputPrice: 0.10,   outputPrice: 0.40,   cachedPrice: 0 },
   "z-ai/glm-5.1":             { inputPrice: 0.10,   outputPrice: 0.40,   cachedPrice: 0 },
-  "minimax-m2-7":             { inputPrice: 0.15,   outputPrice: 0.60,   cachedPrice: 0 },
+  "minimax-m3":               { inputPrice: 0.20,   outputPrice: 0.80,   cachedPrice: 0 },
   "meta/llama-3.3-70b-instruct": { inputPrice: 0.59, outputPrice: 0.99, cachedPrice: 0 },
 }
 

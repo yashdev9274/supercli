@@ -12,7 +12,7 @@ const MODEL_MAX_TOKENS: Record<string, number> = {
   "minimax/minimax-m3": 1024,
   "minimax/minimax-m3.5": 1024,
   "minimax/minimax-m2.5": 1024,
-  "minimaxai/minimax-m2.7": 1024,
+  "minimaxai/minimax-m3": 1024,
   "z-ai/glm-5.1": 256,
 }
 
@@ -194,6 +194,7 @@ export class OpenRouterService {
     signal?: AbortSignal,
     onReasoning?: (chunk: string) => void,
     onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void,
+    onStepFinish?: (params: { stepNumber: number; toolCalls: Array<{ toolName: string; args: unknown }>; toolResults: Array<{ toolName: string; args: unknown; result: string }> }) => void,
   ) {
     let currentMessages = [...messages]
     let accumulatedContent = ""
@@ -309,6 +310,23 @@ export class OpenRouterService {
           content: toolResult,
         })
         toolCallsThisTurn += result.toolCalls.length
+      }
+
+      // Notify chat loop of step finish (OpenRouter uses a manual polling
+      // loop, so each iteration is a "step" for our purposes).
+      if (onStepFinish && result.toolCalls.length > 0) {
+        onStepFinish({
+          stepNumber: toolCallsThisTurn,
+          toolCalls: result.toolCalls.map((c: any) => ({ toolName: c.toolName, args: c.args })),
+          toolResults: result.toolCalls.map((c: any) => {
+            const tr = allToolResults.find((r) => r.toolName === c.toolName)
+            return {
+              toolName: c.toolName,
+              args: c.args,
+              result: tr?.result ?? "",
+            }
+          }),
+        })
       }
 
       if (toolCallsThisTurn >= TOOL_BUDGET) break

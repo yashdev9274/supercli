@@ -8,6 +8,7 @@ export interface ToolExecutorCallbacks {
   onReasoning?: (chunk: string) => void
   onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void
   signal?: AbortSignal
+  onStepFinish?: (params: { stepNumber: number; toolCalls: Array<{ toolName: string; args: unknown }>; toolResults: Array<{ toolName: string; args: unknown; result: string }> }) => void
 }
 
 export type ToolSetDefinition = Record<string, {
@@ -157,6 +158,20 @@ export async function executeToolLoop(
         role: "tool",
         content: resultStr,
         tool_call_id: tc.toolCallId,
+      })
+    }
+
+    // Per-step finish notification — used by the chat loop to close
+    // and auto-collapse the live per-step Thought block.
+    if (callbacks.onStepFinish && toolCalls.length > 0) {
+      callbacks.onStepFinish({
+        stepNumber: iter,
+        toolCalls: toolCalls.map((tc) => ({ toolName: tc.toolName, args: tc.args })),
+        toolResults: allToolResults.slice(-toolCalls.length).map((r) => ({
+          toolName: r.toolName,
+          args: toolCalls.find((tc) => tc.toolName === r.toolName)?.args ?? {},
+          result: r.result,
+        })),
       })
     }
 

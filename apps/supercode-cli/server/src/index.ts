@@ -18,13 +18,13 @@ const MODEL_MAX_TOKENS: Record<string, number> = {
   "minimax/minimax-m3": 1024,
   "minimax/minimax-m3.5": 1024,
   "minimax/minimax-m2.5": 1024,
-  "minimaxai/minimax-m2.7": 1024,
+  "minimaxai/minimax-m3": 1024,
   "z-ai/glm-5.1": 512,
   "deepseek-v4-flash": 8192,
   "kimi-k2-6": 8192,
   "glm-5.2": 4096,
   "glm-5.1": 4096,
-  "minimax-m2-7": 8192,
+  "minimax-m3": 8192,
 }
 function getModelMaxTokens(model: string): number {
   const exact = MODEL_MAX_TOKENS[model]
@@ -388,7 +388,7 @@ app.post("/api/ai/chat", async (req, res) => {
       case "nvidia": {
         const apiKey = process.env.NVIDIA_API_KEY
         if (!apiKey) { res.status(500).json({ error: "NVIDIA not configured on server" }); return }
-        const modelName = modelParam || process.env.NVIDIA_MODEL || "minimaxai/minimax-m2.7"
+        const modelName = modelParam || process.env.NVIDIA_MODEL || "minimaxai/minimax-m3"
         const nvidiaStart = Date.now()
         const baseUrl = process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1"
         const bodyObj: any = {

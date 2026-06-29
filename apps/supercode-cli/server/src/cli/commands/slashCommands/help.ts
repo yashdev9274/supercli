@@ -11,8 +11,8 @@ const COMMANDS = [
 const PROVIDERS = [
   { name: "Google Gemini", models: ["gemini-2.5-flash", "gemini-2.5-pro"], note: "free · multimodal" },
   { name: "OpenRouter", models: ["openai/gpt-oss-120b:free", "deepseek/deepseek-v4-flash", "minimax/minimax-m3", "z-ai/glm-5.1", "moonshotai/kimi-k2.6"], note: "bring your own key" },
-  { name: "NVIDIA NIM", models: ["minimaxai/minimax-m2.7", "deepseek-ai/deepseek-v4-flash", "meta/llama-3.3-70b-instruct"], note: "free API" },
-  { name: "ConcentrateAI", models: ["deepseek-v4-flash", "kimi-k2-6", "glm-5.2", "glm-5.1", "minimax-m2-7"], note: "AI gateway" },
+  { name: "NVIDIA NIM", models: ["minimaxai/minimax-m3", "deepseek-ai/deepseek-v4-flash", "meta/llama-3.3-70b-instruct"], note: "free API" },
+  { name: "ConcentrateAI", models: ["deepseek-v4-flash", "kimi-k2-6", "glm-5.2", "glm-5.1", "minimax-m3"], note: "AI gateway" },
 ]
 
 function renderCommands(): string {

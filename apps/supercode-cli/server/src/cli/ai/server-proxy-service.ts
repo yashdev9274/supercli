@@ -117,6 +117,7 @@ export class ServerProxyService {
     signal?: AbortSignal,
     onReasoning?: (chunk: string) => void,
     onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void,
+    onStepFinish?: (params: { stepNumber: number; toolCalls: Array<{ toolName: string; args: unknown }>; toolResults: Array<{ toolName: string; args: unknown; result: string }> }) => void,
   ) {
     let currentMessages = [...messages]
     let accumulatedContent = ""
@@ -142,6 +143,7 @@ export class ServerProxyService {
       if (result.toolCalls.length === 0) break
 
       // Execute each tool and build the continuation messages
+      const stepResults: Array<{ toolName: string; args: unknown; result: string }> = []
       for (const call of result.toolCalls) {
         const toolFn = tools?.[call.toolName]
         let toolResult: string
@@ -155,6 +157,8 @@ export class ServerProxyService {
         } else {
           toolResult = JSON.stringify({ error: `Tool "${call.toolName}" is not available locally` })
         }
+
+        stepResults.push({ toolName: call.toolName, args: call.args, result: toolResult })
 
         if (onToolResult) {
           onToolResult({ toolName: call.toolName, args: call.args, result: toolResult })
@@ -184,6 +188,15 @@ export class ServerProxyService {
         } as any)
 
         this.collectedToolCalls.push(call)
+      }
+
+      // Per-step finish notification for the chat loop's live per-step UI.
+      if (onStepFinish && result.toolCalls.length > 0) {
+        onStepFinish({
+          stepNumber: this.collectedToolCalls.length,
+          toolCalls: result.toolCalls.map((c: any) => ({ toolName: c.toolName, args: c.args })),
+          toolResults: stepResults,
+        })
       }
     }
 
