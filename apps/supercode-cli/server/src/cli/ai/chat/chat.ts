@@ -229,6 +229,9 @@ async function streamAIResponse(
     hasOutputHeader = true
     thinking.markHeaderEmitted()
     thinking.stop()
+    // Stop the status row before any streaming output hits stdout, so its
+    // 100ms render() ticks don't keep clearing the streaming output line.
+    statusRow.stop()
     streamHeader(provider.modelName)
   }
 
@@ -316,7 +319,11 @@ async function streamAIResponse(
 
     const elapsed = Date.now() - startTime
     const usage = await result.usage
-    thinking.stop()
+    // Only stop the thinking display if we never emitted the header —
+    // emitHeader() already called thinking.stop() when streaming began.
+    // Calling it again here after streaming output has been written to
+    // stdout would clear the current cursor line, erasing the response.
+    if (!hasOutputHeader) thinking.stop()
     cleanupStreamingTicker()
 
     // Make sure any in-progress step is closed cleanly. Normally onStepFinish
