@@ -5,7 +5,7 @@ import Navbar from "@/components/homepage/navbar"
 import Footer from "@/components/homepage/footer"
 import Link from "next/link"
 
-const LAUNCH_DATE = new Date("2026-06-22T19:00:00").getTime()
+const LAUNCH_DATE = new Date("2026-07-10T00:00:00").getTime()
 
 function getTimeRemaining(target: number) {
   const diff = Math.max(0, target - Date.now())
@@ -152,18 +152,18 @@ export default function LaunchPage() {
           {launched && (
             <div className="mb-16">
               <h2 className="text-[36px] sm:text-[56px] font-bold font-mono text-primary tracking-tight leading-none mb-3">
-                SUPERCODE BETA IS LIVE. <span className="inline-block animate-bounce">🎉</span>
+                SUPERCODE IS ON PRODUCT HUNT. <span className="inline-block animate-bounce">🎉</span>
               </h2>
               <a
-                href="https://supercli.vercel.app"
+                href="https://www.producthunt.com/posts/supercode"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-block font-mono text-[15px] text-primary/70 hover:text-primary underline underline-offset-4 mb-8 transition-colors"
+                className="inline-flex items-center gap-2 font-mono text-[15px] text-primary/70 hover:text-primary underline underline-offset-4 mb-8 transition-colors"
               >
-                supercli.vercel.app ↗
+                upvote on product hunt ↗
               </a>
               <p className="font-mono text-[15px] text-foreground/85 leading-relaxed max-w-[600px] mx-auto mb-10">
-                An open-source AI agent in your terminal that controls your whole machine.
+                v0.1.30 — An open-source AI agent in your terminal that controls your whole machine.
               </p>
 
               {/* In beta now */}
@@ -223,8 +223,9 @@ export default function LaunchPage() {
           {/* Launch date line */}
           {!launched && (
             <div className="font-mono text-[13px] text-muted-foreground/60 mb-16">
-              launching <span className="text-primary/80 font-semibold">june 22, 2026</span> at{" "}
-              <span className="text-primary/80 font-semibold">7:00 PM</span>
+              launching on{" "}
+              <span className="text-primary/80 font-semibold">product hunt</span>{" "}
+              <span className="text-primary/80 font-semibold">july 10, 2026</span>
             </div>
           )}
 
@@ -304,7 +305,7 @@ export default function LaunchPage() {
                   <span className="relative z-10">join the waitlist →</span>
                 </Link>
                 <p className="font-mono text-[11px] text-muted-foreground/30 mt-3">
-                  early access starts june 22
+                  product hunt launch — july 10
                 </p>
               </>
             )}
