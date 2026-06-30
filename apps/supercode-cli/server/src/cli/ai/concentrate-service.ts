@@ -25,6 +25,7 @@ async function nonStreamingRequest(modelName: string, system: string, messages: 
     method: "POST",
     headers: { Authorization: `Bearer ${CONCENTRATE_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(60_000),
   })
   if (!res.ok) {
     const errText = await res.text().catch(() => "unknown error")
@@ -65,6 +66,17 @@ export class ConcentrateService {
     onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void,
     onStepFinish?: (params: { stepNumber: number; toolCalls: Array<{ toolName: string; args: unknown }>; toolResults: Array<{ toolName: string; args: unknown; result: string }> }) => void,
   ) {
+    // Build a combined abort controller with a 120s safety timeout. This
+    // prevents the SDK's tool loop from hanging indefinitely when the model
+    // API becomes unresponsive after a tool result submission.
+    // Build a combined abort controller with a 120s safety timeout. This
+    // prevents the SDK's tool loop from hanging indefinitely when the model
+    // API becomes unresponsive after a tool result submission.
+    const streamAbortController = new AbortController()
+    const streamTimeout = setTimeout(() => streamAbortController.abort(), 120_000)
+    const signalHandler = signal ? () => streamAbortController.abort() : undefined
+    signalHandler && signal!.addEventListener("abort", signalHandler, { once: true })
+
     try {
       const systemMessages = messages.filter(m => m.role === "system")
       const nonSystemMessages = messages.filter(m => m.role !== "system")
@@ -79,7 +91,7 @@ export class ConcentrateService {
           model: this.model,
           messages: nonSystemMessages,
           system,
-          abortSignal: signal,
+          abortSignal: streamAbortController.signal,
         })
 
         let fullResponse = ""
@@ -171,7 +183,7 @@ export class ConcentrateService {
         system,
         tools,
         stopWhen: stepCountIs(8),
-        abortSignal: signal,
+        abortSignal: streamAbortController.signal,
         prepareStep: async ({ messages }) => {
           if (stopForDenialLoop) {
             return {
@@ -213,8 +225,21 @@ export class ConcentrateService {
               onToolCall?.({ toolName: tc.toolName, args: (tc as any).input as Record<string, unknown> })
             }
           }
+          // Build a toolCallId -> input map from the tool-call parts so we
+          // can attach the original args to each tool-result. The SDK's
+          // ToolResultPart only carries `output`, not `input`, so the only
+          // way to recover the args is to look them up by toolCallId here.
+          const inputByCallId = new Map<string, unknown>()
+          if (event.toolCalls?.length) {
+            for (const tc of event.toolCalls) {
+              const id = (tc as any).toolCallId
+              if (typeof id === "string") {
+                inputByCallId.set(id, (tc as any).input)
+              }
+            }
+          }
           const toolResults = (event as any).toolResults as
-            | Array<{ toolName?: string; input?: unknown; output?: unknown }>
+            | Array<{ toolName?: string; toolCallId?: string; input?: unknown; output?: unknown }>
             | undefined
           if (toolResults?.length) {
             for (const tr of toolResults) {
@@ -227,8 +252,9 @@ export class ConcentrateService {
                     ? ""
                     : JSON.stringify(out)
               seenStepResults.push({ toolName: name, result: text })
+              const args = tr.input ?? (tr.toolCallId ? inputByCallId.get(tr.toolCallId) : undefined)
               if (onToolResult) {
-                onToolResult({ toolName: name, args: tr.input, result: text })
+                onToolResult({ toolName: name, args, result: text })
               }
               if (isDeniedToolResult(text)) {
                 const prev = deniedCounts.get(name) ?? 0
@@ -316,6 +342,9 @@ export class ConcentrateService {
       if (error?.name === "AbortError") throw error
       console.error(chalk.red("ConcentrateAI Service Error:"), error instanceof Error ? error.message : String(error))
       throw error
+    } finally {
+      clearTimeout(streamTimeout)
+      if (signalHandler) signal!.removeEventListener("abort", signalHandler as any)
     }
   }
 

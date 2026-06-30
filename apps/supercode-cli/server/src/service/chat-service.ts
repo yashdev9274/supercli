@@ -86,9 +86,37 @@ export class ChatService {
   }
 
   formatMessagesForAI(messages: { role: string; content: string }[]) {
-    return messages.map((msg) => ({
-      role: msg.role,
-      content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
-    }))
+    const out: { role: "user" | "assistant" | "system"; content: string }[] = []
+    let pendingToolResults: string[] = []
+
+    const flushToolResults = () => {
+      if (pendingToolResults.length === 0) return
+      const summary = pendingToolResults
+        .map((c) => (typeof c === "string" ? c : JSON.stringify(c)))
+        .join("\n")
+      out.push({
+        role: "assistant",
+        content: `[Tool results]\n${summary}`,
+      })
+      pendingToolResults = []
+    }
+
+    for (const msg of messages) {
+      const text = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content)
+
+      if (msg.role === "tool") {
+        pendingToolResults.push(text)
+        continue
+      }
+
+      flushToolResults()
+
+      if (msg.role === "user" || msg.role === "assistant" || msg.role === "system") {
+        out.push({ role: msg.role, content: text })
+      }
+    }
+
+    flushToolResults()
+    return out
   }
 }
