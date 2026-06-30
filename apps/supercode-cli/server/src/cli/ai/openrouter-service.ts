@@ -72,7 +72,15 @@ export class OpenRouterService {
 
     const bodyObj: any = {
       model: this.modelName,
-      messages: nonSystemMessages.map((m: any) => ({ role: m.role, content: String(m.content) })),
+      messages: nonSystemMessages.map((m: any) => {
+        const msg: any = {
+          role: m.role,
+          content: m.content !== null && m.content !== undefined ? String(m.content) : "",
+        }
+        if (m.tool_calls) msg.tool_calls = m.tool_calls
+        if (m.tool_call_id) msg.tool_call_id = m.tool_call_id
+        return msg
+      }),
       max_tokens: this.maxTokens,
       temperature: 0.7,
       stream: true,

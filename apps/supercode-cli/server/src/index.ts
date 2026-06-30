@@ -252,7 +252,15 @@ app.post("/api/ai/chat", async (req, res) => {
         const orStart = Date.now()
         const bodyObj: any = {
           model: modelName,
-          messages: nonSystemMessages.map((m: any) => ({ role: m.role, content: String(m.content) })),
+          messages: nonSystemMessages.map((m: any) => {
+            const msg: any = {
+              role: m.role,
+              content: m.content !== null && m.content !== undefined ? String(m.content) : "",
+            }
+            if (m.tool_calls) msg.tool_calls = m.tool_calls
+            if (m.tool_call_id) msg.tool_call_id = m.tool_call_id
+            return msg
+          }),
           max_tokens: getModelMaxTokens(modelName),
           temperature: 0.7,
           stream: true,
@@ -393,7 +401,15 @@ app.post("/api/ai/chat", async (req, res) => {
         const baseUrl = process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1"
         const bodyObj: any = {
           model: modelName,
-          messages: nonSystemMessages.map((m: any) => ({ role: m.role, content: String(m.content) })),
+          messages: nonSystemMessages.map((m: any) => {
+            const msg: any = {
+              role: m.role,
+              content: m.content !== null && m.content !== undefined ? String(m.content) : "",
+            }
+            if (m.tool_calls) msg.tool_calls = m.tool_calls
+            if (m.tool_call_id) msg.tool_call_id = m.tool_call_id
+            return msg
+          }),
           max_tokens: Number(process.env.NVIDIA_MAX_TOKENS) || 8192,
           temperature: Number(process.env.NVIDIA_TEMPERATURE) || 1,
           top_p: Number(process.env.NVIDIA_TOP_P) || 0.95,
@@ -493,7 +509,15 @@ app.post("/api/ai/chat", async (req, res) => {
         const caStart = Date.now()
         const bodyObj: any = {
           model: modelName,
-          messages: nonSystemMessages.map((m: any) => ({ role: m.role, content: String(m.content) })),
+          messages: nonSystemMessages.map((m: any) => {
+            const msg: any = {
+              role: m.role,
+              content: m.content !== null && m.content !== undefined ? String(m.content) : "",
+            }
+            if (m.tool_calls) msg.tool_calls = m.tool_calls
+            if (m.tool_call_id) msg.tool_call_id = m.tool_call_id
+            return msg
+          }),
           max_tokens: getModelMaxTokens(modelName),
           temperature: 0.7,
           stream: true,
