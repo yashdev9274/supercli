@@ -13,9 +13,9 @@ const DEFAULT_PRIMARY_BUDGET = 50
 
 const DESTRUCTIVE_TOOLS = new Set([
   "write_file",
+  "edit_file",
   "run_command",
   "code_exec",
-  "edit_file",
 ])
 
 const READ_TOOLS = new Set([
