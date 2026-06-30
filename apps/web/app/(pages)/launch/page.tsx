@@ -5,7 +5,7 @@ import Navbar from "@/components/homepage/navbar"
 import Footer from "@/components/homepage/footer"
 import Link from "next/link"
 
-const LAUNCH_DATE = new Date("2026-06-22T19:00:00").getTime()
+const LAUNCH_DATE = new Date("2026-07-10T00:00:00").getTime()
 
 function getTimeRemaining(target: number) {
   const diff = Math.max(0, target - Date.now())
@@ -21,12 +21,49 @@ function getTimeRemaining(target: number) {
 type TimeRemaining = ReturnType<typeof getTimeRemaining>
 
 const betaFeatures = [
-  "5 free models included",
-  "bring your own API key",
-  "action commands",
-  "full OS access — read files, run commands, edit code, open apps, search the web",
-  "persistent memory across sessions",
-  "you approve every action on your command",
+  "7 built-in agents — build, plan, explore, compact, title, summary, general",
+  "voice control — ctrl+shift+v or /voice",
+  "auto-update — always on the latest version",
+  "/connect — manage providers from the CLI",
+  "context window with breakdown rendering",
+  "granular permissions — chat mode (read-only) / agent mode (full access)",
+]
+
+const changelog = [
+  {
+    heading: "New providers & models",
+    items: [
+      "ConcentrateAI provider integration (v0.1.13)",
+      "GLM 5.2 model support (v0.1.17)",
+      "MiniMax M3, GLM 5.1, Kimi K2.6 support",
+    ],
+  },
+  {
+    heading: "Agent system",
+    items: [
+      "Agent module with 7 built-in agents: build, plan, general, explore, compaction, title, summary — each with their own permission profiles",
+      "Permission system with Ruleset types and wildcard matching",
+      "Mode simplification: 4 modes → 2 (chat for read-only, agent for full access)",
+      "Context window command with breakdown rendering",
+    ],
+  },
+  {
+    heading: "CLI features",
+    items: [
+      "/connect command — provider connection directly from CLI",
+      "Auto-update feature (v0.1.21)",
+      "Voice capture — Ctrl+Shift+V or /voice to speak commands",
+      "Persistent stdin setup",
+    ],
+  },
+  {
+    heading: "Infrastructure",
+    items: [
+      "Usage tracking & analytics",
+      "Prisma integration for persistent storage",
+      "Device code timestamps migration",
+    ],
+  },
 ]
 
 const comingNext = [
@@ -86,6 +123,87 @@ export default function LaunchPage() {
 
   return (
     <main className="min-h-screen bg-background dark relative flex flex-col">
+      <style>{`
+        :root {
+          --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+          --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+        }
+
+        @keyframes pulse-soft {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 0.6; }
+        }
+
+        @keyframes ping-soft {
+          0% { transform: scale(1); opacity: 0.6; }
+          75%, 100% { transform: scale(2); opacity: 0; }
+        }
+
+        @keyframes pop {
+          0% { transform: scale(0.8); opacity: 0; }
+          60% { transform: scale(1.1); }
+          100% { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .feature-card {
+          transition: border-color 200ms var(--ease-out), background-color 200ms var(--ease-out);
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+          .feature-card:hover {
+            border-color: color-mix(in srgb, var(--primary) 20%, transparent);
+            background-color: color-mix(in srgb, var(--primary) 2%, transparent);
+          }
+          .cta-btn:hover {
+            box-shadow: 0 0 30px -8px color-mix(in srgb, var(--primary) 50%, transparent);
+          }
+        }
+
+        .cta-btn {
+          transition: transform 160ms var(--ease-out), box-shadow 200ms var(--ease-out);
+        }
+        .cta-btn:active {
+          transform: scale(0.97);
+        }
+
+        .copy-btn {
+          transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out);
+        }
+        .copy-btn:active {
+          transform: scale(0.93);
+        }
+
+        .stagger-item {
+          opacity: 0;
+          animation: fadeUp 300ms var(--ease-out) forwards;
+        }
+        .stagger-item:nth-child(1) { animation-delay: 0ms; }
+        .stagger-item:nth-child(2) { animation-delay: 50ms; }
+        .stagger-item:nth-child(3) { animation-delay: 100ms; }
+        .stagger-item:nth-child(4) { animation-delay: 150ms; }
+        .stagger-item:nth-child(5) { animation-delay: 200ms; }
+        .stagger-item:nth-child(6) { animation-delay: 250ms; }
+        .stagger-item:nth-child(7) { animation-delay: 300ms; }
+        .stagger-item:nth-child(8) { animation-delay: 350ms; }
+
+        .colon-pulse {
+          animation: pulse-soft 2s var(--ease-in-out) infinite;
+        }
+
+        .dot-ping {
+          animation: ping-soft 1.5s ease-out infinite;
+        }
+
+        .emoji-pop {
+          animation: pop 400ms var(--ease-out) 200ms both;
+        }
+      `}</style>
+
       {/* Side borders */}
       <div className="fixed top-0 left-0 w-px h-full bg-border z-50" />
       <div className="fixed top-0 right-0 w-px h-full bg-border z-50" />
@@ -102,12 +220,23 @@ export default function LaunchPage() {
             </span>
           </div>
 
+          {!launched && (
+                <div className="mb-8">
+                  <div className="font-mono text-[20px] text-muted-foreground/50 uppercase tracking-[0.15em] mb-1">
+                    launching on
+                  </div>
+                  <div className="font-mono text-[50px] sm:text-[40px] font-bold text-primary tracking-tight leading-none mb-10">
+                    Product Hunt
+                  </div>
+              </div>
+          )}
+
           {/* Status badge */}
           <div className="flex justify-center mb-10">
             <div className="inline-flex items-center gap-2.5 px-4 py-2 border border-primary/20 rounded-full bg-primary/[0.03]">
               <span className="relative flex h-2 w-2">
                 {!launched && (
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
+                  <span className="dot-ping absolute inline-flex h-full w-full rounded-full bg-primary" />
                 )}
                 <span
                   className={`relative inline-flex rounded-full h-2 w-2 ${
@@ -124,27 +253,28 @@ export default function LaunchPage() {
           {/* Massive countdown */}
           {time && !launched && (
             <div className="mb-8">
+              
               <div
                 className="flex items-center justify-center gap-3 sm:gap-5 select-none mb-4"
                 style={{ fontVariantNumeric: "tabular-nums" }}
               >
                 <TimeUnit value={pad(time.days)} label="days" />
-                <span className="text-primary/30 text-[32px] sm:text-[48px] font-light leading-none -mt-4 animate-pulse">
+                <span className="text-primary/80 text-[32px] sm:text-[48px] font-light leading-none -mt-4 colon-pulse">
                   :
                 </span>
                 <TimeUnit value={pad(time.hours)} label="hours" />
-                <span className="text-primary/30 text-[32px] sm:text-[48px] font-light leading-none -mt-4 animate-pulse">
+                <span className="text-primary/80 text-[32px] sm:text-[48px] font-light leading-none -mt-4 colon-pulse">
                   :
                 </span>
                 <TimeUnit value={pad(time.minutes)} label="mins" />
-                <span className="text-primary/30 text-[32px] sm:text-[48px] font-light leading-none -mt-4 animate-pulse">
+                <span className="text-primary/80 text-[32px] sm:text-[48px] font-light leading-none -mt-4 colon-pulse">
                   :
                 </span>
                 <TimeUnit value={pad(time.seconds)} label="secs" />
               </div>
 
-              <div className="font-mono text-[11px] text-muted-foreground/30 uppercase tracking-[0.2em]">
-                T-MINUS
+              <div className="font-mono text-[13px] text-muted-foreground/60">
+                on july 10, 2026
               </div>
             </div>
           )}
@@ -152,18 +282,23 @@ export default function LaunchPage() {
           {launched && (
             <div className="mb-16">
               <h2 className="text-[36px] sm:text-[56px] font-bold font-mono text-primary tracking-tight leading-none mb-3">
-                SUPERCODE BETA IS LIVE. <span className="inline-block animate-bounce">🎉</span>
+                SUPERCODE IS ON PRODUCT HUNT. <span className="inline-block emoji-pop">🎉</span>
               </h2>
               <a
-                href="https://supercli.vercel.app"
+                href="https://www.producthunt.com/products/supercode?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-supercode"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-block font-mono text-[15px] text-primary/70 hover:text-primary underline underline-offset-4 mb-8 transition-colors"
+                className="inline-block mb-10"
               >
-                supercli.vercel.app ↗
+                <img
+                  alt="Supercode - Open-source SWE agent with full machine access | Product Hunt"
+                  width="250"
+                  height="54"
+                  src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1184495&amp;theme=dark&amp;t=1782838906009"
+                />
               </a>
               <p className="font-mono text-[15px] text-foreground/85 leading-relaxed max-w-[600px] mx-auto mb-10">
-                An open-source AI agent in your terminal that controls your whole machine.
+                v0.1.30 — An open-source AI agent in your terminal that controls your whole machine.
               </p>
 
               {/* In beta now */}
@@ -173,7 +308,7 @@ export default function LaunchPage() {
                 </div>
                 <div className="space-y-3">
                   {betaFeatures.map((f, i) => (
-                    <div key={i} className="flex items-start gap-3">
+                    <div key={i} className="flex items-start gap-3 stagger-item">
                       <span className="font-mono text-[12px] text-green-500/70 shrink-0 mt-0.5">✦</span>
                       <span className="font-mono text-[14px] text-foreground/85">{f}</span>
                     </div>
@@ -188,7 +323,7 @@ export default function LaunchPage() {
                 </div>
                 <div className="space-y-3">
                   {comingNext.map((f, i) => (
-                    <div key={i} className="flex items-start gap-3">
+                    <div key={i} className="flex items-start gap-3 stagger-item">
                       <span className="font-mono text-[12px] text-primary/50 shrink-0 mt-0.5">→</span>
                       <span className="font-mono text-[14px] text-muted-foreground">{f}</span>
                     </div>
@@ -207,7 +342,7 @@ export default function LaunchPage() {
                   </pre>
                   <button
                     onClick={() => navigator.clipboard.writeText("npm install -g supercode-cli@latest")}
-                    className="absolute top-3 right-3 p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-border/40 transition-all duration-200"
+                    className="copy-btn absolute top-3 right-3 p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-border/40"
                     aria-label="Copy install command"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
@@ -217,14 +352,6 @@ export default function LaunchPage() {
                   </button>
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* Launch date line */}
-          {!launched && (
-            <div className="font-mono text-[13px] text-muted-foreground/60 mb-16">
-              launching <span className="text-primary/80 font-semibold">june 22, 2026</span> at{" "}
-              <span className="text-primary/80 font-semibold">7:00 PM</span>
             </div>
           )}
 
@@ -246,6 +373,32 @@ export default function LaunchPage() {
             </p>
           </div>
 
+          {/* What's New */}
+          <div className="text-left max-w-[640px] mx-auto mb-16">
+            <div className="font-mono text-[11px] text-muted-foreground/40 tracking-wider uppercase mb-6">
+              $ what's new in supercode
+            </div>
+            <div className="space-y-8">
+              {changelog.map((group, i) => (
+                <div key={i}>
+                  <div className="font-mono text-[11px] text-primary/50 tracking-wider uppercase mb-3">
+                    {group.heading}
+                  </div>
+                  <div className="space-y-2">
+                    {group.items.map((item, j) => (
+                      <div key={j} className="flex items-start gap-3 stagger-item">
+                        <span className="font-mono text-[12px] text-green-500/70 shrink-0 mt-0.5">✦</span>
+                        <span className="font-mono text-[14px] text-foreground/85 leading-relaxed">
+                          {item}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Feature specs */}
           <div className="text-left max-w-[640px] mx-auto mb-10">
             <div className="font-mono text-[11px] text-muted-foreground/40 tracking-wider uppercase mb-6">
@@ -255,7 +408,7 @@ export default function LaunchPage() {
               {features.map((feature, i) => (
                 <div
                   key={feature.cmd}
-                  className="group border border-border/40 rounded-lg px-5 py-4 hover:border-primary/20 hover:bg-primary/[0.02] transition-all duration-300"
+                  className="feature-card group border border-border/40 rounded-lg px-5 py-4 stagger-item"
                 >
                   <div className="flex items-start gap-3">
                     <span className="font-mono text-[12px] text-primary/50 mt-0.5 shrink-0 w-6 text-right">
@@ -281,7 +434,7 @@ export default function LaunchPage() {
               <>
                 <Link
                   href="/docs/quickstart"
-                  className="relative w-full py-4 rounded-xl font-mono text-sm font-medium text-primary-foreground block text-center transition-all duration-300 hover:shadow-[0_0_40px_-10px] hover:shadow-primary/50"
+                  className="cta-btn relative w-full py-4 rounded-xl font-mono text-sm font-medium text-primary-foreground block text-center"
                   style={{
                     background: "oklch(0.7214 0.1337 49.9802)",
                   }}
@@ -294,18 +447,18 @@ export default function LaunchPage() {
               </>
             ) : (
               <>
-                <Link
+                {/* <Link
                   href="/waitlist"
-                  className="relative w-full py-4 rounded-xl font-mono text-sm font-medium text-primary-foreground block text-center transition-all duration-300 hover:shadow-[0_0_40px_-10px] hover:shadow-primary/50"
+                  className="cta-btn relative w-full py-4 rounded-xl font-mono text-sm font-medium text-primary-foreground block text-center"
                   style={{
                     background: "oklch(0.7214 0.1337 49.9802)",
                   }}
                 >
                   <span className="relative z-10">join the waitlist →</span>
-                </Link>
-                <p className="font-mono text-[11px] text-muted-foreground/30 mt-3">
-                  early access starts june 22
-                </p>
+                </Link> */}
+                {/* <p className="font-mono text-[11px] text-muted-foreground/30 mt-3">
+                  product hunt launch — july 10
+                </p> */}
               </>
             )}
           </div>

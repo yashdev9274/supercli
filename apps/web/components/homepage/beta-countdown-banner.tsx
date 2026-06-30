@@ -34,8 +34,8 @@ export default function BetaCountdownBanner({
   const [expired, setExpired] = useState(false)
 
   useEffect(() => {
-    // June 22, 2026 7:00 PM local time
-    const target = new Date("2026-06-22T19:00:00").getTime()
+    // July 10, 2026 — Product Hunt launch
+    const target = new Date("2026-07-10T00:00:00").getTime()
 
     if (isExpired(target)) {
       setExpired(true)
@@ -103,7 +103,7 @@ export default function BetaCountdownBanner({
             T-MINUS
           </span>
           <span className="text-[9px] sm:text-[10px] font-mono text-muted-foreground/40 uppercase tracking-[0.08em] ml-1 hidden md:inline">
-            jun 22
+            jul 10
           </span>
         </div>
 
@@ -126,16 +126,8 @@ export default function BetaCountdownBanner({
           </span>
         </div>
 
-        {/* Right: CTA + Dismiss */}
-        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-          <a
-            href="/waitlist"
-            className="text-[10px] sm:text-[11px] font-mono text-primary/70 hover:text-primary transition-colors duration-200 underline underline-offset-2 decoration-primary/20 hover:decoration-primary/50"
-          >
-            <span className="sm:hidden">→</span>
-            <span className="hidden sm:inline">join waitlist →</span>
-          </a>
-          <button
+        {/* Dismiss */}
+        <button
           onClick={handleDismiss}
           className="shrink-0 text-muted-foreground/25 hover:text-foreground/60 transition-colors duration-200 p-1 rounded hover:bg-white/5"
           aria-label="Dismiss banner"
@@ -149,7 +141,6 @@ export default function BetaCountdownBanner({
             />
           </svg>
         </button>
-      </div>
       </div>
     </div>
   )
