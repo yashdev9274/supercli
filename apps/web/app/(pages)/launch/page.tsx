@@ -21,12 +21,24 @@ function getTimeRemaining(target: number) {
 type TimeRemaining = ReturnType<typeof getTimeRemaining>
 
 const betaFeatures = [
-  "5 free models included",
-  "bring your own API key",
-  "action commands",
-  "full OS access — read files, run commands, edit code, open apps, search the web",
-  "persistent memory across sessions",
-  "you approve every action on your command",
+  "7 built-in agents — build, plan, explore, compact, title, summary, general",
+  "voice control — ctrl+shift+v or /voice",
+  "auto-update — always on the latest version",
+  "/connect — manage providers from the CLI",
+  "context window with breakdown rendering",
+  "granular permissions — chat mode (read-only) / agent mode (full access)",
+]
+
+const whatsNew = [
+  "v0.1.30 — ConcentrateAI provider, enhanced message formatting",
+  "v0.1.28 — Tool functionality and handling improvements",
+  "v0.1.26 — Analytics, usage tracking, persistent memory via Prisma",
+  "v0.1.21 — Auto-update keeps you on the latest version",
+  "v0.1.17 — GLM 5.2 and expanded model support",
+  "v0.1.16 — Agent system with 7 built-in agents + permission profiles",
+  "v0.1.13 — ConcentrateAI provider integration",
+  "v0.1.11 — Voice capture, /voice, /connect, context window",
+  "v0.1.9  — First public beta  →  now at v0.1.30",
 ]
 
 const comingNext = [
@@ -245,6 +257,25 @@ export default function LaunchPage() {
               Read files, run commands, edit code, open applications, search the web — all
               through natural language. Granular permissions ensure it only does what you allow.
             </p>
+          </div>
+
+          {/* What's New */}
+          <div className="text-left max-w-[640px] mx-auto mb-16">
+            <div className="font-mono text-[11px] text-muted-foreground/40 tracking-wider uppercase mb-6">
+              $ git log --oneline v0.1.9..HEAD
+            </div>
+            <div className="space-y-3">
+              {whatsNew.map((item, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <span className="font-mono text-[12px] text-primary/50 shrink-0 mt-0.5 w-6 text-right">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <span className="font-mono text-[14px] text-foreground/85 leading-relaxed">
+                    {item}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Feature specs */}
