@@ -1,15 +1,19 @@
 import { Command } from "commander"
+import { version } from "../../../../package.json"
 import { getStoredToken } from "src/lib/token"
 import { getCurrentUser } from "src/lib/api-client"
 import { startChat, type ModelProvider } from "src/cli/ai/chat/chat"
 import { startAgentChat } from "src/cli/ai/chat/chatAgent"
 import { theme, frame, createThinking, errorBox } from "src/cli/utils/tui"
+import { renderWelcome } from "src/cli/utils/welcome"
 import { scanWorkspace } from "src/cli/workspace/scanner.ts"
 import { renderWorkspaceBanner } from "src/cli/workspace/format.ts"
 import { getCliConfig, saveCliConfig, applyStoredApiKeys } from "src/lib/cli-config"
 import { checkForUpdate } from "src/cli/utils/auto-update"
 
 export const wakeUpAction = async (resumeId: string | null = null) => {
+  renderWelcome(version)
+
   const token = await getStoredToken()
 
   if (!token?.access_token) {

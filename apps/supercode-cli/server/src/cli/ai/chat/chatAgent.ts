@@ -236,16 +236,6 @@ export async function startAgentChat(
     const user = await getUserFromToken()
     console.log()
 
-    const confirmPrompt = await confirm({
-      message: chalk.hex(theme.amber)("The agent will create files and run commands in the current directory. Continue?"),
-      initialValue: true,
-    })
-
-    if (isCancel(confirmPrompt) || !confirmPrompt) {
-      console.log(chalk.hex(theme.muted)("agent mode cancelled"))
-      process.exit(0)
-    }
-
     const aiProvider = createProvider(provider, model)
     const languageModel = aiProvider.model as import("ai").LanguageModel | null
 

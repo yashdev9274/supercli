@@ -29,17 +29,55 @@ export function extractToolArg(toolName: string, args: unknown): string | undefi
 
 export function toolLabel(toolName: string, args?: unknown): string {
   const arg = extractToolArg(toolName, args)
-  const name = chalk.hex(theme.greenGlow)(toolName)
+  const { chip, verb, color } = chipFor(toolName)
+  const chipStr = chalk.bgHex(color).hex("#0d1117").bold(` ${chip} `)
   if (arg) {
-    return ` ${chalk.hex(theme.greenDim)("→")} ${name} ${chalk.hex(theme.greenMute)(arg)}`
+    return ` ${chipStr} ${chalk.hex(theme.greenMute)(truncateStr(arg, 80))}`
   }
-  // Empty/missing args are a bug indicator (model failed to fill the schema).
-  // Surface this loudly so the user can see the model is misbehaving.
   if (args && typeof args === "object" && Object.keys(args).length > 0) {
     const json = JSON.stringify(args).slice(0, 80)
-    return ` ${chalk.hex(theme.greenDim)("→")} ${name} ${chalk.hex(theme.greenMute)(json)}`
+    return ` ${chipStr} ${chalk.hex(theme.muted)(json)}`
   }
-  return ` ${chalk.hex(theme.red)("→")} ${name} ${chalk.hex(theme.red)("(missing arguments — model bug)")}`
+  const errChip = chalk.bgHex("#5a1a1a").hex("#ffffff").bold(` ${chip} `)
+  return ` ${errChip} ${chalk.hex(theme.red)(`(${verb} missing arguments — model bug)`)}`
+}
+
+// Per-tool chip label + accent color. Mirrors the design language in
+// apps/supercode-cli/plan/feat/cli/cmd.png.
+function chipFor(toolName: string): { chip: string; verb: string; color: string } {
+  switch (toolName) {
+    case "write_file":
+      return { chip: "WRITE", verb: "write", color: "#1f3a2c" }
+    case "edit_file":
+      return { chip: "EDIT", verb: "edit", color: "#3a2e1a" }
+    case "read_file":
+      return { chip: "READ", verb: "read", color: "#2a2440" }
+    case "search_files":
+      return { chip: "GREP", verb: "search", color: "#2a2440" }
+    case "url_fetch":
+      return { chip: "FETCH", verb: "fetch", color: "#2a2440" }
+    case "web_search":
+      return { chip: "SEARCH", verb: "search", color: "#2a2440" }
+    case "run_command":
+      return { chip: "BASH", verb: "run", color: "#1a2e3a" }
+    case "code_exec":
+      return { chip: "EXEC", verb: "exec", color: "#1a2e3a" }
+    case "switch_to_agent_mode":
+      return { chip: "MODE", verb: "switch", color: "#2a2440" }
+    case "delegate":
+      return { chip: "DELEGATE", verb: "delegate", color: "#2a2440" }
+    case "task":
+      return { chip: "TASK", verb: "task", color: "#2a2440" }
+    case "read_instructions":
+      return { chip: "INSTRUCT", verb: "read", color: "#2a2440" }
+    default:
+      return { chip: toolName.toUpperCase().slice(0, 8), verb: toolName, color: "#2a2440" }
+  }
+}
+
+function truncateStr(s: string, n: number): string {
+  if (s.length <= n) return s
+  return s.slice(0, n - 1) + "…"
 }
 
 //

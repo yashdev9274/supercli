@@ -3,6 +3,7 @@ import { z } from "zod"
 import { readFileTool } from "./definitions/read-file.ts"
 import { searchFilesTool } from "./definitions/search-files.ts"
 import { writeFileTool } from "./definitions/write-file.ts"
+import { editFileTool } from "./definitions/edit-file.ts"
 import { runCommandTool } from "./definitions/run-command.ts"
 import { urlFetchTool } from "./definitions/url-fetch.ts"
 import { webSearchTool } from "./definitions/web-search.ts"
@@ -56,6 +57,7 @@ export const tools = {
   read_file: defineTool(readFileTool),
   search_files: defineTool(searchFilesTool),
   write_file: withPermission("write_file", writeFileTool),
+  edit_file: withPermission("edit_file", editFileTool),
   run_command: withPermission("run_command", runCommandTool),
   url_fetch: defineTool(urlFetchTool),
   web_search: defineTool(webSearchTool),

@@ -214,12 +214,18 @@ export class ConcentrateService {
             }
           }
           const toolResults = (event as any).toolResults as
-            | Array<{ toolName?: string; input?: unknown; result?: unknown }>
+            | Array<{ toolName?: string; input?: unknown; output?: unknown }>
             | undefined
           if (toolResults?.length) {
             for (const tr of toolResults) {
               const name = tcName(tr.toolName) ?? "unknown"
-              const text = typeof tr.result === "string" ? tr.result : JSON.stringify(tr.result ?? "")
+              const out = (tr as any).output
+              const text =
+                typeof out === "string"
+                  ? out
+                  : out === undefined || out === null
+                    ? ""
+                    : JSON.stringify(out)
               seenStepResults.push({ toolName: name, result: text })
               if (onToolResult) {
                 onToolResult({ toolName: name, args: tr.input, result: text })

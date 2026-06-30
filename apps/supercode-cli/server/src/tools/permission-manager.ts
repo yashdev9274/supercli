@@ -136,6 +136,7 @@ const DEFAULT_RULES: RulesetArray = [
 
   // Write/execute tools: ask by default
   { permission: "write_file", pattern: "*", action: "ask" },
+  { permission: "edit_file", pattern: "*", action: "ask" },
   { permission: "run_command", pattern: "*", action: "ask" },
   { permission: "code_exec", pattern: "*", action: "ask" },
 ]
@@ -164,6 +165,8 @@ export function getCurrentAgent(): string | undefined {
 function getResource(toolName: string, args: Record<string, unknown>): string {
   switch (toolName) {
     case "write_file":
+      return String(args.path || "")
+    case "edit_file":
       return String(args.path || "")
     case "run_command":
       return String(args.command || "")

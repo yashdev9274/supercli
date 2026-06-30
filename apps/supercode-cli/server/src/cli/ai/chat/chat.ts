@@ -44,9 +44,22 @@ import { tools } from "src/tools/registry.ts"
 import { setDelegateRuntime } from "src/tools/definitions/delegate.ts"
 import { CitationTracker } from "src/lib/citation-tracker.ts"
 import { renderWorkspaceBanner } from "src/cli/workspace/format.ts"
-import { handleSlashCommand, isSlashCommand } from "src/cli/commands/slashCommands/index.ts"
+import { handleSlashCommand, isSlashCommand, COMMANDS } from "src/cli/commands/slashCommands/index.ts"
+import {
+  renderWriteSnapshot,
+  renderEditSnapshot,
+  renderCommandSnapshot,
+  formatBytes,
+  countDiff,
+  diffLines,
+} from "src/cli/utils/tool-snapshot.ts"
 import { renderContextBreakdown } from "src/cli/commands/slashCommands/context-window.ts"
 import { saveCliConfig } from "src/lib/cli-config"
+import {
+  voiceCaptureFlow,
+  canVoiceCapture,
+  abortCapture,
+} from "src/voice/speech.ts"
 
 
 async function getUserFromToken() {
@@ -84,6 +97,70 @@ export async function initConversation(userId: string, conversationId: string | 
   }
 
   return conversation
+}
+
+/**
+ * Render a code/diff/stdout snapshot under the tool row for file-changing
+ * tools. Mirrors OpenCode's behavior (https://github.com/anomalyco/opencode):
+ *   • write_file → code block of new contents
+ *   • edit_file  → unified diff of the change
+ *   • run_command→ fenced stdout/stderr with exit code
+ *
+ * For edit_file we rebuild the diff from the args (oldText/newText) — we don't
+ * need to read the file again because the args already contain the exact
+ * substring that was replaced.
+ *
+ * Tolerant: skips rendering on any parse failure so a malformed result can
+ * never break the live chat scrollback.
+ */
+function renderToolSnapshot(toolName: string, args: unknown, resultRaw: string): void {
+  try {
+    if (toolName === "write_file") {
+      const a = (args ?? {}) as { path?: string; content?: string }
+      if (typeof a.path === "string" && typeof a.content === "string") {
+        const meta = `${formatBytes(a.content.length)} · written`
+        for (const line of renderWriteSnapshot(a.path, a.content, meta)) {
+          process.stdout.write(line + "\n")
+        }
+      }
+      return
+    }
+
+    if (toolName === "edit_file") {
+      const a = (args ?? {}) as { path?: string; oldText?: string; newText?: string }
+      if (typeof a.path === "string" && typeof a.oldText === "string" && typeof a.newText === "string") {
+        const diff = diffLines(a.oldText, a.newText)
+        const { adds, dels } = countDiff(diff)
+        const meta = `${formatBytes(a.newText.length)} · +${adds} / −${dels}`
+        for (const line of renderEditSnapshot(a.path, a.oldText, a.newText, meta)) {
+          process.stdout.write(line + "\n")
+        }
+      }
+      return
+    }
+
+    if (toolName === "run_command") {
+      const a = (args ?? {}) as { command?: string }
+      const parsed = (() => {
+        try {
+          return JSON.parse(resultRaw)
+        } catch {
+          return null
+        }
+      })()
+      if (parsed && typeof parsed === "object") {
+        const stdout = typeof (parsed as any).stdout === "string" ? (parsed as any).stdout : ""
+        const stderr = typeof (parsed as any).stderr === "string" ? (parsed as any).stderr : ""
+        const exitCode = typeof (parsed as any).exitCode === "number" ? (parsed as any).exitCode : 0
+        for (const line of renderCommandSnapshot(a.command ?? "", stdout, stderr, exitCode)) {
+          process.stdout.write(line + "\n")
+        }
+      }
+      return
+    }
+  } catch {
+    // Snapshot is best-effort. Never let a render bug break the chat loop.
+  }
 }
 
 async function streamAIResponse(
@@ -289,6 +366,13 @@ async function streamAIResponse(
           chain.markLastToolFlagged()
         }
 
+        // Render a snapshot/diff under the tool row for file-changing tools.
+        // OpenCode-style: writes show the new file contents, edits show a
+        // unified diff, commands show stdout. Skipped when the call failed.
+        if (!entry.empty && !entry.permissionDenied && process.stdout.isTTY) {
+          renderToolSnapshot(toolName, args, result as string)
+        }
+
         // Detect a mode-switch request (Phase 2: clean function-call return
         // instead of the old `pendingModeSwitch` module global). The tool
         // returns `{ modeSwitchRequested: true, reason }` as a JSON string.
@@ -389,6 +473,22 @@ async function streamAIResponse(
         )
         console.log(
           `   ${chalk.hex(theme.amber)("If the answer above cites facts, they were not retrieved from any tool. Treat with skepticism.")}`,
+        )
+      }
+    }
+
+    // Hallucination guard: if the response claims a concrete action (wrote,
+    // updated, added, created, ran, executed, fixed, refactored, …) but
+    // the model made ZERO tool calls, it's narrating without acting.
+    if (!turnTracker.hasAnyToolCalls() && fullResponse.length > 0) {
+      const actionClaimRe = /\b(wrote|updated|added|created|ran|executed|fixed|refactored|removed|deleted|installed|modified|edited|applied|saved|generated|wired|hooked)\b/i
+      if (actionClaimRe.test(fullResponse)) {
+        console.log()
+        console.log(
+          ` ${chalk.hex(theme.red)("⚠")}  ${chalk.hex(theme.red).bold("no tool calls — model's response claims an action but made no changes")}`,
+        )
+        console.log(
+          `   ${chalk.hex(theme.amber)("The text above is a description, not the result. Ask the model to actually invoke the tool.")}`,
         )
       }
     }
@@ -519,6 +619,10 @@ let stdinResolve: ((value: { input: string; mode: string }) => void) | null = nu
 let stdinPromptLen = 0
 let stdinPrevWrapLines = 1
 
+// Set by the voice capture flow so the next chatInput() preserves the
+// transcribed text instead of wiping stdinInput to "".
+let voiceJustCaptured = false
+
 // When true, prints the legacy ─ toolName · model · N.Ns · esc interrupt
 // debug lines on top of the new per-step UI. Used by /verbose for power users
 // debugging supercode's TUI itself. Default off because the new live
@@ -563,19 +667,20 @@ let activeFooter: PersistentStatusBar | null = null
 // terminal even mid-turn.
 let activeStatusRow: StepStatusRow | null = null
 
-const SLASH_COMMANDS = [
-  { cmd: "/model", desc: "Switch AI provider or model" },
-  { cmd: "/connect", desc: "Connect API key for direct access" },
-  { cmd: "/context", desc: "Show context window usage and breakdown" },
-  { cmd: "/verbose", desc: "Toggle live tool call debug logs" },
-  { cmd: "/help", desc: "Show available commands and models" },
-  { cmd: "/exit", desc: "End the session" },
-]
-
-const SLASH_LIST_HEIGHT = 2 + 6 + 2 // dividers + header + 6 commands + bottom divider
-
 let slashListLines = 0
 let slashSelected = -1
+
+// Filter the slash-command list by what the user has typed. Empty query
+// returns everything. Match is case-insensitive substring on the command
+// name (e.g. "/co" → /connect, /compact, /context).
+function filterSlashCommands(query: string): typeof COMMANDS {
+  const q = query.toLowerCase()
+  if (!q) return COMMANDS
+  return COMMANDS.filter((c) => c.cmd.toLowerCase().includes(q))
+}
+
+// Whether a voice capture is in progress (blocks the keypress handler)
+let voiceCaptureActive = false
 
 // Message history (up/down arrow navigation)
 let messageHistory: string[] = []
@@ -621,14 +726,17 @@ function renderInput() {
 
   // Show slash list when input is exactly /
   slashListLines = 0
-  if (stdinInput.startsWith("/") && stdinInput.length === 1) {
+  if (stdinInput.startsWith("/") && stdinInput.length >= 1) {
+    const filtered = filterSlashCommands(stdinInput)
+    // Clamp selection to the filtered list length so we don't point past it
+    if (slashSelected >= filtered.length) slashSelected = -1
     const divider = heavyDivider()
     process.stdout.write(`\r\n${divider}\r\n`)
     if (slashSelected === -1) {
-      process.stdout.write(` ${chalk.hex(theme.amber)("❯")} /\r\n`)
+      process.stdout.write(` ${chalk.hex(theme.amber)("❯")} ${stdinInput}\r\n`)
     }
     process.stdout.write(`${divider}\r\n`)
-    SLASH_COMMANDS.forEach((c, i) => {
+    filtered.forEach((c, i) => {
       if (slashSelected === i) {
         process.stdout.write(` ${chalk.hex(theme.amber)("▸")} ${chalk.hex(theme.green).bold(c.cmd.padEnd(22))}${chalk.hex(theme.white)(c.desc)}\r\n`)
       } else {
@@ -636,7 +744,9 @@ function renderInput() {
       }
     })
     process.stdout.write(`${divider}`)
-    slashListLines = SLASH_LIST_HEIGHT - (slashSelected === -1 ? 0 : 1)
+    // height: dividers (2) + header (1) + N commands + bottom divider (1) - selected line (1 if selected)
+    const slashHeight = filtered.length === 0 ? 0 : 2 + 1 + filtered.length + 1 - (slashSelected >= 0 ? 1 : 0)
+    slashListLines = slashHeight
 
     // Move cursor back up past the list to the input line
     for (let i = 0; i < slashListLines; i++) {
@@ -689,10 +799,17 @@ function stdinKeypress(_str: string, key: any) {
     return
   }
 
+  // Enter/Escape during voice capture stops recording, doesn't submit
+  if (voiceCaptureActive && (key.name === "return" || key.name === "enter" || key.name === "escape")) {
+    abortCapture()
+    return
+  }
+
   if (key.name === "return" || key.name === "enter") {
     // If a slash command is selected via keyboard, execute it directly
-    if (slashSelected >= 0 && slashSelected < SLASH_COMMANDS.length) {
-      const cmd = "/" + SLASH_COMMANDS[slashSelected]!.cmd.slice(1)
+    const filtered = filterSlashCommands(stdinInput)
+    if (slashSelected >= 0 && slashSelected < filtered.length) {
+      const cmd = filtered[slashSelected]!.cmd
       slashSelected = -1
       // Clear list
       for (let i = 0; i < stdinPrevWrapLines + slashListLines; i++) {
@@ -793,10 +910,12 @@ function stdinKeypress(_str: string, key: any) {
 
   if (key.name === "up") {
     if (slashListLines > 0) {
+      const filteredLen = filterSlashCommands(stdinInput).length
+      if (filteredLen === 0) return
       if (slashSelected === -1) {
-        slashSelected = SLASH_COMMANDS.length - 1
+        slashSelected = filteredLen - 1
       } else {
-        slashSelected = (slashSelected - 1 + SLASH_COMMANDS.length) % SLASH_COMMANDS.length
+        slashSelected = (slashSelected - 1 + filteredLen) % filteredLen
       }
       renderInput()
     } else if (messageHistory.length > 0) {
@@ -815,10 +934,12 @@ function stdinKeypress(_str: string, key: any) {
 
   if (key.name === "down") {
     if (slashListLines > 0) {
+      const filteredLen = filterSlashCommands(stdinInput).length
+      if (filteredLen === 0) return
       if (slashSelected === -1) {
         slashSelected = 0
       } else {
-        slashSelected = (slashSelected + 1) % SLASH_COMMANDS.length
+        slashSelected = (slashSelected + 1) % filteredLen
       }
       renderInput()
     } else if (historyIndex !== -1) {
@@ -880,6 +1001,25 @@ function stdinKeypress(_str: string, key: any) {
     return
   }
 
+  // Voice capture — F2 is the primary trigger (most reliable across terminals).
+// Ctrl+Shift+V is also accepted but some terminals intercept it as a paste
+// shortcut, and Node.js readline treats Ctrl+V as a "literal next" key
+// which prevents the Shift+V combination from being detected reliably.
+  const isVoiceKey =
+    key.name === "F2" ||
+    (key.ctrl && key.shift && (key.name === "v" || key.name === "V"))
+  if (isVoiceKey) {
+    if (!voiceCaptureActive) {
+      voiceCaptureActive = true
+      activeFooter?.setStatusMessage("🎤 Recording... (Enter to stop)")
+      startVoiceCapture().finally(() => {
+        voiceCaptureActive = false
+        activeFooter?.setStatusMessage("")
+      })
+    }
+    return
+  }
+
   if (_str && _str.length === 1 && !key.ctrl && !key.meta) {
     stdinInput = stdinInput.slice(0, stdinCursor) + _str + stdinInput.slice(stdinCursor)
     stdinCursor++
@@ -887,6 +1027,29 @@ function stdinKeypress(_str: string, key: any) {
     historyIndex = -1
     renderInput()
     return
+  }
+}
+
+async function startVoiceCapture() {
+  const check = canVoiceCapture()
+  if (!check.ok) {
+    activeFooter?.setStatusMessage("⛭ Voice unavailable: " + (check.reason ?? "unknown"))
+    setTimeout(() => activeFooter?.setStatusMessage(""), 4000)
+    return
+  }
+  try {
+    const text = await voiceCaptureFlow()
+    if (text) {
+      stdinInput =
+        stdinInput.slice(0, stdinCursor) + text + " " + stdinInput.slice(stdinCursor)
+      stdinCursor += text.length + 1
+      // Don't call renderInput here — the chat loop will call chatInput() next,
+      // which preserves stdinInput (via voiceJustCaptured) and renders it once.
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Voice capture failed"
+    activeFooter?.setStatusMessage("⛭ " + msg)
+    setTimeout(() => activeFooter?.setStatusMessage(""), 4000)
   }
 }
 
@@ -1056,8 +1219,14 @@ function keyToPermissionReply(
 async function chatInput(currentMode: string): Promise<{ input: string; mode: string }> {
   stdinMode = modes.includes(currentMode) ? currentMode : "chat"
   applyModePermissions(stdinMode)
-  stdinInput = ""
-  stdinCursor = 0
+  // If voice capture just populated stdinInput, preserve it so the user can
+  // see and edit the transcription. Otherwise reset to empty as usual.
+  if (!voiceJustCaptured) {
+    stdinInput = ""
+    stdinCursor = 0
+  } else {
+    voiceJustCaptured = false
+  }
   stdinPrevWrapLines = 1
   slashListLines = 0
   ensureStdinHandler()
@@ -1278,7 +1447,14 @@ export async function chatLoop(
           }
         } else if (result?.type === "scratch") {
           process.stdout.write(`\r\n`)
-        } else if (result?.type === "unknown" && trimmed === "/verbose") {
+        } else if (result?.type === "voice") {
+          await startVoiceCapture()
+          // Mark stdinInput as voice-populated so the next chatInput() doesn't
+          // wipe it. renderInput was already invoked inside startVoiceCapture
+          // (via setImmediate) so the text should already be visible.
+          voiceJustCaptured = true
+          process.stdout.write(`\r\n`)
+        } else if (result?.type === "verbose") {
           verboseMode = !verboseMode
           process.stdout.write(
             `\r\n ${chalk.hex(theme.green)("◆")} verbose mode ${verboseMode ? chalk.hex(theme.green)("on") : chalk.hex(theme.greenDim)("off")} — ${verboseMode ? "per-tool debug lines enabled" : "clean UI"}\r\n\n`,
@@ -1431,7 +1607,7 @@ export async function startChat(
 
     // ── Quick-start hint ────────────────────────────────────────
     console.log(
-      `  ${chalk.hex(theme.greenDim)("hint")} ${chalk.hex(theme.green)("·")} ${chalk.hex(theme.greenGlow)("/model")} to switch  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("/connect")} api key  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("/help")} for commands  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("Tab")} to cycle mode`,
+      `  ${chalk.hex(theme.greenDim)("hint")} ${chalk.hex(theme.green)("·")} ${chalk.hex(theme.greenGlow)("/model")} to switch  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("F2")} voice  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("/help")} for commands  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("Tab")} to cycle mode`,
     )
     console.log()
 

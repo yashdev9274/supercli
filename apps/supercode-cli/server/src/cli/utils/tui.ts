@@ -787,6 +787,7 @@ export class PersistentStatusBar {
     elapsed: 0,
     tools: 0,
     isStreaming: false,
+    statusMessage: "",
   }
   private lastRow = 0
   private cols = 80
@@ -885,10 +886,24 @@ export class PersistentStatusBar {
     this.update({ tools: 0 })
   }
 
+  setStatusMessage(msg: string) {
+    this.update({ statusMessage: msg })
+  }
+
   private renderLine() {
+    process.stdout.write("\x1b[2K")
+    const leftBorder = ansiColor(theme.greenDim, "┃")
+
+    if (this.state.statusMessage) {
+      const msg = ansiColor(theme.greenGlow, this.state.statusMessage)
+      const remaining = Math.max(1, this.cols - 4)
+      const fillLine = ansiColor(theme.greenDim, "─".repeat(Math.max(1, this.cols - stripAnsi(msg).length - 4)))
+      process.stdout.write(`${leftBorder} ${msg} ${fillLine}`)
+      return
+    }
+
     const sep = " " + ansiColor(theme.greenDim, "·") + " "
     const parts: string[] = []
-    // Reverse-video mode chip
     parts.push(
       `\x1b[7;${ansiFg(theme.green)};${ansiBg(theme.black)}m ${this.state.mode} \x1b[0m`,
     )
@@ -929,10 +944,8 @@ export class PersistentStatusBar {
     const inner = parts.join(sep)
     const innerLen = stripAnsi(inner).length
     const fill = Math.max(1, this.cols - innerLen - 3)
-    const leftBorder = ansiColor(theme.greenDim, "┃")
     const fillLine = ansiColor(theme.greenDim, "─".repeat(fill))
 
-    process.stdout.write("\x1b[2K")
     process.stdout.write(`${leftBorder} ${inner} ${fillLine}`)
   }
 }
