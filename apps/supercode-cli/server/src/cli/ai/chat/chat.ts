@@ -1105,9 +1105,6 @@ function setPermissionPrompt(): void {
           resolve(reply)
         },
       }
-      // Cursor down past the rendered prompt so the next re-render of the
-      // input line lands cleanly.
-      readline.moveCursor(process.stdout, 0, 6)
     })
   })
 }
@@ -1122,14 +1119,8 @@ function renderPermissionPrompt(req: {
   args: Record<string, unknown>
   isDangerous: boolean
 }): void {
-  // Make sure the chat input line is redrawn above the prompt so it
-  // doesn't visually vanish when we write the box below it.
-  try {
-    renderInput()
-  } catch {
-    // ignore — terminal may not be in a clean state
-  }
-  // Push below the chat input line.
+  // Push below whatever the AI last wrote (thought section, streaming
+  // output, etc.) so the box appears at a clean position.
   process.stdout.write("\r\n")
 
   const borderColor = req.isDangerous ? theme.red : theme.amber
@@ -1186,12 +1177,6 @@ function clearPermissionPromptLine(): void {
     readline.moveCursor(process.stdout, 0, -1)
     readline.cursorTo(process.stdout, 0)
     readline.clearLine(process.stdout, 0)
-  }
-  // Repaint the chat input line at the new cursor position.
-  try {
-    renderInput()
-  } catch {
-    // ignore
   }
 }
 
