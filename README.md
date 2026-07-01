@@ -12,6 +12,9 @@
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6)](https://www.typescriptlang.org/)
   [![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org)
   [![License](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
+  [![CI](https://github.com/yashdev9274/supercli/actions/workflows/ci.yml/badge.svg)](https://github.com/yashdev9274/supercli/actions/workflows/ci.yml)
+  [![npm](https://img.shields.io/npm/v/supercode?label=supercode)](https://www.npmjs.com/package/supercode)
+  [![GitHub stars](https://img.shields.io/github/stars/yashdev9274/supercli?style=social)](https://github.com/yashdev9274/supercli)
 
   <img src="./apps/web/public/og-image.png" alt="Supercode Platform" width="800"/>
 
@@ -422,16 +425,11 @@ See [`.env.example`](./.env.example) for the full template. The variables below 
 
 ## Contributing
 
-We welcome contributions! Please see the [Contributing Guide](./CONTRIBUTING.md) for details on:
-
-- Development setup
-- Code style guidelines
-- Commit conventions
-- Pull request process
+We welcome contributions! Please see the [Contributing Guide](./CONTRIBUTING.md), [Code of Conduct](./.github/CODE_OF_CONDUCT.md), and [Security Policy](./.github/SECURITY.md) for details.
 
 ## License
 
-This project is licensed under the **MIT License** — see [`apps/supercode-cli/server/LICENSE`](./apps/supercode-cli/server/LICENSE) for the published CLI's terms. Internal application code is currently private and proprietary to the Supercode team.
+This project is licensed under the **MIT License** — see [`LICENSE`](./LICENSE) for details.
 
 ---
 

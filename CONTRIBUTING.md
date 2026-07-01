@@ -363,8 +363,9 @@ feat(cli): add workspace list command
 
 5. **PR Requirements**
    - Clear description of changes
-   - Reference any related issues
-   - Pass all CI checks
+   - Reference any related issues with "Fixes #issue"
+   - Pass all CI checks (typecheck, lint, test)
+   - Add tests for new functionality where applicable
    - Request review from maintainers
 
 ### Branch Naming Convention
@@ -377,29 +378,30 @@ feat(cli): add workspace list command
 
 ## Testing
 
-**No test framework is currently configured for the monorepo root.** The project is in early development.
+This project uses **`bun test`** (Bun's built-in test runner). Test files use the `*.test.ts` convention.
 
-The `supercode-cli/server` app has initial test infrastructure with `bun test`. If you're working on the CLI:
+### Running Tests
 
 ```bash
+# Run all tests across the monorepo
+bun test
+
+# Run tests for a specific app/package
 cd apps/supercode-cli/server
-bun test                # Run all tests
-bun test path/to/file   # Run a single test file
-bun test --watch        # Watch mode
-```
-
-When adding tests to other packages, follow this pattern:
-
-```bash
-# Run all tests
 bun test
 
 # Run a single test file
 bun test path/to/file.test.ts
 
-# Run tests in watch mode
+# Watch mode
 bun test --watch
 ```
+
+### Writing Tests
+
+- Use `import { test, expect, describe } from "bun:test"`
+- Place test files next to the code they test with a `.test.ts` suffix
+- Run `bun run typecheck` to verify types before submitting
 
 ## Database Changes
 
