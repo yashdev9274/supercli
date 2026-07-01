@@ -45,6 +45,9 @@ const READ_ONLY_TOOLS = new Set([
   "read_instructions",
   "url_fetch",
   "web_search",
+  "firecrawl_search",
+  "firecrawl_scrape",
+  "firecrawl_map",
   "task",
 ])
 

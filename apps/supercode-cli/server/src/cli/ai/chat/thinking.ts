@@ -58,6 +58,12 @@ function chipFor(toolName: string): { chip: string; verb: string; color: string 
       return { chip: "FETCH", verb: "fetch", color: "#2a2440" }
     case "web_search":
       return { chip: "SEARCH", verb: "search", color: "#2a2440" }
+    case "firecrawl_search":
+      return { chip: "FC-SEARCH", verb: "search", color: "#1a3a2a" }
+    case "firecrawl_scrape":
+      return { chip: "FC-SCRAPE", verb: "scrape", color: "#1a3a2a" }
+    case "firecrawl_map":
+      return { chip: "FC-MAP", verb: "map", color: "#1a3a2a" }
     case "run_command":
       return { chip: "BASH", verb: "run", color: "#1a2e3a" }
     case "code_exec":

@@ -68,7 +68,9 @@ function loadEnvOnce() {
 
 export const webSearchTool = {
   description:
-    "Search the web using Google Search. Use this to find current information, news, documentation, or any real-time data. " +
+    "[LEGACY] Search the web using Google Custom Search. Consider using firecrawl_search instead — " +
+    "it supports domain filtering, richer results, and is the preferred web search tool. " +
+    "Only use this as a fallback when firecrawl_search fails. " +
     "Returns a structured result: { success: true, results: [...] } with title/snippet/link, " +
     "or { success: false, error } when search is unavailable or finds nothing. " +
     "If success is false, do NOT invent search results — relay the error to the user.",
