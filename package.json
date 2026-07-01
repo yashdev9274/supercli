@@ -1,6 +1,23 @@
 {
   "name": "super-platform",
   "private": true,
+  "description": "Supercode — AI-powered SWE agent platform. Monorepo containing dashboard, CLI, and terminal web client.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yashdev9274/supercli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yashdev9274/supercli/issues"
+  },
+  "homepage": "https://supercli.com",
+  "keywords": [
+    "ai",
+    "coding-agent",
+    "cli",
+    "swe-agent",
+    "developer-tools",
+    "monorepo"
+  ],
   "workspaces": [
     "apps/*",
     "apps/supercode-cli/*",

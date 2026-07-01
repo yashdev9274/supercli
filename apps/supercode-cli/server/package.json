@@ -12,6 +12,7 @@
     "start": "bun src/index.ts",
     "build": "bun run build:cli",
     "build:cli": "bun build --target node --packages bundle --outdir dist --entry ./src/cli/main.ts && sed -i '' 's|#!/usr/bin/env bun|#!/usr/bin/env node|' dist/main.js",
+    "test": "bun test",
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",
     "prepublishOnly": "bun run build:cli"
