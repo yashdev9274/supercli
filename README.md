@@ -34,6 +34,30 @@
 
 ---
 
+## Quick Start
+
+```bash
+# Prerequisites: Git, Bun 1.2+, Docker Desktop
+git clone https://github.com/yashdev9274/supercli.git
+cd supercli
+bun install        # install dependencies
+cp .env.example .env    # configure environment
+bun run db:generate     # generate Prisma client (no DB needed)
+bun run dev:web         # start the dashboard
+```
+
+> **Dashboard** → http://localhost:3000  
+> **CLI** → `bun run supercode`
+
+Need a database? Spin up PostgreSQL with Docker:
+
+```bash
+docker compose up -d
+bun run db:migrate
+```
+
+---
+
 ## Overview
 
 Supercode is a full-stack AI-powered development platform built as a Bun + Turborepo monorepo. It includes a web dashboard, an MDX documentation site, an AI coding agent CLI, a terminal-style web client, and a parallel project for fine-tuning open-source LLMs.
@@ -216,8 +240,9 @@ We use high-quality coding datasets:
 ### Prerequisites
 
 - **Bun** 1.2+ ([Install](https://bun.sh))
-- **PostgreSQL** database ([Neon](https://neon.tech), [Supabase](https://supabase.com), or local)
 - **Git**
+- **Docker Desktop** (recommended for local PostgreSQL) — [Download](https://www.docker.com/products/docker-desktop/)
+- **PostgreSQL** (alternatively, use [Neon](https://neon.tech) or [Supabase](https://supabase.com))
 
 ### Installation
 
@@ -227,10 +252,11 @@ We use high-quality coding datasets:
    cd supercli
    ```
 
-2. **Install dependencies** (this also runs `db:generate` via `postinstall`)
+2. **Install dependencies**
    ```bash
    bun install
    ```
+   Prisma client generation runs automatically. If you don't have a database yet, it skips gracefully — you can generate later.
 
 3. **Set up environment variables**
    ```bash
@@ -239,37 +265,51 @@ We use high-quality coding datasets:
 
    Edit `.env` with your configuration. At minimum, the dashboard requires:
    ```env
-   DATABASE_URL="postgresql://..."
-   BETTER_AUTH_SECRET="your-secret-key"
+   DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres"
+   BETTER_AUTH_SECRET="your-secret-key"          # generate with: openssl rand -base64 32
    BETTER_AUTH_URL="http://localhost:3000"
+   NEXT_PUBLIC_BETTER_AUTH_URL="http://localhost:3000"
    GITHUB_CLIENT_ID="your-github-oauth-id"
    GITHUB_CLIENT_SECRET="your-github-oauth-secret"
    ```
 
-4. **Set up the database**
+4. **Start PostgreSQL** (skip if using a remote provider)
    ```bash
-   cd packages/db
-   bun run db:generate
-   bunx prisma migrate dev
-   cd ../..
+   docker compose up -d
    ```
 
-5. **Start development servers**
+5. **Run database migrations**
    ```bash
-   # Start everything
-   bun run dev
+   bun run db:migrate     # dashboard database
+   ```
 
-   # Or start specific apps
-   bun run dev:web              # Dashboard on http://localhost:3000
-   bun run dev:docs             # Docs on http://localhost:3001
+6. **Start the dashboard**
+   ```bash
+   bun run dev:web
+   ```
+   Open [http://localhost:3000](http://localhost:3000).
+
+7. **Start other apps** (in separate terminals)
+   ```bash
+   bun run dev:docs             # Documentation site
    bun run dev:terminal         # Terminal web client
    bun run dev:terminal-server  # CLI agent dev loop
-bun run dev:api              # API server
+   bun run dev:api              # API server
    ```
 
-6. **Open your browser**
-   - Dashboard: [http://localhost:3000](http://localhost:3000)
-   - Documentation: [http://localhost:3001](http://localhost:3001)
+### CLI Quick Start
+
+The `supercode` CLI doesn't require a database for most operations:
+
+```bash
+# Run the CLI in dev mode
+bun run supercode
+
+# Or build and run the production build
+bun run build && bun run supercode:prod
+```
+
+See `apps/supercode-cli/` for the CLI's own setup and environment variables.
 
 ### GitHub OAuth Setup
 
@@ -370,32 +410,44 @@ Run from the **repo root** unless otherwise noted.
 | `bun run supercode` | Run the published CLI in dev mode |
 | `bun run supercode:prod` | Run the built CLI from `dist/` |
 
-### Build & Quality
+### Build
 
 | Script | What it does |
 |--------|--------------|
 | `bun run build` | Build all apps and packages |
-| `bun run lint` | Run ESLint across all packages |
-| `bun run typecheck` | Run TypeScript checks |
 
 ### Database
 
-From `packages/db/`:
+| Script | What it does |
+|--------|--------------|
+| `bun run db:generate` | Generate Prisma client (dashboard) |
+| `bun run db:migrate` | Deploy migrations (dashboard) |
+| `bun run db:terminal:generate` | Generate Prisma client (terminal) |
+| `bun run db:terminal:migrate` | Deploy migrations (terminal) |
+
+Create new migrations from the package directory:
 
 ```bash
-bun run db:generate      # Clean and regenerate Prisma client
-bun run db:migrate       # Deploy migrations to the configured DB
-bunx prisma studio       # Open Prisma Studio
-bunx prisma migrate dev --name migration_name  # Create a new migration
+cd packages/db
+bunx prisma migrate dev --name migration_name
+cd -
 ```
 
 The terminal CLI has its **own** database and Prisma schema under `packages/db-terminal/`:
 
 ```bash
 cd packages/db-terminal
-bun run db:generate
 bunx prisma migrate dev --name migration_name
+cd -
 ```
+
+### Quality
+
+| Script | What it does |
+|--------|--------------|
+| `bun run test` | Run all tests across the monorepo |
+| `bun run lint` | Run ESLint across all packages |
+| `bun run typecheck` | Run TypeScript checks |
 
 ## Environment Variables
 
