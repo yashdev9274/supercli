@@ -12,7 +12,7 @@
     "db:generate": "prisma generate --schema ../../packages/db/prisma/schema.prisma"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^0.0.56",
+    "@ai-sdk/anthropic": "^4.0.4",
     "@ai-sdk/google": "^2.0.0",
     "@hookform/resolvers": "^5.2.2",
     "@prisma/adapter-pg": "^7.8.0",
