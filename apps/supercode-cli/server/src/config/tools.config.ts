@@ -35,6 +35,30 @@ export const availableTools: ToolConfig[] = [
     enabled: false,
   },
   {
+    id: "firecrawl_search",
+    name: "Firecrawl Search",
+    description:
+      "Search the web using Firecrawl. Supports domain filtering and rich result extraction",
+    getTool: () => registryTools.firecrawl_search as unknown as Record<string, unknown>,
+    enabled: false,
+  },
+  {
+    id: "firecrawl_scrape",
+    name: "Firecrawl Scrape",
+    description:
+      "Fetch and extract markdown content from URLs using Firecrawl. Handles JS-rendered pages",
+    getTool: () => registryTools.firecrawl_scrape as unknown as Record<string, unknown>,
+    enabled: false,
+  },
+  {
+    id: "firecrawl_map",
+    name: "Firecrawl Map",
+    description:
+      "Discover URLs from a website to find documentation sections, blog posts, or pages",
+    getTool: () => registryTools.firecrawl_map as unknown as Record<string, unknown>,
+    enabled: false,
+  },
+  {
     id: "write_file",
     name: "Write File",
     description:

@@ -7,6 +7,9 @@ import { editFileTool } from "./definitions/edit-file.ts"
 import { runCommandTool } from "./definitions/run-command.ts"
 import { urlFetchTool } from "./definitions/url-fetch.ts"
 import { webSearchTool } from "./definitions/web-search.ts"
+import { firecrawlSearchTool } from "./definitions/firecrawl-search.ts"
+import { firecrawlScrapeTool } from "./definitions/firecrawl-scrape.ts"
+import { firecrawlMapTool } from "./definitions/firecrawl-map.ts"
 import { codeExecTool } from "./definitions/code-exec.ts"
 import { readInstructionsTool } from "./definitions/read-instructions.ts"
 import { switchToAgentModeTool } from "./definitions/switch-to-agent-mode.ts"
@@ -61,6 +64,9 @@ export const tools = {
   run_command: withPermission("run_command", runCommandTool),
   url_fetch: defineTool(urlFetchTool),
   web_search: defineTool(webSearchTool),
+  firecrawl_search: defineTool(firecrawlSearchTool),
+  firecrawl_scrape: defineTool(firecrawlScrapeTool),
+  firecrawl_map: defineTool(firecrawlMapTool),
   code_exec: withPermission("code_exec", codeExecTool),
   read_instructions: defineTool(readInstructionsTool),
   switch_to_agent_mode: defineTool(switchToAgentModeTool),

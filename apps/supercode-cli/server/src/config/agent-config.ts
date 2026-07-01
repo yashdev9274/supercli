@@ -3,15 +3,19 @@ import { ToolLoopAgent, stepCountIs, tool } from "ai"
 import type { LanguageModel } from "ai"
 import { writeFileTool } from "../tools/definitions/write-file"
 import { runCommandTool } from "../tools/definitions/run-command"
+import { firecrawlSearchTool } from "../tools/definitions/firecrawl-search"
+import { firecrawlScrapeTool } from "../tools/definitions/firecrawl-scrape"
+import { firecrawlMapTool } from "../tools/definitions/firecrawl-map"
 
 const agentInstructions = `You are a full-stack coding agent that creates complete, production-ready applications.
 
 YOUR WORKFLOW (follow exactly):
-1. PLAN — Decide the project structure, tech stack, and all files needed
-2. CREATE DIRS — Use run_command({ command: "mkdir -p <paths>" }) to create the directory structure
-3. WRITE FILES — Use write_file for each source file with complete, working code
-4. INSTALL DEPS — Use run_command({ command: "npm install", cwd: "<dir>" }) to install dependencies
-5. BUILD — Use run_command({ command: "npm run build", cwd: "<dir>" }) to verify the build
+1. RESEARCH — If you need docs, API references, or code examples, use firecrawl_search / firecrawl_scrape to fetch them first
+2. PLAN — Decide the project structure, tech stack, and all files needed
+3. CREATE DIRS — Use run_command({ command: "mkdir -p <paths>" }) to create the directory structure
+4. WRITE FILES — Use write_file for each source file with complete, working code
+5. INSTALL DEPS — Use run_command({ command: "npm install", cwd: "<dir>" }) to install dependencies
+6. BUILD — Use run_command({ command: "npm run build", cwd: "<dir>" }) to verify the build
 
 CRITICAL RULES:
 - NEVER output shell commands as text. Use run_command tool instead.
@@ -40,6 +44,21 @@ export function createAppAgent(model: LanguageModel, systemPrompt?: string) {
         description: runCommandTool.description,
         inputSchema: runCommandTool.parameters,
         execute: async (input: any) => runCommandTool.execute(input),
+      }),
+      firecrawl_search: tool({
+        description: firecrawlSearchTool.description,
+        inputSchema: firecrawlSearchTool.parameters,
+        execute: async (input: any) => firecrawlSearchTool.execute(input),
+      }),
+      firecrawl_scrape: tool({
+        description: firecrawlScrapeTool.description,
+        inputSchema: firecrawlScrapeTool.parameters,
+        execute: async (input: any) => firecrawlScrapeTool.execute(input),
+      }),
+      firecrawl_map: tool({
+        description: firecrawlMapTool.description,
+        inputSchema: firecrawlMapTool.parameters,
+        execute: async (input: any) => firecrawlMapTool.execute(input),
       }),
     },
     stopWhen: stepCountIs(50),
