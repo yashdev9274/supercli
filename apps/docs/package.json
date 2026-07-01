@@ -16,7 +16,7 @@
     "next": "16.1.1",
     "next-mdx-remote": "^6.0.0",
     "react": "19.2.3",
-    "react-dom": "19.2.3",
+    "react-dom": "19.2.7",
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
