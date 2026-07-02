@@ -43,6 +43,7 @@ import { buildSystemPrompt } from "src/cli/workspace/context.ts"
 import { tools } from "src/tools/registry.ts"
 import { setDelegateRuntime } from "src/tools/definitions/delegate.ts"
 import { CitationTracker } from "src/lib/citation-tracker.ts"
+import { loadEnvOnce } from "src/lib/load-env"
 import { renderWorkspaceBanner } from "src/cli/workspace/format.ts"
 import { handleSlashCommand, isSlashCommand, COMMANDS } from "src/cli/commands/slashCommands/index.ts"
 import {
@@ -276,6 +277,9 @@ async function streamAIResponse(
 
   if (workspaceInfo) {
     toolsToUse = { ...tools }
+    // Ensure .env vars are loaded (Bun only auto-loads .env from CWD, which
+    // may not be the server directory when launched from elsewhere).
+    loadEnvOnce()
     // When Firecrawl is configured, remove the legacy web_search tool so the
     // model reliably uses firecrawl_search instead of falling back to Google CSE.
     if (process.env.FIRECRAWL_API_KEY) {

@@ -1,6 +1,5 @@
 import { z } from "zod"
-import { existsSync, readFileSync } from "node:fs"
-import { resolve } from "node:path"
+import { loadEnvOnce } from "../../lib/load-env"
 
 const webSearchSchema = z.object({
   query: z.string().describe("Search query"),
@@ -12,59 +11,6 @@ export type WebSearchArgs = z.infer<typeof webSearchSchema>
 export type WebSearchResult =
   | { success: true; query: string; results: Array<{ title: string; snippet: string; link: string }> }
   | { success: false; error: string; hint?: string; configured: boolean }
-
-// Load .env files from a few likely locations into process.env, but only for
-// the keys we actually need (avoids stomping on anything else).
-//
-// Many users configure GOOGLE_API_KEY / GOOGLE_CSE_ID in apps/supercode-cli/
-// server/.env but process.env doesn't see them because Bun's auto-load only
-// runs in entrypoints, not in lazily-loaded tool modules. This makes the tool
-// behave as if it's "unconfigured" when it actually isn't.
-function loadEnvOnce() {
-  if ((loadEnvOnce as any).__done) return
-  ;(loadEnvOnce as any).__done = true
-
-  const candidates = [
-    resolve(process.cwd(), ".env"),
-    resolve(process.cwd(), "..", ".env"),
-    resolve(process.cwd(), "..", "..", ".env"),
-  ]
-  // Walk up to find the server .env (works for both `bun src/index.ts` and
-  // `bun src/cli/main.ts` invocations from inside server/).
-  let dir = process.cwd()
-  for (let i = 0; i < 5; i++) {
-    candidates.push(resolve(dir, ".env"))
-    dir = resolve(dir, "..")
-  }
-
-  const seen = new Set<string>()
-  for (const path of candidates) {
-    if (seen.has(path)) continue
-    seen.add(path)
-    if (!existsSync(path)) continue
-    try {
-      const raw = readFileSync(path, "utf8")
-      for (const line of raw.split(/\r?\n/)) {
-        const trimmed = line.trim()
-        if (!trimmed || trimmed.startsWith("#")) continue
-        const eq = trimmed.indexOf("=")
-        if (eq <= 0) continue
-        const key = trimmed.slice(0, eq).trim()
-        if (process.env[key] !== undefined) continue
-        let val = trimmed.slice(eq + 1).trim()
-        if (
-          (val.startsWith('"') && val.endsWith('"')) ||
-          (val.startsWith("'") && val.endsWith("'"))
-        ) {
-          val = val.slice(1, -1)
-        }
-        process.env[key] = val
-      }
-    } catch {
-      // ignore unreadable .env files
-    }
-  }
-}
 
 export const webSearchTool = {
   description:
