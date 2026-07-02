@@ -276,6 +276,11 @@ async function streamAIResponse(
 
   if (workspaceInfo) {
     toolsToUse = { ...tools }
+    // When Firecrawl is configured, remove the legacy web_search tool so the
+    // model reliably uses firecrawl_search instead of falling back to Google CSE.
+    if (process.env.FIRECRAWL_API_KEY) {
+      delete (toolsToUse as Record<string, unknown>).web_search
+    }
     // Wire the subagent runtime so the `delegate` tool can spawn focused subtasks.
     setDelegateRuntime({
       model: (provider as any).model ?? null,
