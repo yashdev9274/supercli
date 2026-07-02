@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { loadEnvOnce } from "../../lib/load-env"
+import { proxyToolCall } from "../../lib/proxy-tools"
 
 const FIRECRAWL_BASE = "https://api.firecrawl.dev/v2"
 
@@ -27,15 +28,31 @@ export const firecrawlScrapeTool = {
     const apiKey = process.env.FIRECRAWL_API_KEY
 
     if (!apiKey) {
-      const result: FirecrawlScrapeResult = {
-        success: false,
-        error: "Firecrawl scrape is not configured. Set FIRECRAWL_API_KEY environment variable.",
-        hint:
-          "Tell the user firecrawl_scrape is unavailable and suggest alternatives: " +
-          "(1) use the existing url_fetch tool, " +
-          "(2) set FIRECRAWL_API_KEY in the .env file.",
+      const proxy = await proxyToolCall("/api/tools/firecrawl-scrape", {
+        url,
+        formats: ["markdown"],
+        onlyMainContent: true,
+      })
+
+      if (proxy.ok) {
+        const markdown = proxy.data?.data?.markdown ?? ""
+        const cleaned = markdown.trim()
+        if (cleaned) {
+          return JSON.stringify({
+            success: true,
+            content: cleaned.slice(0, maxChars),
+            bytesRead: cleaned.length,
+            status: 200,
+            contentType: proxy.data?.data?.metadata?.contentType ?? "text/markdown",
+          } satisfies FirecrawlScrapeResult)
+        }
+        return JSON.stringify({
+          success: false,
+          error: "Fetched URL returned no extractable text content",
+          status: 200,
+          hint: "The page may be JavaScript-rendered or require authentication.",
+        } satisfies FirecrawlScrapeResult)
       }
-      return JSON.stringify(result)
     }
 
     let urlObj: URL

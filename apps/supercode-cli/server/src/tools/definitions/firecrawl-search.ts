@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { loadEnvOnce } from "../../lib/load-env"
+import { proxyToolCall } from "../../lib/proxy-tools"
 
 const FIRECRAWL_BASE = "https://api.firecrawl.dev/v2"
 
@@ -22,6 +23,14 @@ export type FirecrawlSearchResult =
   | { success: true; query: string; results: Array<{ title: string; snippet: string; link: string }> }
   | { success: false; error: string; hint?: string; configured: boolean }
 
+function formatResults(items: any[]): Array<{ title: string; snippet: string; link: string }> {
+  return items.map((item: any) => ({
+    title: String(item.title ?? ""),
+    snippet: String(item.description ?? item.snippet ?? ""),
+    link: String(item.url ?? item.link ?? ""),
+  }))
+}
+
 export const firecrawlSearchTool = {
   description:
     "[REQUIRED] Search the web for any company, product, service, topic, or current information. " +
@@ -37,17 +46,31 @@ export const firecrawlSearchTool = {
     const apiKey = process.env.FIRECRAWL_API_KEY
 
     if (!apiKey) {
-      const result: FirecrawlSearchResult = {
+      const proxy = await proxyToolCall("/api/tools/firecrawl-search", {
+        query,
+        limit: maxResults,
+        sources: [{ type: "web" }],
+        ...(includeDomains ? { includeDomains } : {}),
+        ...(excludeDomains ? { excludeDomains } : {}),
+      })
+
+      if (proxy.ok) {
+        const webResults = Array.isArray(proxy.data?.data?.web) ? proxy.data.data.web : []
+        const newsResults = Array.isArray(proxy.data?.data?.news) ? proxy.data.data.news : []
+        const results = formatResults([...webResults, ...newsResults].slice(0, maxResults))
+        return JSON.stringify({ success: true, query, results } satisfies FirecrawlSearchResult)
+      }
+
+      return JSON.stringify({
         success: false,
         error: "Firecrawl search is not configured. Set FIRECRAWL_API_KEY environment variable.",
         hint:
           "Tell the user firecrawl_search is unavailable and suggest alternatives: " +
           "(1) ask the user to provide a specific URL and call firecrawl_scrape on it, " +
           "(2) use the existing web_search tool with Google CSE, " +
-          "(3) set FIRECRAWL_API_KEY in the .env file.",
+          "(3) set FIRECRAWL_API_KEY in the .env or on the server (Render).",
         configured: false,
-      }
-      return JSON.stringify(result)
+      } satisfies FirecrawlSearchResult)
     }
 
     try {

@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { loadEnvOnce } from "../../lib/load-env"
+import { proxyToolCall } from "../../lib/proxy-tools"
 
 const FIRECRAWL_BASE = "https://api.firecrawl.dev/v2"
 
@@ -29,17 +30,33 @@ export const firecrawlMapTool = {
     const apiKey = process.env.FIRECRAWL_API_KEY
 
     if (!apiKey) {
-      const result: FirecrawlMapResult = {
+      const proxy = await proxyToolCall("/api/tools/firecrawl-map", {
+        url,
+        search,
+        limit,
+        includeSubdomains,
+      })
+
+      if (proxy.ok) {
+        const links = Array.isArray(proxy.data?.links) ? proxy.data.links : []
+        return JSON.stringify({
+          success: true,
+          url,
+          links,
+          total: links.length,
+        } satisfies FirecrawlMapResult)
+      }
+
+      return JSON.stringify({
         success: false,
         error: "Firecrawl map is not configured. Set FIRECRAWL_API_KEY environment variable.",
         hint:
           "Tell the user firecrawl_map is unavailable and suggest alternatives: " +
           "(1) use firecrawl_search with site:domain.com, " +
           "(2) use the existing url_fetch tool, " +
-          "(3) set FIRECRAWL_API_KEY in the .env file.",
+          "(3) set FIRECRAWL_API_KEY in the .env or on the server (Render).",
         configured: false,
-      }
-      return JSON.stringify(result)
+      } satisfies FirecrawlMapResult)
     }
 
     let urlObj: URL
