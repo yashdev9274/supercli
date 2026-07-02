@@ -1,104 +1,42 @@
 # Contributing to Supercode
 
-Thank you for your interest in contributing to Supercode! This document provides guidelines and instructions for contributing to this monorepo.
+Thank you for your interest in contributing! This guide will help you get the repo running locally and navigate the codebase.
 
-## Table of Contents
-
-- [Code of Conduct](#code-of-conduct)
-- [Getting Started](#getting-started)
-- [Development Setup](#development-setup)
-- [Project Structure](#project-structure)
-- [Development Workflow](#development-workflow)
-- [Code Style Guidelines](#code-style-guidelines)
-- [Commit Guidelines](#commit-guidelines)
-- [Pull Request Process](#pull-request-process)
-- [Testing](#testing)
-- [Database Changes](#database-changes)
-
-## Code of Conduct
-
-Be respectful and inclusive. Treat all contributors with courtesy and professionalism.
-
-## Getting Started
-
-### Prerequisites
-
-- **Bun** 1.2+ ([Install](https://bun.sh))
-- **PostgreSQL** database (dashboard + optional terminal database)
-- **Git**
-
-### Package Manager
-
-This project uses [Bun](https://bun.sh) as the package manager. Install it first:
+## Quick Start
 
 ```bash
-# macOS/Linux
-curl -fsSL https://bun.sh/install | bash
+# 1. Prerequisites: Git, Bun 1.2+, Docker Desktop (recommended)
+git clone https://github.com/yashdev9274/supercli.git
+cd supercli
 
-# Windows
-powershell -c "irm bun.sh/install.ps1 | iex"
+# 2. Install dependencies (Bun is pinned to v1.2.21 — run via bunx if needed)
+bun install
+
+# 3. Set up environment
+cp apps/web/.env.example apps/web/.env.local
+
+# 4. Start PostgreSQL (Docker) — or use any PostgreSQL provider
+docker compose up -d
+
+# 5. Run database migrations
+bun run db:migrate
+
+# 6. Start the dashboard
+bun run dev:web
+# → http://localhost:3000
 ```
 
-## Development Setup
+## Prerequisites
 
-1. **Fork and clone the repository**
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/supercli.git
-   cd supercli
-   ```
+| Tool | Version | Purpose |
+|------|---------|---------|
+| [Bun](https://bun.sh) | 1.2.21 (pinned) | Runtime & package manager |
+| [Docker Desktop](https://docker.com) | Latest | Local PostgreSQL (optional) |
+| Git | Any | Version control |
 
-2. **Install dependencies** (also runs Prisma client generation via `postinstall`)
-   ```bash
-   bun install
-   ```
+The project's `packageManager` field in `package.json` pins Bun to 1.2.21. Bun automatically uses the right version when installed via the official installer.
 
-3. **Set up environment variables**
-   ```bash
-   cp .env.example .env
-   ```
-
-   Configure the following required variables in `.env`:
-   ```env
-   DATABASE_URL="postgresql://..."
-   BETTER_AUTH_SECRET="your-secret-key"
-   BETTER_AUTH_URL="http://localhost:3000"
-   GITHUB_CLIENT_ID="your-github-oauth-id"
-   GITHUB_CLIENT_SECRET="your-github-oauth-secret"
-   ```
-
-4. **Set up the database**
-   ```bash
-   cd packages/db
-   bun run db:generate
-   bunx prisma migrate dev
-   cd ../..
-   ```
-
-   If you're also working on the terminal CLI, set up its database:
-   ```bash
-   cd packages/db-terminal
-   bun run db:generate
-   bunx prisma migrate dev
-   cd ../..
-   ```
-
-5. **Start the development servers**
-   ```bash
-   # Start all apps
-   bun run dev
-
-   # Or start a specific app
-   bun run dev:web              # Dashboard (port 3000)
-   bun run dev:docs             # Documentation (port 3001)
-   bun run dev:terminal         # Terminal web client
-   bun run dev:terminal-server  # CLI agent dev loop
-   bun run dev:api              # API server
-   bun run dev:video            # Remotion studio
-   ```
-
-6. **Open your browser**
-   - Dashboard: [http://localhost:3000](http://localhost:3000)
-   - Docs: [http://localhost:3001](http://localhost:3001)
+If you use an external PostgreSQL provider (Neon, Supabase, Railway), skip Docker and set your `DATABASE_URL` in `apps/web/.env.local`.
 
 ## Project Structure
 
@@ -106,342 +44,241 @@ powershell -c "irm bun.sh/install.ps1 | iex"
 supercli/
 ├── apps/
 │   ├── web/                          # Dashboard → supercli.com
-│   │   ├── app/                      # App router pages
-│   │   ├── components/               # React components
-│   │   ├── hooks/                    # Custom React hooks
-│   │   ├── lib/                      # Utility libraries
-│   │   ├── modules/                  # Feature modules
-│   │   ├── inngest/                  # Background jobs (Inngest)
-│   │   └── public/                   # Static assets
-│   │
 │   ├── docs/                         # MDX documentation site
-│   │   ├── app/                      # App router pages
-│   │   ├── components/
-│   │   ├── content/                  # MDX docs
-│   │   └── lib/
-│   │
 │   ├── supercode-cli/
-│   │   ├── client/                   # Terminal web UI → terminal.supercli.com
-│   │   └── server/                   # AI CLI agent (published as `supercode` on npm)
-│   │
+│   │   ├── client/                   # Terminal web UI
+│   │   └── server/                   # AI CLI agent (published as `supercode`)
 │   ├── api/                          # Shared API server (scaffolded)
 │   └── video/                        # Remotion video generation
-│
 ├── packages/
 │   ├── db/                           # Prisma schema + client (dashboard)
 │   ├── db-terminal/                  # Prisma schema + client (terminal CLI)
-│   ├── auth/                         # Better-Auth config (server.ts, client.ts)
-│   ├── claude-sdk/                   # Claude / Anthropic provider wrapper
-│   ├── embeddings-sdk/               # Embeddings provider wrapper
-│   ├── skills/                       # Shared AI agent skills
+│   ├── auth/                         # Better-Auth configuration
 │   ├── ui/                           # Shared UI components
 │   ├── sdk/                          # Internal SDK
-│   ├── config/                       # Shared ESLint/TS config
-│   └── dashboard/                    # Dashboard-specific components
-│
-├── supercode-openmodel/              # LLM fine-tuning project
-├── scripts/                          # Repo-level scripts
-├── turbo.json                        # Turborepo config
-└── package.json                      # Root package
+│   ├── claude-sdk/                   # Claude/Antrop provider wrapper
+│   ├── embeddings-sdk/               # Embeddings provider wrapper
+│   └── skills/                       # Shared AI agent skills
+├── scripts/
+│   ├── postinstall.ts                # Runs after bun install
+│   └── setup.ts                      # Automated setup wizard
+└── package.json                      # Root workspace config
+```
+
+## Available Scripts
+
+Run from the **repo root** unless noted.
+
+### Development
+
+| Command | What it starts |
+|---------|---------------|
+| `bun run dev` | All dev servers (Turborepo) |
+| `bun run dev:web` | Dashboard only (port 3000) |
+| `bun run dev:docs` | Docs site (port 3001) |
+| `bun run dev:terminal` | Terminal web client |
+| `bun run dev:terminal-server` | CLI agent dev loop |
+| `bun run dev:api` | API server |
+| `bun run dev:video` | Remotion studio |
+| `bun run supercode` | Run the CLI in dev mode |
+
+### Quality
+
+| Command | What it checks |
+|---------|---------------|
+| `bun run check` | lint + typecheck + test (mirrors CI) |
+| `bun run lint` | ESLint across all packages |
+| `bun run typecheck` | TypeScript type checking |
+| `bun test` | Run all tests |
+
+### Database
+
+| Command | What it does |
+|---------|-------------|
+| `bun run db:generate` | Generate Prisma client (dashboard) |
+| `bun run db:migrate` | Deploy migrations (dashboard) |
+| `bun run db:generate:terminal` | Generate Prisma client (terminal) |
+| `bun run db:studio:terminal` | Open Prisma Studio (terminal) |
+
+Create migrations from the package directory:
+
+```bash
+cd packages/db
+bunx prisma migrate dev --name your_migration_name
+cd -
+```
+
+The terminal CLI has its **own** database schema under `packages/db-terminal/`.
+
+## Environment Variables
+
+Copy `apps/web/.env.example` to `apps/web/.env.local` and fill in the values.
+
+The template is annotated with dependency tiers:
+- **🔴 Required** — app won't start without it
+- **🟡 Required for feature** — needed for auth, AI, etc.
+- **⚪ Optional** — skip if you don't need the feature
+
+Example for local development:
+
+```env
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres"
+BETTER_AUTH_SECRET="your-secret"          # openssl rand -hex 32
+BETTER_AUTH_URL="http://localhost:3000"
+GITHUB_CLIENT_ID="your-github-client-id"  # from github.com/settings/developers
+GITHUB_CLIENT_SECRET="your-github-secret"
 ```
 
 ## Development Workflow
 
-### Available Scripts
+### 1. Pick an Issue
 
-| Command | Description |
-|---------|-------------|
-| `bun run dev` | Start all dev servers |
-| `bun run build` | Build all packages and apps |
-| `bun run lint` | Run ESLint across all packages |
-| `bun run typecheck` | Run TypeScript checks |
-| `bun run dev:web` | Start only the dashboard |
-| `bun run dev:docs` | Start only the docs site |
-| `bun run dev:terminal` | Start the terminal web client |
-| `bun run dev:terminal-server` | Run the CLI agent in dev mode |
-| `bun run dev:api` | Start the API server |
-| `bun run dev:video` | Start the Remotion studio |
-| `bun run supercode` | Run the CLI agent in dev mode (alias for server dev loop) |
+Check [open issues](https://github.com/yashdev9274/supercli/issues) — good first issues are tagged. Comment to let others know you're working on it.
 
-### Database Commands
-
-**Dashboard database** (`packages/db/`):
+### 2. Create a Branch
 
 ```bash
-cd packages/db
-bun run db:generate                 # Clean + regenerate Prisma client
-bun run db:migrate                  # Deploy migrations
-bunx prisma migrate dev --name name # Create a new migration
-bunx prisma studio                  # Open Prisma Studio
+git checkout -b feat/your-feature-name
 ```
 
-**Terminal CLI database** (`packages/db-terminal/`):
+Branch naming:
+- `feat/` — new features
+- `fix/` — bug fixes
+- `docs/` — documentation
+- `refactor/` — code refactoring
+
+### 3. Make Changes
+
+- Follow the code style (see below)
+- Add tests for new functionality
+- Keep changes scoped to the issue
+
+### 4. Run Checks
 
 ```bash
-cd packages/db-terminal
-bun run db:generate
-bunx prisma migrate dev --name name
+bun run check
 ```
 
-## Code Style Guidelines
+This runs linting, TypeScript checks, and tests — same checks as CI.
 
-### Formatting
+### 5. Commit
+
+```bash
+git add .
+git commit -m "feat(scope): concise description"
+```
+
+Format: `<type>(<scope>): <subject>`
+
+Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
+
+### 6. Push and Create a PR
+
+```bash
+git push origin feat/your-feature-name
+```
+
+PR requirements:
+- Clear description of changes
+- Reference related issues
+- Pass all CI checks
+- Screenshots for UI changes
+
+## Code Style
 
 - **No semicolons** at end of statements
 - **Double quotes** for strings
 - **2-space indentation**
 - **Trailing commas** in multi-line objects/arrays
 
-### Imports
-
-Order imports by category, separated by blank lines:
+### Imports (grouped by category)
 
 ```typescript
-// 1. React/Next
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 
-// 2. External libraries
 import { useQuery } from "@tanstack/react-query"
 import { z } from "zod"
 
-// 3. Internal aliases (workspace packages)
 import { Button } from "@/components/ui/button"
 import { auth } from "@super/auth"
 
-// 4. Relative imports
 import { LocalComponent } from "./local-component"
 ```
 
-### Naming Conventions
-
-| Type | Convention | Example |
-|------|------------|---------|
-| Components | PascalCase | `Button.tsx`, `HeroSection.tsx` |
-| Non-component files | kebab-case | `utils.ts`, `query-provider.tsx` |
-| Functions | camelCase | `getUserSession`, `validateInput` |
-| Types/Interfaces | PascalCase | `UserSession`, `ApiResponse` |
-| Constants | UPPER_SNAKE_CASE | `MAX_RETRIES`, `API_BASE_URL` |
-
-### TypeScript
-
-- Strict mode is enabled
-- Use `type` for type aliases when possible
-- Prefer explicit return types on library functions
-- Use `interface` for object shapes that may be extended
-
-### React Patterns
+### Components
 
 - **Server Components by default** (Next.js App Router)
-- Use `'use client'` directive only when needed (hooks, browser APIs)
+- `'use client'` only when hooks or browser APIs are needed
 - Destructure props in function parameters
+- Use `cn()` from `@/lib/utils` for conditional Tailwind classes
+- Follow CVA (class-variance-authority) pattern for variants
 
-```typescript
-// Preferred
-function Button({ children, variant }: ButtonProps) {
-  return <button className={variant}>{children}</button>
-}
+### Naming
 
-// Avoid
-function Button(props: ButtonProps) {
-  return <button className={props.variant}>{props.children}</button>
-}
-```
-
-### Styling (Tailwind CSS v4)
-
-- Use `cn()` utility from `@/lib/utils` (web) or `lib/utils` (client) for conditional classes
-- Prefer semantic CSS variables over hardcoded values
-- Follow CVA (class-variance-authority) pattern for component variants
-
-```typescript
-import { cn } from "@/lib/utils"
-import { cva, type VariantProps } from "class-variance-authority"
-
-const buttonVariants = cva("inline-flex items-center", {
-  variants: {
-    variant: {
-      default: "bg-primary text-white",
-      outline: "border border-input",
-    },
-  },
-  defaultVariants: {
-    variant: "default",
-  },
-})
-
-interface ButtonProps extends VariantProps<typeof buttonVariants> {
-  className?: string
-}
-```
-
-### Database (Prisma)
-
-- Dashboard schema: `packages/db/prisma/schema.prisma`
-- Terminal schema: `packages/db-terminal/prisma/schema.prisma`
-- Always regenerate after schema changes: `bun run db:generate`
-- Use `@map()` for custom table names in snake_case
-- Add indexes for frequently queried foreign keys
-
-### CLI Pattern (supercode-cli/server)
-
-The server app follows a structured CLI pattern:
-
-```
-apps/supercode-cli/server/src/
-├── index.ts          # Entry point (dev mode)
-├── cli/
-│   ├── main.ts       # CLI bootstrap
-│   ├── commands/     # `supercode <command>` implementations
-│   ├── chat/         # Interactive chat loop
-│   ├── ai/           # AI provider orchestration
-│   ├── tools/        # Tool definitions (read_file, execute_command, etc.)
-│   ├── workspace/    # Workspace management
-│   └── utils/        # CLI utilities
-├── service/          # AI provider integration layer
-├── tools/            # Tool execution engine
-├── lib/              # Shared libraries
-├── config/           # Configuration
-└── types/            # TypeScript types
-```
-
-## Commit Guidelines
-
-### Commit Message Format
-
-```
-<type>(<scope>): <subject>
-
-<body>
-```
-
-### Types
-
-| Type | Description |
-|------|-------------|
-| `feat` | New feature |
-| `fix` | Bug fix |
-| `docs` | Documentation changes |
-| `style` | Code style changes (formatting, etc.) |
-| `refactor` | Code refactoring |
-| `test` | Adding or updating tests |
-| `chore` | Maintenance tasks |
-
-### Examples
-
-```
-feat(auth): add GitHub OAuth support
-fix(db): resolve connection pooling issue
-docs(readme): update installation instructions
-refactor(ui): extract button component to shared package
-feat(cli): add workspace list command
-```
-
-## Pull Request Process
-
-1. **Create a feature branch**
-   ```bash
-   git checkout -b feat/your-feature-name
-   ```
-
-2. **Make your changes and commit**
-   ```bash
-   git add .
-   git commit -m "feat(scope): your changes"
-   ```
-
-3. **Run checks before pushing**
-   ```bash
-   bun run lint
-   bun run typecheck
-   ```
-
-4. **Push and create PR**
-   ```bash
-   git push origin feat/your-feature-name
-   ```
-
-5. **PR Requirements**
-   - Clear description of changes
-   - Reference any related issues with "Fixes #issue"
-   - Pass all CI checks (typecheck, lint, test)
-   - Add tests for new functionality where applicable
-   - Request review from maintainers
-
-### Branch Naming Convention
-
-- Feature: `feat/feature-name`
-- Bug fix: `fix/bug-name`
-- Documentation: `docs/doc-name`
-- Refactor: `refactor/component-name`
-- Issue-linked: `supercli-#<issue-number>` (for Linear-tracked issues)
-
-## Testing
-
-This project uses **`bun test`** (Bun's built-in test runner). Test files use the `*.test.ts` convention.
-
-### Running Tests
-
-```bash
-# Run all tests across the monorepo
-bun test
-
-# Run tests for a specific app/package
-cd apps/supercode-cli/server
-bun test
-
-# Run a single test file
-bun test path/to/file.test.ts
-
-# Watch mode
-bun test --watch
-```
-
-### Writing Tests
-
-- Use `import { test, expect, describe } from "bun:test"`
-- Place test files next to the code they test with a `.test.ts` suffix
-- Run `bun run typecheck` to verify types before submitting
+| Type | Convention | Example |
+|------|-----------|---------|
+| Components | PascalCase | `Button.tsx` |
+| Non-component files | kebab-case | `utils.ts` |
+| Functions | camelCase | `getSession` |
+| Types/Interfaces | PascalCase | `UserSession` |
+| Constants | UPPER_SNAKE_CASE | `MAX_RETRIES` |
 
 ## Database Changes
 
-### Dashboard Schema
+Both databases share one PostgreSQL instance but have separate schemas.
 
-1. **Edit the schema**
-   `packages/db/prisma/schema.prisma`
+### Dashboard Schema (`packages/db/`)
 
-2. **Create a migration**
-   ```bash
-   cd packages/db
-   bunx prisma migrate dev --name your_migration_name
-   ```
+```bash
+cd packages/db
+# Edit prisma/schema.prisma
+bunx prisma migrate dev --name your_migration_name
+bun run db:generate
+cd -
+```
 
-3. **Regenerate the client**
-   ```bash
-   bun run db:generate
-   ```
-
-4. **Update dependent code**
-   - Check for TypeScript errors
-   - Update any affected queries
-
-### Terminal CLI Schema
-
-The terminal CLI has its own isolated schema:
+### Terminal Schema (`packages/db-terminal/`)
 
 ```bash
 cd packages/db-terminal
 # Edit prisma/schema.prisma
 bunx prisma migrate dev --name your_migration_name
 bun run db:generate
+cd -
+```
+
+## Testing
+
+Uses Bun's built-in test runner. Test files use `.test.ts` convention and sit next to the code they test.
+
+```bash
+# Run all tests
+bun test
+
+# Single file
+bun test path/to/file.test.ts
+
+# Watch mode
+bun test --watch
+```
+
+```typescript
+import { test, expect, describe } from "bun:test"
+
+describe("my feature", () => {
+  test("works correctly", () => {
+    expect(1 + 1).toBe(2)
+  })
+})
 ```
 
 ## Need Help?
 
-- Open an issue for bugs or feature requests
-- Join discussions in existing issues
-- Reach out to maintainers
+- Open a [GitHub issue](https://github.com/yashdev9274/supercli/issues)
+- Ask in existing discussions
+- Tag maintainers on your PR
 
 ---
 
-Thank you for contributing to Supercode!
+Thank you for contributing!
