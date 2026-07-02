@@ -1,33 +1,49 @@
 import { readFileSync, existsSync } from "fs"
-import { resolve, dirname } from "path"
-import { fileURLToPath } from "url"
+import { resolve } from "path"
+
+let _loaded = false
 
 function loadEnvFile(envPath: string) {
   if (!existsSync(envPath)) return false
-  const env = readFileSync(envPath, "utf-8")
-  for (const line of env.split("\n")) {
+  const raw = readFileSync(envPath, "utf8")
+  for (const line of raw.split(/\r?\n/)) {
     const trimmed = line.trim()
     if (!trimmed || trimmed.startsWith("#")) continue
-    const eqIdx = trimmed.indexOf("=")
-    if (eqIdx === -1) continue
-    const key = trimmed.slice(0, eqIdx).trim()
-    let value = trimmed.slice(eqIdx + 1).trim()
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1)
+    const eq = trimmed.indexOf("=")
+    if (eq <= 0) continue
+    const key = trimmed.slice(0, eq).trim()
+    if (process.env[key] !== undefined) continue
+    let val = trimmed.slice(eq + 1).trim()
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1)
     }
-    if (!process.env[key]) {
-      process.env[key] = value
-    }
+    process.env[key] = val
   }
   return true
 }
 
-// Try CWD .env first, then file-relative paths for bundled/global install
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const cwdEnv = resolve(process.cwd(), ".env")
-const pkgEnv = resolve(__dirname, "../../.env")        // dev: src/lib/ -> server/.env
-const distEnv = resolve(__dirname, "../.env")           // prod: dist/ -> server/.env
+export function loadEnvOnce() {
+  if (_loaded) return
+  _loaded = true
 
-try {
-  loadEnvFile(cwdEnv) || loadEnvFile(pkgEnv) || loadEnvFile(distEnv)
-} catch {}
+  const candidates = [
+    resolve(process.cwd(), ".env"),
+    resolve(process.cwd(), "..", ".env"),
+    resolve(process.cwd(), "..", "..", ".env"),
+  ]
+  let dir = process.cwd()
+  for (let i = 0; i < 5; i++) {
+    candidates.push(resolve(dir, ".env"))
+    dir = resolve(dir, "..")
+  }
+
+  const seen = new Set<string>()
+  for (const path of candidates) {
+    if (seen.has(path)) continue
+    seen.add(path)
+    if (loadEnvFile(path)) break
+  }
+}

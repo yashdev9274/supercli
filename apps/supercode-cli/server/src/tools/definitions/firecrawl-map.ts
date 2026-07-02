@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { loadEnvOnce } from "../../lib/load-env"
 
 const FIRECRAWL_BASE = "https://api.firecrawl.dev/v2"
 
@@ -24,6 +25,7 @@ export const firecrawlMapTool = {
     "If success is false, do NOT invent results — relay the error to the user.",
   parameters: firecrawlMapSchema,
   execute: async ({ url, search, limit, includeSubdomains }: FirecrawlMapArgs): Promise<string> => {
+    loadEnvOnce()
     const apiKey = process.env.FIRECRAWL_API_KEY
 
     if (!apiKey) {
