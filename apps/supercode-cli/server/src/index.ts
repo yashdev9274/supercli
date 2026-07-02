@@ -740,6 +740,92 @@ app.put("/api/conversations/:id/title", async (req, res) => {
   }
 })
 
+// ── Tool proxy endpoints (use server-side API keys) ──
+
+const FIRECRAWL_BASE = "https://api.firecrawl.dev/v2"
+
+app.post("/api/tools/firecrawl-search", async (req, res) => {
+  try {
+    const user = await getUserFromBearer(req)
+    if (!user) { res.status(401).json({ error: "Unauthorized" }); return }
+
+    const apiKey = process.env.FIRECRAWL_API_KEY
+    if (!apiKey) { res.status(500).json({ error: "Firecrawl not configured on server" }); return }
+
+    const response = await fetch(`${FIRECRAWL_BASE}/search`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify(req.body),
+      signal: AbortSignal.timeout(30000),
+    })
+    const data = await response.json()
+    res.status(response.status).json(data)
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Firecrawl search proxy failed" })
+  }
+})
+
+app.post("/api/tools/firecrawl-scrape", async (req, res) => {
+  try {
+    const user = await getUserFromBearer(req)
+    if (!user) { res.status(401).json({ error: "Unauthorized" }); return }
+
+    const apiKey = process.env.FIRECRAWL_API_KEY
+    if (!apiKey) { res.status(500).json({ error: "Firecrawl not configured on server" }); return }
+
+    const response = await fetch(`${FIRECRAWL_BASE}/scrape`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify(req.body),
+      signal: AbortSignal.timeout(30000),
+    })
+    const data = await response.json()
+    res.status(response.status).json(data)
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Firecrawl scrape proxy failed" })
+  }
+})
+
+app.post("/api/tools/firecrawl-map", async (req, res) => {
+  try {
+    const user = await getUserFromBearer(req)
+    if (!user) { res.status(401).json({ error: "Unauthorized" }); return }
+
+    const apiKey = process.env.FIRECRAWL_API_KEY
+    if (!apiKey) { res.status(500).json({ error: "Firecrawl not configured on server" }); return }
+
+    const response = await fetch(`${FIRECRAWL_BASE}/map`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify(req.body),
+      signal: AbortSignal.timeout(60000),
+    })
+    const data = await response.json()
+    res.status(response.status).json(data)
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Firecrawl map proxy failed" })
+  }
+})
+
+app.post("/api/tools/web-search", async (req, res) => {
+  try {
+    const user = await getUserFromBearer(req)
+    if (!user) { res.status(401).json({ error: "Unauthorized" }); return }
+
+    const apiKey = process.env.GOOGLE_API_KEY
+    const cx = process.env.GOOGLE_CSE_ID
+    if (!apiKey || !cx) { res.status(500).json({ error: "Google Custom Search not configured on server" }); return }
+
+    const { query, maxResults = 5 } = req.body
+    const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}`
+    const response = await fetch(url)
+    const data = await response.json()
+    res.status(response.status).json(data)
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Web search proxy failed" })
+  }
+})
+
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`)
 })

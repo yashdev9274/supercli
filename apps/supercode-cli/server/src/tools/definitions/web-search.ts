@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { loadEnvOnce } from "../../lib/load-env"
+import { proxyToolCall } from "../../lib/proxy-tools"
 
 const webSearchSchema = z.object({
   query: z.string().describe("Search query"),
@@ -28,7 +29,22 @@ export const webSearchTool = {
     const cx = process.env.GOOGLE_CSE_ID
 
     if (!apiKey || !cx) {
-      const result: WebSearchResult = {
+      const proxy = await proxyToolCall("/api/tools/web-search", {
+        query,
+        maxResults,
+      })
+
+      if (proxy.ok) {
+        const items = Array.isArray(proxy.data?.items) ? proxy.data.items : []
+        const results = items.slice(0, maxResults).map((item: any) => ({
+          title: String(item.title ?? ""),
+          snippet: String(item.snippet ?? ""),
+          link: String(item.link ?? ""),
+        }))
+        return JSON.stringify({ success: true, query, results } satisfies WebSearchResult)
+      }
+
+      return JSON.stringify({
         success: false,
         error:
           "Web search is not configured. Set GOOGLE_API_KEY and GOOGLE_CSE_ID environment variables.",
@@ -37,10 +53,9 @@ export const webSearchTool = {
           "(1) ask the user to provide a specific URL and call url_fetch on it, " +
           "(2) call url_fetch on a known URL (e.g. api.github.com/repos/{owner}/{name} for GitHub, " +
           "raw.githubusercontent.com/{owner}/{name}/main/README.md for raw files), " +
-          "(3) ask the user to enable web_search by setting the env vars in apps/supercode-cli/server/.env.",
+          "(3) set GOOGLE_API_KEY and GOOGLE_CSE_ID in the .env or on the server (Render).",
         configured: false,
-      }
-      return JSON.stringify(result)
+      } satisfies WebSearchResult)
     }
 
     try {

@@ -1,5 +1,6 @@
 import { readFileSync, existsSync } from "fs"
-import { resolve } from "path"
+import { resolve, dirname } from "path"
+import { fileURLToPath } from "url"
 
 let _loaded = false
 
@@ -38,6 +39,16 @@ export function loadEnvOnce() {
   for (let i = 0; i < 5; i++) {
     candidates.push(resolve(dir, ".env"))
     dir = resolve(dir, "..")
+  }
+
+  // Also check relative to this module's location (handles bundled CLI
+  // running from any cwd — dist/ or src/lib/ both resolve to server/.env)
+  try {
+    const moduleDir = dirname(fileURLToPath(import.meta.url))
+    candidates.push(resolve(moduleDir, "..", "..", ".env"))
+    candidates.push(resolve(moduleDir, "..", ".env"))
+  } catch {
+    // import.meta.url unavailable outside ESM
   }
 
   const seen = new Set<string>()
