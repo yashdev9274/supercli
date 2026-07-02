@@ -421,7 +421,7 @@ app.post("/api/ai/chat", async (req, res) => {
         if (tools) {
           bodyObj.tools = Object.entries(tools).map(([name, fn]: [string, any]) => ({
             type: "function",
-            function: { name, description: fn.description || "", parameters: fn.parameters || {} },
+            function: { name, description: fn.description || "", parameters: fn.inputSchema ?? fn.parameters ?? {} },
           }))
         }
         const response = await fetch(`${baseUrl}/chat/completions`, {
@@ -528,7 +528,7 @@ app.post("/api/ai/chat", async (req, res) => {
         if (tools) {
           bodyObj.tools = Object.entries(tools).map(([name, fn]: [string, any]) => ({
             type: "function",
-            function: { name, description: fn.description || "", parameters: fn.parameters || {} },
+            function: { name, description: fn.description || "", parameters: fn.inputSchema ?? fn.parameters ?? {} },
           }))
         }
         const response = await fetch("https://api.concentrate.ai/v1/chat/completions", {

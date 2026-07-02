@@ -23,9 +23,10 @@ export type FirecrawlSearchResult =
 
 export const firecrawlSearchTool = {
   description:
-    "[PREFERRED] Search the web using Firecrawl. Use this as your PRIMARY web search tool for current information, news, documentation, or any real-time data. " +
-    "Superior to web_search (Google CSE) — supports domain filtering via includeDomains/excludeDomains, " +
-    "richer results, and better reliability. " +
+    "[REQUIRED] Search the web for any company, product, service, topic, or current information. " +
+    "You MUST call this tool whenever the user asks about something you don't know or that may have changed. " +
+    "Do NOT answer from your training data — always search first. " +
+    "Supports domain filtering via includeDomains/excludeDomains. " +
     "Returns a structured result: { success: true, results: [...] } with title/snippet/link, " +
     "or { success: false, error } when search is unavailable or finds nothing. " +
     "If success is false, do NOT invent search results — relay the error to the user.",
