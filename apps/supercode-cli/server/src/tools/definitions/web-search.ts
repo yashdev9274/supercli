@@ -46,9 +46,8 @@ export const webSearchTool = {
 
       return JSON.stringify({
         success: false,
-        error:
-          "Web search is not configured. Set GOOGLE_API_KEY and GOOGLE_CSE_ID environment variables.",
-        hint:
+        error: `Web search proxy failed: ${proxy.error}. Set GOOGLE_API_KEY and GOOGLE_CSE_ID environment variables locally, or fix the proxy issue above.`,
+        hint: `Proxy error details: ${proxy.error}. ` +
           "Tell the user web_search is unavailable and suggest alternatives: " +
           "(1) ask the user to provide a specific URL and call url_fetch on it, " +
           "(2) call url_fetch on a known URL (e.g. api.github.com/repos/{owner}/{name} for GitHub, " +
