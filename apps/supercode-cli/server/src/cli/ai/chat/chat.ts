@@ -733,33 +733,32 @@ function renderInput() {
   process.stdout.write(promptText() + stdinInput)
   stdinPrevWrapLines = wrapLines
 
-  // Show slash list when input is exactly /
+  // Show slash autocomplete list
   slashListLines = 0
   if (stdinInput.startsWith("/") && stdinInput.length >= 1) {
     const filtered = filterSlashCommands(stdinInput)
-    // Clamp selection to the filtered list length so we don't point past it
-    if (slashSelected >= filtered.length) slashSelected = -1
-    const divider = heavyDivider()
-    process.stdout.write(`\r\n${divider}\r\n`)
-    if (slashSelected === -1) {
-      process.stdout.write(` ${chalk.hex(theme.amber)("❯")} ${stdinInput}\r\n`)
-    }
-    process.stdout.write(`${divider}\r\n`)
-    filtered.forEach((c, i) => {
-      if (slashSelected === i) {
-        process.stdout.write(` ${chalk.hex(theme.amber)("▸")} ${chalk.hex(theme.green).bold(c.cmd.padEnd(22))}${chalk.hex(theme.white)(c.desc)}\r\n`)
-      } else {
-        process.stdout.write(` ${chalk.hex(theme.muted)(" ")} ${chalk.hex(theme.green)(c.cmd.padEnd(22))}${chalk.hex(theme.muted)(c.desc)}\r\n`)
+    if (filtered.length > 0) {
+      if (slashSelected >= filtered.length) slashSelected = -1
+      const divider = heavyDivider()
+      process.stdout.write(`\r\n${divider}\r\n`)
+      if (slashSelected === -1) {
+        process.stdout.write(` ${chalk.hex(theme.amber)("❯")} ${stdinInput}\r\n`)
       }
-    })
-    process.stdout.write(`${divider}`)
-    // height: dividers (2) + header (1) + N commands + bottom divider (1) - selected line (1 if selected)
-    const slashHeight = filtered.length === 0 ? 0 : 2 + 1 + filtered.length + 1 - (slashSelected >= 0 ? 1 : 0)
-    slashListLines = slashHeight
+      process.stdout.write(`${divider}\r\n`)
+      filtered.forEach((c, i) => {
+        if (slashSelected === i) {
+          process.stdout.write(` ${chalk.hex(theme.amber)("▸")} ${chalk.hex(theme.green).bold(c.cmd.padEnd(22))}${chalk.hex(theme.white)(c.desc)}\r\n`)
+        } else {
+          process.stdout.write(` ${chalk.hex(theme.muted)(" ")} ${chalk.hex(theme.green)(c.cmd.padEnd(22))}${chalk.hex(theme.muted)(c.desc)}\r\n`)
+        }
+      })
+      process.stdout.write(`${divider}`)
+      const slashHeight = 2 + 1 + filtered.length + 1 - (slashSelected >= 0 ? 1 : 0)
+      slashListLines = slashHeight
 
-    // Move cursor back up past the list to the input line
-    for (let i = 0; i < slashListLines; i++) {
-      readline.moveCursor(process.stdout, 0, -1)
+      for (let i = 0; i < slashListLines; i++) {
+        readline.moveCursor(process.stdout, 0, -1)
+      }
     }
   }
 
@@ -815,7 +814,7 @@ function stdinKeypress(_str: string, key: any) {
   }
 
   if (key.name === "return" || key.name === "enter") {
-    // If a slash command is selected via keyboard, execute it directly
+    // If a slash command is selected, insert it so the user can type arguments
     const filtered = filterSlashCommands(stdinInput)
     if (slashSelected >= 0 && slashSelected < filtered.length) {
       const cmd = filtered[slashSelected]!.cmd
@@ -832,10 +831,9 @@ function stdinKeypress(_str: string, key: any) {
         }
       }
       slashListLines = 0
-      process.stdout.write("\r\n")
-      const resolve = stdinResolve
-      stdinResolve = null
-      resolve({ input: cmd, mode: stdinMode })
+      stdinInput = cmd + " "
+      stdinCursor = stdinInput.length
+      renderInput()
       return
     }
 
@@ -1455,6 +1453,23 @@ export async function chatLoop(
           )
         } else if (result?.type === "unknown") {
           process.stdout.write(`\r\n ${chalk.hex(theme.red)("◆")} unknown slash command: ${trimmed.split(" ")[0]}\r\n\n`)
+        } else if (result?.type === "message" && result.message) {
+          userMessage(trimmed)
+          messageCount++
+          await addMessage(conversation.id, "user", result.message)
+          await trySetAutoTitle(conversation.id, result.message, messageCount)
+          try {
+            const aiResult = await streamAIResponse(provider, conversation.id, conversation.mode, workspaceInfo, footer)
+            if (aiResult.aborted) {
+              process.stdout.write(` ${chalk.hex(theme.muted)("response aborted")}\r\n\n`)
+            }
+            footer.render()
+          } catch (err: any) {
+            const msg = err.message || String(err)
+            process.stdout.write(`\r\n ${chalk.hex(theme.red)("◆")} ${chalk.hex(theme.red)(msg)}\r\n\n`)
+          }
+          readline.cursorTo(process.stdout, 0)
+          continue
         } else {
           process.stdout.write("\r\n")
         }
