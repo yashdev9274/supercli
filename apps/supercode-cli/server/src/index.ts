@@ -7,6 +7,11 @@ import { loadEnvOnce } from "./lib/load-env"
 import { recordUsage } from "./lib/track-usage"
 import { computeCost } from "./lib/pricing"
 import { registerAnalyticsRoutes } from "./routes/analytics"
+import { transcribeAudio } from "./voice/speech"
+import { tmpdir } from "os"
+import { join } from "path"
+import { writeFileSync, unlinkSync } from "fs"
+import { randomUUID } from "crypto"
 
 loadEnvOnce()
 
@@ -826,6 +831,36 @@ app.post("/api/tools/web-search", async (req, res) => {
     res.status(response.status).json(data)
   } catch (error: any) {
     res.status(500).json({ error: error.message || "Web search proxy failed" })
+  }
+})
+
+app.post("/api/voice/transcribe", async (req, res) => {
+  try {
+    const user = await getUserFromBearer(req)
+    if (!user) {
+      res.status(401).json({ error: "Unauthorized" })
+      return
+    }
+
+    const { base64, provider } = req.body
+    if (!base64) {
+      res.status(400).json({ error: "base64 audio data is required" })
+      return
+    }
+
+    if (provider) process.env.STT_PROVIDER = provider
+
+    const tmpFile = join(tmpdir(), `voice-transcribe-${randomUUID()}.wav`)
+    writeFileSync(tmpFile, Buffer.from(base64, "base64"))
+
+    try {
+      const text = await transcribeAudio(tmpFile)
+      res.json({ text })
+    } finally {
+      try { unlinkSync(tmpFile) } catch {}
+    }
+  } catch (error) {
+    res.status(500).json({ error: String(error) })
   }
 })
 
