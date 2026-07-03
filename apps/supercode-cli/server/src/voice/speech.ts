@@ -4,18 +4,32 @@ import { join } from "path"
 import { unlinkSync, readFileSync } from "fs"
 import { randomUUID } from "crypto"
 
-const FFMPEG_PATH = process.env.FFMPEG_PATH || "/opt/homebrew/bin/ffmpeg"
+function getFfmpegPath(): string {
+  return process.env.FFMPEG_PATH || "/opt/homebrew/bin/ffmpeg"
+}
+
+const ELEVENLABS_URL = "https://api.elevenlabs.io/v1/speech-to-text"
+const ELEVENLABS_MODEL = process.env.ELEVENLABS_MODEL || "scribe_v1"
+const STT_LANGUAGE = process.env.STT_LANGUAGE || "en"
+
+/* groq provider */
 const GROQ_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 const GROQ_MODEL = process.env.GROQ_MODEL || "whisper-large-v3-turbo"
 
-const DEFAULT_MAX_DURATION_MS = 8_000
+
+
+const DEFAULT_MAX_DURATION_MS = 4_000
 
 let activeFfmpegProcess: ChildProcess | null = null
-let activeFfmpegUserAbort = false
 
-export function abortCapture(): void {
+export function getSttProvider(): "elevenlabs" | "groq" {
+  const raw = process.env.STT_PROVIDER || "elevenlabs"
+  if (raw === "groq") return "groq"
+  return "elevenlabs"
+}
+
+export function stopCapture(): void {
   if (activeFfmpegProcess) {
-    activeFfmpegUserAbort = true
     activeFfmpegProcess.kill("SIGTERM")
     activeFfmpegProcess = null
   }
@@ -23,7 +37,7 @@ export function abortCapture(): void {
 
 export function isFfmpegAvailable(): boolean {
   try {
-    const out = spawnSync(FFMPEG_PATH, ["-version"], { encoding: "utf-8", timeout: 3000 })
+    const out = spawnSync(getFfmpegPath(), ["-version"], { encoding: "utf-8", timeout: 3000 })
     return out.status === 0
   } catch {
     return false
@@ -34,9 +48,16 @@ export function canVoiceCapture(): {
   ok: boolean
   reason?: string
 } {
-  if (!isFfmpegAvailable()) return { ok: false, reason: `ffmpeg not found at ${FFMPEG_PATH}` }
-  const groqKey = process.env.GROQ_API_KEY
-  if (!groqKey) return { ok: false, reason: "GROQ_API_KEY not set" }
+  if (!isFfmpegAvailable()) return { ok: false, reason: `ffmpeg not found at ${getFfmpegPath()}` }
+
+  const provider = getSttProvider()
+  if (provider === "groq") {
+    /* groq provider */
+    if (!process.env.GROQ_API_KEY) return { ok: false, reason: "GROQ_API_KEY not set" }
+  } else {
+    if (!process.env.ELEVENLABS_API_KEY) return { ok: false, reason: "ELEVENLABS_API_KEY not set" }
+  }
+
   return { ok: true }
 }
 
@@ -47,7 +68,7 @@ function captureAudio(
     const tmpFile = join(tmpdir(), `voice-${randomUUID()}.wav`)
     const stderrChunks: Buffer[] = []
 
-    const proc = spawn(FFMPEG_PATH, [
+    const proc = spawn(getFfmpegPath(), [
       "-f", "avfoundation",
       "-i", ":0",
       "-ac", "1",
@@ -70,8 +91,6 @@ function captureAudio(
     proc.on("exit", (code, signal) => {
       clearTimeout(timeout)
       activeFfmpegProcess = null
-      const userAborted = activeFfmpegUserAbort
-      activeFfmpegUserAbort = false
 
       const stderr = Buffer.concat(stderrChunks).toString("utf-8")
 
@@ -82,8 +101,6 @@ function captureAudio(
         try { unlinkSync(tmpFile) } catch {}
         if (stderr.includes("No audio device") || stderr.includes("Input/output error")) {
           reject(new Error("Microphone not accessible — grant mic permission to your terminal in System Settings > Privacy & Security > Microphone"))
-        } else if (userAborted) {
-          reject(new Error("No audio captured"))
         } else {
           const snippet = stderr.split("\n").filter(l => l.includes("Error") || l.includes("device") || l.includes("No ")).slice(-3).join("; ") || "ffmpeg capture failed"
           reject(new Error(snippet))
@@ -103,14 +120,50 @@ function captureAudio(
     proc.on("error", (err) => {
       clearTimeout(timeout)
       activeFfmpegProcess = null
-      activeFfmpegUserAbort = false
       try { unlinkSync(tmpFile) } catch {}
       reject(err)
     })
   })
 }
 
-export async function transcribeAudio(filePath: string): Promise<string> {
+async function transcribeElevenLabs(filePath: string): Promise<string> {
+  const apiKey = process.env.ELEVENLABS_API_KEY
+  if (!apiKey) throw new Error("ELEVENLABS_API_KEY not configured")
+
+  const formData = new FormData()
+  formData.append("model_id", ELEVENLABS_MODEL)
+  formData.append("file", Bun.file(filePath), "audio.wav")
+  formData.append("tag_audio_events", "false")
+
+  const start = performance.now()
+  const res = await fetch(ELEVENLABS_URL, {
+    method: "POST",
+    headers: {
+      "xi-api-key": apiKey,
+    },
+    body: formData,
+    signal: AbortSignal.timeout(15_000),
+  })
+
+  const body = await res.text().catch(() => "")
+  const elapsed = ((performance.now() - start) / 1000).toFixed(2)
+
+  if (!res.ok) {
+    throw new Error(`ElevenLabs transcription error ${res.status}: ${body}`)
+  }
+
+  let data: { text?: string }
+  try {
+    data = JSON.parse(body) as { text?: string }
+  } catch {
+    throw new Error(`ElevenLabs transcription invalid JSON: ${body}`)
+  }
+
+  return data.text ?? ""
+}
+
+/* groq provider */
+async function transcribeGroq(filePath: string): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) throw new Error("GROQ_API_KEY not configured")
 
@@ -142,19 +195,33 @@ export async function transcribeAudio(filePath: string): Promise<string> {
   return data.text ?? ""
 }
 
+export async function transcribeAudio(filePath: string): Promise<string> {
+  const provider = getSttProvider()
+
+  if (provider === "groq") {
+    /* groq provider */
+    return transcribeGroq(filePath)
+  }
+
+  return transcribeElevenLabs(filePath)
+}
+
+const SOUND_DESCRIPTION_RE = /\([^)]*?(?:noise|clicking|static|background|sound|audio|speaking|unintelligible|laughs?|coughs?|clears?\s+(?:throat|voice)|throat|pause|music|beep|tone|silence|indistinct|foreign|applause|sniffling|sighs?|breathing|rustling|mumbling|chatter|echo)[^)]*?\)/gi
+
+function sanitizeTranscription(text: string): string {
+  return text.replace(SOUND_DESCRIPTION_RE, "").trim()
+}
+
 export async function voiceCaptureFlow(): Promise<string> {
   const { base64, filePath } = await captureAudio()
 
   try {
     const text = await transcribeAudio(filePath)
-    const trimmed = text.trim()
-    if (!trimmed) {
-      throw new Error("No speech detected in recording")
+    const cleaned = sanitizeTranscription(text)
+    if (!cleaned || cleaned.length < 2 || !/[a-zA-Z0-9]/.test(cleaned)) {
+      return ""
     }
-    if (trimmed.length < 2 || !/[a-zA-Z0-9]/.test(trimmed)) {
-      throw new Error("No clear speech detected — try speaking louder or longer")
-    }
-    return trimmed
+    return cleaned
   } finally {
     try { unlinkSync(filePath) } catch {}
   }
