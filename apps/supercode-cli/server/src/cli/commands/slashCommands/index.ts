@@ -3,6 +3,7 @@ import chalk from "chalk"
 import { pickModel, formatModelChange } from "./model.ts"
 import { connectProvider } from "./connect.ts"
 import { renderHelp } from "./help.ts"
+import { searchSlash, scrapeSlash, interactSlash, crawlSlash, parseSlash } from "./firecrawl.ts"
 import { theme, heavyDivider } from "src/cli/utils/tui.ts"
 import type { ModelProvider } from "src/cli/ai/provider.ts"
 
@@ -22,6 +23,11 @@ export const COMMANDS = [
   { cmd: "/scratch", desc: "List/show/delete subagent artifacts in .super/scratch/" },
   { cmd: "/voice", desc: "Capture voice input via microphone" },
   { cmd: "/verbose", desc: "Toggle live tool call debug logs" },
+  { cmd: "/search", desc: "Search the web via Firecrawl" },
+  { cmd: "/scrape", desc: "Scrape a URL via Firecrawl" },
+  { cmd: "/interact", desc: "Browser interaction via Firecrawl" },
+  { cmd: "/crawl", desc: "Crawl a website via Firecrawl" },
+  { cmd: "/parse", desc: "Parse a file (PDF, DOC, etc.) via Firecrawl" },
   { cmd: "/help", desc: "Show available commands and models" },
   { cmd: "/exit", desc: "End the session" },
 ]
@@ -65,6 +71,11 @@ const handlers: Record<string, (args: string) => Promise<SlashCommandResult>> = 
   verbose: async () => {
     return { type: "verbose" }
   },
+  search: async (args) => searchSlash(args),
+  scrape: async (args) => scrapeSlash(args),
+  interact: async (args) => interactSlash(args),
+  crawl: async (args) => crawlSlash(args),
+  parse: async (args) => parseSlash(args),
 }
 
 function renderCommandList(): void {

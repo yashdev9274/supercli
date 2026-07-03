@@ -56,6 +56,37 @@ function withPermission<T extends z.ZodTypeAny>(
   })
 }
 
+// ---- Tool metadata registry ----
+//
+// Describes each tool's category and risk level so upstream consumers
+// (UI, analytics, audit log) can introspect without hardcoding names.
+
+export type ToolCategory = "read" | "write" | "execute" | "web" | "agent"
+
+export interface ToolMeta {
+  category: ToolCategory
+  requiresPermission: boolean
+  description: string
+}
+
+export const toolMeta: Record<string, ToolMeta> = {
+  read_file: { category: "read", requiresPermission: false, description: readFileTool.description },
+  search_files: { category: "read", requiresPermission: false, description: searchFilesTool.description },
+  write_file: { category: "write", requiresPermission: true, description: writeFileTool.description },
+  edit_file: { category: "write", requiresPermission: true, description: editFileTool.description },
+  run_command: { category: "execute", requiresPermission: true, description: runCommandTool.description },
+  url_fetch: { category: "web", requiresPermission: false, description: urlFetchTool.description },
+  web_search: { category: "web", requiresPermission: false, description: webSearchTool.description },
+  firecrawl_search: { category: "web", requiresPermission: false, description: firecrawlSearchTool.description },
+  firecrawl_scrape: { category: "web", requiresPermission: false, description: firecrawlScrapeTool.description },
+  firecrawl_map: { category: "web", requiresPermission: false, description: firecrawlMapTool.description },
+  code_exec: { category: "execute", requiresPermission: true, description: codeExecTool.description },
+  read_instructions: { category: "read", requiresPermission: false, description: readInstructionsTool.description },
+  switch_to_agent_mode: { category: "agent", requiresPermission: false, description: switchToAgentModeTool.description },
+  delegate: { category: "agent", requiresPermission: false, description: delegateTool.description },
+  task: { category: "agent", requiresPermission: false, description: taskTool.description },
+}
+
 export const tools = {
   read_file: defineTool(readFileTool),
   search_files: defineTool(searchFilesTool),
