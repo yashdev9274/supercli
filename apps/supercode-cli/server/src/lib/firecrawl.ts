@@ -36,13 +36,13 @@ export async function firecrawlFetch({
   loadEnvOnce()
   const apiKey = process.env.FIRECRAWL_API_KEY
 
-  if (!apiKey) {
+    if (!apiKey) {
     const proxy = await proxyToolCall(`/api/tools/${proxyAction}`, body)
     if (proxy.ok) return { ok: true, data: proxy.data }
     return {
       ok: false,
-      error: "Firecrawl is not configured. Set FIRECRAWL_API_KEY environment variable.",
-      hint: "Try web_search or url_fetch as a fallback.",
+      error: `Firecrawl proxy failed: ${proxy.error}. Set FIRECRAWL_API_KEY environment variable locally, or fix the proxy issue above.`,
+      hint: `Proxy error: ${proxy.error}. Try web_search or url_fetch as a fallback.`,
     }
   }
 
