@@ -25,8 +25,8 @@ export async function loadSecrets(options: LoadSecretsOptions): Promise<void> {
     )
   }
 
-  const client = getClient(app)
-  const secrets = await client.listSecrets({
+  const sdk = getClient(app)
+  const { secrets } = await sdk.secrets().listSecrets({
     environment: env,
     projectId,
     attachToProcessEnv: false,
