@@ -99,6 +99,7 @@ apps/
 packages/
   db/            # Prisma database client
   auth/          # Better-Auth authentication
+  secrets/       # Infisical secrets wrapper (@super/secrets)
   ui/            # Shared UI components (empty)
   sdk/           # SDK package (empty)
   config/        # Shared config (empty)
@@ -109,6 +110,8 @@ packages/
 - Web app: `apps/web/.env` or `apps/.env.local`
 - Required for auth: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `NEXT_PUBLIC_BETTER_AUTH_URL`
 - Required for DB: `DATABASE_URL`
+- Voice/STT: `ELEVENLABS_API_KEY` (default provider), `STT_PROVIDER` (`elevenlabs`|`groq`), `ELEVENLABS_MODEL`, `STT_LANGUAGE`
+- Secrets: `INFISICAL_CLIENT_ID`, `INFISICAL_CLIENT_SECRET` (when Infisical is configured)
 
 ### Linting
 - ESLint configured for web app only (`apps/web/eslint.config.mjs`)

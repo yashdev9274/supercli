@@ -42,6 +42,20 @@ The AI has access to file reading, searching, web fetching, and code execution t
 | `MINIMAX_API_KEY` | MiniMax API key | — |
 | `NVIDIA_API_KEY` | NVIDIA NIM API key | — |
 
+### Voice Input
+
+Voice capture requires `ffmpeg` and an STT provider API key.
+
+| Env Var | Description | Default |
+|---|---|---|
+| `STT_PROVIDER` | STT provider (`elevenlabs` or `groq`) | `elevenlabs` |
+| `ELEVENLABS_API_KEY` | ElevenLabs API key (required for ElevenLabs STT) | — |
+| `ELEVENLABS_MODEL` | ElevenLabs model ID | `scribe_v1` |
+| `GROQ_API_KEY` | Groq API key (required when `STT_PROVIDER=groq`) | — |
+| `STT_LANGUAGE` | Transcription language | `en` |
+
+Press **Ctrl+Shift+V** during a chat session to start voice capture.
+
 ## License
 
 MIT

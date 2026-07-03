@@ -59,7 +59,7 @@ import { saveCliConfig } from "src/lib/cli-config"
 import {
   voiceCaptureFlow,
   canVoiceCapture,
-  abortCapture,
+  stopCapture,
 } from "src/voice/speech.ts"
 
 
@@ -809,7 +809,7 @@ function stdinKeypress(_str: string, key: any) {
 
   // Enter/Escape during voice capture stops recording, doesn't submit
   if (voiceCaptureActive && (key.name === "return" || key.name === "enter" || key.name === "escape")) {
-    abortCapture()
+    stopCapture()
     return
   }
 
@@ -1008,26 +1008,26 @@ function stdinKeypress(_str: string, key: any) {
     return
   }
 
-  // Voice capture — F2 is the primary trigger (most reliable across terminals).
-// Ctrl+Shift+V is also accepted but some terminals intercept it as a paste
-// shortcut, and Node.js readline treats Ctrl+V as a "literal next" key
-// which prevents the Shift+V combination from being detected reliably.
+  // Voice capture — Ctrl+V is the primary trigger (bottom-left corner of most
+  // keyboards, reliably detected in any terminal). F2 is also accepted as a
+  // fallback. Note: Shift is intentionally omitted — terminals fold Shift into
+  // Ctrl+letter combos, so Ctrl+Shift+V sends the same byte as Ctrl+V.
   const isVoiceKey =
-    key.name === "F2" ||
-    (key.ctrl && key.shift && (key.name === "v" || key.name === "V"))
+    (key.ctrl && (key.name === "v" || key.name === "V")) ||
+    key.name === "f2"
   if (isVoiceKey) {
     if (!voiceCaptureActive) {
-      voiceCaptureActive = true
-      activeFooter?.setStatusMessage("🎤 Recording... (Enter to stop)")
       startVoiceCapture().finally(() => {
         voiceCaptureActive = false
-        activeFooter?.setStatusMessage("")
       })
+    } else {
+      stopCapture()
     }
     return
   }
 
   if (_str && _str.length === 1 && !key.ctrl && !key.meta) {
+    activeFooter?.setStatusMessage("")
     stdinInput = stdinInput.slice(0, stdinCursor) + _str + stdinInput.slice(stdinCursor)
     stdinCursor++
     slashSelected = -1
@@ -1040,23 +1040,28 @@ function stdinKeypress(_str: string, key: any) {
 async function startVoiceCapture() {
   const check = canVoiceCapture()
   if (!check.ok) {
-    activeFooter?.setStatusMessage("⛭ Voice unavailable: " + (check.reason ?? "unknown"))
+    const reason = check.reason ?? "unknown"
+    activeFooter?.setStatusMessage("⛭ Voice unavailable: " + reason)
     setTimeout(() => activeFooter?.setStatusMessage(""), 4000)
     return
   }
+  const prevMode = voiceCaptureActive
+  voiceCaptureActive = true
+    activeFooter?.setStatusMessage("🎤 Recording... (voice key or Enter to stop)")
   try {
     const text = await voiceCaptureFlow()
     if (text) {
       stdinInput =
         stdinInput.slice(0, stdinCursor) + text + " " + stdinInput.slice(stdinCursor)
       stdinCursor += text.length + 1
-      // Don't call renderInput here — the chat loop will call chatInput() next,
-      // which preserves stdinInput (via voiceJustCaptured) and renders it once.
+    } else {
+      activeFooter?.setStatusMessage("🎤 No speech detected — press voice key to retry")
     }
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Voice capture failed"
-    activeFooter?.setStatusMessage("⛭ " + msg)
+    activeFooter?.setStatusMessage("⛭ Voice failed: " + (err instanceof Error ? err.message : err))
     setTimeout(() => activeFooter?.setStatusMessage(""), 4000)
+  } finally {
+    voiceCaptureActive = prevMode
   }
 }
 
@@ -1616,7 +1621,7 @@ export async function startChat(
 
     // ── Quick-start hint ────────────────────────────────────────
     console.log(
-      `  ${chalk.hex(theme.greenDim)("hint")} ${chalk.hex(theme.green)("·")} ${chalk.hex(theme.greenGlow)("/model")} to switch  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("F2")} voice  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("/help")} for commands  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("Tab")} to cycle mode`,
+      `  ${chalk.hex(theme.greenDim)("hint")} ${chalk.hex(theme.green)("·")} ${chalk.hex(theme.greenGlow)("/model")} to switch  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("Ctrl+V")} voice  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("/help")} for commands  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("Tab")} to cycle mode`,
     )
     console.log()
 
