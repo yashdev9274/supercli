@@ -3,6 +3,7 @@ import { tmpdir } from "os"
 import { join } from "path"
 import { unlinkSync, readFileSync } from "fs"
 import { randomUUID } from "crypto"
+import { getStoredToken } from "src/lib/token"
 
 function getFfmpegPath(): string {
   return process.env.FFMPEG_PATH || "/opt/homebrew/bin/ffmpeg"
@@ -52,10 +53,11 @@ export function canVoiceCapture(): {
 
   const provider = getSttProvider()
   if (provider === "groq") {
-    /* groq provider */
-    if (!process.env.GROQ_API_KEY) return { ok: false, reason: "GROQ_API_KEY not set" }
+    if (!process.env.GROQ_API_KEY && !process.env.SUPERCODE_SERVER_URL)
+      return { ok: false, reason: "GROQ_API_KEY not set and no server proxy configured" }
   } else {
-    if (!process.env.ELEVENLABS_API_KEY) return { ok: false, reason: "ELEVENLABS_API_KEY not set" }
+    if (!process.env.ELEVENLABS_API_KEY && !process.env.SUPERCODE_SERVER_URL)
+      return { ok: false, reason: "ELEVENLABS_API_KEY not set and no server proxy configured" }
   }
 
   return { ok: true }
@@ -126,7 +128,7 @@ function captureAudio(
   })
 }
 
-async function transcribeElevenLabs(filePath: string): Promise<string> {
+export async function transcribeElevenLabs(filePath: string): Promise<string> {
   const apiKey = process.env.ELEVENLABS_API_KEY
   if (!apiKey) throw new Error("ELEVENLABS_API_KEY not configured")
 
@@ -163,7 +165,7 @@ async function transcribeElevenLabs(filePath: string): Promise<string> {
 }
 
 /* groq provider */
-async function transcribeGroq(filePath: string): Promise<string> {
+export async function transcribeGroq(filePath: string): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) throw new Error("GROQ_API_KEY not configured")
 
@@ -195,15 +197,45 @@ async function transcribeGroq(filePath: string): Promise<string> {
   return data.text ?? ""
 }
 
+async function transcribeViaServer(filePath: string): Promise<string> {
+  const serverUrl = process.env.SUPERCODE_SERVER_URL || "https://supercode-8w7e.onrender.com"
+  const token = await getStoredToken()
+  if (!token?.access_token) {
+    throw new Error("Not authenticated. Please login first.")
+  }
+
+  const audioData = readFileSync(filePath)
+  const base64 = audioData.toString("base64")
+
+  const res = await fetch(`${serverUrl}/api/voice/transcribe`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token.access_token}`,
+    },
+    body: JSON.stringify({ base64, provider: getSttProvider() }),
+    signal: AbortSignal.timeout(30_000),
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`Server transcription failed (${res.status}): ${text}`)
+  }
+
+  const { text } = (await res.json()) as { text?: string }
+  return text ?? ""
+}
+
 export async function transcribeAudio(filePath: string): Promise<string> {
   const provider = getSttProvider()
 
   if (provider === "groq") {
-    /* groq provider */
-    return transcribeGroq(filePath)
+    if (process.env.GROQ_API_KEY) return transcribeGroq(filePath)
+    return transcribeViaServer(filePath)
   }
 
-  return transcribeElevenLabs(filePath)
+  if (process.env.ELEVENLABS_API_KEY) return transcribeElevenLabs(filePath)
+  return transcribeViaServer(filePath)
 }
 
 const SOUND_DESCRIPTION_RE = /\([^)]*?(?:noise|clicking|static|background|sound|audio|speaking|unintelligible|laughs?|coughs?|clears?\s+(?:throat|voice)|throat|pause|music|beep|tone|silence|indistinct|foreign|applause|sniffling|sighs?|breathing|rustling|mumbling|chatter|echo)[^)]*?\)/gi

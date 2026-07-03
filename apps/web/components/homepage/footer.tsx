@@ -257,6 +257,7 @@ const Footer = () => {
               { label: "CLI", href: "/", external: true },
               { label: "Pricing", href: "/#pricing" },
               { label: "Changelog", href: "/changelog" },
+              { label: "Partnerships", href: "/partnerships" },
               { label: "Launch", href: "/launch" },
 
             ]}
@@ -330,7 +331,7 @@ const Footer = () => {
           </p>
           <div className="flex items-center gap-6">
             <span className="text-[11px] font-mono text-muted-foreground/20">
-              v0.1.27
+              v0.1.39-beta
             </span>
           </div>
         </div>
