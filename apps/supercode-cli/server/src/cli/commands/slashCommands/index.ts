@@ -3,15 +3,15 @@ import chalk from "chalk"
 import { pickModel, formatModelChange } from "./model.ts"
 import { connectProvider } from "./connect.ts"
 import { renderHelp } from "./help.ts"
-import { searchSlash, scrapeSlash, interactSlash, crawlSlash, parseSlash } from "./firecrawl.ts"
 import { theme, heavyDivider } from "src/cli/utils/tui.ts"
 import type { ModelProvider } from "src/cli/ai/provider.ts"
 
 export interface SlashCommandResult {
-  type: "model_change" | "help" | "unknown" | "exit" | "connect" | "context" | "compact" | "plan" | "scratch" | "voice" | "verbose"
+  type: "model_change" | "help" | "unknown" | "exit" | "connect" | "context" | "compact" | "plan" | "scratch" | "voice" | "verbose" | "message"
   provider?: ModelProvider
   model?: string
   label?: string
+  message?: string
 }
 
 export const COMMANDS = [
@@ -31,6 +31,18 @@ export const COMMANDS = [
   { cmd: "/help", desc: "Show available commands and models" },
   { cmd: "/exit", desc: "End the session" },
 ]
+
+function chatify(cmd: string, args: string): string {
+  const messages: Record<string, string> = {
+    search: `Search the web`,
+    scrape: `Scrape a URL to extract markdown content`,
+    interact: `Perform a browser interaction`,
+    crawl: `Crawl a website`,
+    parse: `Parse a document file`,
+  }
+  const base = messages[cmd] || cmd
+  return args ? `${base} for: ${args}` : base
+}
 
 const handlers: Record<string, (args: string) => Promise<SlashCommandResult>> = {
   model: async () => {
@@ -71,11 +83,11 @@ const handlers: Record<string, (args: string) => Promise<SlashCommandResult>> = 
   verbose: async () => {
     return { type: "verbose" }
   },
-  search: async (args) => searchSlash(args),
-  scrape: async (args) => scrapeSlash(args),
-  interact: async (args) => interactSlash(args),
-  crawl: async (args) => crawlSlash(args),
-  parse: async (args) => parseSlash(args),
+  search: async (args) => ({ type: "message", message: chatify("search", args) }),
+  scrape: async (args) => ({ type: "message", message: chatify("scrape", args) }),
+  interact: async (args) => ({ type: "message", message: chatify("interact", args) }),
+  crawl: async (args) => ({ type: "message", message: chatify("crawl", args) }),
+  parse: async (args) => ({ type: "message", message: chatify("parse", args) }),
 }
 
 function renderCommandList(): void {

@@ -3,9 +3,12 @@ import { toNodeHandler } from "better-auth/node"
 import { auth } from "./lib/auth"
 import cors from "cors"
 import prisma from "./lib/prisma"
+import { loadEnvOnce } from "./lib/load-env"
 import { recordUsage } from "./lib/track-usage"
 import { computeCost } from "./lib/pricing"
 import { registerAnalyticsRoutes } from "./routes/analytics"
+
+loadEnvOnce()
 
 const port = process.env.PORT || 10000
 const serverUrl = process.env.BETTER_AUTH_URL || `http://localhost:${port}`
