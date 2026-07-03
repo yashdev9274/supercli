@@ -1,5 +1,7 @@
 import Navbar from "@/components/homepage/navbar";
 import HeroSection from "@/components/homepage/hero";
+import GetStartedSection from "@/components/homepage/get-started";
+import PartnershipsSection from "@/components/homepage/partnerships-section";
 import Footer from "@/components/homepage/footer";
 
 export default async function Home() {
@@ -11,6 +13,10 @@ export default async function Home() {
       
       <Navbar />
       <HeroSection />
+
+      <GetStartedSection />
+
+      <PartnershipsSection />
       <Footer />
     </main>
   );
