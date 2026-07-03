@@ -8,6 +8,40 @@
 // has data but doesn't" trap. Used by the prepareStep sentinel.
 const EMPTY_SENTINEL_GUARDED = new Set(["url_fetch", "web_search", "read_file", "search_files", "read_instructions"])
 
+// ---- Standard tool result envelopes ----
+
+export function ok<T>(data: T): string {
+  return JSON.stringify({ success: true, data })
+}
+
+export function fail(error: string, hint?: string): string {
+  const r: Record<string, unknown> = { success: false, error }
+  if (hint) r.hint = hint
+  return JSON.stringify(r)
+}
+
+/**
+ * Wraps an async execute function so that any thrown error is caught
+ * and returned as a structured `fail()` envelope.
+ */
+export async function serialize(fn: () => Promise<string>): Promise<string> {
+  try {
+    return await fn()
+  } catch (err: unknown) {
+    if (isZodError(err)) {
+      return fail("Invalid tool arguments. Check the tool's parameter schema and retry.", (err as Error).message)
+    }
+    return fail((err as Error).message || String(err))
+  }
+}
+
+function isZodError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false
+  return (err as any).name === "ZodError" || Array.isArray((err as any).issues)
+}
+
+// ---- Result analysis ----
+
 export function isEmptyToolResult(raw: string): boolean {
   if (!raw) return true
   const trimmed = raw.trim()
@@ -17,21 +51,26 @@ export function isEmptyToolResult(raw: string): boolean {
   try {
     parsed = JSON.parse(trimmed)
   } catch {
-    // Plain string. Treat short strings as empty.
     return trimmed.length < 20
   }
 
   if (!parsed || typeof parsed !== "object") return trimmed.length < 20
 
-  // Permission-manager denial
+  // Permission-manager denial — empty, model should stop trying
   if (parsed.cancelled === true) return true
-  // Structured failure envelope
-  if (parsed.success === false) return true
+
+  // Structured failure envelope — NOT empty if it has an error message
+  if (parsed.success === false) {
+    if (parsed.error && parsed.error.length > 0) return false
+    return true
+  }
+
   // Structured success envelope — check for meaningful content
   if (parsed.success === true) {
     const text = extractMeaningfulText(parsed)
     return text === null || text.length === 0
   }
+
   // Unknown shape — fall back to length
   return trimmed.length < 20
 }
@@ -65,23 +104,31 @@ export function tcName(raw: unknown): string | undefined {
   return undefined
 }
 
-// Walk a parsed tool result looking for the meaningful text payload.
-// Returns null if no real content field is found (so callers can distinguish
-// "empty payload" from "JSON fallback noise").
-function extractMeaningfulText(parsed: any): string | null {
+function extractMeaningfulText(parsed: any, depth = 0): string | null {
   if (typeof parsed === "string") return parsed.trim()
   if (!parsed || typeof parsed !== "object") return null
-  const candidates = [parsed.content, parsed.summary, parsed.text, parsed.output, parsed.result, parsed.body]
+  if (depth > 3) return null
+
+  const candidates = [parsed.content, parsed.summary, parsed.text, parsed.output, parsed.result, parsed.body, parsed.data]
   for (const c of candidates) {
     if (typeof c === "string" && c.trim().length > 0) return c.trim()
+    if (c && typeof c === "object" && !Array.isArray(c)) {
+      const nested = extractMeaningfulText(c, depth + 1)
+      if (nested !== null) return nested
+    }
   }
-  if (Array.isArray(parsed.results)) {
-    const joined = parsed.results
-      .map((r: any) => `${r.title ?? ""} ${r.snippet ?? ""}`)
-      .join(" ")
-      .trim()
-    if (joined.length > 0) return joined
+
+  const arrayCandidates = [parsed.results, parsed.links, parsed.data?.results, parsed.data?.links]
+  for (const arr of arrayCandidates) {
+    if (Array.isArray(arr) && arr.length > 0) {
+      const joined = arr
+        .map((r: any) => `${r.title ?? ""} ${r.snippet ?? ""} ${r.url ?? r.link ?? ""}`)
+        .join(" ")
+        .trim()
+      if (joined.length > 0) return joined
+    }
   }
+
   return null
 }
 

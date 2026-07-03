@@ -1,6 +1,8 @@
 import { z } from "zod"
 import { spawn } from "node:child_process"
 import path from "node:path"
+import { resolvePath } from "../../lib/workspace"
+import { serialize, ok, fail } from "../../cli/ai/tool-result"
 
 
 const runCommandSchema = z.object({
@@ -43,129 +45,125 @@ IMPORTANT RULES:
   • For any npm/npx scaffolding command, prefer: npx --yes <package> (avoids install prompt)
   • Check exitCode in the result — zero means success.`,
   parameters: runCommandSchema,
-  execute: async ({ command, timeout, cwd: subdir, interactive, autoYes }: RunCommandArgs) => {
-    const workspaceRoot = process.env.SUPERCODE_WORKSPACE_ROOT || process.cwd()
+  execute: async ({ command, timeout, cwd: subdir, interactive, autoYes }: RunCommandArgs) =>
+    serialize(async () => {
+      const workspaceRoot = process.env.SUPERCODE_WORKSPACE_ROOT || process.cwd()
 
-    let resolvedCwd = workspaceRoot
-    if (subdir) {
-      resolvedCwd = path.resolve(workspaceRoot, subdir)
-      if (!resolvedCwd.startsWith(workspaceRoot)) {
-        throw new Error(`Working directory "${subdir}" is outside workspace root`)
+      let resolvedCwd = workspaceRoot
+      if (subdir) {
+        resolvedCwd = resolvePath(subdir)
       }
-    }
 
-    process.stdout.write(`$ ${command}\n`)
+      process.stdout.write(`$ ${command}\n`)
 
-    return new Promise((resolve) => {
-      const stdoutChunks: string[] = []
-      const stderrChunks: string[] = []
-      let killed = false
-      let done = false
+      return new Promise<string>((resolvePromise) => {
+        const stdoutChunks: string[] = []
+        const stderrChunks: string[] = []
+        let killed = false
+        let done = false
 
-      const child = spawn("/bin/sh", ["-c", command], {
-        cwd: resolvedCwd,
-        env: {
-          ...process.env,
-          PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
-          CI: "true",
-          npm_config_yes: "true",
-          YES: "1",
-          NONINTERACTIVE: "1",
-          TERM: "dumb",
-          GIT_TERMINAL_PROMPT: "0",
-          HOMEBREW_NO_AUTO_UPDATE: "1",
-        },
-        stdio: ["pipe", "pipe", "pipe"],
-      })
+        const child = spawn("/bin/sh", ["-c", command], {
+          cwd: resolvedCwd,
+          env: {
+            ...process.env,
+            PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
+            CI: "true",
+            npm_config_yes: "true",
+            YES: "1",
+            NONINTERACTIVE: "1",
+            TERM: "dumb",
+            PAGER: "cat",
+            GIT_TERMINAL_PROMPT: "0",
+            HOMEBREW_NO_AUTO_UPDATE: "1",
+          },
+          stdio: ["pipe", "pipe", "pipe"],
+        })
 
-      if (child.stdin) {
-        if (autoYes) {
-          if (interactive) {
-            // Keep stdin open and pipe "y\n" on each read to handle multiple prompts
-            const pipeYes = () => {
-              try {
-                child.stdin!.write("y\n")
-              } catch {}
+        if (child.stdin) {
+          if (autoYes) {
+            if (interactive) {
+              const pipeYes = () => {
+                try {
+                  child.stdin!.write("y\n")
+                } catch {}
+              }
+              const interval = setInterval(pipeYes, 500)
+              child.on("close", () => clearInterval(interval))
+            } else {
+              child.stdin.write("y\n".repeat(20))
+              child.stdin.end()
             }
-            const interval = setInterval(pipeYes, 500)
-            child.on("close", () => clearInterval(interval))
           } else {
-            // Write once for simple confirmation prompts
-            child.stdin.write("y\n".repeat(20))
-            child.stdin.end()
-          }
-        } else {
-          // Let user interact directly — pipe stdin through
-          if (interactive && process.stdin.isTTY) {
-            process.stdin.pipe(child.stdin)
-          } else {
-            child.stdin.end()
+            if (interactive && process.stdin.isTTY) {
+              process.stdin.pipe(child.stdin)
+            } else {
+              child.stdin.end()
+            }
           }
         }
-      }
 
-      const timer = setTimeout(() => {
-        killed = true
-        child.kill("SIGTERM")
-      }, timeout)
+        const timer = setTimeout(() => {
+          killed = true
+          child.kill("SIGTERM")
+        }, timeout)
 
-      child.stdout?.on("data", (data: Buffer) => {
-        const text = data.toString()
-        stdoutChunks.push(text)
-        process.stdout.write(text.replace(/\n/g, "\r\n"))
+        child.stdout?.on("data", (data: Buffer) => {
+          const text = data.toString()
+          stdoutChunks.push(text)
+          process.stdout.write(text.replace(/\n/g, "\r\n"))
+        })
+
+        child.stderr?.on("data", (data: Buffer) => {
+          const text = data.toString()
+          stderrChunks.push(text)
+          process.stderr.write(text.replace(/\n/g, "\r\n"))
+        })
+
+        child.on("close", (code) => {
+          if (done) return
+          done = true
+          clearTimeout(timer)
+
+          process.stdout.write("\r\n")
+
+          const stdout = stdoutChunks.join("")
+          const stderr = stderrChunks.join("")
+          const exitCode = code ?? 0
+
+          const result: Record<string, unknown> = {
+            exitCode,
+            stdout,
+            stderr,
+            success: exitCode === 0,
+            cancelled: killed,
+          }
+
+          if (killed) {
+            result.signal = "SIGTERM"
+            result.summary = `Command timed out after ${(timeout / 1000).toFixed(0)}s`
+          } else if (exitCode !== 0) {
+            result.summary = `Command failed with exit code ${exitCode}`
+          } else {
+            result.summary = "Command completed successfully"
+          }
+
+          resolvePromise(ok(result))
+        })
+
+        child.on("error", (err) => {
+          if (done) return
+          done = true
+          clearTimeout(timer)
+          process.stdout.write("\r\n")
+          resolvePromise(ok({
+            exitCode: -1,
+            stdout: "",
+            stderr: err.message,
+            success: false,
+            cancelled: true,
+            summary: `Failed to start command: ${err.message}`,
+          }))
+        })
       })
-
-      child.stderr?.on("data", (data: Buffer) => {
-        const text = data.toString()
-        stderrChunks.push(text)
-        process.stderr.write(text.replace(/\n/g, "\r\n"))
-      })
-
-      child.on("close", (code) => {
-        if (done) return
-        done = true
-        clearTimeout(timer)
-
-        process.stdout.write("\r\n")
-
-        const stdout = stdoutChunks.join("")
-        const stderr = stderrChunks.join("")
-        const exitCode = code ?? 0
-
-        const result: Record<string, unknown> = {
-          exitCode,
-          stdout,
-          stderr,
-          success: exitCode === 0,
-          cancelled: killed,
-        }
-
-        if (killed) {
-          result.signal = "SIGTERM"
-          result.summary = `Command timed out after ${(timeout / 1000).toFixed(0)}s`
-        } else if (exitCode !== 0) {
-          result.summary = `Command failed with exit code ${exitCode}`
-        } else {
-          result.summary = "Command completed successfully"
-        }
-
-        resolve(JSON.stringify(result))
-      })
-
-      child.on("error", (err) => {
-        if (done) return
-        done = true
-        clearTimeout(timer)
-        process.stdout.write("\r\n")
-        resolve(JSON.stringify({
-          exitCode: -1,
-          stdout: "",
-          stderr: err.message,
-          success: false,
-          cancelled: true,
-          summary: `Failed to start command: ${err.message}`,
-        }))
-      })
-    })
-  },
+    }),
 }

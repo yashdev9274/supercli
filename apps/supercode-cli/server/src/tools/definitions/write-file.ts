@@ -1,6 +1,8 @@
 import { z } from "zod"
-import path from "node:path"
 import { mkdir, writeFile } from "node:fs/promises"
+import path from "node:path"
+import { resolvePath, assertNoBinary } from "../../lib/workspace"
+import { serialize, ok, fail } from "../../cli/ai/tool-result"
 
 const MAX_FILE_SIZE = 1_000_000
 
@@ -21,34 +23,23 @@ export const writeFileTool = {
     "IMPORTANT: write_file replaces the entire file. To add a line to an existing file, read it first, then pass the complete new content.\n\n" +
     "CONTENT FORMAT: the `content` parameter is a literal string. Real newlines must be actual newline characters in the JSON, NOT the two-character sequence `\\n`. If you write `hello\\nworld`, the file will contain the literal characters backslash-n, not a newline. Use real newlines in your tool-call payload.",
   parameters: writeFileSchema,
-  execute: async ({ path: filePath, content }: WriteFileArgs) => {
-    const workspaceRoot = process.env.SUPERCODE_WORKSPACE_ROOT || process.cwd()
-    const fullPath = path.resolve(workspaceRoot, filePath)
+  execute: async ({ path: filePath, content }: WriteFileArgs) =>
+    serialize(async () => {
+      const fullPath = resolvePath(filePath)
+      assertNoBinary(content, filePath)
 
-    if (!fullPath.startsWith(workspaceRoot)) {
-      throw new Error(`Path "${filePath}" is outside workspace root`)
-    }
+      if (content.length > MAX_FILE_SIZE) {
+        return fail(`File "${filePath}" exceeds maximum size of 1MB`)
+      }
 
-    if (content.length > MAX_FILE_SIZE) {
-      throw new Error(`File "${filePath}" exceeds maximum size of 1MB`)
-    }
+      const fileDir = path.dirname(fullPath)
+      await mkdir(fileDir, { recursive: true })
+      await writeFile(fullPath, content, "utf-8")
 
-    if (content.includes("\0")) {
-      throw new Error(`File "${filePath}" contains binary content and cannot be written`)
-    }
-
-    const fileDir = path.dirname(fullPath)
-    await mkdir(fileDir, { recursive: true })
-
-    await writeFile(fullPath, content, "utf-8")
-
-    const existingSize = content.length
-    const action = "created"
-
-    return JSON.stringify({
-      path: filePath,
-      size: existingSize,
-      action,
-    })
-  },
+      return ok({
+        path: filePath,
+        size: content.length,
+        action: "created",
+      })
+    }),
 }

@@ -32,9 +32,9 @@ export async function executeToolLoop(
   system: string | undefined,
   tools: ToolSet | undefined,
   callbacks: ToolExecutorCallbacks,
+  maxIterations = 8,
 ): Promise<{ content: string; usage: Promise<any> }> {
   const functions = getFunctions(tools)
-  const maxIterations = 8
   let messages = [...initialMessages]
 
   let accumulatedContent = ""
@@ -136,7 +136,12 @@ export async function executeToolLoop(
         try {
           resultStr = await toolDef.execute(tc.args)
         } catch (err: any) {
-          resultStr = `Error: ${err.message || String(err)}`
+          const isZod = err?.name === "ZodError" || Array.isArray(err?.issues)
+          resultStr = JSON.stringify({
+            success: false,
+            error: isZod ? "Invalid tool arguments. Check the parameter schema." : (err.message || String(err)),
+            hint: isZod ? err.message : undefined,
+          })
         }
       } else {
         resultStr = `Tool "${tc.toolName}" is not available locally`

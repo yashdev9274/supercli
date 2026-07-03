@@ -359,6 +359,15 @@ export class PermissionManager {
       if (args.description) {
         content += `\n  ${chalk.dim(String(args.description))}`
       }
+    } else if (toolName === "edit_file") {
+      content = `Edit:\n  ${chalk.cyan(resource)}`
+      if (args.description) {
+        content += `\n  ${chalk.dim(String(args.description))}`
+      }
+      if (args.oldText) {
+        const preview = String(args.oldText).slice(0, 60)
+        content += `\n  Replacing: ${chalk.dim(preview)}${preview.length >= 60 ? "…" : ""}`
+      }
     } else if (toolName === "run_command") {
       content = `Run:\n  $ ${chalk.cyan(resource)}`
       if (args.description) {
