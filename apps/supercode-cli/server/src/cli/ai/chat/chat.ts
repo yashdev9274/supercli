@@ -280,10 +280,18 @@ async function streamAIResponse(
     // Ensure .env vars are loaded (Bun only auto-loads .env from CWD, which
     // may not be the server directory when launched from elsewhere).
     loadEnvOnce()
-    // When Firecrawl is configured, remove the legacy web_search tool so the
-    // model reliably uses firecrawl_search instead of falling back to Google CSE.
+    // Priority: Firecrawl > Exa > legacy web_search.
+    // When Firecrawl is configured, use firecrawl tools exclusively.
     if (process.env.FIRECRAWL_API_KEY) {
       delete (toolsToUse as Record<string, unknown>).web_search
+      delete (toolsToUse as Record<string, unknown>).exa_search
+      delete (toolsToUse as Record<string, unknown>).exa_fetch
+    } else if (process.env.EXA_API_KEY) {
+      // When Exa is configured (without Firecrawl), use exa tools and hide legacy.
+      delete (toolsToUse as Record<string, unknown>).web_search
+      delete (toolsToUse as Record<string, unknown>).firecrawl_search
+      delete (toolsToUse as Record<string, unknown>).firecrawl_scrape
+      delete (toolsToUse as Record<string, unknown>).firecrawl_map
     }
     // Wire the subagent runtime so the `delegate` tool can spawn focused subtasks.
     setDelegateRuntime({

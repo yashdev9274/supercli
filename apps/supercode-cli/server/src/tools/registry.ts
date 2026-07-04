@@ -10,6 +10,8 @@ import { webSearchTool } from "./definitions/web-search.ts"
 import { firecrawlSearchTool } from "./definitions/firecrawl-search.ts"
 import { firecrawlScrapeTool } from "./definitions/firecrawl-scrape.ts"
 import { firecrawlMapTool } from "./definitions/firecrawl-map.ts"
+import { exaSearchTool } from "./definitions/exa-search.ts"
+import { exaFetchTool } from "./definitions/exa-fetch.ts"
 import { codeExecTool } from "./definitions/code-exec.ts"
 import { readInstructionsTool } from "./definitions/read-instructions.ts"
 import { switchToAgentModeTool } from "./definitions/switch-to-agent-mode.ts"
@@ -80,6 +82,8 @@ export const toolMeta: Record<string, ToolMeta> = {
   firecrawl_search: { category: "web", requiresPermission: false, description: firecrawlSearchTool.description },
   firecrawl_scrape: { category: "web", requiresPermission: false, description: firecrawlScrapeTool.description },
   firecrawl_map: { category: "web", requiresPermission: false, description: firecrawlMapTool.description },
+  exa_search: { category: "web", requiresPermission: false, description: exaSearchTool.description },
+  exa_fetch: { category: "web", requiresPermission: false, description: exaFetchTool.description },
   code_exec: { category: "execute", requiresPermission: true, description: codeExecTool.description },
   read_instructions: { category: "read", requiresPermission: false, description: readInstructionsTool.description },
   switch_to_agent_mode: { category: "agent", requiresPermission: false, description: switchToAgentModeTool.description },
@@ -98,6 +102,8 @@ export const tools = {
   firecrawl_search: defineTool(firecrawlSearchTool),
   firecrawl_scrape: defineTool(firecrawlScrapeTool),
   firecrawl_map: defineTool(firecrawlMapTool),
+  exa_search: defineTool(exaSearchTool),
+  exa_fetch: defineTool(exaFetchTool),
   code_exec: withPermission("code_exec", codeExecTool),
   read_instructions: defineTool(readInstructionsTool),
   switch_to_agent_mode: defineTool(switchToAgentModeTool),

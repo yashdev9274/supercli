@@ -6,11 +6,13 @@ import { runCommandTool } from "../tools/definitions/run-command"
 import { firecrawlSearchTool } from "../tools/definitions/firecrawl-search"
 import { firecrawlScrapeTool } from "../tools/definitions/firecrawl-scrape"
 import { firecrawlMapTool } from "../tools/definitions/firecrawl-map"
+import { exaSearchTool } from "../tools/definitions/exa-search"
+import { exaFetchTool } from "../tools/definitions/exa-fetch"
 
 const agentInstructions = `You are a full-stack coding agent that creates complete, production-ready applications.
 
 YOUR WORKFLOW (follow exactly):
-1. RESEARCH — If you need docs, API references, or code examples, use firecrawl_search / firecrawl_scrape to fetch them first
+1. RESEARCH — If you need docs, API references, or code examples, use firecrawl_search (or exa_search) / firecrawl_scrape (or exa_fetch) to fetch them first
 2. PLAN — Decide the project structure, tech stack, and all files needed
 3. CREATE DIRS — Use run_command({ command: "mkdir -p <paths>" }) to create the directory structure
 4. WRITE FILES — Use write_file for each source file with complete, working code
@@ -59,6 +61,16 @@ export function createAppAgent(model: LanguageModel, systemPrompt?: string) {
         description: firecrawlMapTool.description,
         inputSchema: firecrawlMapTool.parameters,
         execute: async (input: any) => firecrawlMapTool.execute(input),
+      }),
+      exa_search: tool({
+        description: exaSearchTool.description,
+        inputSchema: exaSearchTool.parameters,
+        execute: async (input: any) => exaSearchTool.execute(input),
+      }),
+      exa_fetch: tool({
+        description: exaFetchTool.description,
+        inputSchema: exaFetchTool.parameters,
+        execute: async (input: any) => exaFetchTool.execute(input),
       }),
     },
     stopWhen: stepCountIs(50),
