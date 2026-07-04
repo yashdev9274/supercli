@@ -27,6 +27,8 @@ const READ_TOOLS = new Set([
   "firecrawl_search",
   "firecrawl_scrape",
   "firecrawl_map",
+  "exa_search",
+  "exa_fetch",
 ])
 
 export async function runAgent(

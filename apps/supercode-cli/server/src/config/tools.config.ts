@@ -59,6 +59,22 @@ export const availableTools: ToolConfig[] = [
     enabled: false,
   },
   {
+    id: "exa_search",
+    name: "Exa Search",
+    description:
+      "Search the web using Exa. Returns relevant results with titles, snippets, and URLs",
+    getTool: () => registryTools.exa_search as unknown as Record<string, unknown>,
+    enabled: false,
+  },
+  {
+    id: "exa_fetch",
+    name: "Exa Fetch",
+    description:
+      "Fetch and extract full text content from a URL using Exa. Handles JS-rendered pages",
+    getTool: () => registryTools.exa_fetch as unknown as Record<string, unknown>,
+    enabled: false,
+  },
+  {
     id: "write_file",
     name: "Write File",
     description:

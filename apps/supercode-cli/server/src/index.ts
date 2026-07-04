@@ -751,6 +751,7 @@ app.put("/api/conversations/:id/title", async (req, res) => {
 // ── Tool proxy endpoints (use server-side API keys) ──
 
 const FIRECRAWL_BASE = "https://api.firecrawl.dev/v2"
+const EXA_BASE = "https://api.exa.ai"
 
 app.post("/api/tools/firecrawl-search", async (req, res) => {
   try {
@@ -812,6 +813,48 @@ app.post("/api/tools/firecrawl-map", async (req, res) => {
     res.status(response.status).json(data)
   } catch (error: any) {
     res.status(500).json({ error: error.message || "Firecrawl map proxy failed" })
+  }
+})
+
+app.post("/api/tools/exa-search", async (req, res) => {
+  try {
+    const user = await getUserFromBearer(req)
+    if (!user) { res.status(401).json({ error: "Unauthorized" }); return }
+
+    const apiKey = process.env.EXA_API_KEY
+    if (!apiKey) { res.status(500).json({ error: "Exa search not configured on server" }); return }
+
+    const response = await fetch(`${EXA_BASE}/search`, {
+      method: "POST",
+      headers: { "x-api-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify(req.body),
+      signal: AbortSignal.timeout(30000),
+    })
+    const data = await response.json()
+    res.status(response.status).json(data)
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Exa search proxy failed" })
+  }
+})
+
+app.post("/api/tools/exa-fetch", async (req, res) => {
+  try {
+    const user = await getUserFromBearer(req)
+    if (!user) { res.status(401).json({ error: "Unauthorized" }); return }
+
+    const apiKey = process.env.EXA_API_KEY
+    if (!apiKey) { res.status(500).json({ error: "Exa fetch not configured on server" }); return }
+
+    const response = await fetch(`${EXA_BASE}/contents`, {
+      method: "POST",
+      headers: { "x-api-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify(req.body),
+      signal: AbortSignal.timeout(30000),
+    })
+    const data = await response.json()
+    res.status(response.status).json(data)
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Exa fetch proxy failed" })
   }
 })
 
