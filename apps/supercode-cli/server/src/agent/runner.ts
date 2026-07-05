@@ -1,9 +1,11 @@
 import { stepCountIs, streamText, type LanguageModel, type ToolSet } from "ai"
 import type { Agent, GenerateOptions, GenerateResult } from "./agent"
 import { loadPrompt } from "./prompt-loader"
+import { isEmptyToolResult, summarizeToolResult } from "src/cli/ai/tool-result"
 
 interface StepEvent {
   toolCalls?: Array<{ toolName: string; input?: unknown }>
+  toolResults?: Array<{ toolName?: string; input?: unknown; output?: unknown }>
   text?: string
   finishReason?: string
 }
@@ -61,6 +63,9 @@ export async function runAgent(
   let inputTokens = 0
   let outputTokens = 0
 
+  // Track tool results across steps for the empty-result sentinel
+  const seenStepResults: Array<{ toolName: string; result: string }> = []
+
   const messages = buildMessages(opts)
 
   try {
@@ -75,6 +80,28 @@ export async function runAgent(
         if (chunk.type === "text-delta") {
           fullText += chunk.text
           opts.onChunk?.(chunk.text)
+        }
+      },
+      prepareStep: async () => {
+        if (seenStepResults.length === 0) return undefined
+        if (opts.signal?.aborted) return undefined
+        const allEmpty = seenStepResults.every((r) => isEmptyToolResult(r.result))
+        if (!allEmpty) return undefined
+        const summary = seenStepResults
+          .map((r) => `- ${r.toolName}: ${summarizeToolResult(r.result)}`)
+          .join("\n")
+        return {
+          messages: [
+            ...messages,
+            {
+              role: "system" as const,
+              content:
+                "SYSTEM NOTICE: All tool calls in the previous step returned empty or error results. " +
+                "You have NO source material to work with. Do NOT fabricate data, assume defaults, " +
+                "or proceed with guesswork. Re-check your inputs and retry with different parameters, " +
+                "or tell the user which tools failed.\n\nTool outcomes:\n" + summary,
+            },
+          ],
         }
       },
       onStepFinish: async (event: StepEvent) => {
@@ -104,6 +131,20 @@ export async function runAgent(
             if (toolName === "url_fetch" && typeof args.url === "string") {
               citations.push({ url: args.url, quote: "" })
             }
+          }
+        }
+        // Capture tool results for the prepareStep sentinel
+        if (event.toolResults?.length) {
+          for (const tr of event.toolResults) {
+            const name = tr.toolName ?? "unknown"
+            const out = (tr as any).output
+            const text =
+              typeof out === "string"
+                ? out
+                : out === undefined || out === null
+                  ? ""
+                  : JSON.stringify(out)
+            seenStepResults.push({ toolName: name, result: text })
           }
         }
         opts.onStepFinish?.(event)

@@ -208,7 +208,7 @@ async function streamAIResponse(
     }
 
     if (mode === "chat") {
-      promptContent += `\n\n## Chat Mode Note\n\nYou are in chat mode. You have access to\ntools, but shell commands, file writes, and code execution require per-call\npermission prompts. If the user's task genuinely needs multiple such operations\nwithout interruptions, you may call the \`switch_to_agent_mode\` tool to request\nswitching to agent mode where all tools are auto-allowed. Call it ONCE with\na clear reason — the system will ask for user approval. Do NOT attempt\nrun_command/write_file/code_exec in the same response where you call\nswitch_to_agent_mode.`
+      promptContent += `\n\n## Chat Mode Note\n\nYou are in chat mode. You have access to read,\nsearch, and web tools (read_file, search_files, url_fetch, firecrawl, exa, etc.).\nRead-only shell commands (git status/log/diff, ls, cat, pwd, find, grep) and\nread-only git commands are auto-allowed without prompting.\n\nTools that modify state — write_file, edit_file, git push, git commit, git reset,\nnpm install, rm, mkdir, and any other write/delete command — require explicit\nper-user approval. If the user's task genuinely needs many such operations\nwithout interruptions, call the \`switch_to_agent_mode\` tool ONCE with a clear\nreason; the system will ask for user approval. Do NOT attempt write/exec tools\nin the same response where you call switch_to_agent_mode.`
     }
 
     if (mode === "plan") {

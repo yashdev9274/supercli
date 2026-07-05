@@ -913,9 +913,11 @@ export class TurnTracker {
 // Walk a parsed tool result looking for the meaningful text payload so we can
 // decide if it counts as "empty content". Tolerates shapes from every tool.
 // Returns null if no real content field exists.
-function extractMeaningfulText(parsed: any): string | null {
+function extractMeaningfulText(parsed: any, depth = 0): string | null {
   if (typeof parsed === "string") return parsed.trim() || null
   if (!parsed || typeof parsed !== "object") return null
+  if (depth > 3) return null
+
   const candidates = [
     parsed.content,
     parsed.summary,
@@ -923,16 +925,41 @@ function extractMeaningfulText(parsed: any): string | null {
     parsed.output,
     parsed.result,
     parsed.body,
+    parsed.data,
   ]
   for (const c of candidates) {
     if (typeof c === "string" && c.trim().length > 0) return c.trim()
+    if (c && typeof c === "object" && !Array.isArray(c)) {
+      const nested = extractMeaningfulText(c, depth + 1)
+      if (nested !== null) return nested
+    }
   }
-  if (Array.isArray(parsed.results)) {
-    const joined = parsed.results
-      .map((r: any) => `${r.title ?? ""} ${r.snippet ?? ""}`)
-      .join(" ")
-      .trim()
-    if (joined.length > 0) return joined
+
+  const arrayCandidates = [
+    parsed.results,
+    parsed.data?.results,
+    parsed.data?.links,
+    parsed.data?.matches,
+  ]
+  for (const arr of arrayCandidates) {
+    if (Array.isArray(arr) && arr.length > 0) {
+      const joined = arr
+        .map((r: any) =>
+          typeof r === "string"
+            ? r
+            : `${r.title ?? r.file ?? ""} ${r.snippet ?? r.line ?? ""} ${r.url ?? r.link ?? ""}`,
+        )
+        .join(" ")
+        .trim()
+      if (joined.length > 0) return joined
+    }
   }
+
+  // Fallback: any string property ≥ 20 chars on the current or nested data
+  for (const key of Object.keys(parsed)) {
+    const val = parsed[key]
+    if (typeof val === "string" && val.trim().length >= 20) return val.trim()
+  }
+
   return null
 }

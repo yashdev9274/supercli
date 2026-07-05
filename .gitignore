@@ -48,6 +48,7 @@ next-env.d.ts
 
 /packages/db/src/generated/prisma
 /packages/db-terminal/src/generated
+/packages/superdesign-db/prisma/client
 **/node_modules
 
 # turbo
@@ -79,6 +80,6 @@ apps/web/app/(pages)/pitch
 apps/web/app/api/pitch
 apps/web/components/pitch
 /test-supercode
-
+/test-supercode/todo-rust
 .commandcode
 .opencode
