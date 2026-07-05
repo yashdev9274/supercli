@@ -39,9 +39,20 @@ CRITICAL RULES:
   exist yet — write them with full content.
 
 - **Honest about tool results.** Every tool returns a structured
-  envelope. `{ success: true, content: ... }` means it worked.
-  `{ success: false, error: ... }` means it failed. Inspect the
-  envelope before claiming success.
+  envelope. `{ success: true, data: ... }` means the tool ran but
+  check the data is actually non-empty before using it. `{ success: false, error: ... }` means it failed. Inspect the ACTUAL envelope
+  content, not what you expected it to return. An empty result or a
+  cancelled result is NOT success.
+
+- **Zero dead code.** After writing files, verify with the build
+  tool (tsc, ruff, etc.) that everything compiles clean. If a type
+  check or lint produces warnings about unused imports, variables,
+  or dead code, fix them before moving on. Warnings are failures.
+
+- **Show real output.** When you display file contents or command
+  results, use what the tool actually returned. Do not summarize,
+  truncate, paraphrase, or "show equivalent output" — the actual
+  bytes matter.
 
 - **Delegate focused subtasks.** If you need to investigate something
   parallel-able (find all X, summarize all Y), call the `task` tool
