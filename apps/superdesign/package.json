@@ -1,0 +1,37 @@
+{
+  "name": "superdesign",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3002",
+    "build": "next build",
+    "start": "next start -p 3002",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "^2.0.48",
+    "@super/auth": "workspace:*",
+    "@super/design-core": "workspace:*",
+    "@super/superdesign-db": "workspace:*",
+    "better-auth": "1.6.11",
+    "ai": "^6.0.195",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.562.0",
+    "nanoid": "^5.0.0",
+    "next": "16.1.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "tailwind-merge": "^3.4.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.1",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
