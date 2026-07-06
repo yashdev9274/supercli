@@ -1,6 +1,7 @@
 import { select, isCancel } from "@clack/prompts"
 import chalk from "chalk"
 import { pickModel, formatModelChange } from "./model.ts"
+import { usageCommand } from "./usage.ts"
 import { connectProvider } from "./connect.ts"
 import { renderHelp } from "./help.ts"
 import { theme, heavyDivider } from "src/cli/utils/tui.ts"
@@ -28,6 +29,7 @@ export const COMMANDS = [
   { cmd: "/interact", desc: "Browser interaction via Firecrawl" },
   { cmd: "/crawl", desc: "Crawl a website via Firecrawl" },
   { cmd: "/parse", desc: "Parse a file (PDF, DOC, etc.) via Firecrawl" },
+  { cmd: "/usage", desc: "Show daily token usage and budget for Opus 4.8" },
   { cmd: "/help", desc: "Show available commands and models" },
   { cmd: "/exit", desc: "End the session" },
 ]
@@ -82,6 +84,10 @@ const handlers: Record<string, (args: string) => Promise<SlashCommandResult>> = 
   },
   verbose: async () => {
     return { type: "verbose" }
+  },
+  usage: async () => {
+    await usageCommand()
+    return { type: "help" as const }
   },
   search: async (args) => ({ type: "message", message: chatify("search", args) }),
   scrape: async (args) => ({ type: "message", message: chatify("scrape", args) }),

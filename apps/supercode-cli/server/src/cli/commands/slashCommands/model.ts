@@ -13,6 +13,7 @@ interface ModelEntry {
 }
 
 const MODELS: ModelEntry[] = [
+  { value: "anthropic/claude-opus-4-8", label: "Claude Opus 4.8", provider: "concentrateai", cost: "5.0x", desc: "Top-tier reasoning" },
   { value: "glm-5.2", label: "GLM 5.2", provider: "concentrateai", cost: "0.5x", desc: "Latest GLM" },
   { value: "glm-5.1", label: "GLM 5.1", provider: "concentrateai", cost: "0.4x", desc: "Balanced multilingual" },
   { value: "kimi-k2-6", label: "Kimi K2.6", provider: "concentrateai", cost: "0.8x", desc: "Long context" },
@@ -58,7 +59,8 @@ function renderModelBrowser(currentProvider: string, currentModel: string): void
       const cost = chalk.hex(m.cost === "free" ? theme.greenGlow : theme.muted)(m.cost.padEnd(6))
       const desc = chalk.hex(theme.muted)(m.desc.padEnd(20))
       const marker = isCurrent ? ` ${chalk.bgHex(theme.amber).hex(theme.black).bold(" current ")}` : ""
-      console.log(`  ${prefix} ${name} ${cost}${desc}${marker}`)
+      const freeTag = !isCurrent && providerKey === "concentrateai" ? ` ${chalk.bgHex(theme.green).hex(theme.black).bold(" FREE ")}` : ""
+      console.log(`  ${prefix} ${name} ${cost}${desc}${marker}${freeTag}`)
     }
     console.log()
   }

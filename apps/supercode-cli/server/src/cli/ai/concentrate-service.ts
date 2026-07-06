@@ -1,8 +1,9 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
-import { streamText, stepCountIs, type ModelMessage, type LanguageModel } from "ai"
+import { streamText, stepCountIs, type ModelMessage, type LanguageModel, type LanguageModelUsage } from "ai"
 import chalk from "chalk"
 import { recordUsage } from "../../lib/track-usage"
 import { computeCost } from "../../lib/pricing"
+import { checkDailyBudget, checkQueryLimit, DAILY_QUERY_LIMIT, OPUS_MODEL_ID, getOrCreateDeviceId } from "../../lib/token-budget"
 import { isEmptyToolResult, isDeniedToolResult, summarizeToolResult, tcName } from "./tool-result"
 
 const CONCENTRATE_API_KEY = process.env.CONCENTRATEAI_API_KEY || ""
@@ -77,6 +78,37 @@ export class ConcentrateService {
     const signalHandler = signal ? () => streamAbortController.abort() : undefined
     signalHandler && signal!.addEventListener("abort", signalHandler, { once: true })
 
+    const isOpus = this.modelName === OPUS_MODEL_ID
+    const deviceId = await getOrCreateDeviceId()
+
+    if (isOpus) {
+      const [tokenBudget, queryLimit] = await Promise.all([
+        checkDailyBudget(),
+        checkQueryLimit(deviceId),
+      ])
+
+      if (!tokenBudget.allowed || !queryLimit.allowed) {
+        const reasons: string[] = []
+        if (!tokenBudget.allowed) reasons.push(`Token budget used: ${tokenBudget.used.toLocaleString()} / ${128_000..toLocaleString()}`)
+        if (!queryLimit.allowed) reasons.push(`Query limit used: ${queryLimit.used} / ${DAILY_QUERY_LIMIT}`)
+        const msg = [
+          chalk.red("╔══ Daily usage limit exceeded ══╗"),
+          chalk.red(`║  Model: anthropic/claude-opus-4-8`),
+          ...reasons.map(r => chalk.red(`║  ${r}`)),
+          chalk.red(`║  Resets: ${new Date(tokenBudget.resetTime).toLocaleDateString()}`),
+          chalk.red(`╚════════════════════════════════════╝`),
+          ``,
+          chalk.yellow(`ℹ Switch to ${chalk.cyan("/model minimax-m3")} to continue chatting.`),
+          `Run ${chalk.cyan("/usage")} to check your usage across all models.`,
+        ].join("\n")
+        return {
+          content: msg,
+          finishReason: "stop" as const,
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, inputTokenDetails: {}, outputTokenDetails: {} } as LanguageModelUsage,
+        }
+      }
+    }
+
     try {
       const systemMessages = messages.filter(m => m.role === "system")
       const nonSystemMessages = messages.filter(m => m.role !== "system")
@@ -120,6 +152,7 @@ export class ConcentrateService {
             totalTokens: inputTokens + outputTokens,
             costUsd: computeCost(this.modelName, inputTokens, outputTokens, 0),
             durationMs: null,
+            userId: deviceId,
           })
           return {
             content,
@@ -155,6 +188,7 @@ export class ConcentrateService {
           totalTokens: usage.totalTokens ?? 0,
           costUsd: computeCost(this.modelName, usage.inputTokens ?? 0, usage.outputTokens ?? 0, usage.inputTokenDetails?.cacheReadTokens ?? 0),
           durationMs: null,
+          userId: deviceId,
         })
 
         return {
@@ -182,7 +216,7 @@ export class ConcentrateService {
         messages: nonSystemMessages,
         system,
         tools,
-        stopWhen: stepCountIs(8),
+        stopWhen: stepCountIs(isOpus ? 5 : 8),
         abortSignal: streamAbortController.signal,
         prepareStep: async ({ messages }) => {
           if (stopForDenialLoop) {
@@ -296,6 +330,7 @@ export class ConcentrateService {
           totalTokens: inputTokens + outputTokens,
           costUsd: computeCost(this.modelName, inputTokens, outputTokens, 0),
           durationMs: null,
+          userId: deviceId,
         })
         return {
           content,
@@ -326,19 +361,20 @@ export class ConcentrateService {
         provider: "concentrateai",
         model: this.modelName,
         inputTokens: usage.inputTokens ?? 0,
-        outputTokens: usage.outputTokens ?? 0,
-        cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
-        totalTokens: usage.totalTokens ?? 0,
-        costUsd: computeCost(this.modelName, usage.inputTokens ?? 0, usage.outputTokens ?? 0, usage.inputTokenDetails?.cacheReadTokens ?? 0),
-        durationMs: null,
-      })
+          outputTokens: usage.outputTokens ?? 0,
+          cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
+          totalTokens: usage.totalTokens ?? 0,
+          costUsd: computeCost(this.modelName, usage.inputTokens ?? 0, usage.outputTokens ?? 0, usage.inputTokenDetails?.cacheReadTokens ?? 0),
+          durationMs: null,
+          userId: deviceId,
+        })
 
-      return {
-        content: fullResponse,
-        finishReason,
-        usage,
-      }
-    } catch (error: any) {
+        return {
+          content: fullResponse,
+          finishReason,
+          usage,
+        }
+      } catch (error: any) {
       if (error?.name === "AbortError") throw error
       console.error(chalk.red("ConcentrateAI Service Error:"), error instanceof Error ? error.message : String(error))
       throw error
