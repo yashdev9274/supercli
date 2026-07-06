@@ -16,13 +16,13 @@ const PartnershipsSection = () => {
             <h2 className="text-[13px] font-mono uppercase tracking-[0.15em] text-primary mb-4">
               $ Partnerships
             </h2>
-            <h3 className="text-[28px] md:text-[36px] font-semibold tracking-tight max-w-[500px] leading-[1.15]">
+            <h3 className="text-[28px] md:text-[36px] text-[#A1A1AA] font-semibold tracking-tight max-w-[500px] leading-[1.15]">
               Real teams shipping with Supercode
             </h3>
           </div>
           <Link
             href="/partnerships"
-            className="hidden md:inline-flex items-center gap-2 text-[14px] text-muted-foreground hover:text-foreground transition-colors group"
+            className="hidden md:inline-flex text-[#A1A1AA] items-center gap-2 text-[14px] text-muted-foreground hover:text-foreground transition-colors group"
           >
             <span>View all</span>
             <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
@@ -34,7 +34,7 @@ const PartnershipsSection = () => {
             <Link
               key={partner.slug}
               href={`/partnerships/${partner.slug}`}
-              className="group border border-border rounded-lg p-6 hover:border-primary/40 transition-colors duration-200 bg-card/30 hover:bg-card/60"
+              className="group border text-[#A1A1AA] border-border rounded-lg p-6 hover:border-primary/40 transition-colors duration-200 bg-card/30 hover:bg-card/60"
             >
               <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold font-mono text-[16px] mb-4">
                 {partner.logoSrc ? (

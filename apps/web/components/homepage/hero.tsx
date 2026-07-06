@@ -11,7 +11,7 @@ const installCommands: Record<InstallMethod, { command: string; highlight: strin
   curl: { command: 'curl -fsSL https://supercli.vercel.app/install', highlight: 'supercli.vercel.app/install' },
   npm: { command: 'npm install -g supercode-cli@latest', highlight: 'supercode-cli' },
   bun: { command: 'bun install -g supercode-cli', highlight: 'supercode-cli' },
-  npx: { command: 'npx supercode-cli', highlight: 'supercode-cli' },
+  npx: { command: 'npx supercode-cli', highlight: 'superadd code-cli' },
   brew: { command: 'brew install supercode', highlight: 'supercode' },
 };
 
@@ -62,7 +62,7 @@ const HeroSection = () => {
           </div>
 
           {/* Main headline */}
-          <h1 className="text-[28px] md:text-[56px] leading-[1.1] mb-8 tracking-tight font-semibold">
+          <h1 className="text-[28px] md:text-[56px] text-[#A1A1AA] leading-[1.1] mb-8 tracking-tight font-semibold">
             The open source SWE agent
           </h1>
 

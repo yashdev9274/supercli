@@ -197,7 +197,7 @@ export default function ComparePage() {
             <span className="inline-block text-[12px] font-mono uppercase tracking-[0.25em] text-primary mb-6">
               $ Supercode v0.1.14
             </span>
-            <h1 className="text-[48px] md:text-[72px] font-semibold tracking-tight leading-[1.05] mb-6">
+            <h1 className="text-[48px] md:text-[72px] text-[#A1A1AA] font-semibold tracking-tight leading-[1.05] mb-6">
               <span className="inline-flex items-baseline gap-1">
                 <span className="bg-gradient-to-r from-primary via-amber-300 to-primary bg-clip-text text-transparent">
                   Supercode
@@ -448,7 +448,7 @@ export default function ComparePage() {
             </h2>
           </motion.div>
 
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid text-[#A1A1AA] md:grid-cols-3 gap-6">
             {[
               {
                 icon: "◈",
@@ -497,7 +497,7 @@ export default function ComparePage() {
             transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
             className="border border-border/40 rounded-2xl p-12 md:p-16 text-center bg-card/50"
           >
-            <h2 className="text-[32px] md:text-[44px] font-semibold tracking-tight mb-4 font-mono">
+            <h2 className="text-[32px] text-[#A1A1AA] md:text-[44px] font-semibold tracking-tight mb-4 font-mono">
               Try{" "}
               <span className="bg-gradient-to-r from-primary via-amber-300 to-primary bg-clip-text text-transparent">
                 Supercode

@@ -35,7 +35,7 @@ export default function PartnershipsPage() {
       <Navbar />
 
       <div className="pt-[120px] pb-24 px-6 max-w-[1100px] mx-auto">
-        <h1 className="text-[36px] md:text-[48px] font-semibold tracking-tight mb-2">
+        <h1 className="text-[36px] md:text-[48px] text-[#A1A1AA] font-semibold tracking-tight mb-2">
           Partnerships
         </h1>
         <p className="text-muted-foreground text-[16px] mb-16 max-w-[600px]">
@@ -61,7 +61,7 @@ export default function PartnershipsPage() {
                 <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors duration-200" />
               </div>
 
-              <h2 className="text-[22px] font-semibold tracking-tight mb-2 group-hover:text-primary transition-colors">
+              <h2 className="text-[22px] font-semibold text-[#A1A1AA] tracking-tight mb-2 group-hover:text-primary transition-colors">
                 {partner.name}
               </h2>
               <p className="text-[14px] text-muted-foreground leading-relaxed mb-6">

@@ -62,7 +62,7 @@ export default async function PartnershipDetailPage({ params }: Props) {
 
         {/* Hero */}
         <div className="mb-16">
-          <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold font-mono text-[22px] mb-6">
+          <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center text-white font-bold font-mono text-[22px] mb-6">
             {partner.logoSrc ? (
               <img src={partner.logoSrc} alt={partner.name} className="w-8 h-8 brightness-0 invert" />
             ) : (
@@ -70,7 +70,7 @@ export default async function PartnershipDetailPage({ params }: Props) {
             )}
           </div>
 
-          <h1 className="text-[36px] md:text-[48px] font-semibold tracking-tight mb-3">
+          <h1 className="text-[36px] md:text-[48px] text-[#A1A1AA] font-semibold tracking-tight mb-3">
             {partner.name}
           </h1>
           <p className="text-[18px] text-muted-foreground leading-relaxed">

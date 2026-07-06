@@ -113,7 +113,7 @@ function LogoCard({
   downloads: { format: string; href: string }[]
 }) {
   return (
-    <div className="group relative rounded-xl overflow-hidden border border-border bg-card transition-all duration-500 ease-out hover:border-border/60">
+    <div className="group relative  rounded-xl overflow-hidden border border-border bg-card transition-all duration-500 ease-out hover:border-border/60">
       <div
         className={`relative flex h-48 w-full flex-col items-center justify-center overflow-hidden ${bgClass}`}
       >
@@ -562,7 +562,7 @@ export default function BrandPageClient() {
             <rect x="6" y="12" width="3" height="3" fill="#52525b" />
           </svg>
         </div>
-        <h1 className="text-[2.5rem] md:text-[3.5rem] font-semibold tracking-tight leading-[100%] text-center mb-3">
+        <h1 className="text-[2.5rem] text-[#A1A1AA] md:text-[3.5rem] font-semibold tracking-tight leading-[100%] text-center mb-3">
           Brand guidelines
         </h1>
         <p className="text-base md:text-lg text-muted-foreground text-center max-w-lg">
@@ -573,7 +573,7 @@ export default function BrandPageClient() {
       {/* Naming */}
       <FadeIn>
         <section className="mb-16">
-          <h2 className="text-[28px] leading-[34px] tracking-tight font-semibold mb-6">
+          <h2 className="text-[28px] text-[#A1A1AA] leading-[34px] tracking-tight font-semibold mb-6">
             Naming
           </h2>
           <div className="space-y-3 text-sm text-foreground/80">
@@ -598,7 +598,7 @@ export default function BrandPageClient() {
       {/* Logo */}
       <FadeIn>
         <section className="mb-16">
-          <h2 className="text-[28px] leading-[34px] tracking-tight font-semibold mb-4">
+          <h2 className="text-[28px] text-[#A1A1AA] leading-[34px] tracking-tight font-semibold mb-4">
             Logo
           </h2>
           <p className="text-sm text-foreground/80 mb-8">
@@ -1031,7 +1031,7 @@ export default function BrandPageClient() {
       {/* Colors */}
       <FadeIn>
         <section className="mb-16">
-          <h2 className="text-[28px] leading-[34px] tracking-tight font-semibold mb-4">
+          <h2 className="text-[28px] text-[#A1A1AA] leading-[34px] tracking-tight font-semibold mb-4">
             Colors
           </h2>
         <p className="text-sm text-foreground/80 mb-8">
@@ -1052,7 +1052,7 @@ export default function BrandPageClient() {
       {/* Typography */}
       <FadeIn>
         <section className="mb-16">
-          <h2 className="text-[28px] leading-[34px] tracking-tight font-semibold mb-4">
+          <h2 className="text-[28px] text-[#A1A1AA] leading-[34px] tracking-tight font-semibold mb-4">
             Typography
           </h2>
         <p className="text-sm text-foreground/80 mb-8">
@@ -1061,11 +1061,11 @@ export default function BrandPageClient() {
 
         <div className="space-y-8">
           <div className="rounded-xl border border-border bg-card p-6">
-            <span className="text-xs text-muted-foreground font-mono uppercase tracking-wider mb-4 block">
+            <span className="text-xs  text-muted-foreground font-mono uppercase tracking-wider mb-4 block">
               Primary — JetBrains Mono
             </span>
             <p
-              className="text-2xl md:text-3xl font-medium tracking-tight mb-2"
+              className="text-2xl md:text-3xl text-[#A1A1AA] font-medium tracking-tight mb-2"
               style={{ fontFamily: "'JetBrains Mono', monospace" }}
             >
               Supercode builds software at the speed of thought.
@@ -1083,7 +1083,7 @@ export default function BrandPageClient() {
             <span className="text-xs text-muted-foreground font-mono uppercase tracking-wider mb-4 block">
               Secondary — Inter
             </span>
-            <p className="text-2xl md:text-3xl font-medium tracking-tight mb-2">
+            <p className="text-2xl text-[#A1A1AA] md:text-3xl font-medium tracking-tight mb-2">
               Supercode builds software at the speed of thought.
             </p>
             <p className="text-sm text-muted-foreground">
@@ -1105,7 +1105,7 @@ export default function BrandPageClient() {
                 { size: "text-[14px]", label: "14px / Regular", weight: "font-normal" },
                 { size: "text-[12px]", label: "12px / Regular", weight: "font-normal" },
               ].map((t) => (
-                <div key={t.label} className="flex items-baseline gap-4">
+                <div key={t.label} className="flex text-[#A1A1AA] items-baseline gap-4">
                   <span
                     className={`${t.size} ${t.weight} shrink-0`}
                     style={{ fontFamily: "'JetBrains Mono', monospace" }}
@@ -1128,7 +1128,7 @@ export default function BrandPageClient() {
       {/* Product Screenshots */}
       <FadeIn>
         <section className="mb-16">
-          <h2 className="text-[28px] leading-[34px] tracking-tight font-semibold mb-4">
+          <h2 className="text-[28px] text-[#A1A1AA] leading-[34px] tracking-tight font-semibold mb-4">
             Product
           </h2>
         <p className="text-sm text-foreground/80 mb-8">
@@ -1169,7 +1169,7 @@ export default function BrandPageClient() {
       {/* Usage Rules */}
       <FadeIn>
         <section className="mb-16">
-          <h2 className="text-[28px] leading-[34px] tracking-tight font-semibold mb-4">
+          <h2 className="text-[28px] text-[#A1A1AA] leading-[34px] tracking-tight font-semibold mb-4">
             Usage rules
           </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1206,7 +1206,7 @@ export default function BrandPageClient() {
       {/* Contact */}
       <FadeIn>
         <section>
-          <h2 className="text-[28px] leading-[34px] tracking-tight font-semibold mb-4">
+          <h2 className="text-[28px] text-[#A1A1AA] leading-[34px] tracking-tight font-semibold mb-4">
             Questions
           </h2>
         <p className="text-sm text-foreground/80">
