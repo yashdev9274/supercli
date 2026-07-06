@@ -81,5 +81,10 @@ apps/web/app/api/pitch
 apps/web/components/pitch
 /test-supercode
 /test-supercode/todo-rust
+
+# scripts
+scripts/
+apps/web/scripts/
 .commandcode
 .opencode
+
