@@ -93,7 +93,7 @@ export class ConcentrateService {
         if (!queryLimit.allowed) reasons.push(`Query limit used: ${queryLimit.used} / ${DAILY_QUERY_LIMIT}`)
         const msg = [
           chalk.red("╔══ Daily usage limit exceeded ══╗"),
-          chalk.red(`║  Model: anthropic/claude-opus-4-8`),
+          chalk.red(`║  Model: azure/claude-opus-4-8`),
           ...reasons.map(r => chalk.red(`║  ${r}`)),
           chalk.red(`║  Resets: ${new Date(tokenBudget.resetTime).toLocaleDateString()}`),
           chalk.red(`╚════════════════════════════════════╝`),

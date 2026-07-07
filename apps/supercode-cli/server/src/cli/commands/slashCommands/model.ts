@@ -13,7 +13,7 @@ interface ModelEntry {
 }
 
 const MODELS: ModelEntry[] = [
-  { value: "anthropic/claude-opus-4-8", label: "Claude Opus 4.8", provider: "concentrateai", cost: "5.0x", desc: "Top-tier reasoning" },
+  { value: "azure/claude-opus-4-8", label: "Claude Opus 4.8", provider: "concentrateai", cost: "5.0x", desc: "Top-tier reasoning (Azure)" },
   { value: "glm-5.2", label: "GLM 5.2", provider: "concentrateai", cost: "0.5x", desc: "Latest GLM" },
   { value: "glm-5.1", label: "GLM 5.1", provider: "concentrateai", cost: "0.4x", desc: "Balanced multilingual" },
   { value: "kimi-k2-6", label: "Kimi K2.6", provider: "concentrateai", cost: "0.8x", desc: "Long context" },

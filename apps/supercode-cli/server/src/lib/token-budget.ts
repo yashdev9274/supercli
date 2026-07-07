@@ -4,7 +4,7 @@ import os from "node:os"
 import { randomUUID } from "node:crypto"
 import prisma from "./prisma"
 
-export const OPUS_MODEL_ID = "anthropic/claude-opus-4-8"
+export const OPUS_MODEL_ID = "azure/claude-opus-4-8"
 export const DAILY_BUDGET_TOKENS = 128_000
 export const DAILY_QUERY_LIMIT = 20
 
