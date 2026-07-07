@@ -2,6 +2,7 @@ import { select, isCancel } from "@clack/prompts"
 import chalk from "chalk"
 import { pickModel, formatModelChange } from "./model.ts"
 import { usageCommand } from "./usage.ts"
+import { tokenLimitCommand } from "./token-limit.ts"
 import { connectProvider } from "./connect.ts"
 import { renderHelp } from "./help.ts"
 import { theme, heavyDivider } from "src/cli/utils/tui.ts"
@@ -30,6 +31,7 @@ export const COMMANDS = [
   { cmd: "/crawl", desc: "Crawl a website via Firecrawl" },
   { cmd: "/parse", desc: "Parse a file (PDF, DOC, etc.) via Firecrawl" },
   { cmd: "/usage", desc: "Show daily token usage and budget for Opus 4.8" },
+  { cmd: "/token-limit", desc: "Show token limits and usage per model per day" },
   { cmd: "/help", desc: "Show available commands and models" },
   { cmd: "/exit", desc: "End the session" },
 ]
@@ -89,6 +91,10 @@ const handlers: Record<string, (args: string) => Promise<SlashCommandResult>> = 
     await usageCommand()
     return { type: "help" as const }
   },
+  "token-limit": async () => {
+    await tokenLimitCommand()
+    return { type: "help" as const }
+  },
   search: async (args) => ({ type: "message", message: chatify("search", args) }),
   scrape: async (args) => ({ type: "message", message: chatify("scrape", args) }),
   interact: async (args) => ({ type: "message", message: chatify("interact", args) }),
@@ -116,7 +122,7 @@ export function setCurrentConversationId(id: string) {
 }
 
 export async function handleSlashCommand(input: string): Promise<SlashCommandResult | null> {
-  const match = input.match(/^\/(\w+)\s*(.*)$/)
+  const match = input.match(/^\/([\w-]+)\s*(.*)$/)
   if (!match) return null
 
   const [, cmd = "", args = ""] = match
