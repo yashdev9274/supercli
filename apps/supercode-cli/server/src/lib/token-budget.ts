@@ -3,12 +3,17 @@ import { join } from "node:path"
 import os from "node:os"
 import { randomUUID } from "node:crypto"
 import prisma from "./prisma"
-
-export const OPUS_MODEL_ID = "anthropic/claude-opus-4-8"
 export const DAILY_BUDGET_TOKENS = 128_000
 export const DAILY_QUERY_LIMIT = 20
+export const OPUS_DAILY_LIMIT = 20
 
 const DEVICE_ID_PATH = join(os.homedir(), ".config", "supercode", "device-id")
+const OPUS_USAGE_PATH = join(os.homedir(), ".config", "supercode", "opus-usage.json")
+
+function todayString(): string {
+  const now = new Date()
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`
+}
 
 export async function getOrCreateDeviceId(): Promise<string> {
   try {
@@ -39,46 +44,28 @@ export async function getDailyTokenUsage(model: string): Promise<number> {
   return result._sum.totalTokens ?? 0
 }
 
-export async function getDailyQueryCount(userId: string): Promise<number> {
-  return prisma.usageEvent.count({
-    where: {
-      model: OPUS_MODEL_ID,
-      userId,
-      createdAt: { gte: todayStart() },
-    },
-  })
-}
-
-export async function checkQueryLimit(userId: string): Promise<{
-  allowed: boolean
-  used: number
-  remaining: number
-  resetTime: string
-}> {
-  const used = await getDailyQueryCount(userId)
-  const remaining = Math.max(0, DAILY_QUERY_LIMIT - used)
-  const tomorrow = new Date(todayStart().getTime() + 86_400_000)
-  return {
-    allowed: remaining > 0,
-    used,
-    remaining,
-    resetTime: tomorrow.toISOString(),
+export async function getDailyOpusCount(): Promise<number> {
+  try {
+    const data = JSON.parse(await readFile(OPUS_USAGE_PATH, "utf-8"))
+    return data.date === todayString() ? (data.count ?? 0) : 0
+  } catch {
+    return 0
   }
 }
 
-export async function checkDailyBudget(): Promise<{
-  allowed: boolean
-  used: number
-  remaining: number
-  resetTime: string
-}> {
-  const used = await getDailyTokenUsage(OPUS_MODEL_ID)
-  const remaining = Math.max(0, DAILY_BUDGET_TOKENS - used)
-  const tomorrow = new Date(todayStart().getTime() + 86_400_000)
-  return {
-    allowed: remaining > 0,
-    used,
-    remaining,
-    resetTime: tomorrow.toISOString(),
+export async function incrementDailyOpusCount(): Promise<void> {
+  const count = await getDailyOpusCount()
+  await mkdir(join(os.homedir(), ".config", "supercode"), { recursive: true })
+  await writeFile(OPUS_USAGE_PATH, JSON.stringify({ date: todayString(), count: count + 1 }))
+}
+
+export async function checkDailyOpusLimit(): Promise<void> {
+  const count = await getDailyOpusCount()
+  if (count >= OPUS_DAILY_LIMIT) {
+    throw new Error(
+      `Opus 4.8 daily limit reached (${count}/${OPUS_DAILY_LIMIT}). Resets at midnight UTC.`
+    )
   }
 }
+
+
