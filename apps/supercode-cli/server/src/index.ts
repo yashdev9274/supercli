@@ -512,7 +512,8 @@ app.post("/api/ai/chat", async (req, res) => {
         break
       }
       case "concentrateai": {
-        const apiKey = process.env.CONCENTRATEAI_API_KEY
+        const { concentrateAiKey: forwardedKey } = req.body
+        const apiKey = forwardedKey || process.env.CONCENTRATEAI_API_KEY
         if (!apiKey) { res.status(500).json({ error: "ConcentrateAI not configured on server" }); return }
         const modelName = modelParam || "deepseek-v4-flash"
         const caStart = Date.now()
@@ -694,7 +695,8 @@ app.post("/api/ai/generate-object", async (req, res) => {
         break
       }
       case "concentrateai": {
-        const apiKey = process.env.CONCENTRATEAI_API_KEY
+        const { concentrateAiKey: forwardedKey } = req.body
+        const apiKey = forwardedKey || process.env.CONCENTRATEAI_API_KEY
         if (!apiKey) { res.status(500).json({ error: "ConcentrateAI not configured on server" }); return }
         const modelName = modelParam || "deepseek-v4-flash"
         const response = await fetch("https://api.concentrate.ai/v1/chat/completions", {

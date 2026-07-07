@@ -6,10 +6,12 @@ const BASE_URL = process.env.SUPERCODE_SERVER_URL || "https://supercode-8w7e.onr
 export class ServerProxyService {
   readonly modelName: string
   readonly providerName: string
+  private readonly apiKey?: string
 
-  constructor(provider: string, model?: string) {
+  constructor(provider: string, model?: string, apiKey?: string) {
     this.providerName = provider
     this.modelName = model || "default"
+    this.apiKey = apiKey
   }
 
   private collectedToolCalls: Array<{ toolName: string; args: Record<string, unknown>; toolCallId: string }> = []
@@ -44,6 +46,7 @@ export class ServerProxyService {
         provider: this.providerName,
         model: this.modelName,
         tools,
+        ...(this.apiKey && this.providerName === "concentrateai" ? { concentrateAiKey: this.apiKey } : {}),
       }),
       signal,
     })
@@ -232,6 +235,7 @@ export class ServerProxyService {
         model: this.modelName,
         schema,
         prompt,
+        ...(this.apiKey && this.providerName === "concentrateai" ? { concentrateAiKey: this.apiKey } : {}),
       }),
     })
 
