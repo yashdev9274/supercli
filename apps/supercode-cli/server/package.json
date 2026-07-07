@@ -1,6 +1,6 @@
 {
   "name": "supercode-cli",
-  "version": "0.1.45",
+  "version": "0.1.46",
   "description": "AI-powered coding agent CLI",
   "main": "dist/main.js",
   "bin": {
