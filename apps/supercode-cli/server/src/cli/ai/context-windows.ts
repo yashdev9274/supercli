@@ -17,8 +17,7 @@ const CONTEXT_WINDOWS: Record<string, number> = {
   "glm-5.2": 203_000,
   "glm-5.1": 203_000,
   "minimax-m3": 1_000_000,
-  "azure/claude-opus-4-8": 200_000,
-  "anthropic/claude-opus-4-8": 500_000,
+  "anthropic/claude-opus-4-8": 1_000_000,
 }
 
 const FALLBACK_CONTEXT_WINDOW = 128_000

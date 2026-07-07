@@ -33,7 +33,6 @@ const MODEL_MAX_TOKENS: Record<string, number> = {
   "glm-5.2": 4096,
   "glm-5.1": 4096,
   "minimax-m3": 8192,
-  "azure/claude-opus-4-8": 4096,
   "anthropic/claude-opus-4-8": 4096,
 }
 function getModelMaxTokens(model: string): number {
