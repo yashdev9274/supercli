@@ -13,10 +13,10 @@ interface ModelEntry {
 }
 
 const MODELS: ModelEntry[] = [
-  { value: "anthropic/claude-fable-5", label: "Fable 5", provider: "concentrateai", cost: "80x", desc: "Anthropic frontier" },
-  { value: "anthropic/claude-opus-4-8", label: "Opus 4.8", provider: "concentrateai", cost: "40x", desc: "Anthropic reasoning" },
-  { value: "anthropic/claude-opus-4-7", label: "Opus 4.7", provider: "concentrateai", cost: "40x", desc: "Anthropic GA" },
-  { value: "openai/gpt-5.5", label: "GPT 5.5", provider: "concentrateai", cost: "50x", desc: "OpenAI frontier" },
+  // { value: "anthropic/claude-fable-5", label: "Fable 5", provider: "concentrateai", cost: "80x", desc: "Anthropic frontier" },
+  // { value: "anthropic/claude-opus-4-8", label: "Opus 4.8", provider: "concentrateai", cost: "40x", desc: "Anthropic reasoning" },
+  // { value: "anthropic/claude-opus-4-7", label: "Opus 4.7", provider: "concentrateai", cost: "40x", desc: "Anthropic GA" },
+  // { value: "openai/gpt-5.5", label: "GPT 5.5", provider: "concentrateai", cost: "50x", desc: "OpenAI frontier" },
   { value: "glm-5.2", label: "GLM 5.2", provider: "concentrateai", cost: "0.5x", desc: "Latest GLM" },
   // { value: "glm-5.1", label: "GLM 5.1", provider: "concentrateai", cost: "0.4x", desc: "Balanced multilingual" },
   { value: "kimi-k2-6", label: "Kimi K2.6", provider: "concentrateai", cost: "0.8x", desc: "Long context" },
@@ -32,6 +32,11 @@ const MODELS: ModelEntry[] = [
   { value: "minimax/minimax-m3", label: "MiniMax M3", provider: "openrouter", cost: "3.0x", desc: "Via OpenRouter" },
   { value: "z-ai/glm-5.1", label: "GLM 5.1", provider: "openrouter", cost: "1.0x", desc: "Via OpenRouter" },
   { value: "moonshotai/kimi-k2.6", label: "Kimi K2.6", provider: "openrouter", cost: "1.5x", desc: "Via OpenRouter" },
+  { value: "anthropic/claude-opus-4-8", label: "Opus 4.8", provider: "mergedev", cost: "40x", desc: "Via Merge Dev" },
+  { value: "anthropic/claude-opus-4-7", label: "Opus 4.7", provider: "mergedev", cost: "40x", desc: "Via Merge Dev" },
+  { value: "anthropic/claude-fable-5", label: "Fable 5", provider: "mergedev", cost: "80x", desc: "Via Merge Dev" },
+  { value: "openai/gpt-5.5", label: "GPT 5.5", provider: "mergedev", cost: "50x", desc: "Via Merge Dev" },
+  { value: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash", provider: "mergedev", cost: "1.0x", desc: "Via Merge Dev" },
 ]
 
 function renderModelBrowser(currentProvider: string, currentModel: string): void {
@@ -53,6 +58,7 @@ function renderModelBrowser(currentProvider: string, currentModel: string): void
       ? "ConcentrateAI (default)"
       : providerKey === "google" ? "Google Gemini"
       : providerKey === "openrouter" ? "OpenRouter"
+      : providerKey === "mergedev" ? "Merge Dev Gateway"
       : "NVIDIA NIM"
     console.log(`  ${sectionHeader(label, { accent: isDefault ? "amber" : "green", width: w - 4 })}`)
     for (const m of models) {
@@ -122,6 +128,7 @@ export async function pickModel(): Promise<{ provider: ModelProvider; model?: st
 export function formatModelChange(p: ModelProvider, m?: string): string {
   const label = p === "concentrateai" ? "ConcentrateAI" :
     p === "google" ? "Gemini" :
-    p === "nvidia" ? "NVIDIA" : p === "minimax" ? "MiniMax" : "OpenRouter"
+    p === "nvidia" ? "NVIDIA" : p === "minimax" ? "MiniMax" :
+    p === "mergedev" ? "Merge Dev" : "OpenRouter"
   return `${label}${m ? ` · ${m}` : ""}`
 }

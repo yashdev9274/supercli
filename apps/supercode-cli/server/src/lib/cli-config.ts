@@ -28,6 +28,7 @@ const API_KEY_ENV_MAP: Record<ModelProvider, string> = {
   openrouter: "OPENROUTER_API_KEY",
   nvidia: "NVIDIA_API_KEY",
   concentrateai: "CONCENTRATEAI_API_KEY",
+  mergedev: "MERGE_DEV_API_KEY",
 }
 
 export function getProviderApiKeys(): Partial<Record<ModelProvider, string>> {

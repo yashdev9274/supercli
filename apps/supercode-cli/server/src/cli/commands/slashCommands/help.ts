@@ -13,6 +13,7 @@ const PROVIDERS = [
   { name: "OpenRouter", models: ["openai/gpt-oss-120b:free", "deepseek/deepseek-v4-flash", "minimax/minimax-m3", "z-ai/glm-5.1", "moonshotai/kimi-k2.6"], note: "bring your own key" },
   { name: "NVIDIA NIM", models: ["minimaxai/minimax-m3", "deepseek-ai/deepseek-v4-flash", "meta/llama-3.3-70b-instruct"], note: "free API" },
   { name: "ConcentrateAI", models: ["deepseek-v4-flash", "kimi-k2-6", "glm-5.2", "glm-5.1", "minimax-m3", "openai/gpt-5.5"], note: "AI gateway" },
+  { name: "Merge Dev Gateway", models: ["anthropic/claude-opus-4-8", "anthropic/claude-opus-4-7", "anthropic/claude-fable-5", "openai/gpt-5.5", "deepseek/deepseek-v4-flash"], note: "bring your own key" },
 ]
 
 function renderCommands(): string {
