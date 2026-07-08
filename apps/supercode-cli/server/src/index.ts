@@ -557,6 +557,8 @@ app.post("/api/ai/chat", async (req, res) => {
         let buffer = ""
         let inputTokens = 0
         let outputTokens = 0
+        let fullContent = ""
+        let sawToolCalls = false
         let pendingToolCalls: Record<number, { id: string; name: string; args: string }> = {}
         while (true) {
           const { done, value } = await reader.read()
@@ -573,9 +575,11 @@ app.post("/api/ai/chat", async (req, res) => {
               const data = JSON.parse(jsonStr)
               const delta = data.choices?.[0]?.delta
               if (delta?.content) {
+                fullContent += delta.content
                 res.write(JSON.stringify({ type: "text", content: delta.content }) + "\n")
               }
               if (delta?.tool_calls) {
+                sawToolCalls = true
                 for (const tc of delta.tool_calls) {
                   const index = tc.index ?? 0
                   if (!pendingToolCalls[index]) {
@@ -605,6 +609,45 @@ app.post("/api/ai/chat", async (req, res) => {
             } catch { /* skip malformed */ }
           }
         }
+
+        // Fallback: if streaming returned no text and no tool calls,
+        // retry as non-streaming (ConcentrateAI's upstream intermittently
+        // drops content on streaming requests).
+        if (!fullContent.trim() && !sawToolCalls) {
+          const fbBody: any = {
+            model: modelName,
+            messages: nonSystemMessages.map((m: any) => {
+              const msg: any = {
+                role: m.role,
+                content: m.content !== null && m.content !== undefined ? String(m.content) : "",
+              }
+              if (m.tool_calls) msg.tool_calls = m.tool_calls
+              if (m.tool_call_id) msg.tool_call_id = m.tool_call_id
+              return msg
+            }),
+            max_tokens: getModelMaxTokens(modelName),
+            temperature: 0.7,
+            stream: false,
+          }
+          if (system && nonSystemMessages.length > 0) {
+            fbBody.messages = [{ role: "system", content: system }, ...fbBody.messages]
+          }
+          const fbRes = await fetch("https://api.concentrate.ai/v1/chat/completions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify(fbBody),
+          })
+          if (fbRes.ok) {
+            const fbData: any = await fbRes.json()
+            const fbContent = fbData?.choices?.[0]?.message?.content ?? ""
+            if (fbContent) {
+              res.write(JSON.stringify({ type: "text", content: fbContent }) + "\n")
+            }
+            inputTokens = fbData?.usage?.prompt_tokens ?? 0
+            outputTokens = fbData?.usage?.completion_tokens ?? 0
+          }
+        }
+
         recordUsage({
           provider: "concentrateai", model: modelName,
           inputTokens, outputTokens, cachedInputTokens: 0,
