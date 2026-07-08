@@ -529,7 +529,6 @@ app.post("/api/ai/chat", async (req, res) => {
             return msg
           }),
           max_tokens: getModelMaxTokens(modelName),
-          temperature: 0.7,
           stream: true,
         }
         if (system && nonSystemMessages.length > 0) {
@@ -856,7 +855,6 @@ app.post("/api/ai/generate-object", async (req, res) => {
             model: modelName,
             messages: [{ role: "user", content: prompt }],
             max_tokens: getModelMaxTokens(modelName),
-            temperature: 0.7,
             stream: false,
           }),
         })
