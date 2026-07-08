@@ -22,6 +22,11 @@ const MODELS: ModelEntry[] = [
   { value: "kimi-k2-6", label: "Kimi K2.6", provider: "concentrateai", cost: "0.8x", desc: "Long context" },
   { value: "deepseek-v4-flash", label: "DeepSeek V4 Flash", provider: "concentrateai", cost: "1.0x", desc: "Fast & capable" },
   { value: "minimax-m3", label: "MiniMax M3", provider: "concentrateai", cost: "0.5x", desc: "Fast & smart" },
+  { value: "anthropic/claude-opus-4-8", label: "Opus 4.8", provider: "mergedev", cost: "40x", desc: "Via Merge Dev" },
+  // { value: "anthropic/claude-opus-4-7", label: "Opus 4.7", provider: "mergedev", cost: "40x", desc: "Via Merge Dev" },
+  // { value: "anthropic/claude-fable-5", label: "Fable 5", provider: "mergedev", cost: "80x", desc: "Via Merge Dev" },
+  // { value: "openai/gpt-5.5", label: "GPT 5.5", provider: "mergedev", cost: "50x", desc: "Via Merge Dev" },
+  // { value: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash", provider: "mergedev", cost: "1.0x", desc: "Via Merge Dev" },
   { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", provider: "google", cost: "2.0x", desc: "Smart & fast" },
   { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", provider: "google", cost: "4.0x", desc: "Deep reasoning" },
   { value: "minimaxai/minimax-m3", label: "MiniMax M3", provider: "nvidia", cost: "0.5x", desc: "Via NVIDIA NIM" },
@@ -32,11 +37,6 @@ const MODELS: ModelEntry[] = [
   { value: "minimax/minimax-m3", label: "MiniMax M3", provider: "openrouter", cost: "3.0x", desc: "Via OpenRouter" },
   { value: "z-ai/glm-5.1", label: "GLM 5.1", provider: "openrouter", cost: "1.0x", desc: "Via OpenRouter" },
   { value: "moonshotai/kimi-k2.6", label: "Kimi K2.6", provider: "openrouter", cost: "1.5x", desc: "Via OpenRouter" },
-  { value: "anthropic/claude-opus-4-8", label: "Opus 4.8", provider: "mergedev", cost: "40x", desc: "Via Merge Dev" },
-  { value: "anthropic/claude-opus-4-7", label: "Opus 4.7", provider: "mergedev", cost: "40x", desc: "Via Merge Dev" },
-  { value: "anthropic/claude-fable-5", label: "Fable 5", provider: "mergedev", cost: "80x", desc: "Via Merge Dev" },
-  { value: "openai/gpt-5.5", label: "GPT 5.5", provider: "mergedev", cost: "50x", desc: "Via Merge Dev" },
-  { value: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash", provider: "mergedev", cost: "1.0x", desc: "Via Merge Dev" },
 ]
 
 function renderModelBrowser(currentProvider: string, currentModel: string): void {
@@ -68,7 +68,7 @@ function renderModelBrowser(currentProvider: string, currentModel: string): void
       const cost = chalk.hex(m.cost === "free" ? theme.greenGlow : theme.muted)(m.cost.padEnd(6))
       const desc = chalk.hex(theme.muted)(m.desc.padEnd(20))
       const marker = isCurrent ? ` ${chalk.bgHex(theme.amber).hex(theme.black).bold(" current ")}` : ""
-      const freeTag = !isCurrent && providerKey === "concentrateai" ? ` ${chalk.bgHex(theme.green).hex(theme.black).bold(" FREE ")}` : ""
+      const freeTag = !isCurrent && (providerKey === "concentrateai" || providerKey === "mergedev") ? ` ${chalk.bgHex(theme.green).hex(theme.black).bold(" FREE ")}` : ""
       console.log(`  ${prefix} ${name} ${cost}${desc}${marker}${freeTag}`)
     }
     console.log()
