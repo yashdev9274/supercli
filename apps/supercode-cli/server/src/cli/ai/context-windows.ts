@@ -20,6 +20,7 @@ const CONTEXT_WINDOWS: Record<string, number> = {
   "anthropic/claude-fable-5": 1_000_000,
   "anthropic/claude-opus-4-8": 1_000_000,
   "anthropic/claude-opus-4-7": 1_000_000,
+  "openai/gpt-5.5": 1_100_000,
 }
 
 const FALLBACK_CONTEXT_WINDOW = 128_000

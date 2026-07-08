@@ -6,7 +6,7 @@ import { computeCost } from "../../lib/pricing"
 import { isEmptyToolResult, isDeniedToolResult, summarizeToolResult, tcName } from "./tool-result"
 import { checkDailyOpusLimit, incrementDailyOpusCount, checkDailyTokenBudget } from "../../lib/token-budget"
 
-const HIGH_VALUE_MODELS = ["anthropic/claude-fable-5", "anthropic/claude-opus-4-8", "anthropic/claude-opus-4-7"]
+const HIGH_VALUE_MODELS = ["anthropic/claude-fable-5", "anthropic/claude-opus-4-8", "anthropic/claude-opus-4-7", "openai/gpt-5.5"]
 const OPUS_MODELS = ["anthropic/claude-opus-4-8", "anthropic/claude-opus-4-7"]
 const OPUS_MODEL = "anthropic/claude-opus-4-8"
 
