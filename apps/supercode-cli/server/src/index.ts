@@ -40,7 +40,7 @@ const MODEL_MAX_TOKENS: Record<string, number> = {
   "minimax-m3": 8192,
   "anthropic/claude-fable-5": 128000,
   "anthropic/claude-opus-4-7": 128000,
-
+  "openai/gpt-5.5": 128000,
 }
 function getModelMaxTokens(model: string): number {
   const exact = MODEL_MAX_TOKENS[model]

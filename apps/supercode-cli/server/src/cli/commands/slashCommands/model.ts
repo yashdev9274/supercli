@@ -16,6 +16,7 @@ const MODELS: ModelEntry[] = [
   { value: "anthropic/claude-fable-5", label: "Fable 5", provider: "concentrateai", cost: "80x", desc: "Anthropic frontier" },
   { value: "anthropic/claude-opus-4-8", label: "Opus 4.8", provider: "concentrateai", cost: "40x", desc: "Anthropic reasoning" },
   { value: "anthropic/claude-opus-4-7", label: "Opus 4.7", provider: "concentrateai", cost: "40x", desc: "Anthropic GA" },
+  { value: "openai/gpt-5.5", label: "GPT 5.5", provider: "concentrateai", cost: "50x", desc: "OpenAI frontier" },
   { value: "glm-5.2", label: "GLM 5.2", provider: "concentrateai", cost: "0.5x", desc: "Latest GLM" },
   // { value: "glm-5.1", label: "GLM 5.1", provider: "concentrateai", cost: "0.4x", desc: "Balanced multilingual" },
   { value: "kimi-k2-6", label: "Kimi K2.6", provider: "concentrateai", cost: "0.8x", desc: "Long context" },
