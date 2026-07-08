@@ -38,7 +38,9 @@ const MODEL_MAX_TOKENS: Record<string, number> = {
   "glm-5.2": 4096,
   "glm-5.1": 4096,
   "minimax-m3": 8192,
-  "anthropic/claude-opus-4-8": 8192,
+  "anthropic/claude-fable-5": 128000,
+  "anthropic/claude-opus-4-7": 128000,
+
 }
 function getModelMaxTokens(model: string): number {
   const exact = MODEL_MAX_TOKENS[model]
