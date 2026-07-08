@@ -57,6 +57,7 @@ export function getProviderDisplayNameFromRaw(raw: string): string {
     google: "Google",
     nvidia: "NVIDIA",
     minimax: "MiniMax",
+    mergedev: "Merge Dev",
   }
   return map[raw] ?? raw
 }
@@ -67,6 +68,7 @@ export const PROVIDER_COLORS: Record<string, string> = {
   google: "#3b82f6",
   nvidia: "#75e02e",
   minimax: "#06b6d4",
+  mergedev: "#f59e0b",
   other: "#6b7280",
 }
 

@@ -4,13 +4,15 @@ import { MinimaxService } from "./minimax-service.ts"
 import { OpenRouterService } from "./openrouter-service.ts"
 import { NvidiaService } from "./nvidia-service.ts"
 import { ConcentrateService } from "./concentrate-service.ts"
+import { MergeDevService } from "./mergedev-service.ts"
 import { ServerProxyService } from "./server-proxy-service.ts"
 import { config } from "../../config/google.config.ts"
 import { minimaxConfig } from "../../config/minimax.config.ts"
 import { openRouterConfig } from "../../config/openrouter.config.ts"
 import { nvidiaConfig } from "../../config/nvidia.config.ts"
+import { mergedevConfig } from "../../config/mergedev.config.ts"
 
-export type ModelProvider = "google" | "minimax" | "openrouter" | "nvidia" | "concentrateai"
+export type ModelProvider = "google" | "minimax" | "openrouter" | "nvidia" | "concentrateai" | "mergedev"
 
 export interface AIProvider {
   readonly name: string
@@ -39,6 +41,7 @@ const providerMeta: Record<ModelProvider, { env: string; label: string; defaultM
   openrouter: { env: "OPENROUTER_API_KEY", label: "OpenRouter", defaultModel: "openai/gpt-oss-120b:free", link: "https://openrouter.ai/keys" },
   nvidia: { env: "NVIDIA_API_KEY", label: "NVIDIA NIM", defaultModel: "minimaxai/minimax-m3" },
   concentrateai: { env: "CONCENTRATEAI_API_KEY", label: "ConcentrateAI", defaultModel: "deepseek-v4-flash", link: "https://concentrate.ai" },
+  mergedev: { env: "MERGE_DEV_API_KEY", label: "Merge Dev Gateway", defaultModel: "anthropic/claude-opus-4-8", link: "https://app.merge.dev" },
 }
 
 const providerConfigs: Record<ModelProvider, () => string> = {
@@ -47,6 +50,7 @@ const providerConfigs: Record<ModelProvider, () => string> = {
   openrouter: () => openRouterConfig.apiKey,
   nvidia: () => nvidiaConfig.apiKey,
   concentrateai: () => process.env.CONCENTRATEAI_API_KEY || "",
+  mergedev: () => mergedevConfig.apiKey,
 }
 
 export function createProvider(provider: ModelProvider, model?: string): AIProvider {
@@ -97,6 +101,16 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
       const svc = new ConcentrateService(model)
       return {
         name: "concentrateai",
+        modelName: svc.modelName,
+        model: svc.model,
+        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult) =>
+          svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult),
+      }
+    }
+    case "mergedev": {
+      const svc = new MergeDevService(model)
+      return {
+        name: "mergedev",
         modelName: svc.modelName,
         model: svc.model,
         sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult) =>
