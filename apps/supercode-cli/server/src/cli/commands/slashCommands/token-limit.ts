@@ -105,7 +105,7 @@ export async function tokenLimitCommand(): Promise<void> {
       const modelLabel = row.model.length > 34 ? row.model.slice(0, 31) + "..." : row.model
 
       // Opus-specific: show remaining quota
-      const isOpus = row.model === "anthropic/claude-opus-4-8"
+      const isOpus = row.model === "anthropic/claude-opus-4-8" || row.model === "anthropic/claude-opus-4-7"
       let opusInfo = ""
       if (isOpus) {
         const opusCount = await getDailyOpusCount()

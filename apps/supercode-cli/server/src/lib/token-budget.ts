@@ -33,15 +33,24 @@ function todayStart(): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
 }
 
-export async function getDailyTokenUsage(model: string): Promise<number> {
+export async function getDailyTokenUsage(model?: string): Promise<number> {
+  const where: Record<string, unknown> = { createdAt: { gte: todayStart() } }
+  if (model) where.model = model
   const result = await prisma.usageEvent.aggregate({
     _sum: { totalTokens: true },
-    where: {
-      model,
-      createdAt: { gte: todayStart() },
-    },
+    where: where as any,
   })
   return result._sum.totalTokens ?? 0
+}
+
+export async function checkDailyTokenBudget(): Promise<void> {
+  const used = await getDailyTokenUsage()
+  if (used >= DAILY_BUDGET_TOKENS) {
+    const maxMb = (DAILY_BUDGET_TOKENS / 1_000_000).toFixed(1)
+    throw new Error(
+      `Daily token budget reached (${(used / 1_000_000).toFixed(2)}M / ${maxMb}M tokens). Resets at midnight UTC.`
+    )
+  }
 }
 
 export async function getDailyOpusCount(): Promise<number> {

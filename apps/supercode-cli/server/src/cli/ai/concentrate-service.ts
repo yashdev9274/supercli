@@ -4,8 +4,10 @@ import chalk from "chalk"
 import { recordUsage } from "../../lib/track-usage"
 import { computeCost } from "../../lib/pricing"
 import { isEmptyToolResult, isDeniedToolResult, summarizeToolResult, tcName } from "./tool-result"
-import { checkDailyOpusLimit, incrementDailyOpusCount } from "../../lib/token-budget"
+import { checkDailyOpusLimit, incrementDailyOpusCount, checkDailyTokenBudget } from "../../lib/token-budget"
 
+const HIGH_VALUE_MODELS = ["anthropic/claude-fable-5", "anthropic/claude-opus-4-8", "anthropic/claude-opus-4-7"]
+const OPUS_MODELS = ["anthropic/claude-opus-4-8", "anthropic/claude-opus-4-7"]
 const OPUS_MODEL = "anthropic/claude-opus-4-8"
 
 const CONCENTRATE_API_KEY = process.env.CONCENTRATEAI_API_KEY || ""
@@ -28,13 +30,13 @@ interface NonStreamingResponse {
 }
 
 async function nonStreamingRequest(modelName: string, system: string, messages: Array<{ role: string; content: string }>): Promise<NonStreamingResponse> {
-  const body = {
+  const body: Record<string, unknown> = {
     model: modelName,
     messages: system ? [{ role: "system", content: system }, ...messages] : messages,
-    max_tokens: 8192,
     temperature: 0.7,
     stream: false,
   }
+  if (!HIGH_VALUE_MODELS.includes(modelName)) body.max_tokens = 8192
   const res = await fetchWithRetry(`${BASE_URL}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${CONCENTRATE_API_KEY}`, "Content-Type": "application/json" },
@@ -103,7 +105,8 @@ export class ConcentrateService {
       const systemMessages = messages.filter(m => m.role === "system")
       const nonSystemMessages = messages.filter(m => m.role !== "system")
       const system = systemMessages.map(m => m.content).join("\n")
-      if (this.modelName === OPUS_MODEL) {
+      await checkDailyTokenBudget()
+      if (OPUS_MODELS.includes(this.modelName)) {
         await checkDailyOpusLimit()
         await incrementDailyOpusCount()
       }
@@ -117,8 +120,8 @@ export class ConcentrateService {
           model: this.model,
           messages: nonSystemMessages,
           system,
-          maxOutputTokens: 8192,
           abortSignal: streamAbortController.signal,
+          ...(!HIGH_VALUE_MODELS.includes(this.modelName) ? { maxOutputTokens: 8192 } : {}),
         })
 
         let fullResponse = ""
@@ -209,7 +212,7 @@ export class ConcentrateService {
         messages: nonSystemMessages,
         system,
         tools,
-        maxOutputTokens: 8192,
+        ...(!HIGH_VALUE_MODELS.includes(this.modelName) ? { maxOutputTokens: 8192 } : {} as Record<string, never>),
         stopWhen: stepCountIs(8),
         abortSignal: streamAbortController.signal,
         prepareStep: async ({ messages }) => {

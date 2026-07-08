@@ -25,7 +25,9 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   "z-ai/glm-5.1":             { inputPrice: 0.10,   outputPrice: 0.40,   cachedPrice: 0 },
   "minimax-m3":               { inputPrice: 0.20,   outputPrice: 0.80,   cachedPrice: 0 },
   "meta/llama-3.3-70b-instruct": { inputPrice: 0.59, outputPrice: 0.99, cachedPrice: 0 },
+  "anthropic/claude-fable-5": { inputPrice: 10.00, outputPrice: 50.00, cachedPrice: 1.00 },
   "anthropic/claude-opus-4-8": { inputPrice: 5.00, outputPrice: 25.00, cachedPrice: 0.50 },
+  "anthropic/claude-opus-4-7": { inputPrice: 5.00, outputPrice: 25.00, cachedPrice: 0.50 },
 }
 
 export function computeCost(model: string, inputTokens: number, outputTokens: number, cachedInputTokens: number): number {
