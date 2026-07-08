@@ -117,6 +117,7 @@ export class ConcentrateService {
           model: this.model,
           messages: nonSystemMessages,
           system,
+          maxOutputTokens: 8192,
           abortSignal: streamAbortController.signal,
         })
 
@@ -208,6 +209,7 @@ export class ConcentrateService {
         messages: nonSystemMessages,
         system,
         tools,
+        maxOutputTokens: 8192,
         stopWhen: stepCountIs(8),
         abortSignal: streamAbortController.signal,
         prepareStep: async ({ messages }) => {
