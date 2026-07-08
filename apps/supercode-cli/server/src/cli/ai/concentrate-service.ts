@@ -11,6 +11,17 @@ const OPUS_MODEL = "anthropic/claude-opus-4-8"
 const CONCENTRATE_API_KEY = process.env.CONCENTRATEAI_API_KEY || ""
 const BASE_URL = "https://api.concentrate.ai/v1"
 
+const MAX_RETRIES = 3
+
+async function fetchWithRetry(url: any, init?: RequestInit): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, init)
+    if (res.ok || res.status < 500) return res
+    if (attempt >= MAX_RETRIES - 1) return res
+    await new Promise<void>(r => setTimeout(r, 1000 * Math.pow(2, attempt)))
+  }
+}
+
 interface NonStreamingResponse {
   choices?: Array<{ message?: { content?: string } }>
   usage?: { prompt_tokens?: number; completion_tokens?: number }
@@ -20,11 +31,11 @@ async function nonStreamingRequest(modelName: string, system: string, messages: 
   const body = {
     model: modelName,
     messages: system ? [{ role: "system", content: system }, ...messages] : messages,
-    max_tokens: 4096,
+    max_tokens: 8192,
     temperature: 0.7,
     stream: false,
   }
-  const res = await fetch(`${BASE_URL}/chat/completions`, {
+  const res = await fetchWithRetry(`${BASE_URL}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${CONCENTRATE_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -32,6 +43,13 @@ async function nonStreamingRequest(modelName: string, system: string, messages: 
   })
   if (!res.ok) {
     const errText = await res.text().catch(() => "unknown error")
+    if (res.status >= 500) {
+      throw new Error(
+        `ConcentrateAI is having trouble reaching this provider right now ` +
+        `(HTTP ${res.status}). This is a gateway-side issue, not your request. ` +
+        `Try again, or run /model to switch.\n  ${errText}`,
+      )
+    }
     throw new Error(`ConcentrateAI API ${res.status}: ${errText}`)
   }
   return await res.json() as NonStreamingResponse
@@ -54,6 +72,7 @@ export class ConcentrateService {
       headers: {
         Authorization: `Bearer ${CONCENTRATE_API_KEY}`,
       },
+      fetch: fetchWithRetry as typeof fetch,
     })
 
     this.model = concentrate.chatModel(this.modelName)
@@ -347,7 +366,17 @@ export class ConcentrateService {
         }
     } catch (error: any) {
       if (error?.name === "AbortError") throw error
-      console.error(chalk.red("ConcentrateAI Service Error:"), error instanceof Error ? error.message : String(error))
+      const msg = error instanceof Error ? error.message : String(error)
+      const is5xx = /ConcentrateAI (?:API )?5\d\d/.test(msg) || /status code 5\d\d/i.test(msg)
+      if (is5xx) {
+        const friendly = new Error(
+          `ConcentrateAI gateway error (HTTP 5xx). This is upstream — not your request. ` +
+          `Try again, or run /model to switch providers.\n  ${msg}`,
+        )
+        console.error(chalk.red("ConcentrateAI Service Error:"), friendly.message)
+        throw friendly
+      }
+      console.error(chalk.red("ConcentrateAI Service Error:"), msg)
       throw error
     } finally {
       clearTimeout(streamTimeout)
