@@ -11,7 +11,7 @@ const installCommands: Record<InstallMethod, { command: string; highlight: strin
   curl: { command: 'curl -fsSL https://supercli.vercel.app/install', highlight: 'supercli.vercel.app/install' },
   npm: { command: 'npm install -g supercode-cli@latest', highlight: 'supercode-cli' },
   bun: { command: 'bun install -g supercode-cli', highlight: 'supercode-cli' },
-  npx: { command: 'npx supercode-cli', highlight: 'superadd code-cli' },
+  npx: { command: 'npx supercode-cli', highlight: 'supercode-cli' },
   brew: { command: 'brew install supercode', highlight: 'supercode' },
 };
 
@@ -45,7 +45,7 @@ const HeroSection = () => {
           {/* Version tag */}
           <div className="flex justify-center mb-4">
             <div className="px-3 py-1 bg-primary/10 text-primary text-[12px] font-mono rounded-md">
-              v0.1.42-beta
+              v0.1.56-beta
             </div>
           </div>
 
@@ -88,12 +88,12 @@ const HeroSection = () => {
                     }`}
                   >
                     {method}
-                    {(method === 'npm' || method === 'npx') && (
+                    {/* {(method === 'npm' || method === 'npx') && (
                       <span className="ml-1.5 px-1.5 py-0.5 text-[10px] bg-primary/20 text-primary rounded font-semibold leading-none">live</span>
                     )}
                     {activeMethod === method && (
                       <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />
-                    )}
+                    )} */}
                   </button>
                 ))}
               </div>
