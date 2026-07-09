@@ -170,6 +170,7 @@ const Navbar = () => {
   ]
 
   return (
+    <>
     <header className="fixed top-0 left-0 right-0 z-[100]">
       <BetaCountdownBanner onVisibilityChange={handleBannerChange} />
       <div className={`bg-background/95 backdrop-blur-sm transition-all duration-300 ${bannerVisible ? "border-t-0" : ""}`}>
@@ -312,6 +313,19 @@ const Navbar = () => {
         </nav>
       </div>
     </header>
+
+    <div className="fixed top-[114px] left-0 right-0 z-50 flex items-center justify-center px-4">
+      <div className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[13px] font-mono animate-in fade-in slide-in-from-top-2 duration-500">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+        <span>
+          Unexpected spike in user growth &amp; Opus usage — Opus is temporarily down.
+          We&apos;re working on it. Use{" "}
+          <span className="text-amber-300 font-semibold">frontier open models</span> through Concentrate AI in the
+          meantime.
+        </span>
+      </div>
+    </div>
+    </>
   )
 }
 
