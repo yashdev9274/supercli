@@ -195,7 +195,7 @@ export default function ComparePage() {
             transition={{ duration: 0.6, ease: [0.23, 1, 0.32, 1] }}
           >
             <span className="inline-block text-[12px] font-mono uppercase tracking-[0.25em] text-primary mb-6">
-              $ Supercode v0.1.14
+              $ Supercode v0.1.56
             </span>
             <h1 className="text-[48px] md:text-[72px] text-[#A1A1AA] font-semibold tracking-tight leading-[1.05] mb-6">
               <span className="inline-flex items-baseline gap-1">

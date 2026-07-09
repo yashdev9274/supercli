@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
 import BetaCountdownBanner from "./beta-countdown-banner"
+import { Button } from "../ui/button"
 
 const DOCS_URL =
   process.env.NEXT_PUBLIC_DOCS_URL || "http://localhost:3001/docs/intro"
@@ -227,11 +228,23 @@ const Navbar = () => {
           )}
         </nav>
 
-        <Link
-          href="/login"
+        {/* <Link
+          href="/"
           className="px-5 py-2.5 bg-card border border-border text-foreground rounded-lg text-[14px] font-medium hover:bg-accent transition-colors font-mono"
         >
+          href="/login"
+          
           Login
+        </Link> */}
+        <Link href="/download">
+          <Button className="bg-white text-black hover:bg-white/90 active:scale-[0.97] cursor-pointer group">
+            <svg className="w-4 h-4 transition-transform duration-[160ms] group-hover:translate-y-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Download
+          </Button>
         </Link>
       </div>
       </div>
