@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises"
+import { readFile, readdir } from "node:fs/promises"
 import { existsSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -38,5 +38,21 @@ export function loadPromptSync(name: string): string | undefined {
     return require("node:fs").readFileSync(p, "utf-8") as string
   } catch {
     return undefined
+  }
+}
+
+/**
+ * List all available prompt names (without .txt extension).
+ * Returns names in sorted order. Useful for validation and debugging.
+ */
+export async function listPrompts(): Promise<string[]> {
+  try {
+    const files = await readdir(PROMPTS_DIR)
+    return files
+      .filter((f) => f.endsWith(".txt"))
+      .map((f) => f.replace(/\.txt$/, ""))
+      .sort()
+  } catch {
+    return []
   }
 }

@@ -370,12 +370,13 @@ const DEFAULT_RULES: RulesetArray = [
 
 let sessionSavedRules: RulesetArray = []
 
-// ---- Current-agent thread-local ----
+// ---- Current-agent and parent-agent thread-local ----
 //
-// Wrapped tools set this so permissionManager.check() can scope its ruleset
-// to the calling agent without having to thread agentName through every
-// call site (AI SDK execute signatures don't pass it).
+// Wrapped tools set these so permissionManager.check() can scope its
+// ruleset to the calling agent chain (agent + its parent) without
+// having to thread agentName through every call site.
 let currentAgent: string | undefined = undefined
+let parentAgent: string | undefined = undefined
 
 export function setCurrentAgent(name: string | undefined): void {
   currentAgent = name
@@ -383,6 +384,14 @@ export function setCurrentAgent(name: string | undefined): void {
 
 export function getCurrentAgent(): string | undefined {
   return currentAgent
+}
+
+export function setParentAgent(name: string | undefined): void {
+  parentAgent = name
+}
+
+export function getParentAgent(): string | undefined {
+  return parentAgent
 }
 
 // ---- Resource extraction ----
@@ -447,11 +456,24 @@ export class PermissionManager {
     // 2. Extract resource
     const resource = getResource(toolName, args)
 
-    // 3. Resolve agent ruleset (if a subagent is the caller)
+    // 3. Resolve agent ruleset (if a subagent is the caller).
+    //    If a parent agent is set, merge parent + child rules so the
+    //    parent's DENY always overrides the child's ALLOW.
     const resolvedAgent = opts.agentName ?? currentAgent
-    const agentRuleset = resolvedAgent
-      ? agentService.get(resolvedAgent)?.info.permission
-      : undefined
+    const resolvedParent = parentAgent
+    let agentRuleset: RulesetArray | undefined
+
+    if (resolvedAgent && resolvedParent) {
+      // Merge parent + child with parent-deny inheritance
+      const childRules = agentService.get(resolvedAgent)?.info.permission
+      const parentRules = agentService.get(resolvedParent)?.info.permission
+      if (childRules || parentRules) {
+        const { mergeParentChildPermissions } = await import("src/agent/subagent-permissions")
+        agentRuleset = mergeParentChildPermissions(childRules, parentRules)
+      }
+    } else if (resolvedAgent) {
+      agentRuleset = agentService.get(resolvedAgent)?.info.permission
+    }
 
     // 4. Evaluate rules — order matters (later rules override earlier,
     //    via findLast):

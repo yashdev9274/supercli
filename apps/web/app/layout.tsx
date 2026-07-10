@@ -5,6 +5,7 @@ import { QueryProvider } from "@/components/providers/query-provider";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Toaster } from "sonner";
+import LaunchBanner from "@/components/launch-banner";
 
 export const metadata: Metadata = {
   title: "Supercode - The open source SWE agent",
@@ -42,6 +43,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased">
+        <LaunchBanner />
         <QueryProvider>
           <ThemeProvider
             attribute="class"

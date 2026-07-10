@@ -89,19 +89,33 @@
     },
     "apps/supercode-cli/server": {
       "name": "supercode-cli",
-      "version": "0.1.41",
+      "version": "0.1.56",
       "bin": {
         "supercode": "dist/main.js",
       },
       "dependencies": {
+        "@ai-sdk/google": "^3.0.80",
         "@ai-sdk/openai-compatible": "^2.0.48",
         "@prisma/adapter-pg": "^7.8.0",
         "@prisma/client": "^7.8.0",
         "@prisma/client-runtime-utils": "^7.8.0",
         "@prisma/driver-adapter-utils": "^7.8.0",
+        "ai": "^6.0.195",
+        "better-auth": "^1.5.5",
+        "boxen": "^8.0.1",
+        "chalk": "^5.6.2",
+        "commander": "^15.0.0",
+        "cors": "^2.8.5",
+        "express": "^5.1.0",
+        "marked": "^18.0.4",
+        "marked-terminal": "^7.3.0",
+        "open": "^11.0.0",
+        "vercel-minimax-ai-provider": "^0.0.2",
+        "yocto-spinner": "^1.2.0",
+        "zod": "^3.25.2",
+        "zod-to-json-schema": "^3.25.2",
       },
       "devDependencies": {
-        "@ai-sdk/google": "^3.0.80",
         "@clack/prompts": "^1.5.0",
         "@openrouter/ai-sdk-provider": "^2.9.0",
         "@openrouter/sdk": "^0.12.79",
@@ -111,25 +125,11 @@
         "@types/express": "^5.0.0",
         "@types/node": "^22.0.0",
         "@types/pg": "^8.18.0",
-        "ai": "^6.0.195",
         "api": "^6.1.3",
-        "better-auth": "^1.5.5",
-        "boxen": "^8.0.1",
-        "chalk": "^5.6.2",
-        "commander": "^15.0.0",
-        "cors": "^2.8.5",
         "dotenv": "^17.3.1",
-        "express": "^5.1.0",
-        "marked": "^18.0.4",
-        "marked-terminal": "^7.3.0",
         "oas": "^34.0.1",
-        "open": "^11.0.0",
         "prisma": "^7.4.2",
         "typescript": "^5.7.0",
-        "vercel-minimax-ai-provider": "^0.0.2",
-        "yocto-spinner": "^1.2.0",
-        "zod": "^3.25.2",
-        "zod-to-json-schema": "^3.25.2",
       },
     },
     "apps/superdesign": {
@@ -2425,7 +2425,7 @@
 
     "is-plain-obj": ["is-plain-obj@4.1.0", "", {}, "sha512-+Pgi+vMuUNkJyExiMBt5IlFoMyKnr5zhJ4Uspz58WOhBF5QoIZkFyNHIbBAtHwzVAgk5RtndVNsDRN61/mmDqg=="],
 
-    "is-promise": ["is-promise@4.0.0", "", {}, "sha512-hvpoI6korhJMnej285dSg6nu1+e6uxs7zG3BYAm5byqDsgJNWwxzM6z6iZiAgQR4TJ30JmBTOwqZUw3WlyH3AQ=="],
+    "is-promise": ["is-promise@2.2.2", "", {}, "sha512-+lP4/6lKUBfQjZ2pdxThZvLUAafmZb8OAxFb8XXtiQmS35INgr85hdOGoEs124ez1FCnZJt6jau/T+alh58QFQ=="],
 
     "is-property": ["is-property@1.0.2", "", {}, "sha512-Ks/IoX00TtClbGQr4TWXemAnktAQvYB7HzcCxDGqEZU6oCmb2INHuOoKxbtR+HFkmYWBKv/dOZtGRiAjDhj92g=="],
 
@@ -4143,8 +4143,6 @@
 
     "make-dir/semver": ["semver@6.3.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA=="],
 
-    "memoizee/is-promise": ["is-promise@2.2.2", "", {}, "sha512-+lP4/6lKUBfQjZ2pdxThZvLUAafmZb8OAxFb8XXtiQmS35INgr85hdOGoEs124ez1FCnZJt6jau/T+alh58QFQ=="],
-
     "micro/content-type": ["content-type@1.0.4", "", {}, "sha512-hIP3EEPs8tB9AT1L+NUqtwOAps4mk2Zob89MWXMHjHWg9milF/j4osnnQLXBCBFBk/tvIG/tUc9mOUJiPBhPXA=="],
 
     "micro/raw-body": ["raw-body@2.4.1", "", { "dependencies": { "bytes": "3.1.0", "http-errors": "1.7.3", "iconv-lite": "0.4.24", "unpipe": "1.0.0" } }, "sha512-9WmIKF6mkvA0SLmA2Knm9+qj89e+j1zqgyn8aXGd7+nAduPoqgI9lO57SAZNn/Byzo5P7JhXTyg9PzaJbH73bA=="],
@@ -4224,6 +4222,8 @@
     "react-transition-group/@babel/runtime": ["@babel/runtime@7.28.4", "", {}, "sha512-Q/N6JNWvIvPnLDvjlE1OUBLPQHH6l3CltCEsHIujp45zQUSSh8K+gHnaEX45yAT1nyngnINhvWtzN+Nb9D8RAQ=="],
 
     "recast/source-map": ["source-map@0.6.1", "", {}, "sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g=="],
+
+    "router/is-promise": ["is-promise@4.0.0", "", {}, "sha512-hvpoI6korhJMnej285dSg6nu1+e6uxs7zG3BYAm5byqDsgJNWwxzM6z6iZiAgQR4TJ30JmBTOwqZUw3WlyH3AQ=="],
 
     "router/path-to-regexp": ["path-to-regexp@8.3.0", "", {}, "sha512-7jdwVIRtsP8MYpdXSwOS0YdD0Du+qOoF/AEPIt88PcCFrZCzx41oxku1jD88hZBwbNUIEfpqvuhjFaMAqMTWnA=="],
 
