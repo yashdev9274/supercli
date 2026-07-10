@@ -218,4 +218,90 @@ export function countDiff(
   return { adds, dels }
 }
 
+/**
+ * Render a `read_file` snapshot — path + first N lines of content.
+ */
+export function renderReadSnapshot(path: string, content: string): string[] {
+  const lines: string[] = []
+  lines.push(`${RAIL}     ${chalk.hex("#7a8a82").bold(`📄 ${path}`)}     ${chalk.hex(theme.muted)(`${content.split("\n").length} lines`)}`)
+
+  const split = content.split("\n")
+  const padWidth = String(split.length).length
+  const visible = split.length > 16 ? split.slice(0, 16) : split
+
+  for (let i = 0; i < visible.length; i++) {
+    const num = chalk.hex(theme.greenDim)(String(i + 1).padStart(padWidth, " "))
+    const text = truncate(visible[i] ?? "", MAX_COLS)
+    lines.push(`${RAIL}       ${num} ${text}`)
+  }
+  if (split.length > 16) {
+    lines.push(`${RAIL}       ${SUB} ${chalk.hex(theme.muted)(`… ${split.length - 16} more lines`)}`)
+  }
+  return lines
+}
+
+/**
+ * Render a `search_files` (grep) snapshot — matches grouped by file.
+ */
+export function renderSearchSnapshot(
+  query: string,
+  results: Array<{ file: string; line: number; content: string }>,
+  totalCount: number,
+): string[] {
+  const lines: string[] = []
+  lines.push(`${RAIL}     ${chalk.hex("#7a8a82").bold(`🔍 ${query}`)}     ${chalk.hex(theme.muted)(`${totalCount} match${totalCount === 1 ? "" : "es"} in ${new Set(results.map((r) => r.file)).size} file${new Set(results.map((r) => r.file)).size === 1 ? "" : "s"}`)}`)
+
+  // Show up to 4 matches inline
+  const visible = results.slice(0, 4)
+  for (const r of visible) {
+    const loc = chalk.hex(theme.greenDim)(`${r.file}:${r.line}`)
+    const text = truncate(r.content, MAX_COLS)
+    lines.push(`${RAIL}       ${loc}  ${text}`)
+  }
+  if (results.length > 4) {
+    lines.push(`${RAIL}       ${SUB} ${chalk.hex(theme.muted)(`… ${results.length - 4} more matches`)}`)
+  }
+  return lines
+}
+
+/**
+ * Render a `glob` snapshot — matching file paths.
+ */
+export function renderGlobSnapshot(pattern: string, files: string[]): string[] {
+  const lines: string[] = []
+  lines.push(`${RAIL}     ${chalk.hex("#7a8a82").bold(`📁 ${pattern}`)}     ${chalk.hex(theme.muted)(`${files.length} file${files.length === 1 ? "" : "s"}`)}`)
+
+  const visible = files.slice(0, 6)
+  for (const f of visible) {
+    lines.push(`${RAIL}       ${chalk.hex(theme.white)(f)}`)
+  }
+  if (files.length > 6) {
+    lines.push(`${RAIL}       ${SUB} ${chalk.hex(theme.muted)(`… ${files.length - 6} more`)}`)
+  }
+  return lines
+}
+
+/**
+ * Render a `web_search` snapshot — search result titles + URLs.
+ */
+export function renderWebSearchSnapshot(
+  query: string,
+  results: Array<{ title: string; url?: string }>,
+): string[] {
+  const lines: string[] = []
+  lines.push(`${RAIL}     ${chalk.hex("#5ec27e").bold(`🌐 Search: ${query}`)}     ${chalk.hex(theme.muted)(`${results.length} result${results.length === 1 ? "" : "s"}`)}`)
+
+  const visible = results.slice(0, 4)
+  for (const r of visible) {
+    lines.push(`${RAIL}       ${chalk.hex(theme.white)(truncate(r.title, MAX_COLS))}`)
+    if (r.url) {
+      lines.push(`${RAIL}       ${chalk.hex(theme.muted)(truncate(r.url, MAX_COLS))}`)
+    }
+  }
+  if (results.length > 4) {
+    lines.push(`${RAIL}       ${SUB} ${chalk.hex(theme.muted)(`… ${results.length - 4} more results`)}`)
+  }
+  return lines
+}
+
 export { formatBytes }

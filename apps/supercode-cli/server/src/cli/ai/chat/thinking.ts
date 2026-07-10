@@ -29,55 +29,110 @@ export function extractToolArg(toolName: string, args: unknown): string | undefi
 
 export function toolLabel(toolName: string, args?: unknown): string {
   const arg = extractToolArg(toolName, args)
-  const { chip, verb, color } = chipFor(toolName)
-  const chipStr = chalk.bgHex(color).hex("#0d1117").bold(` ${chip} `)
+  const { verb, color } = describeTool(toolName, arg)
   if (arg) {
-    return ` ${chipStr} ${chalk.hex(theme.greenMute)(truncateStr(arg, 80))}`
+    return `${chalk.hex(color)(verb)}`
   }
   if (args && typeof args === "object" && Object.keys(args).length > 0) {
     const json = JSON.stringify(args).slice(0, 80)
-    return ` ${chipStr} ${chalk.hex(theme.muted)(json)}`
+    return `${chalk.hex(color)(verb)} ${chalk.hex(theme.muted)(json)}`
   }
-  const errChip = chalk.bgHex("#5a1a1a").hex("#ffffff").bold(` ${chip} `)
-  return ` ${errChip} ${chalk.hex(theme.red)(`(${verb} missing arguments — model bug)`)}`
+  return `${chalk.hex(theme.red)(`(${toolName} missing arguments — model bug)`)}`
 }
 
-// Per-tool chip label + accent color. Mirrors the design language in
-// apps/supercode-cli/plan/feat/cli/cmd.png.
-function chipFor(toolName: string): { chip: string; verb: string; color: string } {
-  switch (toolName) {
-    case "write_file":
-      return { chip: "WRITE", verb: "write", color: "#1f3a2c" }
-    case "edit_file":
-      return { chip: "EDIT", verb: "edit", color: "#3a2e1a" }
+// ─── Tool-type sections ────────────────────────────────────────────────────
+//
+// Tools are classified into thematic categories so the expanded thought block
+// can group e.g. all read_file calls under "Files read [N]:".
+//
+export type ToolCategory = "read" | "edit" | "web" | "command" | "meta"
+
+export const CATEGORY_ORDER: ToolCategory[] = ["read", "command", "edit", "web", "meta"]
+
+export const CATEGORY_LABELS: Record<ToolCategory, string> = {
+  read: "Files read",
+  edit: "Changes",
+  web: "Web searches",
+  command: "Commands",
+  meta: "Agent",
+}
+
+export const CATEGORY_COLORS: Record<ToolCategory, string> = {
+  read: "#7a8a82",
+  edit: "#f0b87c",
+  web: "#5ec27e",
+  command: "#a5d6ff",
+  meta: theme.muted,
+}
+
+export function categorizeTool(name: string): ToolCategory {
+  switch (name) {
     case "read_file":
-      return { chip: "READ", verb: "read", color: "#2a2440" }
     case "search_files":
-      return { chip: "GREP", verb: "search", color: "#2a2440" }
-    case "url_fetch":
-      return { chip: "FETCH", verb: "fetch", color: "#2a2440" }
+    case "glob":
+      return "read"
+    case "edit_file":
+    case "write_file":
+      return "edit"
     case "web_search":
-      return { chip: "SEARCH", verb: "search", color: "#2a2440" }
+    case "url_fetch":
     case "firecrawl_search":
-      return { chip: "FC-SEARCH", verb: "search", color: "#1a3a2a" }
     case "firecrawl_scrape":
-      return { chip: "FC-SCRAPE", verb: "scrape", color: "#1a3a2a" }
     case "firecrawl_map":
-      return { chip: "FC-MAP", verb: "map", color: "#1a3a2a" }
+      return "web"
     case "run_command":
-      return { chip: "BASH", verb: "run", color: "#1a2e3a" }
     case "code_exec":
-      return { chip: "EXEC", verb: "exec", color: "#1a2e3a" }
-    case "switch_to_agent_mode":
-      return { chip: "MODE", verb: "switch", color: "#2a2440" }
-    case "delegate":
-      return { chip: "DELEGATE", verb: "delegate", color: "#2a2440" }
-    case "task":
-      return { chip: "TASK", verb: "task", color: "#2a2440" }
-    case "read_instructions":
-      return { chip: "INSTRUCT", verb: "read", color: "#2a2440" }
+      return "command"
     default:
-      return { chip: toolName.toUpperCase().slice(0, 8), verb: toolName, color: "#2a2440" }
+      return "meta"
+  }
+}
+
+export function groupToolsByCategory(tools: ThoughtTool[]): Map<ToolCategory, ThoughtTool[]> {
+  const map = new Map<ToolCategory, ThoughtTool[]>()
+  for (const t of tools) {
+    const cat = categorizeTool(t.name)
+    const arr = map.get(cat) ?? []
+    arr.push(t)
+    map.set(cat, arr)
+  }
+  return map
+}
+
+function describeTool(toolName: string, arg?: string): { verb: string; color: string } {
+  switch (toolName) {
+    case "read_file":
+      return { verb: arg ? `Read ${arg}` : "Read file", color: "#7a8a82" }
+    case "edit_file":
+      return { verb: arg ? `Edit ${arg}` : "Edit file", color: "#f0b87c" }
+    case "write_file":
+      return { verb: arg ? `Write ${arg}` : "Write file", color: "#7ee2a8" }
+    case "search_files":
+      return { verb: arg ? `Search ${arg}` : "Search files", color: "#7a8a82" }
+    case "url_fetch":
+      return { verb: arg ? `Fetch ${arg}` : "Fetch URL", color: "#7a8a82" }
+    case "web_search":
+      return { verb: arg ? `Search web for ${arg}` : "Search web", color: "#5ec27e" }
+    case "firecrawl_search":
+      return { verb: arg ? `Search ${arg}` : "Search", color: "#5ec27e" }
+    case "firecrawl_scrape":
+      return { verb: arg ? `Scrape ${arg}` : "Scrape", color: "#5ec27e" }
+    case "firecrawl_map":
+      return { verb: arg ? `Map ${arg}` : "Map site", color: "#5ec27e" }
+    case "run_command":
+      return { verb: arg ? `$ ${arg}` : "Run command", color: "#a5d6ff" }
+    case "code_exec":
+      return { verb: arg ? `Exec ${arg}` : "Execute code", color: "#a5d6ff" }
+    case "delegate":
+      return { verb: arg ? `Delegate: ${arg}` : "Delegate", color: theme.muted }
+    case "task":
+      return { verb: arg ? `Task: ${arg}` : "Task", color: theme.muted }
+    case "read_instructions":
+      return { verb: "Read instructions", color: "#7a8a82" }
+    case "switch_to_agent_mode":
+      return { verb: arg ? `Switch to ${arg}` : "Switch mode", color: theme.muted }
+    default:
+      return { verb: arg ? `${toolName} ${arg}` : toolName, color: "#7a8a82" }
   }
 }
 
@@ -125,6 +180,8 @@ export class ThinkingDisplay {
   private toolCount = 0
   // Once true, the spinner stays off — we already emitted the assistant header.
   private headerEmitted = false
+  private stepNumber = 0
+  private maxSteps = 8
 
   markHeaderEmitted() {
     this.headerEmitted = true
@@ -187,14 +244,27 @@ export class ThinkingDisplay {
     this.chain.begin()
   }
 
+  setStepCount(step: number) {
+    this.stepNumber = step
+    if (this.running) this.refreshLabel()
+  }
+
+  setMaxSteps(n: number) {
+    this.maxSteps = n
+    if (this.running) this.refreshLabel()
+  }
+
   private refreshLabel() {
     if (!this.running) return
     const elapsed = Date.now() - this.thoughtStartTime
     const time = elapsed < 1000 ? `${elapsed}ms` : `${(elapsed / 1000).toFixed(1)}s`
+    const stepStr = this.stepNumber > 0
+      ? `Step ${this.stepNumber}/${this.maxSteps} · `
+      : ""
     if (this.currentPhase === "tool") {
-      this.currentLabel = `${this.currentToolName} · ${time}`
+      this.currentLabel = `${stepStr}${this.currentToolName} · ${time}`
     } else {
-      this.currentLabel = `Thinking · ${time}`
+      this.currentLabel = `${stepStr}Waiting for model · ${time}`
     }
     this.renderSpinner()
   }
@@ -359,11 +429,15 @@ export interface ThoughtTool {
   // Drives the red ✗ marker in the live per-step block and forces the block
   // to stay expanded on finish so the user can see what failed.
   flagged?: boolean
+  // Snapshot lines (e.g. diff, file content, command output) captured at tool
+  // completion time, rendered when the thought block is expanded.
+  snapshot?: string[]
 }
 
 export interface ThoughtEntry {
   body: string
   tools: ThoughtTool[]
+  subThoughts: ThoughtEntry[]
   startTime: number
   endTime: number | null
   collapsed: boolean
@@ -382,13 +456,23 @@ export interface ThoughtEntry {
 
 export class ThoughtChain {
   thoughts: ThoughtEntry[] = []
-  private current: ThoughtEntry | null = null
+  current: ThoughtEntry | null = null
+  private buffered: boolean
+
+  constructor(buffered = false) {
+    this.buffered = buffered
+  }
+
+  get isOpen(): boolean {
+    return this.current?.openInProgress ?? false
+  }
 
   begin(): ThoughtEntry {
     if (this.current) this.finish()
     const entry: ThoughtEntry = {
       body: "",
       tools: [],
+      subThoughts: [],
       startTime: Date.now(),
       endTime: null,
       collapsed: false,
@@ -455,34 +539,38 @@ export class ThoughtChain {
   // All three are no-ops when stdout isn't a TTY (the chat loop already
   // captures the alternative plain-text path via printUnified).
   beginAndPrint(): ThoughtEntry | null {
-    if (!process.stdout.isTTY) return null
+    if (!this.buffered && !process.stdout.isTTY) return null
     const entry = this.begin()
     entry.openInProgress = true
-    const elapsedStr = "0.0s"
-    const indent = chalk.hex(theme.greenDim)("┃")
-    const toggle = chalk.hex(theme.greenGlow)("▼")
-    const label = chalk.hex(theme.greenMute)("Thought")
-    const time = chalk.hex(theme.greenDim)(elapsedStr)
-    process.stdout.write(
-      `${indent} ${toggle} ${label} ${chalk.hex(theme.greenDim)("·")} ${time}\n`,
-    )
+    if (!this.buffered) {
+      const elapsedStr = "0.0s"
+      const indent = chalk.hex(theme.greenDim)("┃")
+      const toggle = chalk.hex(theme.greenGlow)("▼")
+      const label = chalk.hex(theme.greenMute)("Thought")
+      const time = chalk.hex(theme.greenDim)(elapsedStr)
+      process.stdout.write(
+        `${indent} ${toggle} ${label} ${chalk.hex(theme.greenDim)("·")} ${time}\n`,
+      )
+    }
     entry.printed = true
     return entry
   }
 
   printToolRow(name: string, args?: unknown, flagged = false): void {
-    if (!process.stdout.isTTY) return
+    if (!this.buffered && !process.stdout.isTTY) return
     if (!this.current || !this.current.openInProgress) return
-    const indent = chalk.hex(theme.greenDim)("┃")
-    const argsSerialized =
-      typeof args === "string" ? safeParse(args) : args
-    const row = toolLabel(name, argsSerialized)
-    // Red ✗ marker after the tool label when the call was denied or returned
-    // empty/error. Small visual hint that this row is the failure case.
-    const marker = flagged
-      ? ` ${chalk.hex(theme.red)("✗")}`
-      : ""
-    process.stdout.write(`${indent}   ${row}${marker}\n`)
+    if (!this.buffered) {
+      const indent = chalk.hex(theme.greenDim)("┃")
+      const argsSerialized =
+        typeof args === "string" ? safeParse(args) : args
+      const row = toolLabel(name, argsSerialized)
+      // Red ✗ marker after the tool label when the call was denied or returned
+      // empty/error. Small visual hint that this row is the failure case.
+      const marker = flagged
+        ? ` ${chalk.hex(theme.red)("✗")}`
+        : ""
+      process.stdout.write(`${indent}   ${row}${marker}\n`)
+    }
     // Keep entry.tools in sync so Ctrl+T toggle re-render matches what we
     // just printed.
     const serializedArgs =
@@ -494,7 +582,7 @@ export class ThoughtChain {
   }
 
   finishAndPrint(opts?: { autoCollapse?: boolean; keepExpanded?: boolean }): void {
-    if (!process.stdout.isTTY) return
+    if (!this.buffered && !process.stdout.isTTY) return
     if (!this.current) return
     const entry = this.current
     entry.endTime = Date.now()
@@ -506,44 +594,196 @@ export class ThoughtChain {
     const elapsedStr =
       elapsedMs < 1000 ? `${elapsedMs}ms` : `${(elapsedMs / 1000).toFixed(1)}s`
 
-    const indent = chalk.hex(theme.greenDim)("┃")
-    // Toggle: when auto-collapsing, move ▼ to +. When keeping open, keep ▼.
-    const toggle = entry.collapsed
-      ? chalk.hex(theme.greenGlow)("+")
-      : chalk.hex(theme.greenGlow)("▼")
-    const label = chalk.hex(theme.greenMute)("Thought")
-    const time = chalk.hex(theme.greenDim)(elapsedStr)
-    process.stdout.write(
-      `${indent} ${toggle} ${label} ${chalk.hex(theme.greenDim)("·")} ${time}\n`,
-    )
+    if (!this.buffered) {
+      const indent = chalk.hex(theme.greenDim)("┃")
+      // Toggle: when auto-collapsing, move ▼ to +. When keeping open, keep ▼.
+      const toggle = entry.collapsed
+        ? chalk.hex(theme.greenGlow)("+")
+        : chalk.hex(theme.greenGlow)("▼")
+      const label = chalk.hex(theme.greenMute)("Thought")
+      const time = chalk.hex(theme.greenDim)(elapsedStr)
+      process.stdout.write(
+        `${indent} ${toggle} ${label} ${chalk.hex(theme.greenDim)("·")} ${time}\n`,
+      )
 
-    // When auto-collapsed we show a summary line; when expanded we reprint
-    // each tool so the user can see exactly what was called (with ✗ markers
-    // for denied/empty rows).
-    if (entry.collapsed) {
-      if (entry.tools.length > 0) {
-        const okCount = entry.tools.filter((t) => !t.flagged).length
-        const flaggedCount = entry.tools.filter((t) => t.flagged).length
-        const summary =
-          flaggedCount > 0
-            ? `${okCount} ok · ${chalk.hex(theme.red)(`${flaggedCount} failed`)}`
-            : `${entry.tools.length} tool call${entry.tools.length === 1 ? "" : "s"}`
-        process.stdout.write(
-          `${indent}   ${chalk.hex(theme.greenDim)("↳")} ${chalk.hex(theme.greenMute)(summary)}\n`,
-        )
-      }
-    } else {
-      // Expanded — list each tool row, with ✗ for flagged ones.
-      for (const t of entry.tools) {
-        const argsParsed =
-          typeof t.args === "string" ? safeParse(t.args) : t.args
-        const row = toolLabel(t.name, argsParsed)
-        const marker = t.flagged ? ` ${chalk.hex(theme.red)("✗")}` : ""
-        process.stdout.write(`${indent}   ${row}${marker}\n`)
+      // When auto-collapsed we show a summary line; when expanded we reprint
+      // each tool so the user can see exactly what was called (with ✗ markers
+      // for denied/empty rows), followed by snapshots and sub-thoughts.
+      if (entry.collapsed) {
+        this.writeCollapsedSummary(entry, indent)
+      } else {
+        this.writeExpandedDetail(entry, indent)
       }
     }
     entry.printed = true
     this.current = null
+  }
+
+  private writeCollapsedSummary(entry: ThoughtEntry, indent: string): void {
+    const subCount = entry.subThoughts.length
+    if (entry.tools.length > 0) {
+      // Per-category summary counts
+      const groups = groupToolsByCategory(entry.tools)
+      const parts: string[] = []
+      let hasFailures = false
+      for (const cat of CATEGORY_ORDER) {
+        const tools = groups.get(cat)
+        if (!tools || tools.length === 0) continue
+        const label = CATEGORY_LABELS[cat].toLowerCase()
+        const flaggedCount = tools.filter((t) => t.flagged).length
+        if (flaggedCount > 0) {
+          const okCount = tools.length - flaggedCount
+          if (okCount > 0) {
+            parts.push(`${okCount} ${label}`)
+          }
+          parts.push(`${chalk.hex(theme.red)(`${flaggedCount} failed`)}`)
+          hasFailures = true
+        } else {
+          parts.push(`${tools.length} ${label}`)
+        }
+      }
+      const summary = hasFailures
+        ? parts.join(" · ")
+        : parts.join(" · ")
+      const hint = subCount > 0
+        ? ` ${chalk.hex(theme.greenDim)("[Ctrl+X]")}`
+        : ` ${chalk.hex(theme.greenDim)("[Ctrl+T]")}`
+      process.stdout.write(
+        `${indent}   ${chalk.hex(theme.greenDim)("↳")} ${chalk.hex(theme.greenMute)(summary)}${hint}\n`,
+      )
+    }
+    if (subCount > 0) {
+      const subToolCount = entry.subThoughts.reduce((n, s) => n + s.tools.length, 0)
+      process.stdout.write(
+        `${indent}   ${chalk.hex(theme.greenDim)("↳")} ${chalk.hex(theme.greenMute)(`${subCount} explore step${subCount === 1 ? "" : "s"} · ${subToolCount} tool call${subToolCount === 1 ? "" : "s"}`)}\n`,
+      )
+    }
+  }
+
+  private writeExpandedDetail(entry: ThoughtEntry, indent: string): void {
+    // Tool rows grouped by category
+    const groups = groupToolsByCategory(entry.tools)
+    let groupIdx = 0
+    for (const cat of CATEGORY_ORDER) {
+      const tools = groups.get(cat)
+      if (!tools || tools.length === 0) continue
+      if (groupIdx > 0) process.stdout.write("\n")
+      groupIdx++
+      // Section header only when 2+ tools in the group
+      if (tools.length > 1) {
+        const label = CATEGORY_LABELS[cat]
+        const color = CATEGORY_COLORS[cat]
+        process.stdout.write(
+          `${indent}   ${chalk.hex(color)(`${label} [${tools.length}]:`)}\n`,
+        )
+      }
+      for (const t of tools) {
+        const argsParsed =
+          typeof t.args === "string" ? safeParse(t.args) : t.args
+        const { verb, color } = describeTool(
+          t.name,
+          extractToolArg(t.name, argsParsed),
+        )
+        const marker = t.flagged ? ` ${chalk.hex(theme.red)("✗")}` : ""
+        process.stdout.write(`${indent}     ${chalk.hex(color)(verb)}${marker}\n`)
+        if (t.snapshot) {
+          for (const snapLine of t.snapshot) {
+            process.stdout.write(snapLine + "\n")
+          }
+        }
+      }
+    }
+    // Blank line before sub-thoughts if there are any tools shown
+    if (entry.tools.length > 0 && entry.subThoughts.length > 0) process.stdout.write("\n")
+    // Sub-thoughts nested under this entry
+    this.writeSubThoughts(entry.subThoughts, indent)
+  }
+
+  private writeSubThoughts(subThoughts: ThoughtEntry[], indent: string): void {
+    for (const sub of subThoughts) {
+      const subElapsed = sub.endTime
+        ? sub.endTime - sub.startTime
+        : 0
+      const subElapsedStr =
+        subElapsed < 1000 ? `${subElapsed}ms` : `${(subElapsed / 1000).toFixed(1)}s`
+
+      const subToggle = sub.collapsed
+        ? chalk.hex(theme.greenGlow)("+")
+        : chalk.hex(theme.greenGlow)("▼")
+      const subLabel = chalk.hex(theme.greenMute)("Explore")
+      process.stdout.write(
+        `${indent}   ${subToggle} ${subLabel} ${chalk.hex(theme.greenDim)("·")} ${subElapsedStr}\n`,
+      )
+
+      if (sub.collapsed) {
+        // Summary line for collapsed sub-thought — per-category counts
+        const groups = groupToolsByCategory(sub.tools)
+        const parts: string[] = []
+        let hasFailures = false
+        for (const cat of CATEGORY_ORDER) {
+          const tools = groups.get(cat)
+          if (!tools || tools.length === 0) continue
+          const label = CATEGORY_LABELS[cat].toLowerCase()
+          const flaggedCount = tools.filter((t) => t.flagged).length
+          if (flaggedCount > 0) {
+            const okCount = tools.length - flaggedCount
+            if (okCount > 0) parts.push(`${okCount} ${label}`)
+            parts.push(`${chalk.hex(theme.red)(`${flaggedCount} failed`)}`)
+            hasFailures = true
+          } else {
+            parts.push(`${tools.length} ${label}`)
+          }
+        }
+        const summary = parts.length > 0 ? parts.join(" · ") : `${sub.tools.length} tool call${sub.tools.length === 1 ? "" : "s"}`
+        process.stdout.write(
+          `${indent}     ${chalk.hex(theme.greenDim)("↳")} ${chalk.hex(theme.greenMute)(summary)}\n`,
+        )
+      } else {
+        // Expanded sub-thought — tool rows with snapshots (grouped by category)
+        const groups = groupToolsByCategory(sub.tools)
+        let groupIdx = 0
+        for (const cat of CATEGORY_ORDER) {
+          const tools = groups.get(cat)
+          if (!tools || tools.length === 0) continue
+          if (groupIdx > 0) process.stdout.write("\n")
+          groupIdx++
+          if (tools.length > 1) {
+            const label = CATEGORY_LABELS[cat]
+            const color = CATEGORY_COLORS[cat]
+            process.stdout.write(
+              `${indent}     ${chalk.hex(color)(`${label} [${tools.length}]:`)}\n`,
+            )
+          }
+          for (const t of tools) {
+            const argsParsed =
+              typeof t.args === "string" ? safeParse(t.args) : t.args
+            const { verb, color } = describeTool(
+              t.name,
+              extractToolArg(t.name, argsParsed),
+            )
+            const marker = t.flagged ? ` ${chalk.hex(theme.red)("✗")}` : ""
+            process.stdout.write(`${indent}       ${chalk.hex(color)(verb)}${marker}\n`)
+            if (t.snapshot) {
+              for (const snapLine of t.snapshot) {
+                process.stdout.write(snapLine + "\n")
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Re-render a printed thought block in-place without changing its collapsed
+  // state. Used by hotkeys that toggle sub-thoughts (Ctrl+X) and need to
+  // refresh the parent without double-toggling it.
+  reprintThought(index: number = this.thoughts.length - 1): void {
+    if (!process.stdout.isTTY) return
+    const entry = this.thoughts[index]
+    if (!entry) return
+    if (entry.endTime === null) return
+    const out = this.renderThought(entry)
+    process.stdout.write(out + "\n")
   }
 
   // Toggle the chevron of the most-recently printed thought by re-emitting
@@ -552,12 +792,9 @@ export class ThoughtChain {
     if (!process.stdout.isTTY) return
     const entry = this.thoughts[index]
     if (!entry) return
-    if (entry.endTime === null) return // can't toggle an open step
+    if (entry.endTime === null) return
     entry.collapsed = !entry.collapsed
-    const out = this.renderThought(entry)
-    // renderThought doesn't write to stdout; emit it. The hotkey handler
-    // is responsible for clearing the previous block first using line math.
-    process.stdout.write(out + "\n")
+    this.reprintThought(index)
   }
 
   get elapsed(): number {
@@ -589,7 +826,6 @@ export class ThoughtChain {
       ? chalk.hex(theme.greenDim)("▶")
       : chalk.hex(theme.greenGlow)("▼")
     const header = `${toggleIcon} ${chalk.hex(theme.greenMute)("Thought")}${chalk.hex(theme.greenDim)(":")} ${chalk.hex(theme.greenGlow)(elapsed)}`
-    const prefix = chalk.hex(theme.greenDim)("┃")
     const indent = chalk.hex(theme.greenDim)("┃")
 
     const lines: string[] = []
@@ -611,15 +847,77 @@ export class ThoughtChain {
       }
     }
 
-    // Tool calls made during this thought
-    if (entry.tools.length > 0) {
-      const grouped = this.groupTools(entry.tools)
-      for (const [toolName, argsList] of grouped) {
-        const lastArg = argsList[argsList.length - 1]
-        if (argsList.length <= 1) {
-          lines.push(`${indent}   ${toolLabel(toolName, lastArg ? JSON.parse(lastArg) : undefined)}`)
-        } else {
-          lines.push(`${indent}   ${formatToolGroup(toolName, argsList.length, lastArg)}`)
+    // Tool calls made during this thought — grouped by category
+    const groups = groupToolsByCategory(entry.tools)
+    let groupIdx = 0
+    for (const cat of CATEGORY_ORDER) {
+      const tools = groups.get(cat)
+      if (!tools || tools.length === 0) continue
+      if (groupIdx > 0) lines.push("")
+      groupIdx++
+      if (tools.length > 1) {
+        const label = CATEGORY_LABELS[cat]
+        const color = CATEGORY_COLORS[cat]
+        lines.push(`${indent}   ${chalk.hex(color)(`${label} [${tools.length}]:`)}`)
+      }
+      for (const t of tools) {
+        const argsParsed =
+          typeof t.args === "string" ? safeParse(t.args) : t.args
+        const { verb, color } = describeTool(
+          t.name,
+          extractToolArg(t.name, argsParsed),
+        )
+        const marker = t.flagged ? ` ${chalk.hex(theme.red)("✗")}` : ""
+        lines.push(`${indent}     ${chalk.hex(color)(verb)}${marker}`)
+        if (t.snapshot) {
+          for (const snapLine of t.snapshot) {
+            lines.push(snapLine)
+          }
+        }
+      }
+    }
+
+    // Sub-thoughts nested under this entry
+    if (entry.subThoughts.length > 0) {
+      if (entry.tools.length > 0) lines.push("")
+      for (const sub of entry.subThoughts) {
+        const subElapsed = sub.endTime
+          ? `${sub.endTime - sub.startTime}ms`
+          : `${Date.now() - sub.startTime}ms`
+        const subToggle = sub.collapsed
+          ? chalk.hex(theme.greenDim)("▶")
+          : chalk.hex(theme.greenGlow)("▼")
+        const subHeader = `${subToggle} ${chalk.hex(theme.greenMute)("Explore")}${chalk.hex(theme.greenDim)(":")} ${chalk.hex(theme.greenGlow)(subElapsed)}`
+        lines.push(`${indent}   ${subHeader}`)
+
+        if (!sub.collapsed) {
+          const subGroups = groupToolsByCategory(sub.tools)
+          let subGroupIdx = 0
+          for (const cat of CATEGORY_ORDER) {
+            const tools = subGroups.get(cat)
+            if (!tools || tools.length === 0) continue
+            if (subGroupIdx > 0) lines.push("")
+            subGroupIdx++
+            if (tools.length > 1) {
+              const label = CATEGORY_LABELS[cat]
+              const color = CATEGORY_COLORS[cat]
+              lines.push(`${indent}     ${chalk.hex(color)(`${label} [${tools.length}]:`)}`)
+            }
+            for (const t of tools) {
+              const argsParsed =
+                typeof t.args === "string" ? safeParse(t.args) : t.args
+              const { verb, color } = describeTool(
+                t.name,
+                extractToolArg(t.name, argsParsed),
+              )
+              lines.push(`${indent}       ${chalk.hex(color)(verb)}`)
+              if (t.snapshot) {
+                for (const snapLine of t.snapshot) {
+                  lines.push(snapLine)
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -687,16 +985,26 @@ export class ThoughtChain {
     const lines: string[] = []
     lines.push(`${indent} ${toggle} ${label} ${chalk.hex(theme.greenDim)("·")} ${time}`)
 
-    // Tool count summary line — keeps the collapsed block informative.
-    const toolCount = this.thoughts.reduce((n, t) => n + t.tools.length, 0)
-    if (toolCount > 0) {
-      lines.push(
-        `${indent}   ${chalk.hex(theme.greenDim)("↳")} ${chalk.hex(theme.greenMute)(`${toolCount} tool call${toolCount === 1 ? "" : "s"}`)}`,
-      )
+    // Per-category tool counts — keeps the collapsed block informative.
+    const allTools = this.thoughts.flatMap((t) => t.tools)
+    if (allTools.length > 0) {
+      const allGroups = groupToolsByCategory(allTools)
+      const parts: string[] = []
+      for (const cat of CATEGORY_ORDER) {
+        const tools = allGroups.get(cat)
+        if (!tools || tools.length === 0) continue
+        const label = CATEGORY_LABELS[cat].toLowerCase()
+        parts.push(`${tools.length} ${label}`)
+      }
+      if (parts.length > 0) {
+        lines.push(
+          `${indent}   ${chalk.hex(theme.greenDim)("↳")} ${chalk.hex(theme.greenMute)(parts.join(" · "))}`,
+        )
+      }
     }
 
-    // Expand the block: list each thought's reasoning + tool calls. Group
-    // consecutive identical tool calls so a tight loop doesn't spam the view.
+    // Expand the block: list each thought's reasoning + tool calls grouped
+    // by category.
     for (const thought of this.thoughts) {
       const body = thought.body.trim()
       if (body) {
@@ -710,17 +1018,26 @@ export class ThoughtChain {
         }
       }
       if (thought.tools.length > 0) {
-        const grouped = this.groupTools(thought.tools)
-        for (const [toolName, argsList] of grouped) {
-          const lastArg = argsList[argsList.length - 1]
-          if (argsList.length <= 1) {
-            lines.push(
-              `${indent}   ${toolLabel(toolName, lastArg ? JSON.parse(lastArg) : undefined)}`,
+        const groups = groupToolsByCategory(thought.tools)
+        let groupIdx = 0
+        for (const cat of CATEGORY_ORDER) {
+          const tools = groups.get(cat)
+          if (!tools || tools.length === 0) continue
+          if (groupIdx > 0) lines.push("")
+          groupIdx++
+          if (tools.length > 1) {
+            const label = CATEGORY_LABELS[cat]
+            const color = CATEGORY_COLORS[cat]
+            lines.push(`${indent}   ${chalk.hex(color)(`${label} [${tools.length}]:`)}`)
+          }
+          for (const t of tools) {
+            const argsParsed =
+              typeof t.args === "string" ? safeParse(t.args) : t.args
+            const { verb, color } = describeTool(
+              t.name,
+              extractToolArg(t.name, argsParsed),
             )
-          } else {
-            lines.push(
-              `${indent}   ${formatToolGroup(toolName, argsList.length, lastArg)}`,
-            )
+            lines.push(`${indent}     ${chalk.hex(color)(verb)}`)
           }
         }
       }

@@ -27,6 +27,7 @@ export interface AIProvider {
     onReasoning?: (chunk: string) => void,
     onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void,
     onStepFinish?: (params: { stepNumber: number; toolCalls: Array<{ toolName: string; args: unknown }>; toolResults: Array<{ toolName: string; args: unknown; result: string }> }) => void,
+    onStepBudget?: (maxSteps: number) => void,
   ): Promise<{
     content: string
     finishReason: FinishReason
@@ -61,8 +62,8 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
     return {
       name: provider,
       modelName: model || meta.defaultModel,
-      sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult) =>
-        svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult),
+      sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish, onStepBudget) =>
+        svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish, onStepBudget),
       generateObject: (schema, prompt) => svc.generateObject(schema, prompt),
     }
   }
@@ -93,8 +94,8 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
         name: "nvidia",
         modelName: svc.modelName,
         model: svc.model,
-        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult) =>
-          svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult),
+        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish, onStepBudget) =>
+          svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish, onStepBudget),
       }
     }
     case "concentrateai": {
@@ -103,8 +104,8 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
         name: "concentrateai",
         modelName: svc.modelName,
         model: svc.model,
-        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult) =>
-          svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult),
+        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish, onStepBudget) =>
+          svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish, onStepBudget),
       }
     }
     case "mergedev": {
@@ -113,8 +114,8 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
         name: "mergedev",
         modelName: svc.modelName,
         model: svc.model,
-        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult) =>
-          svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult),
+        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish, onStepBudget) =>
+          svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish, onStepBudget),
       }
     }
     default: {

@@ -6,11 +6,11 @@ import { MarkdownStream } from "src/cli/utils/markdown-stream"
 import { getStoredToken } from "src/lib/token"
 import { ChatService } from "src/service/chat-service"
 import { createProvider, type ModelProvider } from "src/cli/ai/provider"
-import { createAppAgent } from "src/config/agent-config"
 import { type WorkspaceInfo } from "src/cli/workspace/scanner"
-import { agentService } from "src/agent"
+import { agentService, loadPrompt } from "src/agent"
 import { buildSystemPrompt } from "src/cli/workspace/context"
 import { ThinkingDisplay, ThoughtChain } from "src/cli/ai/chat/thinking"
+import { tools } from "src/tools/registry"
 
 let _chatService: ChatService
 
@@ -121,7 +121,10 @@ async function agentLoop(
     const startTime = Date.now()
 
     try {
-      const agent = createAppAgent(model, agentSystemPrompt)
+      const buildAgent = agentService.get("build")
+      if (!buildAgent?.generate) {
+        throw new Error("build agent not available")
+      }
 
       // Collapsed-thought pattern (matches chat mode + opencode TUI):
       // accumulate tool calls + reasoning into a ThoughtChain during
@@ -133,9 +136,12 @@ async function agentLoop(
       const seenToolCalls = new Set<string>()
       let accumulatedText = ""
 
-      const result = await agent.generate({
+      const result = await buildAgent.generate({
+        model,
+        tools: { ...tools },
+        system: agentSystemPrompt,
         prompt: userInput,
-        onStepFinish: async ({ stepNumber, text, toolCalls, finishReason }) => {
+        onStepFinish: async ({ stepNumber, text, toolCalls, finishReason }: any) => {
           // Reasoning text arrived with this step — feed it into the chain.
           if (text) {
             chain.begin()

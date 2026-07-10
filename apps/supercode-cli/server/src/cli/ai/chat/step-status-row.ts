@@ -22,6 +22,17 @@ const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "
 
 export type StepPhase = "thinking" | "tool" | "streaming" | "idle"
 
+// Default step budget — matches stepCountIs(8) in concentrate-service.
+const DEFAULT_MAX_STEPS = 8
+// Safety timeout in concentrate-service is 120s. Warning thresholds:
+//   60s — model may be overloaded
+//   90s — approaching timeout
+//  110s — critical (10s remaining)
+const TIMEOUT_HEADS_UP_MS = 60_000
+const TIMEOUT_WARNING_MS = 90_000
+const TIMEOUT_CRITICAL_MS = 110_000
+const SAFETY_TIMEOUT_MS = 120_000
+
 export class StepStatusRow {
   private running = false
   private cols = 80
@@ -34,7 +45,13 @@ export class StepStatusRow {
   private currentToolName = ""
   private currentToolArgs: unknown = undefined
   private stepCount = 0
+  private maxSteps = DEFAULT_MAX_STEPS
   private startMs = 0
+  private totalStartMs = 0
+  // Per-tool timing: reset each time setCurrentTool is called
+  private toolStartMs = 0
+  // Simple ETA: rolling average of tool durations per tool type (ms)
+  private toolDurationHistory = new Map<string, number[]>()
 
   start(agentName: string, modelName: string) {
     if (this.running) return
@@ -45,7 +62,10 @@ export class StepStatusRow {
     this.currentToolName = ""
     this.currentToolArgs = undefined
     this.stepCount = 0
+    this.maxSteps = DEFAULT_MAX_STEPS
     this.startMs = Date.now()
+    this.totalStartMs = Date.now()
+    this.toolStartMs = 0
     this.cols = process.stdout.columns ?? 80
 
     this.frameIndex = 0
@@ -63,10 +83,14 @@ export class StepStatusRow {
     }, 100)
   }
 
+  setMaxSteps(n: number) {
+    this.maxSteps = n
+    this.render()
+  }
+
   setPhase(phase: StepPhase) {
     this.phase = phase
     if (this.running && phase === "thinking") {
-      // Reset elapsed when starting a fresh step.
       this.startMs = Date.now()
       this.currentToolName = ""
       this.currentToolArgs = undefined
@@ -75,9 +99,19 @@ export class StepStatusRow {
   }
 
   setCurrentTool(name: string, args?: unknown) {
+    // Record elapsed for the previous tool before switching
+    if (this.currentToolName && this.toolStartMs > 0) {
+      const elapsed = Date.now() - this.toolStartMs
+      const history = this.toolDurationHistory.get(this.currentToolName) ?? []
+      history.push(elapsed)
+      // Keep only last 5 entries
+      if (history.length > 5) history.shift()
+      this.toolDurationHistory.set(this.currentToolName, history)
+    }
     this.currentToolName = name
     this.currentToolArgs = args
     this.phase = "tool"
+    this.toolStartMs = Date.now()
     this.render()
   }
 
@@ -114,6 +148,7 @@ export class StepStatusRow {
     const frame = FRAMES[this.frameIndex] ?? "⠋"
 
     const elapsed = this.elapsed()
+    const totalElapsedMs = Date.now() - this.totalStartMs
     const phaseLabel = this.phaseLabel()
     const dots = " " + chalk.hex(theme.greenDim)("·") + " "
 
@@ -128,17 +163,44 @@ export class StepStatusRow {
       const argStr = arg ? chalk.hex(theme.greenMute)(arg) : ""
       parts.push(chalk.hex(theme.greenDim)("→"))
       parts.push(argStr ? `${label} ${argStr}` : label)
+      // Per-tool elapsed time
+      if (this.toolStartMs > 0) {
+        const toolElapsed = Date.now() - this.toolStartMs
+        const toolElapsedStr = toolElapsed < 1000 ? `${toolElapsed}ms` : `${(toolElapsed / 1000).toFixed(1)}s`
+        parts.push(chalk.hex(theme.muted)(toolElapsedStr))
+      }
+      // Simple ETA: average of past durations × estimated remaining steps
+      const estimatedRemaining = this.estimateRemaining()
+      if (estimatedRemaining > 0) {
+        parts.push(chalk.hex(theme.greenDim)(`~${estimatedRemaining}`))
+      }
     } else if (this.agentName) {
-      parts.push(chalk.hex(theme.greenMute)(
-        `▣ ${this.agentName}${this.modelName ? " · " + this.modelName : ""}`,
-      ))
+      // "Model processing" heartbeat label when waiting for model response
+      const modelLabel = this.stepCount > 0
+        ? `Model processing tool result`
+        : `▣ ${this.agentName}${this.modelName ? " · " + this.modelName : ""}`
+      parts.push(chalk.hex(theme.greenMute)(modelLabel))
     } else if (this.modelName) {
       parts.push(chalk.hex(theme.greenGlow)(this.modelName))
     }
 
     if (this.stepCount > 0) {
       parts.push(chalk.hex(theme.greenDim)("step"))
-      parts.push(chalk.hex(theme.greenGlow)(String(this.stepCount)))
+      parts.push(chalk.hex(theme.greenGlow)(
+        this.maxSteps > 0 ? `${this.stepCount}/${this.maxSteps}` : String(this.stepCount),
+      ))
+    }
+
+    // Timeout proximity warning: escalating levels of urgency.
+    if (totalElapsedMs >= TIMEOUT_CRITICAL_MS) {
+      const remaining = Math.max(0, SAFETY_TIMEOUT_MS - totalElapsedMs)
+      parts.push(chalk.hex(theme.red)(`⏱ ${(remaining / 1000).toFixed(0)}s left`))
+    } else if (totalElapsedMs >= TIMEOUT_WARNING_MS) {
+      const remaining = Math.max(0, SAFETY_TIMEOUT_MS - totalElapsedMs)
+      parts.push(chalk.hex(theme.amber)(`⚠ approaching timeout · ${(remaining / 1000).toFixed(0)}s`))
+    } else if (totalElapsedMs >= TIMEOUT_HEADS_UP_MS) {
+      const elapsedSec = totalElapsedMs / 1000
+      parts.push(chalk.hex(theme.amber)(`(!) ${elapsedSec.toFixed(0)}s elapsed — model may be overloaded`))
     }
 
     const inner = parts.join(dots)
@@ -151,6 +213,26 @@ export class StepStatusRow {
     process.stdout.write("\r\x1b[2K")
     process.stdout.write(`${leftBorder} ${inner} ${fillLine}`)
     process.stdout.write("\x1b8")
+  }
+
+  // Estimate remaining time based on average per-tool history × remaining steps
+  private estimateRemaining(): string {
+    if (this.toolDurationHistory.size === 0) return ""
+    let totalAvg = 0
+    let count = 0
+    for (const durations of this.toolDurationHistory.values()) {
+      if (durations.length > 0) {
+        totalAvg += durations.reduce((a, b) => a + b, 0) / durations.length
+        count++
+      }
+    }
+    if (count === 0) return ""
+    const avgToolMs = totalAvg / count
+    const remainingSteps = Math.max(0, this.maxSteps - this.stepCount)
+    const estimatedMs = avgToolMs * remainingSteps
+    if (estimatedMs < 1000) return ""
+    if (estimatedMs < 60_000) return `~${(estimatedMs / 1000).toFixed(0)}s`
+    return `~${Math.round(estimatedMs / 60_000)}m ${Math.round((estimatedMs % 60_000) / 1000)}s`
   }
 
   private phaseLabel(): string {

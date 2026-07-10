@@ -89,6 +89,7 @@ export class ConcentrateService {
     onReasoning?: (chunk: string) => void,
     onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void,
     onStepFinish?: (params: { stepNumber: number; toolCalls: Array<{ toolName: string; args: unknown }>; toolResults: Array<{ toolName: string; args: unknown; result: string }> }) => void,
+    onStepBudget?: (maxSteps: number) => void,
   ) {
     // Build a combined abort controller with a 120s safety timeout. This
     // prevents the SDK's tool loop from hanging indefinitely when the model
@@ -126,10 +127,16 @@ export class ConcentrateService {
 
         let fullResponse = ""
         let chunkCount = 0
-        for await (const chunk of result.textStream) {
-          chunkCount++
-          fullResponse += chunk
-          onChunk?.(chunk)
+        // Iterate fullStream to surface reasoning chunks alongside text.
+        for await (const event of result.fullStream) {
+          if (event.type === "text-delta") {
+            if (event.textDelta == null) continue
+            chunkCount++
+            fullResponse += event.textDelta
+            onChunk?.(event.textDelta)
+          } else if (event.type === "reasoning") {
+            if (event.textDelta) onReasoning?.(event.textDelta)
+          }
         }
         // console.error(`[d] non-tools streamed ${chunkCount} chunks resp="${fullResponse}"`)
 
@@ -194,7 +201,8 @@ export class ConcentrateService {
         }
       }
 
-      // console.error(`[d] tools path hit`)
+      // Notify the caller of the step budget so the UI can show "step 3/8".
+      onStepBudget?.(8)
 
       let fullResponse = ""
 
@@ -301,10 +309,16 @@ export class ConcentrateService {
       })
 
       let toolChunkCount = 0
-      for await (const chunk of result.textStream) {
-        toolChunkCount++
-        fullResponse += chunk
-        onChunk?.(chunk)
+      // Iterate fullStream to surface reasoning chunks alongside text.
+      for await (const event of result.fullStream) {
+        if (event.type === "text-delta") {
+          if (event.textDelta == null) continue
+          toolChunkCount++
+          fullResponse += event.textDelta
+          onChunk?.(event.textDelta)
+        } else if (event.type === "reasoning") {
+          if (event.textDelta) onReasoning?.(event.textDelta)
+        }
       }
       // console.error(`[d] tools streamed ${toolChunkCount} chunks resp="${fullResponse}"`)
 

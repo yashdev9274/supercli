@@ -171,7 +171,7 @@ const Navbar = () => {
 
   return (
     <>
-    <header className="fixed top-0 left-0 right-0 z-[100]">
+    <header className="fixed top-[36px] sm:top-[40px] left-0 right-0 z-[100]">
       <BetaCountdownBanner onVisibilityChange={handleBannerChange} />
       <div className={`bg-background/95 backdrop-blur-sm transition-all duration-300 ${bannerVisible ? "border-t-0" : ""}`}>
         <div className="h-[70px] flex items-center justify-between px-5 md:px-12 max-w-[1400px] mx-auto w-full">
@@ -252,7 +252,7 @@ const Navbar = () => {
 
       <div
         className={`fixed inset-0 z-40 transition-all duration-500 ${
-          bannerVisible ? "top-[114px] sm:top-[110px]" : "top-[70px]"
+          bannerVisible ? "top-[150px] sm:top-[150px]" : "top-[106px] sm:top-[110px]"
         } ${
           menuOpen
             ? "opacity-100 pointer-events-auto"
@@ -314,7 +314,7 @@ const Navbar = () => {
       </div>
     </header>
 
-    <div className="fixed top-[114px] left-0 right-0 z-50 flex items-center justify-center px-4">
+    {/* <div className="fixed top-[114px] left-0 right-0 z-50 flex items-center justify-center px-4">
       <div className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[13px] font-mono animate-in fade-in slide-in-from-top-2 duration-500">
         <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
         <span>
@@ -324,7 +324,7 @@ const Navbar = () => {
           meantime.
         </span>
       </div>
-    </div>
+    </div> */}
     </>
   )
 }

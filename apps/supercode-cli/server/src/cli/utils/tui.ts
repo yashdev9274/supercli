@@ -890,7 +890,7 @@ export class PersistentStatusBar {
     this.update({ statusMessage: msg })
   }
 
-  private renderLine() {
+  renderLine() {
     process.stdout.write("\x1b[2K")
     const leftBorder = ansiColor(theme.greenDim, "┃")
 

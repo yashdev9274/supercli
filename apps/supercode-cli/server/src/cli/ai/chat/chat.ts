@@ -33,8 +33,9 @@ import {
   cardStack,
   rowCard,
   heavyDivider,
+  responseDivider,
 } from "src/cli/utils/tui.ts"
-import { ThinkingDisplay, TurnTracker, toolLabel } from "./thinking.ts"
+import { ThinkingDisplay, TurnTracker, toolLabel, ThoughtChain } from "./thinking.ts"
 import { StepStatusRow } from "./step-status-row.ts"
 import { MarkdownStream } from "src/cli/utils/markdown-stream.ts"
 import { getContextWindow } from "src/cli/ai/context-windows.ts"
@@ -50,9 +51,13 @@ import {
   renderWriteSnapshot,
   renderEditSnapshot,
   renderCommandSnapshot,
+  renderReadSnapshot,
+  renderSearchSnapshot,
+  renderGlobSnapshot,
+  renderWebSearchSnapshot,
   formatBytes,
-  countDiff,
   diffLines,
+  countDiff,
 } from "src/cli/utils/tool-snapshot.ts"
 import { renderContextBreakdown } from "src/cli/commands/slashCommands/context-window.ts"
 import { saveCliConfig } from "src/lib/cli-config"
@@ -113,18 +118,18 @@ export async function initConversation(userId: string, conversationId: string | 
  *
  * Tolerant: skips rendering on any parse failure so a malformed result can
  * never break the live chat scrollback.
+ *
+ * Returns captured snapshot lines (with RAIL prefix) or empty array.
  */
-function renderToolSnapshot(toolName: string, args: unknown, resultRaw: string): void {
+function captureToolSnapshot(toolName: string, args: unknown, resultRaw: string): string[] {
   try {
     if (toolName === "write_file") {
       const a = (args ?? {}) as { path?: string; content?: string }
       if (typeof a.path === "string" && typeof a.content === "string") {
         const meta = `${formatBytes(a.content.length)} · written`
-        for (const line of renderWriteSnapshot(a.path, a.content, meta)) {
-          process.stdout.write(line + "\n")
-        }
+        return renderWriteSnapshot(a.path, a.content, meta)
       }
-      return
+      return []
     }
 
     if (toolName === "edit_file") {
@@ -133,11 +138,9 @@ function renderToolSnapshot(toolName: string, args: unknown, resultRaw: string):
         const diff = diffLines(a.oldText, a.newText)
         const { adds, dels } = countDiff(diff)
         const meta = `${formatBytes(a.newText.length)} · +${adds} / −${dels}`
-        for (const line of renderEditSnapshot(a.path, a.oldText, a.newText, meta)) {
-          process.stdout.write(line + "\n")
-        }
+        return renderEditSnapshot(a.path, a.oldText, a.newText, meta)
       }
-      return
+      return []
     }
 
     if (toolName === "run_command") {
@@ -153,15 +156,102 @@ function renderToolSnapshot(toolName: string, args: unknown, resultRaw: string):
         const stdout = typeof (parsed as any).stdout === "string" ? (parsed as any).stdout : ""
         const stderr = typeof (parsed as any).stderr === "string" ? (parsed as any).stderr : ""
         const exitCode = typeof (parsed as any).exitCode === "number" ? (parsed as any).exitCode : 0
-        for (const line of renderCommandSnapshot(a.command ?? "", stdout, stderr, exitCode)) {
-          process.stdout.write(line + "\n")
-        }
+        return renderCommandSnapshot(a.command ?? "", stdout, stderr, exitCode)
       }
-      return
+      return []
+    }
+
+    if (toolName === "read_file") {
+      const a = (args ?? {}) as { path?: string }
+      if (typeof a.path === "string" && resultRaw.trim()) {
+        // read_file returns the file content directly as a string
+        return renderReadSnapshot(a.path, resultRaw)
+      }
+      return []
+    }
+
+    if (toolName === "search_files") {
+      const a = (args ?? {}) as { pattern?: string }
+      try {
+        const parsed = JSON.parse(resultRaw)
+        if (Array.isArray(parsed)) {
+          return renderSearchSnapshot(
+            a.pattern ?? "",
+            parsed.map((r: any) => ({
+              file: typeof r.file === "string" ? r.file : String(r.file ?? ""),
+              line: typeof r.line === "number" ? r.line : 0,
+              content: typeof r.content === "string" ? r.content : String(r.content ?? ""),
+            })),
+            parsed.length,
+          )
+        }
+      } catch { /* best-effort */ }
+      return []
+    }
+
+    if (toolName === "glob") {
+      const a = (args ?? {}) as { pattern?: string }
+      try {
+        const parsed = JSON.parse(resultRaw)
+        if (Array.isArray(parsed)) {
+          return renderGlobSnapshot(a.pattern ?? "", parsed.map(String))
+        }
+      } catch { /* best-effort */ }
+      return []
+    }
+
+    if (toolName === "web_search") {
+      const a = (args ?? {}) as { query?: string }
+      try {
+        const parsed = JSON.parse(resultRaw)
+        const results = Array.isArray(parsed) ? parsed : (parsed as any)?.results ?? []
+        if (Array.isArray(results)) {
+          return renderWebSearchSnapshot(
+            a.query ?? "",
+            results.map((r: any) => ({
+              title: typeof r.title === "string" ? r.title : String(r.title ?? ""),
+              url: typeof r.url === "string" ? r.url : undefined,
+            })),
+          )
+        }
+      } catch { /* best-effort */ }
+      return []
+    }
+
+    if (toolName === "firecrawl_search" || toolName === "firecrawl_scrape" || toolName === "firecrawl_map") {
+      const a = (args ?? {}) as { query?: string; url?: string }
+      try {
+        const parsed = JSON.parse(resultRaw)
+        const results = Array.isArray(parsed) ? parsed : (parsed as any)?.data ?? (parsed as any)?.results ?? []
+        if (Array.isArray(results)) {
+          return renderWebSearchSnapshot(
+            a.query ?? a.url ?? "",
+            results.map((r: any) => ({
+              title: typeof r.title === "string" ? r.title : typeof r.url === "string" ? r.url : String(r ?? ""),
+              url: typeof r.url === "string" ? r.url : undefined,
+            })),
+          )
+        }
+      } catch { /* best-effort */ }
+      return []
+    }
+
+    if (toolName === "url_fetch") {
+      const a = (args ?? {}) as { url?: string }
+      try {
+        const parsed = JSON.parse(resultRaw)
+        return renderReadSnapshot(
+          a.url ?? "",
+          typeof parsed === "string" ? parsed : (parsed as any)?.content ?? (parsed as any)?.markdown ?? JSON.stringify(parsed),
+        )
+      } catch {
+        return renderReadSnapshot(a.url ?? "", resultRaw)
+      }
     }
   } catch {
     // Snapshot is best-effort. Never let a render bug break the chat loop.
   }
+  return []
 }
 
 async function streamAIResponse(
@@ -237,6 +327,13 @@ async function streamAIResponse(
   // fire, then auto-collapses to `+ Thought: N.Ns` when the step finishes.
   const chain = thinking.getChain()
   activeChain = chain
+  // Buffered sub-chain for delegate/task subagent tool calls. Created when a
+  // delegate/task tool starts, fed by the delegate onToolCall, finalized when
+  // the delegate onToolResult fires. Each sub-chain entry becomes a sub-thought
+  // on the parent ThoughtEntry.
+  let currentSubChain: ThoughtChain | null = null
+  // Track whether we've printed the "Explore" header for the current sub-chain.
+  let subChainHeaderPrinted = false
 
   // Live status row above the input prompt — shows model name, current
   // step, current tool, and elapsed time. Replaces the on-input
@@ -302,13 +399,33 @@ async function streamAIResponse(
           emitHeader()
           isFirstChunk = false
         }
-        process.stdout.write(chalk.hex(theme.greenDim)(`  ${chunk}`))
+        md.push(chunk)
+        fullResponse += chunk
       },
       onToolCall: ({ toolName, args }) => {
         if (!hasOutputHeader) emitHeader()
-        thinking.showToolCall(toolName, args)
-        chain.beginAndPrint()          // open per-step block (idempotent if already open)
-        chain.printToolRow(toolName, args)
+        // Route subagent tool calls to the buffered sub-chain so they're
+        // stored as subThoughts for post-hoc Ctrl+X toggling.
+        if (currentSubChain) {
+          if (!currentSubChain.isOpen) {
+            currentSubChain.beginAndPrint()
+          }
+          currentSubChain.printToolRow(toolName, args)
+        }
+        // Also live-print each sub-agent tool call with deeper indent so
+        // the user sees progress while the delegate runs.
+        if (currentSubChain && process.stdout.isTTY) {
+          const rail = chalk.hex(theme.greenDim)("┃")
+          const subIndent = `${rail}   ${rail}`
+          if (!subChainHeaderPrinted) {
+            subChainHeaderPrinted = true
+            process.stdout.write(
+              `${subIndent} ${chalk.hex(theme.greenGlow)("▼")} ${chalk.hex(theme.greenMute)("Explore")}\n`,
+            )
+          }
+          const row = toolLabel(toolName, args)
+          process.stdout.write(`${subIndent}   ${row}\n`)
+        }
         statusRow.setCurrentTool(toolName, args)
         verbosePrint(toolName, args, provider.modelName, Date.now())
         if (statusBar) statusBar.incTools()
@@ -343,23 +460,38 @@ async function streamAIResponse(
     const result = await provider.sendMessage(
       aiMessages as ModelMessage[],
       (chunk) => {
+        if (chunk == null) return
         if (isFirstChunk && !hasOutputHeader) {
           emitHeader()
           isFirstChunk = false
           statusRow.setStreaming()
         }
-        md.push(chunk)
-        fullResponse += chunk
+        // Filter raw tool call XML markup from streaming text output.
+        // Some providers emit raw <|tool_calls_section_begin|>... XML in the
+        // text stream alongside structured tool calls. Strip it to prevent
+        // leakage to the terminal.
+        const filtered = stripToolCallXml(chunk)
+        if (filtered) {
+          md.push(filtered)
+          fullResponse += filtered
+        }
       },
       toolsToUse,
       async ({ toolName, args }: { toolName: string; args?: unknown }) => {
         if (!hasOutputHeader) emitHeader()
         thinking.showToolCall(toolName, args)
-        // Open a fresh per-step block on the first tool call of a step,
-        // then append the tool row live. After onStepFinish we close +
-        // auto-collapse (see process.onStepFinish callback below).
-        chain.beginAndPrint()
+        // Open a fresh block only on the first tool call of a step;
+        // consecutive calls append to the same open block.
+        if (!chain.isOpen) {
+          chain.beginAndPrint()
+        }
         chain.printToolRow(toolName, args)
+        // When the main agent calls delegate/task, create a buffered sub-chain
+        // so subagent tool calls are captured as a nested "Explore" section.
+        // The first entry is created lazily when the first subagent tool fires.
+        if (toolName === "delegate" || toolName === "task") {
+          currentSubChain = new ThoughtChain(true)
+        }
         statusRow.setCurrentTool(toolName, args)
         verbosePrint(toolName, args, provider.modelName, Date.now())
         // Mirror tool count to the status bar so users see "X tools" climb live.
@@ -383,11 +515,52 @@ async function streamAIResponse(
           chain.markLastToolFlagged()
         }
 
-        // Render a snapshot/diff under the tool row for file-changing tools.
-        // OpenCode-style: writes show the new file contents, edits show a
-        // unified diff, commands show stdout. Skipped when the call failed.
+        // Capture a snapshot/diff under the tool row for file-changing tools
+        // and store it on the last tool in the current thought entry. The
+        // snapshot is rendered only when the thought block is expanded.
         if (!entry.empty && !entry.permissionDenied && process.stdout.isTTY) {
-          renderToolSnapshot(toolName, args, result as string)
+          const snap = captureToolSnapshot(toolName, args, result as string)
+          if (snap.length > 0) {
+            const lastTool = chain.current?.tools?.[chain.current.tools.length - 1]
+            if (lastTool) lastTool.snapshot = snap
+          }
+        }
+
+        // Finalize the buffered sub-chain for delegate/task. Only keep
+        // entries that have at least one tool call — empty entries from the
+        // initial begin() are discarded.
+        if (currentSubChain && (toolName === "delegate" || toolName === "task")) {
+          currentSubChain.finish()
+          // Close the live-printed Explore section
+          if (subChainHeaderPrinted && process.stdout.isTTY) {
+            const rail = chalk.hex(theme.greenDim)("┃")
+            const subIndent = `${rail}   ${rail}`
+            const elapsed = currentSubChain.elapsed
+            const elapsedStr =
+              elapsed < 1000 ? `${elapsed}ms` : `${(elapsed / 1000).toFixed(1)}s`
+            process.stdout.write(
+              `${subIndent} ${chalk.hex(theme.greenGlow)("+")} ${chalk.hex(theme.greenMute)("Explore")} ${chalk.hex(theme.greenDim)("·")} ${elapsedStr}\n`,
+            )
+            const toolCount = currentSubChain.thoughts.reduce(
+              (n, t) => n + t.tools.length, 0,
+            )
+            if (toolCount > 0) {
+              process.stdout.write(
+                `${subIndent}   ${chalk.hex(theme.greenDim)("↳")} ${chalk.hex(theme.greenMute)(`${toolCount} tool call${toolCount === 1 ? "" : "s"}`)}\n`,
+              )
+            }
+            subChainHeaderPrinted = false
+          }
+          const lastEntry = chain.thoughts[chain.thoughts.length - 1]
+          if (lastEntry) {
+            const nonEmpty = currentSubChain.thoughts.filter(
+              (t) => t.tools.length > 0 || t.body.trim().length > 0,
+            )
+            if (nonEmpty.length > 0) {
+              lastEntry.subThoughts.push(...nonEmpty)
+            }
+          }
+          currentSubChain = null
         }
 
         // Detect a mode-switch request (Phase 2: clean function-call return
@@ -414,7 +587,15 @@ async function streamAIResponse(
       ({ stepNumber }) => {
         chain.finishAndPrint({ autoCollapse: true })
         statusRow.setPhase("thinking")
-        statusRow.setStepCount(stepNumber ?? chain.thoughts.length)
+        const step = stepNumber ?? chain.thoughts.length
+        statusRow.setStepCount(step)
+        thinking.setStepCount(step)
+      },
+      // Step budget notification: tells the status row and thinking
+      // display the max steps so they can render "step 3/8".
+      (maxSteps) => {
+        statusRow.setMaxSteps(maxSteps)
+        thinking.setMaxSteps(maxSteps)
       },
     )
 
@@ -530,6 +711,14 @@ async function streamAIResponse(
       }
     }
 
+    // Turn footer with elapsed time
+    const elapsedStr =
+      elapsed < 1000 ? `${elapsed}ms` : `${(elapsed / 1000).toFixed(1)}s`
+    const modeLabel = mode === "plan" ? "plan" : (mode === "chat" ? "chat" : "build")
+    console.log(
+      ` ${chalk.hex(theme.green)("▣")}  ${chalk.hex(theme.greenMute)(modeLabel)} ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.muted)(provider.modelName)} ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.muted)(elapsedStr)}`,
+    )
+    console.log()
     return {
       content: fullResponse,
       elapsed,
@@ -628,7 +817,7 @@ let streamAbort: AbortController | null = null
 // The currently-streaming ThoughtChain (or null between turns). Exposed at
 // module scope so the stdin keypress handler can hit Ctrl+T without
 // threading the chain through every helper.
-let activeChain: { thoughts: { endTime: number | null }[]; togglePrinted: (i: number) => void } | null = null
+let activeChain: { thoughts: { endTime: number | null; subThoughts: { collapsed: boolean }[] }[]; togglePrinted: (i: number) => void; reprintThought: (i: number) => void } | null = null
 let stdinInput = ""
 let stdinCursor = 0
 let stdinMode = "chat"
@@ -887,6 +1076,21 @@ function stdinKeypress(_str: string, key: any) {
       const last = thoughts[thoughts.length - 1]!
       if (last.endTime !== null) {
         activeChain.togglePrinted(thoughts.length - 1)
+      }
+    }
+    return
+  }
+
+  // Ctrl+X — toggle the most recent sub-thought (Explore) on the last thought
+  // entry. Allows drill-down into subagent activity without expanding the main
+  // thought chain.
+  if (key.ctrl && key.name === "x" && process.stdout.isTTY && activeChain) {
+    const lastThought = activeChain.thoughts[activeChain.thoughts.length - 1]
+    if (lastThought && lastThought.endTime !== null && lastThought.subThoughts.length > 0) {
+      const lastSub = lastThought.subThoughts[lastThought.subThoughts.length - 1]
+      if (lastSub) {
+        lastSub.collapsed = !lastSub.collapsed
+        activeChain.reprintThought(activeChain.thoughts.length - 1)
       }
     }
     return
@@ -1221,6 +1425,27 @@ function keyToPermissionReply(
   return undefined
 }
 
+// Strip raw tool call XML that some providers (notably Kimi and certain
+// Anthropic-compatible proxies) leak into the text stream alongside
+// structured tool calls. The pattern looks like:
+//   <|tool_calls_section_begin|><|tool_call_begin|>functions.<name>:<id><|tool_call_argument_begin|>...
+// When a chunk contains any <|tool_|> markers, treat the ENTIRE chunk as
+// tool call markup and drop it — real user-facing text is never mixed with
+// raw tool call XML.
+function stripToolCallXml(chunk: string): string {
+  if (!chunk) return ""
+  if (!chunk.includes("<|tool_") && !chunk.includes("<tool_")) return chunk
+  // If the entire chunk is (or contains) a tool call section block, drop it.
+  // This handles the Kimi K2-6 pattern:
+  //   <|tool_calls_section_begin|><|tool_call_begin|>functions.read_file:0<|tool_call_argument_begin|>...
+  if (/<\|tool_calls_section_begin\|>/.test(chunk)) return ""
+  // If the chunk has individual tool call tags but no text beyond them, drop it.
+  const stripped = chunk.replace(/<\|[^|]+\|>/g, "").replace(/<function>[^<]*<\/function>/g, "").trim()
+  if (!stripped) return ""
+  // Some remaining text — only strip the tags, keep any actual content.
+  return stripped
+}
+
 async function chatInput(currentMode: string): Promise<{ input: string; mode: string }> {
   stdinMode = modes.includes(currentMode) ? currentMode : "chat"
   applyModePermissions(stdinMode)
@@ -1287,6 +1512,40 @@ export async function chatLoop(
   let sessionStartTime = Date.now()
   let lastUsage: { promptTokens?: number; completionTokens?: number; totalTokens?: number } | undefined = undefined
   let lastElapsed: number | undefined = undefined
+
+  // Auto-compaction threshold: if accumulated tokens exceed 75% of context window,
+  // automatically run compaction to avoid hitting the limit mid-conversation.
+  const COMPACT_THRESHOLD = 0.75
+
+  async function maybeCompactConversation(id: string) {
+    const total = sessionTokens + (lastUsage?.totalTokens ?? 0)
+    if (total < contextWindow * COMPACT_THRESHOLD) return
+    if (contextWindow <= 0) return
+    process.stdout.write(
+      ` ${chalk.hex(theme.amber)("◆")} ${chalk.hex(theme.muted)(`token usage at ${Math.round((total / contextWindow) * 100)}% — auto-compacting`)}\r\n`,
+    )
+    try {
+      const { compactCommand } = await import("src/cli/commands/slashCommands/compact.ts")
+      await compactCommand({
+        provider,
+        conversationId: id,
+        getMessages: async (cid) => {
+          const msgs = await getMessages(cid)
+          return msgs.map((m: any) => ({
+            role: typeof m.role === "string" ? m.role : "user",
+            content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
+          }))
+        },
+        saveSummary: async (cid, summary) => {
+          await addMessage(cid, "system", `[compaction] ${summary}`)
+        },
+      })
+      sessionTokens = 0 // reset after compaction
+      process.stdout.write(` ${chalk.hex(theme.green)("◆")} ${chalk.hex(theme.muted)("compaction complete")}\r\n`)
+    } catch {
+      // Non-fatal — compact is best-effort
+    }
+  }
 
   // Persistent footer bar (matches OpenCode's always-there status line).
   // The bar reserves the row immediately below the prompt so it stays anchored
@@ -1476,7 +1735,7 @@ export async function chatLoop(
             if (aiResult.aborted) {
               process.stdout.write(` ${chalk.hex(theme.muted)("response aborted")}\r\n\n`)
             }
-            footer.render()
+            footer.renderLine()
           } catch (err: any) {
             const msg = err.message || String(err)
             process.stdout.write(`\r\n ${chalk.hex(theme.red)("◆")} ${chalk.hex(theme.red)(msg)}\r\n\n`)
@@ -1541,6 +1800,7 @@ export async function chatLoop(
             await addMessage(conversation.id, "assistant", agentResult.content)
             lastUsage = agentResult.usage
             lastElapsed = agentResult.elapsed
+            await maybeCompactConversation(conversation.id)
             continue
           }
         }
@@ -1566,6 +1826,7 @@ export async function chatLoop(
 
         lastUsage = result.usage
         lastElapsed = result.elapsed
+        await maybeCompactConversation(conversation.id)
       } catch (error: any) {
         const errMsg = error?.message ?? "Unknown error"
         process.stdout.write(`\r\n ${chalk.hex(theme.red)("◆")} ${chalk.hex(theme.red)(errMsg)}\r\n\n`)

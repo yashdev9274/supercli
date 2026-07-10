@@ -29,6 +29,8 @@ export interface GenerateOptions {
   onToolCall?: (params: { toolName: string; args?: unknown }) => void
   signal?: AbortSignal
   budget?: number
+  /** Name of the parent agent that spawned this agent, for permission chaining. */
+  parentAgent?: string
 }
 
 export interface GenerateResult {

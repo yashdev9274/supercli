@@ -1,5 +1,8 @@
 {
   "compilerOptions": {
+    // Silence baseUrl deprecation (used by bare "src/..." imports)
+    "ignoreDeprecations": "6.0",
+
     // Environment setup & latest features
     "lib": ["ESNext"],
     "target": "ESNext",
@@ -26,10 +29,10 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false,
 
-    // Base URL for paths
+    // Base URL for non-relative imports (e.g. "src/...")
     "baseUrl": ".",
-    
-    // Paths
+
+    // Paths (relative to this tsconfig.json)
     "paths": {
       "@super/db-terminal": ["../../packages/db-terminal/index.ts"],
       "@super/db-terminal/*": ["../../packages/db-terminal/*"],

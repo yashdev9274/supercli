@@ -3,6 +3,7 @@ import type { LanguageModel, ToolSet } from "ai"
 import { agentService, loadPrompt } from "src/agent/index.ts"
 import type { GenerateOptions, GenerateResult } from "src/agent/agent.ts"
 import { writeScratch } from "src/lib/scratch.ts"
+import { getCurrentAgent } from "src/tools/permission-manager.ts"
 
 const delegateSchema = z.object({
   task: z
@@ -97,12 +98,13 @@ function filterTools(
 export const delegateTool = {
   description:
     "Delegate a self-contained subtask to a focused subagent. " +
-    "Use this when the user's request has a clearly separable subproblem " +
-    "(e.g. 'summarize this URL', 'find all files matching X', 'extract the API surface'). " +
     "The subagent runs with its own context and tool budget, then returns a concise structured summary. " +
     "Prefer delegating over chaining many tool calls in the parent — keeps the parent's context clean. " +
-    "Set `agent: 'general'` for write access (will still ask for permission on destructive operations). " +
-    "Set `agent: 'explore'` (default) for fast read-only investigation.",
+    "IMPORTANT: Use `agent: 'general'` when the subtask requires writing, editing, or changing files. " +
+    "Use `agent: 'explore'` (default) for read-only investigation (searching, reading, summarizing). " +
+    "Examples: for refactoring, bug fixing, or feature work use general; for file lookup or summarization use explore. " +
+    "The general agent is write-capable (it still asks for permission on destructive operations). " +
+    "The explore agent is strictly read-only (it cannot modify files or system state).",
   parameters: delegateSchema,
   execute: async (args: DelegateArgs) => {
     if (!runtime.model) {
@@ -129,6 +131,7 @@ export const delegateTool = {
       budget: args.budget ?? agent.info.steps,
       onChunk: runtime.onChunk,
       onToolCall: runtime.onToolCall,
+      parentAgent: getCurrentAgent(),
     }
 
     try {
@@ -232,6 +235,7 @@ export const taskTool = {
           budget: item.budget ?? agent.info.steps,
           onChunk: runtime.onChunk,
           onToolCall: runtime.onToolCall,
+          parentAgent: getCurrentAgent(),
         })
         return {
           index: idx,

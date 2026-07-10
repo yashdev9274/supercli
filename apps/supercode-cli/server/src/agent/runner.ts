@@ -50,8 +50,9 @@ export async function runAgent(
 
   // Build the tool set, but tag each tool with the calling agent so
   // permission checks respect the agent's ruleset (Phase 5 enforcement).
+  // If a parent agent spawned this agent, pass parent info for permission chaining.
   const tools: ToolSet | undefined = opts.tools
-    ? wrapToolsWithAgent(agent, opts.tools)
+    ? wrapToolsWithAgent(agent, opts.tools, opts.parentAgent)
     : undefined
 
   // Track structured output for the parent agent
@@ -195,7 +196,11 @@ function buildMessages(
  * already-wrapped `tool()` instances. We replace `execute` with a
  * shim that calls permissionManager.check(name, input, { agentName }).
  */
-function wrapToolsWithAgent(agent: Agent, tools: Record<string, unknown>): ToolSet {
+function wrapToolsWithAgent(
+  agent: Agent,
+  tools: Record<string, unknown>,
+  parentAgentName?: string,
+): ToolSet {
   const wrapped: ToolSet = {}
   for (const [name, t] of Object.entries(tools)) {
     const tt = t as { execute?: (...args: any[]) => any; description?: string }
@@ -208,15 +213,14 @@ function wrapToolsWithAgent(agent: Agent, tools: Record<string, unknown>): ToolS
     wrapped[name] = {
       ...(tt as any),
       execute: async (input: any, execOptions: any) => {
-        // Defer permission check to runtime — the agent is determined by the
-        // caller's context. We can't easily inject the agentName into the AI
-        // SDK's tool-execution context, so we monkey-patch permissionManager
-        // via a thread-local current-agent reference.
-        const { setCurrentAgent, getCurrentAgent, permissionManager } = await import(
-          "src/tools/permission-manager.ts"
-        )
+        // Defer permission check to runtime — we monkey-patch
+        // permissionManager via thread-local agent references.
+        const { setCurrentAgent, getCurrentAgent, setParentAgent, getParentAgent, permissionManager } =
+          await import("src/tools/permission-manager.ts")
         const previous = getCurrentAgent()
+        const previousParent = getParentAgent()
         setCurrentAgent(agent.info.name)
+        setParentAgent(parentAgentName)
         try {
           const args = typeof input === "object" && input !== null ? input : {}
           const allowed = await permissionManager.check(name, args as Record<string, unknown>)
@@ -230,6 +234,7 @@ function wrapToolsWithAgent(agent: Agent, tools: Record<string, unknown>): ToolS
           return await originalExecute(input, execOptions)
         } finally {
           setCurrentAgent(previous)
+          setParentAgent(previousParent)
         }
       },
     }

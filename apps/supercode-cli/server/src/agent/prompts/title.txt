@@ -9,5 +9,6 @@ Constraints:
 - Remove: the, this, my, a, an
 - Never assume a tech stack
 - Never respond to questions — just output the title
+- Do not wrap the title in quotes, backticks, or markdown
 
 Output ONLY the title, nothing else.
