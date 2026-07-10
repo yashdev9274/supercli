@@ -1,0 +1,22 @@
+{
+  "name": "@super/superdesign-db",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate deploy"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "@prisma/client-runtime-utils": "7.8.0",
+    "dotenv": "^17.4.2",
+    "prisma": "^7.8.0"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}
