@@ -181,7 +181,7 @@ async function agentLoop(
       // lists, code fences, and bold get the proper terminal styling.
       const md = new MarkdownStream()
       md.push(result.text || accumulatedText || "Application created successfully.")
-      md.end()
+      await md.end()
       console.log()
 
       const responseMessage = result.text || accumulatedText || "Application created successfully."

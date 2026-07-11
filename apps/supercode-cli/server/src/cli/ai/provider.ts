@@ -58,12 +58,12 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
   const meta = providerMeta[provider]
 
   if (!providerConfigs[provider]()) {
-    const svc = new ServerProxyService(provider, model || meta.defaultModel)
-    return {
-      name: provider,
-      modelName: model || meta.defaultModel,
-      sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish, onStepBudget) =>
-        svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish, onStepBudget),
+      const svc = new ServerProxyService(provider, model || meta.defaultModel)
+      return {
+        name: provider,
+        modelName: model || meta.defaultModel,
+        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish) =>
+          svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish),
       generateObject: (schema, prompt) => svc.generateObject(schema, prompt),
     }
   }
@@ -94,8 +94,8 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
         name: "nvidia",
         modelName: svc.modelName,
         model: svc.model,
-        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish, onStepBudget) =>
-          svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish, onStepBudget),
+        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish) =>
+          svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish),
       }
     }
     case "concentrateai": {
@@ -114,8 +114,8 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
         name: "mergedev",
         modelName: svc.modelName,
         model: svc.model,
-        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish, onStepBudget) =>
-          svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish, onStepBudget),
+        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish) =>
+          svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish),
       }
     }
     default: {
