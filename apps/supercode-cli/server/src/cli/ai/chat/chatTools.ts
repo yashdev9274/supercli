@@ -175,7 +175,7 @@ async function toolChatLoop(conversation: Conversation) {
       streamHeader(modelName)
       md.push(fullResponse)
     }
-    md.end()
+    await md.end()
 
     streamFooter(undefined, elapsed)
 

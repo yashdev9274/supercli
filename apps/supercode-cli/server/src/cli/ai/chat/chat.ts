@@ -66,6 +66,12 @@ import {
   canVoiceCapture,
   stopCapture,
 } from "src/voice/speech.ts"
+import path from "node:path"
+import { AtPicker, DragDropTracker } from "./at-picker.ts"
+import {
+  indexWorkspace,
+  resolveFileReferences,
+} from "src/lib/file-search.ts"
 
 
 async function getUserFromToken() {
@@ -260,6 +266,7 @@ async function streamAIResponse(
   mode: string,
   workspaceInfo?: WorkspaceInfo,
   statusBar?: PersistentStatusBar,
+  extraContext?: string,
 ): Promise<{
   content: string
   elapsed: number
@@ -303,6 +310,13 @@ async function streamAIResponse(
 
     if (mode === "plan") {
       promptContent += `\n\n## Plan Mode Note\n\nYou are in plan mode. You MUST NOT write files, run commands, or execute code. Produce a structured plan and stop. The user will review with /plan execute.`
+    }
+
+    // Applied to all modes — shows progress progressively so user never sees a blank screen
+    promptContent += `\n\n## Progress Display\n\nShow your work progressively. Start every significant finding, observation, or intermediate result with "→" on its own line so the user sees you're making progress in real-time. If you would be thinking without visible output for more than ~3 seconds, instead announce what you're about to do.`
+
+    if (extraContext) {
+      promptContent += `\n\n## Referenced Files\n\nFiles marked with @ in the user message have been read and included below. Do not re-read them with tools.\n\n${extraContext}\n`
     }
 
     aiMessages = [
@@ -625,8 +639,9 @@ async function streamAIResponse(
     activeStatusRow = null
     activeChain = null
 
-    // Flush any trailing markdown — finalizes the open block.
-    md.end()
+    // Flush any trailing markdown — finalizes the open block with a
+    // typing animation so the user sees content appear progressively.
+    await md.end()
 
     // Update the persistent status bar with final turn state
     if (statusBar) {
@@ -739,7 +754,7 @@ async function streamAIResponse(
       }
       statusRow.stop()
       activeStatusRow = null
-      md.end()
+      await md.end()
       if (statusBar) statusBar.update({ isStreaming: false, elapsed: 0 })
       console.log()
       return {
@@ -753,7 +768,7 @@ async function streamAIResponse(
     statusRow.stop()
     activeStatusRow = null
     activeChain = null
-    md.end()
+    await md.end()
     if (statusBar) statusBar.update({ isStreaming: false, elapsed: 0 })
     throw error
   } finally {
@@ -875,6 +890,10 @@ let activeStatusRow: StepStatusRow | null = null
 
 let slashListLines = 0
 let slashSelected = -1
+let atListLines = 0
+let ddListLines = 0
+const atPicker = new AtPicker()
+const ddTracker = new DragDropTracker()
 
 // Filter the slash-command list by what the user has typed. Empty query
 // returns everything. Match is case-insensitive substring on the command
@@ -910,10 +929,11 @@ function renderInput() {
   const totalChars = promptLen + stdinInput.length
   const wrapLines = Math.max(1, Math.ceil(totalChars / cols))
 
-  // Clear old list + input from bottom to top
-  const totalPrev = stdinPrevWrapLines + slashListLines
-  // Move cursor down past all old content
-  for (let i = 0; i < slashListLines; i++) {
+  // Clear old list + overlays + input from bottom to top
+  const totalPrev =
+    stdinPrevWrapLines + slashListLines + atListLines + ddListLines
+  // Move cursor down past all overlay content
+  for (let i = 0; i < slashListLines + atListLines + ddListLines; i++) {
     readline.moveCursor(process.stdout, 0, 1)
   }
   // Now clear from bottom to top
@@ -930,33 +950,96 @@ function renderInput() {
   process.stdout.write(promptText() + stdinInput)
   stdinPrevWrapLines = wrapLines
 
-  // Show slash autocomplete list
+  // Show slash autocomplete list with scrolling window (mirrors AtPicker
+  // pattern — max 10 visible, selection-centered, scroll indicators).
   slashListLines = 0
   if (stdinInput.startsWith("/") && stdinInput.length >= 1) {
     const filtered = filterSlashCommands(stdinInput)
     if (filtered.length > 0) {
       if (slashSelected >= filtered.length) slashSelected = -1
-      const divider = heavyDivider()
-      process.stdout.write(`\r\n${divider}\r\n`)
-      if (slashSelected === -1) {
-        process.stdout.write(` ${chalk.hex(theme.amber)("❯")} ${stdinInput}\r\n`)
+
+      const maxVisible = 10
+      const total = filtered.length
+      const half = Math.floor(maxVisible / 2)
+
+      let start = Math.max(0, slashSelected === -1 ? 0 : slashSelected - half)
+      let end = Math.min(total, start + maxVisible)
+      if (end - start < maxVisible && start > 0) {
+        start = Math.max(0, end - maxVisible)
       }
-      process.stdout.write(`${divider}\r\n`)
-      filtered.forEach((c, i) => {
+
+      const hasPrev = start > 0
+      const hasNext = end < total
+
+      const lines: string[] = []
+
+      const divider = heavyDivider()
+      lines.push(divider)
+
+      if (slashSelected === -1) {
+        lines.push(` ${chalk.hex(theme.amber)("❯")} ${stdinInput}`)
+      }
+
+      lines.push(divider)
+
+      if (hasPrev) {
+        lines.push(` ${chalk.hex(theme.greenDim)(`▲ ${start} more`)}`)
+      }
+
+      for (let i = start; i < end; i++) {
+        const c = filtered[i]!
         if (slashSelected === i) {
-          process.stdout.write(` ${chalk.hex(theme.amber)("▸")} ${chalk.hex(theme.green).bold(c.cmd.padEnd(22))}${chalk.hex(theme.white)(c.desc)}\r\n`)
+          const bg = chalk.bgHex(theme.greenDeep)
+          const padded = ` ${chalk.hex(theme.amber)("▸")} ${chalk.hex(theme.green).bold(c.cmd.padEnd(22))}${chalk.hex(theme.white)(c.desc)}`
+          lines.push(bg(padded.padEnd(process.stdout.columns ?? 80)))
         } else {
-          process.stdout.write(` ${chalk.hex(theme.muted)(" ")} ${chalk.hex(theme.green)(c.cmd.padEnd(22))}${chalk.hex(theme.muted)(c.desc)}\r\n`)
+          lines.push(` ${chalk.hex(theme.muted)(" ")} ${chalk.hex(theme.green)(c.cmd.padEnd(22))}${chalk.hex(theme.muted)(c.desc)}`)
         }
-      })
-      process.stdout.write(`${divider}`)
-      const slashHeight = 2 + 1 + filtered.length + 1 - (slashSelected >= 0 ? 1 : 0)
-      slashListLines = slashHeight
+      }
+
+      if (hasNext) {
+        lines.push(` ${chalk.hex(theme.greenDim)(`▼ ${total - end} more`)}`)
+      }
+
+      lines.push(divider)
+
+      for (const line of lines) {
+        process.stdout.write(`\r\n${line}`)
+      }
+
+      slashListLines = lines.length
 
       for (let i = 0; i < slashListLines; i++) {
         readline.moveCursor(process.stdout, 0, -1)
       }
     }
+  }
+
+  // ── @ file/agent picker overlay ──
+  atListLines = 0
+  if (atPicker.visible && atPicker.items.length > 0) {
+    const cols = process.stdout.columns || 80
+    const lines = atPicker.render(cols)
+    for (const line of lines) {
+      process.stdout.write(line + "\n")
+    }
+    atListLines = lines.length
+  }
+
+  // ── Drag-drop file indicator ──
+  ddListLines = 0
+  const ddLines = ddTracker.render(process.stdout.columns || 80)
+  if (ddLines.length > 0) {
+    for (const line of ddLines) {
+      process.stdout.write(line + "\n")
+    }
+    ddListLines = ddLines.length
+  }
+
+  // Park cursor back up past the overlays
+  const totalOverlay = atListLines + ddListLines
+  for (let i = 0; i < totalOverlay; i++) {
+    readline.moveCursor(process.stdout, 0, -1)
   }
 
   readline.cursorTo(process.stdout, promptLen + stdinCursor)
@@ -1004,6 +1087,42 @@ function stdinKeypress(_str: string, key: any) {
     return
   }
 
+  // ── @ file/agent picker ──
+  if (atPicker.visible) {
+    if (key.name === "up" || (key.name === "p" && key.ctrl)) {
+      atPicker.selectPrev()
+      renderInput()
+      return
+    }
+    if (key.name === "down" || (key.name === "n" && key.ctrl)) {
+      atPicker.selectNext()
+      renderInput()
+      return
+    }
+    if (key.name === "return" || key.name === "enter") {
+      const selected = atPicker.getSelected()
+      if (selected) {
+        const insertText = `@${atPicker.getRelativePath(selected.path)}`
+        const atPos = stdinInput.lastIndexOf("@", stdinCursor)
+        if (atPos >= 0) {
+          stdinInput =
+            stdinInput.slice(0, atPos) +
+            insertText +
+            stdinInput.slice(stdinCursor)
+          stdinCursor = atPos + insertText.length
+        }
+      }
+      atPicker.close()
+      renderInput()
+      return
+    }
+    if (key.name === "escape") {
+      atPicker.close()
+      renderInput()
+      return
+    }
+  }
+
   // Enter/Escape during voice capture stops recording, doesn't submit
   if (voiceCaptureActive && (key.name === "return" || key.name === "enter" || key.name === "escape")) {
     stopCapture()
@@ -1048,6 +1167,32 @@ function stdinKeypress(_str: string, key: any) {
       }
     }
     slashListLines = 0
+    // Clear @ picker overlay
+    atPicker.close()
+    for (let i = 0; i < atListLines; i++) {
+      readline.moveCursor(process.stdout, 0, 1)
+    }
+    for (let i = 0; i < atListLines; i++) {
+      readline.cursorTo(process.stdout, 0)
+      readline.clearLine(process.stdout, 0)
+      if (i < atListLines - 1) {
+        readline.moveCursor(process.stdout, 0, -1)
+      }
+    }
+    atListLines = 0
+    // Clear drag-drop indicator
+    for (let i = 0; i < ddListLines; i++) {
+      readline.moveCursor(process.stdout, 0, 1)
+    }
+    for (let i = 0; i < ddListLines; i++) {
+      readline.cursorTo(process.stdout, 0)
+      readline.clearLine(process.stdout, 0)
+      if (i < ddListLines - 1) {
+        readline.moveCursor(process.stdout, 0, -1)
+      }
+    }
+    ddListLines = 0
+    ddTracker.clear()
     process.stdout.write("\r\n")
     resolve({ input: stdinInput, mode: stdinMode })
     return
@@ -1238,12 +1383,27 @@ function stdinKeypress(_str: string, key: any) {
     return
   }
 
+  // ─── Character insertion ───────────────────────────────────────────
   if (_str && _str.length === 1 && !key.ctrl && !key.meta) {
     activeFooter?.setStatusMessage("")
-    stdinInput = stdinInput.slice(0, stdinCursor) + _str + stdinInput.slice(stdinCursor)
+    stdinInput =
+      stdinInput.slice(0, stdinCursor) + _str + stdinInput.slice(stdinCursor)
     stdinCursor++
     slashSelected = -1
     historyIndex = -1
+
+    // @ trigger detection
+    const textBeforeCursor = stdinInput.slice(0, stdinCursor)
+    const atMatch = textBeforeCursor.match(/@(\S*)$/)
+    if (atMatch) {
+      atPicker.open(atMatch[1] ?? "")
+    } else if (atPicker.visible) {
+      atPicker.close()
+    }
+
+    // Drag-drop path detection
+    ddTracker.checkDragDrop(stdinInput)
+
     renderInput()
     return
   }
@@ -1503,6 +1663,9 @@ export async function chatLoop(
 
   if (workspaceInfo?.workspaceRoot) {
     process.env.SUPERCODE_WORKSPACE_ROOT = workspaceInfo.workspaceRoot
+    atPicker.setWorkspaceRoot(workspaceInfo.workspaceRoot)
+    ddTracker.setRoot(workspaceInfo.workspaceRoot)
+    await indexWorkspace(workspaceInfo.workspaceRoot)
   }
 
   let messageCount = 0
@@ -1749,14 +1912,54 @@ export async function chatLoop(
         continue
       }
 
+      // Strip @ refs from AI message — file content is already in system prompt
+      const cleanInput = unquoted.replace(/@\S+/g, (m) => m.slice(1))
       userMessage(unquoted)
       messageCount++
 
-      await addMessage(conversation.id, "user", unquoted)
-      await trySetAutoTitle(conversation.id, unquoted, messageCount)
+      await addMessage(conversation.id, "user", cleanInput)
+      await trySetAutoTitle(conversation.id, cleanInput, messageCount)
+
+      // Resolve referenced files (@ + drag-drop) into extra context
+      const resolved = await resolveFileReferences(
+        unquoted,
+        workspaceInfo?.workspaceRoot,
+        [...ddTracker.detectedFiles],
+      )
+      const loadedPaths = Object.keys(resolved.content)
+      const fileContext =
+        loadedPaths.length > 0
+          ? Object.entries(resolved.content)
+              .map(([filePath, content]) => {
+                const rel = path.relative(
+                  workspaceInfo!.workspaceRoot,
+                  filePath,
+                )
+                return `<file path="${rel}">\n${content}\n</file>`
+              })
+              .join("\n\n")
+          : undefined
+
+      if (loadedPaths.length > 0) {
+        process.stdout.write("\n")
+        for (const fp of loadedPaths) {
+          const rel = path.relative(workspaceInfo!.workspaceRoot, fp)
+          process.stdout.write(
+            ` ${chalk.hex(theme.green)("📄")} ${chalk.hex(theme.green)(rel)} loaded\n`,
+          )
+        }
+        process.stdout.write("\n")
+      }
+      if (resolved.unresolved.length > 0) {
+        for (const fp of resolved.unresolved) {
+          process.stdout.write(
+            ` ${chalk.hex(theme.amber)("⚠")} ${chalk.hex(theme.amber)(fp)} not found\n`,
+          )
+        }
+      }
 
       try {
-        const result = await streamAIResponse(provider, conversation.id, conversation.mode, workspaceInfo, footer)
+        const result = await streamAIResponse(provider, conversation.id, conversation.mode, workspaceInfo, footer, fileContext)
 
         if (result.aborted) {
           if (result.content && result.content !== "(cancelled)") {

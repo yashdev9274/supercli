@@ -130,12 +130,12 @@ export class ConcentrateService {
         // Iterate fullStream to surface reasoning chunks alongside text.
         for await (const event of result.fullStream) {
           if (event.type === "text-delta") {
-            if (event.textDelta == null) continue
+            if (event.text == null) continue
             chunkCount++
-            fullResponse += event.textDelta
-            onChunk?.(event.textDelta)
-          } else if (event.type === "reasoning") {
-            if (event.textDelta) onReasoning?.(event.textDelta)
+            fullResponse += event.text
+            onChunk?.(event.text)
+          } else if (event.type === "reasoning-delta") {
+            if (event.text) onReasoning?.(event.text)
           }
         }
         // console.error(`[d] non-tools streamed ${chunkCount} chunks resp="${fullResponse}"`)
@@ -312,12 +312,12 @@ export class ConcentrateService {
       // Iterate fullStream to surface reasoning chunks alongside text.
       for await (const event of result.fullStream) {
         if (event.type === "text-delta") {
-          if (event.textDelta == null) continue
+          if (event.text == null) continue
           toolChunkCount++
-          fullResponse += event.textDelta
-          onChunk?.(event.textDelta)
-        } else if (event.type === "reasoning") {
-          if (event.textDelta) onReasoning?.(event.textDelta)
+          fullResponse += event.text
+          onChunk?.(event.text)
+        } else if (event.type === "reasoning-delta") {
+          if (event.text) onReasoning?.(event.text)
         }
       }
       // console.error(`[d] tools streamed ${toolChunkCount} chunks resp="${fullResponse}"`)

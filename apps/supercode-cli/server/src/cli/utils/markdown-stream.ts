@@ -121,7 +121,7 @@ export class MarkdownStream {
   end() {
     if (this.closed) return
     this.closed = true
-    this.renderStyled()
+    return this.renderStyled()
   }
 
   reset() {
@@ -130,11 +130,12 @@ export class MarkdownStream {
   }
 
   // Run the buffered response through marked-terminal with the
-  // supercode palette and write the styled result to stdout. In live
-  // mode the raw transcript is already on screen, so we open a fresh
-  // line first; in default (buffer-only) mode we just print the
-  // payload directly.
-  private renderStyled() {
+  // supercode palette and write the styled result to stdout with a
+  // typing animation so the user sees content appearing progressively.
+  // In live mode the raw transcript is already on screen, so we open a
+  // fresh line first; in default (buffer-only) mode we animate the
+  // styled payload directly.
+  private async renderStyled() {
     if (!this.buffer) return
     const width = (process.stdout.columns ?? 80) - 2
     const renderer = getRenderer(width)
@@ -147,6 +148,19 @@ export class MarkdownStream {
     if (this.liveMode) {
       process.stdout.write("\r\n")
     }
-    process.stdout.write(styledPayload)
+
+    // Typing animation — write the styled payload character by character
+    // so the user sees content appearing progressively.
+    const len = styledPayload.length
+    const delay =
+      len < 100 ? 20
+      : len < 500 ? 15
+      : len < 2000 ? 10
+      : 5
+
+    for (let i = 0; i < len; i++) {
+      process.stdout.write(styledPayload[i]!)
+      await new Promise((r) => setTimeout(r, delay))
+    }
   }
 }
