@@ -34,6 +34,7 @@ export const COMMANDS = [
   { cmd: "/token-limit", desc: "Show token limits and usage per model per day" },
   { cmd: "/help", desc: "Show available commands and models" },
   { cmd: "/exit", desc: "End the session" },
+  { cmd: "/mcp", desc: "Manage MCP connections (add, connect, toggle, remove)" },
 ]
 
 function chatify(cmd: string, args: string): string {
@@ -94,6 +95,10 @@ const handlers: Record<string, (args: string) => Promise<SlashCommandResult>> = 
   "token-limit": async () => {
     await tokenLimitCommand()
     return { type: "help" as const }
+  },
+  mcp: async (args) => {
+    const { mcpCommand } = await import("./mcp.ts")
+    return mcpCommand(args)
   },
   search: async (args) => ({ type: "message", message: chatify("search", args) }),
   scrape: async (args) => ({ type: "message", message: chatify("scrape", args) }),
