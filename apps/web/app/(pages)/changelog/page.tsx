@@ -22,15 +22,84 @@ export default function ChangelogPage() {
             <div className="flex items-baseline gap-4 mb-8">
               <h2 className="text-[24px] font-semibold tracking-tight">
                 <a
-                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.42"
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.61"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-primary underline underline-offset-4 transition-colors"
                 >
-                  v0.1.42
+                  v0.1.61
                 </a>
               </h2>
-              <span className="text-[14px] text-muted-foreground font-mono">Jul 5, 2026</span>
+              <span className="text-[14px] text-muted-foreground font-mono">Jul 12, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">MCP / Composio</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Server-side Composio session proxy — CLI fetches composio MCP session from server&#39;s Render env instead of requiring a local <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">COMPOSIO_API_KEY</code> in <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">.env</code>.</li>
+                  <li>- New <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">POST /api/composio/session</code> server endpoint creates composio sessions server-side using the Render env var.</li>
+                  <li>- CLI <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">init</code> auto-restore tries server-side composio session first, falls back to local SDK.</li>
+                  <li>- <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/mcp</code> interactive flow tries server-side session before prompting for API key.</li>
+                  <li>- Fixed Composio 401 <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">Invalid API key</code> on init — users no longer need to manually configure API key in <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">.env</code>.</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Paid tier interest check on <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">init</code>.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.60"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.60
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jul 12, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Scroll-windowing UI for <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">@</code>-picker, slash commands, and model selector — max 10 visible with scroll indicators.</li>
+                  <li>- New <strong>AtPicker</strong> with fuzzy file search for quick file lookup mid-chat.</li>
+                  <li>- Typing animation in markdown stream rendering for more natural output.</li>
+                  <li>- Model picker rewritten with scroll-windowed inline UI (replaced <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">@clack/prompts</code> select).</li>
+                  <li>- Extended allowed model list: kimi-k2.6, deepseek-v4-flash, minimax-m3, glm-5.2, glm-5.1, claude-opus-4.8, gpt-5.5.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.53"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.53
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jul 10, 2026</span>
             </div>
 
             <div className="space-y-8">
