@@ -1073,6 +1073,42 @@ app.post("/api/tools/exa-fetch", async (req, res) => {
   }
 })
 
+// ── Composio session proxy (server-side API key) ──
+
+app.post("/api/composio/session", async (req, res) => {
+  try {
+    const user = await getUserFromBearer(req)
+    if (!user) { res.status(401).json({ error: "Unauthorized" }); return }
+
+    const apiKey = process.env.COMPOSIO_API_KEY
+    if (!apiKey) { res.status(500).json({ error: "Composio not configured on server" }); return }
+
+    const { Composio } = await import("@composio/core")
+    const composio = new Composio({ apiKey })
+
+    const connectedRes = await (composio.connectedAccounts as any).list({})
+    const connectedIds: Record<string, string> = {}
+    for (const acct of (connectedRes.items ?? [])) {
+      if (acct.status === "ACTIVE") {
+        connectedIds[acct.toolkit?.slug] = acct.id
+      }
+    }
+
+    const s = await composio.sessions.create(`user_${user.id}`, {
+      mcp: true,
+      connectedAccounts: connectedIds,
+    })
+
+    res.json({
+      url: (s as any).mcp.url as string,
+      headers: (s as any).mcp.headers as Record<string, string>,
+      sessionId: (s as any).session_id as string,
+    })
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Composio session creation failed" })
+  }
+})
+
 app.post("/api/tools/web-search", async (req, res) => {
   try {
     const user = await getUserFromBearer(req)

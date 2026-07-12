@@ -1,4 +1,7 @@
 import { Composio } from "@composio/core"
+import { getStoredToken } from "src/lib/token"
+
+const BASE_URL = process.env.SUPERCODE_SERVER_URL || "https://supercode-8w7e.onrender.com"
 
 export interface ComposioSessionInfo {
   url: string
@@ -47,6 +50,35 @@ export class ComposioSessionManager {
       throw new Error("COMPOSIO_API_KEY not configured")
     }
     return this.composio
+  }
+
+  async createSessionFromServer(
+    serverUrl = BASE_URL,
+    accessToken?: string,
+  ): Promise<ComposioSessionInfo> {
+    if (!accessToken) {
+      const stored = await getStoredToken()
+      accessToken = stored?.access_token as string
+    }
+    if (!accessToken) {
+      throw new Error("Not authenticated — run supercode login first")
+    }
+
+    const res = await fetch(`${serverUrl}/api/composio/session`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error((body as any).error || `Server returned ${res.status}`)
+    }
+
+    const info = (await res.json()) as ComposioSessionInfo
+    this.session = info
+    return info
   }
 
   async createSession(userId = "default"): Promise<ComposioSessionInfo> {

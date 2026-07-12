@@ -54,15 +54,22 @@ export const wakeUpAction = async (resumeId: string | null = null) => {
   const stored = await getCliConfig()
   await applyStoredApiKeys()
 
-  // Auto-restore composio MCP session if previously connected
-  if (composioSessionManager.isConfigured) {
-    try {
-      const info = await composioSessionManager.createSession("supercode-cli")
-      await getMcpManager().start({
-        composio: { url: info.url, headers: info.headers },
-      })
-    } catch {
-      // composio auto-reconnect failed — user can use /mcp to reconnect
+  // Auto-restore composio MCP session — try server-side first, then local SDK
+  try {
+    const info = await composioSessionManager.createSessionFromServer()
+    await getMcpManager().start({
+      composio: { url: info.url, headers: info.headers },
+    })
+  } catch {
+    if (composioSessionManager.isConfigured) {
+      try {
+        const info = await composioSessionManager.createSession("supercode-cli")
+        await getMcpManager().start({
+          composio: { url: info.url, headers: info.headers },
+        })
+      } catch {
+        // composio auto-reconnect failed — user can use /mcp to reconnect
+      }
     }
   }
 

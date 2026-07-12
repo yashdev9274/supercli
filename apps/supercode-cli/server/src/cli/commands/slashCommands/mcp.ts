@@ -319,6 +319,25 @@ async function connectFlow(): Promise<void> {
   if (connType === "composio") {
     const mgr = await mcpManager()
 
+    // Try server-side session first (no local API key needed)
+    let sessionErr: Error | null = null
+    try {
+      const info = await composioSessionManager.createSessionFromServer()
+      const config = await getCliConfig()
+      const existing = (config as Record<string, any>) ?? {}
+      await saveCliConfig({
+        ...existing as any,
+        composioSessionId: info.sessionId,
+      } as any)
+      await mgr.reconnectServer("composio", { url: info.url, headers: info.headers })
+      const tools = await mgr.getTools("composio")
+      console.log(`\n ${chalk.hex(theme.green)("◆")} composio connected — ${Object.keys(tools).length} tools`)
+      return
+    } catch (err: any) {
+      sessionErr = err
+    }
+
+    // Fall back to local API key
     if (!composioSessionManager.isConfigured) {
       const apiKey = (await password({
         message: "Composio API key (set COMPOSIO_API_KEY in .env)",
@@ -350,7 +369,10 @@ async function connectFlow(): Promise<void> {
       const tools = await mgr.getTools("composio")
       console.log(`\n ${chalk.hex(theme.green)("◆")} composio connected — ${Object.keys(tools).length} tools`)
     } catch (err: any) {
-      console.log(`\n ${chalk.hex(theme.red)("◆")} composio connection failed: ${err.message}`)
+      const msg = !composioSessionManager.isConfigured
+        ? "Server unreachable and no local API key set"
+        : err.message
+      console.log(`\n ${chalk.hex(theme.red)("◆")} composio connection failed: ${msg}`)
     }
     return
   }
@@ -525,9 +547,20 @@ async function showDetail(entry: ListEntry): Promise<void> {
 
 async function ensureComposioConnected(): Promise<void> {
   if (composioSessionManager.isConnected) return
-  if (!composioSessionManager.isConfigured) return
 
   const mgr = await mcpManager()
+
+  // Try server-side first
+  try {
+    const info = await composioSessionManager.createSessionFromServer()
+    await mgr.reconnectServer("composio", { url: info.url, headers: info.headers })
+    return
+  } catch {
+    // server-side failed, try local SDK
+  }
+
+  if (!composioSessionManager.isConfigured) return
+
   try {
     const info = await composioSessionManager.createSession("supercode-cli")
     await mgr.reconnectServer("composio", { url: info.url, headers: info.headers })
