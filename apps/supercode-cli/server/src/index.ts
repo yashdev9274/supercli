@@ -121,6 +121,45 @@ app.get("/api/user/me", async (req, res) => {
   }
 })
 
+app.get("/api/user/paid-tier-interest", async (req, res) => {
+  try {
+    const user = await getUserFromBearer(req)
+    if (!user) {
+      res.status(401).json({ error: "Unauthorized" })
+      return
+    }
+    const existing = await prisma.paidTierInterest.findUnique({
+      where: { userId: user.id },
+    })
+    res.json({ answered: existing !== null, interested: existing?.interested ?? null })
+  } catch (error) {
+    res.status(500).json({ error: "Failed to check paid tier interest" })
+  }
+})
+
+app.post("/api/user/paid-tier-interest", async (req, res) => {
+  try {
+    const user = await getUserFromBearer(req)
+    if (!user) {
+      res.status(401).json({ error: "Unauthorized" })
+      return
+    }
+    const { interested } = req.body
+    if (typeof interested !== "boolean") {
+      res.status(400).json({ error: "interested must be a boolean" })
+      return
+    }
+    await prisma.paidTierInterest.upsert({
+      where: { userId: user.id },
+      update: { interested },
+      create: { userId: user.id, interested },
+    })
+    res.json({ ok: true })
+  } catch (error) {
+    res.status(500).json({ error: "Failed to save paid tier interest" })
+  }
+})
+
 app.post("/api/conversations", async (req, res) => {
   try {
     const user = await getUserFromBearer(req)

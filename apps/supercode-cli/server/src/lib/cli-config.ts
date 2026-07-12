@@ -13,6 +13,29 @@ export interface CliConfig {
   model: string
   mode: "chat" | "agent"
   apiKeys?: Partial<Record<ModelProvider, string>>
+  mcpServers?: Record<string, McpServerConfig>
+  mcpCredentials?: Record<string, McpCredentials>
+  composioApiKey?: string
+  composioSessionId?: string
+}
+
+export interface McpServerConfig {
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  cwd?: string
+  url?: string
+}
+
+export interface McpCredentials {
+  connectorUid?: string
+  serverUrl?: string
+  clientId?: string
+  clientSecret?: string
+  authType?: "oauth" | "basic" | "api-key"
+  apiKey?: string
+  tokenEndpoint?: string
+  scopes?: string[]
 }
 
 const DEFAULTS: CliConfig = {

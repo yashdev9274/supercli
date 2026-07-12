@@ -4,12 +4,14 @@ import { getStoredToken } from "src/lib/token"
 import { getCurrentUser } from "src/lib/api-client"
 import { startChat, type ModelProvider } from "src/cli/ai/chat/chat"
 import { startAgentChat } from "src/cli/ai/chat/chatAgent"
-import { theme, frame, createThinking, errorBox } from "src/cli/utils/tui"
+import { getMcpManager } from "src/mcp/mcp-manager"
+import { composioSessionManager } from "src/mcp/composio"
+import { createThinking, errorBox } from "src/cli/utils/tui"
 import { renderWelcome } from "src/cli/utils/welcome"
 import { scanWorkspace } from "src/cli/workspace/scanner.ts"
-import { renderWorkspaceBanner } from "src/cli/workspace/format.ts"
 import { getCliConfig, saveCliConfig, applyStoredApiKeys } from "src/lib/cli-config"
 import { checkForUpdate } from "src/cli/utils/auto-update"
+import { checkPaidTierInterest } from "src/cli/utils/paid-tier-check"
 
 export const wakeUpAction = async (resumeId: string | null = null) => {
   renderWelcome(version)
@@ -38,21 +40,32 @@ export const wakeUpAction = async (resumeId: string | null = null) => {
   thinking.succeed(`Welcome, ${user.name}`)
 
   await checkForUpdate()
+  await checkPaidTierInterest()
 
   const wsThinking = createThinking("scanning workspace")
   let workspaceInfo = null
   try {
     workspaceInfo = await scanWorkspace()
     wsThinking.succeed()
-    console.log()
-    console.log(frame(renderWorkspaceBanner(workspaceInfo), { borderColor: theme.dim, padding: 0 }))
-    console.log()
   } catch (err) {
     wsThinking.fail("Could not scan workspace")
   }
 
   const stored = await getCliConfig()
   await applyStoredApiKeys()
+
+  // Auto-restore composio MCP session if previously connected
+  if (composioSessionManager.isConfigured) {
+    try {
+      const info = await composioSessionManager.createSession("supercode-cli")
+      await getMcpManager().start({
+        composio: { url: info.url, headers: info.headers },
+      })
+    } catch {
+      // composio auto-reconnect failed — user can use /mcp to reconnect
+    }
+  }
+
   if (stored) {
     switch (stored.mode) {
       case "agent":

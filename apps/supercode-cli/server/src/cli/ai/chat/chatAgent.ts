@@ -11,6 +11,7 @@ import { agentService, loadPrompt } from "src/agent"
 import { buildSystemPrompt } from "src/cli/workspace/context"
 import { ThinkingDisplay, ThoughtChain } from "src/cli/ai/chat/thinking"
 import { tools } from "src/tools/registry"
+import { getMcpManager } from "src/mcp/mcp-manager"
 
 let _chatService: ChatService
 
@@ -136,9 +137,18 @@ async function agentLoop(
       const seenToolCalls = new Set<string>()
       let accumulatedText = ""
 
+      let toolsToUse: Record<string, unknown> = { ...tools }
+      const mcpManager = getMcpManager()
+      if (mcpManager.isStarted) {
+        const mcpTools = await mcpManager.getAllTools()
+        if (mcpTools && Object.keys(mcpTools).length > 0) {
+          Object.assign(toolsToUse, mcpTools)
+        }
+      }
+
       const result = await buildAgent.generate({
         model,
-        tools: { ...tools },
+        tools: toolsToUse,
         system: agentSystemPrompt,
         prompt: userInput,
         onStepFinish: async ({ stepNumber, text, toolCalls, finishReason }: any) => {

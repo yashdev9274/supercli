@@ -18,7 +18,8 @@ model User {
   updatedAt     DateTime  @updatedAt
   sessions      Session[]
   accounts      Account[]
-  conversation  Conversation[]
+  conversation      Conversation[]
+  paidTierInterests PaidTierInterest[]
 
   @@unique([email])
   @@map("user")
@@ -125,6 +126,17 @@ model UsageEvent {
   @@index([model])
   @@index([provider])
   @@map("usage_event")
+}
+
+model PaidTierInterest {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interested Boolean
+  createdAt  DateTime @default(now())
+
+  @@unique([userId])
+  @@map("paid_tier_interest")
 }
 
 model Message {

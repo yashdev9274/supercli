@@ -43,6 +43,7 @@ import type { WorkspaceInfo } from "src/cli/workspace/scanner.ts"
 import { buildSystemPrompt } from "src/cli/workspace/context.ts"
 import { tools } from "src/tools/registry.ts"
 import { setDelegateRuntime } from "src/tools/definitions/delegate.ts"
+import { getMcpManager } from "src/mcp/mcp-manager"
 import { CitationTracker } from "src/lib/citation-tracker.ts"
 import { loadEnvOnce } from "src/lib/load-env"
 import { renderWorkspaceBanner } from "src/cli/workspace/format.ts"
@@ -388,6 +389,14 @@ async function streamAIResponse(
 
   if (workspaceInfo) {
     toolsToUse = { ...tools }
+    // Merge MCP tools from any connected servers
+    const mcpManager = getMcpManager()
+    if (mcpManager.isStarted) {
+      const mcpTools = await mcpManager.getAllTools()
+      if (mcpTools && Object.keys(mcpTools).length > 0) {
+        Object.assign(toolsToUse, mcpTools)
+      }
+    }
     // Ensure .env vars are loaded (Bun only auto-loads .env from CWD, which
     // may not be the server directory when launched from elsewhere).
     loadEnvOnce()
