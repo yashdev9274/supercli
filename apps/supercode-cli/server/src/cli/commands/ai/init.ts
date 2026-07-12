@@ -11,6 +11,7 @@ import { renderWelcome } from "src/cli/utils/welcome"
 import { scanWorkspace } from "src/cli/workspace/scanner.ts"
 import { getCliConfig, saveCliConfig, applyStoredApiKeys } from "src/lib/cli-config"
 import { checkForUpdate } from "src/cli/utils/auto-update"
+import { checkPaidTierInterest } from "src/cli/utils/paid-tier-check"
 
 export const wakeUpAction = async (resumeId: string | null = null) => {
   renderWelcome(version)
@@ -39,6 +40,7 @@ export const wakeUpAction = async (resumeId: string | null = null) => {
   thinking.succeed(`Welcome, ${user.name}`)
 
   await checkForUpdate()
+  await checkPaidTierInterest()
 
   const wsThinking = createThinking("scanning workspace")
   let workspaceInfo = null
