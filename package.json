@@ -47,7 +47,9 @@
     "build:video:vertical": "bun run --cwd apps/video build:vertical"
   },
   "devDependencies": {
-    "turbo": "^2.5.8"
+    "turbo": "^2.5.8",
+    "nodemailer": "^9.0.1",
+    "@types/nodemailer": "^8.0.1"
   },
   "packageManager": "bun@1.2.21",
   "dependencies": {
