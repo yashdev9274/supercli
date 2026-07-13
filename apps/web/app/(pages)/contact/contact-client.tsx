@@ -29,6 +29,53 @@ export default function ContactClient() {
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+        {/* Book a call */}
+        <div className="space-y-5">
+          <div>
+            <p className="text-sm text-foreground/60 mb-1.5 font-mono">
+              Talk to the founder
+            </p>
+            <p className="text-[14px] text-muted-foreground leading-relaxed mb-4">
+              Got a question, feature request, or just want to say hi? I&apos;d
+              love to hear how you&apos;re using Supercode and what we should
+              build next. Open to everyone — no sales, just direct chat with the
+              founder.
+            </p>
+            <a
+              href="https://cal.com/yash-dewasthale/talk-to-founder"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-[13px] font-medium font-mono bg-white/10 text-foreground hover:bg-white/15 border border-white/10 transition-all duration-200 active:scale-[0.97]"
+            >
+              Book a call
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-3.5 h-3.5"
+              >
+                <path d="M7 7h10v10" />
+                <path d="M17 7 7 17" />
+              </svg>
+            </a>
+          </div>
+
+          <div className="border-t border-border pt-5">
+            <p className="text-sm text-foreground/60 mb-1.5 font-mono">
+              Or email us
+            </p>
+            <p className="text-[14px] text-muted-foreground leading-relaxed mb-4">
+              Prefer writing? Send us a message and we&apos;ll get back to you.
+            </p>
+          </div>
+        </div>
+
         {/* Contact Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>

@@ -255,7 +255,7 @@ const Footer = () => {
               { label: "Features", href: "/#features" },
               { label: "Docs", href: DOCS_URL, external: true },
               { label: "CLI", href: "/", external: true },
-              { label: "Pricing", href: "/#pricing" },
+              { label: "Pricing", href: "/pricing" },
               { label: "Changelog", href: "/changelog" },
               { label: "Partnerships", href: "/partnerships" },
               { label: "Launch", href: "/launch" },
@@ -311,7 +311,7 @@ const Footer = () => {
             <Github className="w-[18px] h-[18px]" />
           </a>
           <a
-            href="https://x.com/dew_yashtwt"
+            href="https://x.com/supercodeai"
             target="_blank"
             rel="noopener noreferrer"
             className="text-muted-foreground/60 hover:text-foreground transition-colors duration-200"

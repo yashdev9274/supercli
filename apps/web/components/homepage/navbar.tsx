@@ -27,21 +27,17 @@ function GithubStars() {
   )
 }
 
+const EASE = "cubic-bezier(0.23,1,0.32,1)"
+
 const PixelLogo = () => (
   <svg
-    width="140"
+    width="108"
     height="18"
-    viewBox="0 0 140 18"
+    viewBox="0 0 108 18"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
+    className="shrink-0"
   >
-    {[
-      { g: "s", blocks: "0,0:3,0:6,0 | 0,3:0,6 | 3,6:6,6 | 6,9 | 0,12:3,12:6,12" },
-      { g: "u", blocks: "12,0:18,0 | 12,3:18,3 | 12,6:18,6 | 12,9:18,9 | 15,12 | 18,12" },
-      { g: "p", blocks: "24,0:27,0:30,0 | 24,3:30,3 | 24,6:27,0:30,6 | 24,9 | 24,12" },
-      { g: "e", blocks: "36,0:39,0:42,0 | 36,3 | 36,6:39,6 | 36,9 | 36,12:39,12:42,12" },
-      { g: "r", blocks: "48,0:51,0:54,0 | 48,3:54,3 | 48,6:51,6:54,6 | 48,9:51,9 | 48,12:54,12" },
-    ].map(() => null)}
     <rect x="0" y="0" width="3" height="3" fill="#a1a1aa" />
     <rect x="3" y="0" width="3" height="3" fill="#a1a1aa" />
     <rect x="6" y="0" width="3" height="3" fill="#a1a1aa" />
@@ -173,9 +169,9 @@ const Navbar = () => {
     <>
     <header className="fixed top-[36px] sm:top-[40px] left-0 right-0 z-[100]">
       <BetaCountdownBanner onVisibilityChange={handleBannerChange} />
-      <div className={`bg-background/95 backdrop-blur-sm transition-all duration-300 ${bannerVisible ? "border-t-0" : ""}`}>
-        <div className="h-[70px] flex items-center justify-between px-5 md:px-12 max-w-[1400px] mx-auto w-full">
-        <div className="flex items-center gap-4">
+      <div className={`bg-background/95 backdrop-blur-sm transition-[background,backdrop-filter,border] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] ${bannerVisible ? "border-t-0" : ""}`}>
+        <div className="relative h-[70px] flex items-center px-5 md:px-12 max-w-[1400px] mx-auto w-full">
+        <div className="flex items-center gap-4 shrink-0">
           <button
             onClick={() => setMenuOpen(!menuOpen)}
             className="md:hidden relative w-8 h-8 flex items-center justify-center text-foreground/80 hover:text-foreground transition-colors"
@@ -183,17 +179,17 @@ const Navbar = () => {
           >
             <div className="relative w-5 h-4">
               <span
-                className={`absolute left-0 block w-5 h-[1.5px] bg-current rounded-full transition-all duration-300 ${
+                className={`absolute left-0 block w-5 h-[1.5px] bg-current rounded-full transition-[transform,top] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] ${
                   menuOpen ? "top-1/2 -translate-y-1/2 rotate-45" : "top-0"
                 }`}
               />
               <span
-                className={`absolute left-0 block w-5 h-[1.5px] bg-current rounded-full transition-all duration-300 ${
+                className={`absolute left-0 block w-5 h-[1.5px] bg-current rounded-full transition-[opacity,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] ${
                   menuOpen ? "opacity-0 translate-x-2" : "top-1/2 -translate-y-1/2 opacity-100"
                 }`}
               />
               <span
-                className={`absolute left-0 block w-5 h-[1.5px] bg-current rounded-full transition-all duration-300 ${
+                className={`absolute left-0 block w-5 h-[1.5px] bg-current rounded-full transition-[transform,top] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] ${
                   menuOpen ? "top-1/2 -translate-y-1/2 -rotate-45" : "bottom-0"
                 }`}
               />
@@ -204,13 +200,15 @@ const Navbar = () => {
           </Link>
         </div>
 
-        <nav className="hidden md:flex items-center gap-10">
-          {navItems.map((item) =>
-            item.external ? (
+        <nav className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-8">
+          {navItems.map((item) => {
+            const baseClasses = "relative text-[15px] font-mono text-white after:absolute after:bottom-[-3px] after:left-0 after:h-px after:w-0 after:bg-foreground after:transition-[width] after:duration-200 hover:text-foreground hover:after:w-full"
+            
+            return item.external ? (
               <a
                 key={item.label}
                 href={item.href}
-                className="text-[15px] text-white hover:text-foreground transition-colors font-mono"
+                className={`${baseClasses} transition-colors ease-[cubic-bezier(0.23,1,0.32,1)]`}
               >
                 {item.label}
                 {item.label === "GitHub" && <GithubStars />}
@@ -219,39 +217,43 @@ const Navbar = () => {
               <Link
                 key={item.label}
                 href={item.href}
-                className={`text-[15px] font-mono ${
-                  item.accent ? "text-primary" : "text-white hover:text-foreground transition-colors"
-                }`}
+                className={`${baseClasses} transition-colors ease-[cubic-bezier(0.23,1,0.32,1)]`}
               >
                 {item.label}
               </Link>
-            ),
-          )}
+            )
+          })}
         </nav>
 
-        {/* <Link
-          href="/"
-          className="px-5 py-2.5 bg-card border border-border text-foreground rounded-lg text-[14px] font-medium hover:bg-accent transition-colors font-mono"
-        >
-          href="/login"
-          
-          Login
-        </Link> */}
-        <Link href="/download">
-          <Button className="bg-white text-black hover:bg-white/90 active:scale-[0.97] cursor-pointer group">
-            <svg className="w-4 h-4 transition-transform duration-[160ms] group-hover:translate-y-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
+        <div className="flex items-center gap-4 ml-auto">
+          <Link href="/download">
+            <Button className="group bg-white text-black hover:bg-white/90 active:scale-[0.97] cursor-pointer transition-[transform,background-color] ease-[cubic-bezier(0.23,1,0.32,1)]">
+              <svg className="w-4 h-4 transition-transform duration-[160ms] ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:translate-y-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Download
+            </Button>
+          </Link>
+          <a
+            href="https://cal.com/yash-dewasthale/talk-to-founder"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group hidden md:inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-[13px] font-medium font-mono bg-white/10 text-foreground hover:bg-white/15 border border-white/10 transition-[transform,background-color,border-color] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]"
+          >
+            Talk to founder
+            <svg className="w-3.5 h-3.5 transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M7 7h10v10" />
+              <path d="M17 7 7 17" />
             </svg>
-            Download
-          </Button>
-        </Link>
+          </a>
+        </div>
       </div>
       </div>
 
       <div
-        className={`fixed inset-0 z-40 transition-all duration-500 ${
+        className={`fixed inset-0 z-40 transition-[opacity] duration-[400ms] ease-[cubic-bezier(0.23,1,0.32,1)] ${
           bannerVisible ? "top-[150px] sm:top-[150px]" : "top-[106px] sm:top-[110px]"
         } ${
           menuOpen
@@ -266,15 +268,13 @@ const Navbar = () => {
             {navItems.map((item, i) => (
               <div
                 key={item.label}
-                className={`transition-all duration-500 delay-[${
-                  i * 80
-                }ms] ${
+                className={`transition-[opacity,transform] duration-[400ms] ease-[cubic-bezier(0.23,1,0.32,1)] ${
                   menuOpen
                     ? "opacity-100 translate-y-0"
                     : "opacity-0 translate-y-4"
                 }`}
                 style={{
-                  transitionDelay: menuOpen ? `${i * 80}ms` : "0ms",
+                  transitionDelay: menuOpen ? `${i * 60}ms` : "0ms",
                 }}
               >
                 {item.external ? (
@@ -283,7 +283,7 @@ const Navbar = () => {
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-3 px-5 py-4 rounded-xl text-[17px] font-mono text-foreground/80 hover:text-foreground hover:bg-accent/30 transition-all duration-200"
+                    className="flex items-center gap-3 px-5 py-4 rounded-xl text-[17px] font-mono text-foreground/80 hover:text-foreground hover:bg-accent/30 transition-[background-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]"
                   >
                     <span className="text-primary/60 font-mono text-sm w-5">
                       {String(i + 1).padStart(2, "0")}
@@ -295,7 +295,7 @@ const Navbar = () => {
                   <Link
                     href={item.href}
                     onClick={() => setMenuOpen(false)}
-                    className={`flex items-center gap-3 px-5 py-4 rounded-xl text-[17px] font-mono transition-all duration-200 ${
+                    className={`flex items-center gap-3 px-5 py-4 rounded-xl text-[17px] font-mono transition-[background-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] ${
                       item.accent
                         ? "text-primary bg-primary/5 hover:bg-primary/10"
                         : "text-foreground/80 hover:text-foreground hover:bg-accent/30"
