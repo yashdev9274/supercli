@@ -1,5 +1,5 @@
 import * as readline from "node:readline"
-import { select, text, password, isCancel } from "@clack/prompts"
+import { select, text, isCancel } from "@clack/prompts"
 import chalk from "chalk"
 let _mgr: any = null
 async function mcpManager(): Promise<any> {
@@ -69,6 +69,23 @@ class McpPicker {
           status: "disconnected",
           detail: "API key set — connect to start",
         })
+      }
+    } else {
+      // No local API key — try server-side proxy
+      try {
+        const apps = await composioSessionManager.listAppsFromServer()
+        for (const app of apps) {
+          list.push({
+            id: `app:${app.slug}`,
+            name: app.name,
+            type: "composio-app",
+            status: app.connected ? "connected" : "disconnected",
+            detail: app.connected ? "OAuth connected" : "click to connect with OAuth",
+            appSlug: app.slug,
+          })
+        }
+      } catch {
+        // server-side also unavailable — no composio apps shown
       }
     }
 
@@ -320,7 +337,6 @@ async function connectFlow(): Promise<void> {
     const mgr = await mcpManager()
 
     // Try server-side session first (no local API key needed)
-    let sessionErr: Error | null = null
     try {
       const info = await composioSessionManager.createSessionFromServer()
       const config = await getCliConfig()
@@ -334,45 +350,10 @@ async function connectFlow(): Promise<void> {
       console.log(`\n ${chalk.hex(theme.green)("◆")} composio connected — ${Object.keys(tools).length} tools`)
       return
     } catch (err: any) {
-      sessionErr = err
-    }
-
-    // Fall back to local API key
-    if (!composioSessionManager.isConfigured) {
-      const apiKey = (await password({
-        message: "Composio API key (set COMPOSIO_API_KEY in .env)",
-      })) as string
-      if (isCancel(apiKey)) return
-
-      if (apiKey.trim()) {
-        process.env.COMPOSIO_API_KEY = apiKey.trim()
-        const { ComposioSessionManager } = await import("src/mcp/composio")
-        const config = await getCliConfig()
-        const existing = (config as Record<string, any>) ?? {}
-        await saveCliConfig({
-          ...existing as any,
-          composioApiKey: apiKey.trim(),
-        } as any)
-        Object.assign(composioSessionManager, new ComposioSessionManager())
+      console.log(`\n ${chalk.hex(theme.red)("◆")} composio connection failed: ${err.message}`)
+      if (!composioSessionManager.isConfigured) {
+        console.log(` ${chalk.hex(theme.muted)("  ")}Set COMPOSIO_API_KEY in .env for local development, or run ${chalk.hex(theme.green)("supercode login")}`)
       }
-    }
-
-    try {
-      const info = await composioSessionManager.createSession("supercode-cli")
-      const config = await getCliConfig()
-      const existing = (config as Record<string, any>) ?? {}
-      await saveCliConfig({
-        ...existing as any,
-        composioSessionId: info.sessionId,
-      } as any)
-      await mgr.reconnectServer("composio", { url: info.url, headers: info.headers })
-      const tools = await mgr.getTools("composio")
-      console.log(`\n ${chalk.hex(theme.green)("◆")} composio connected — ${Object.keys(tools).length} tools`)
-    } catch (err: any) {
-      const msg = !composioSessionManager.isConfigured
-        ? "Server unreachable and no local API key set"
-        : err.message
-      console.log(`\n ${chalk.hex(theme.red)("◆")} composio connection failed: ${msg}`)
     }
     return
   }
@@ -589,79 +570,86 @@ async function showInteractiveList(): Promise<void> {
   const wasRaw = process.stdin.isRaw
   if (process.stdin.isTTY) process.stdin.setRawMode(true)
 
-  while (true) {
-    const key = await readRawKey()
+  try {
+    while (true) {
+      const key = await readRawKey()
 
-    if (key === "escape") {
-      clearLines(picker.overlayLines + 1)
-      break
-    }
-
-    if (key === "up") {
-      picker.selectPrev()
-      clearLines(picker.overlayLines)
-      draw()
-      continue
-    }
-
-    if (key === "down") {
-      picker.selectNext()
-      clearLines(picker.overlayLines)
-      draw()
-      continue
-    }
-
-    if (key === "enter") {
-      clearLines(picker.overlayLines + 1)
-
-      if (picker.selected === -1) {
-        await connectFlow()
-      } else {
-        const entry = picker.getSelectedEntry()
-        if (entry && entry.type === "composio-app" && entry.status === "disconnected" && entry.appSlug) {
-          await oauthConnectAppFlow(entry.appSlug)
-        } else if (entry) {
-          await showDetail(entry)
-        }
+      if (key === "escape") {
+        break
       }
 
-      await picker.refresh()
+      if (key === "up") {
+        picker.selectPrev()
+        clearLines(picker.overlayLines)
+        draw()
+        continue
+      }
 
-      if (process.stdin.isTTY) process.stdin.setRawMode(true)
-      process.stdout.write("\n")
-      draw()
-      continue
-    }
+      if (key === "down") {
+        picker.selectNext()
+        clearLines(picker.overlayLines)
+        draw()
+        continue
+      }
 
-    if (key === "space") {
-      const entry = picker.getSelectedEntry()
-      if (entry) {
-        const mgr = await mcpManager()
-        const connected = mgr.connectedServers
+      if (key === "enter") {
+        clearLines(picker.overlayLines + 1)
 
-        if (connected.includes(entry.name)) {
-          await mgr.stopServer(entry.name)
-          if (entry.name === "composio") {
-            composioSessionManager.resetSession()
+        try {
+          if (picker.selected === -1) {
+            await connectFlow()
+          } else {
+            const entry = picker.getSelectedEntry()
+            if (entry && entry.type === "composio-app" && entry.status === "disconnected" && entry.appSlug) {
+              await oauthConnectAppFlow(entry.appSlug)
+            } else if (entry) {
+              await showDetail(entry)
+            }
           }
-        } else {
-          const cfg = await buildServerConfig(entry)
-          if (cfg) {
-            try {
-              await mgr.reconnectServer(entry.name, cfg)
-            } catch {}
-          }
+        } catch {
+          // @clack/prompts may leave stdin paused; ensure it's flowing
         }
 
         await picker.refresh()
-        clearLines(picker.overlayLines)
-        draw()
-      }
-      continue
-    }
-  }
 
-  if (process.stdin.isTTY) process.stdin.setRawMode(wasRaw ?? false)
+        if (process.stdin.isTTY) process.stdin.setRawMode(true)
+        process.stdout.write("\n")
+        draw()
+        continue
+      }
+
+      if (key === "space") {
+        const entry = picker.getSelectedEntry()
+        if (entry) {
+          const mgr = await mcpManager()
+          const connected = mgr.connectedServers
+
+          if (connected.includes(entry.name)) {
+            await mgr.stopServer(entry.name)
+            if (entry.name === "composio") {
+              composioSessionManager.resetSession()
+            }
+          } else {
+            const cfg = await buildServerConfig(entry)
+            if (cfg) {
+              try {
+                await mgr.reconnectServer(entry.name, cfg)
+              } catch {}
+            }
+          }
+
+          await picker.refresh()
+          clearLines(picker.overlayLines)
+          draw()
+        }
+        continue
+      }
+    }
+  } finally {
+    if (process.stdin.isTTY) process.stdin.setRawMode(wasRaw ?? false)
+    process.stdin.resume()
+    clearLines(picker.overlayLines + 1)
+  }
 }
 
 async function oauthConnectAppFlow(slug: string): Promise<void> {

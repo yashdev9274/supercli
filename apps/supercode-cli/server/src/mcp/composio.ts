@@ -7,6 +7,7 @@ export interface ComposioSessionInfo {
   url: string
   headers: Record<string, string>
   sessionId: string
+  apiKey?: string
 }
 
 export interface AppEntry {
@@ -78,6 +79,15 @@ export class ComposioSessionManager {
 
     const info = (await res.json()) as ComposioSessionInfo
     this.session = info
+
+    if (info.apiKey && !this.composio) {
+      try {
+        this.composio = new Composio({ apiKey: info.apiKey })
+      } catch {
+        // SDK init from server key failed — listApps won't work locally
+      }
+    }
+
     return info
   }
 
@@ -113,6 +123,41 @@ export class ComposioSessionManager {
       }
     }
     return result
+  }
+
+  async listAppsFromServer(
+    serverUrl = BASE_URL,
+    accessToken?: string,
+  ): Promise<AppEntry[]> {
+    if (!accessToken) {
+      const stored = await getStoredToken()
+      accessToken = stored?.access_token as string
+    }
+    if (!accessToken) {
+      throw new Error("Not authenticated — run supercode login first")
+    }
+
+    const res = await fetch(`${serverUrl}/api/composio/apps`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error((body as any).error || `Server returned ${res.status}`)
+    }
+
+    const data = (await res.json()) as { apps: any[] }
+    return data.apps.map((a) => ({
+      slug: a.slug,
+      name: a.name,
+      description: a.description,
+      logo: a.logo,
+      connected: a.connected,
+      connectedAccountId: a.connectedAccountId,
+    }))
   }
 
   resetSession(): void {
