@@ -117,9 +117,9 @@ export default function StatsPage() {
         </motion.h1>
 
         <div className="max-w-[800px] mx-auto flex flex-col sm:flex-row items-center justify-center gap-16 sm:gap-24 mb-100">
-          <AnimatedNumber value={6342} label="downloads" />
+          <AnimatedNumber value={12000} label="downloads" />
           <GitHubStars />
-          <AnimatedNumber value={195} label="active users in 2 weeks" />
+          <AnimatedNumber value={351} label="active users in 2 weeks" />
         </div>
       </div>
 
