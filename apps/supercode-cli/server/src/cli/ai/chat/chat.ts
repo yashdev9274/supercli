@@ -413,6 +413,15 @@ async function streamAIResponse(
       delete (toolsToUse as Record<string, unknown>).firecrawl_scrape
       delete (toolsToUse as Record<string, unknown>).firecrawl_map
     }
+    // If composio MCP tools are available, instruct the AI to prefer them
+    // over built-in tools for the corresponding services.
+    const hasComposioTools = Object.keys(toolsToUse).some((k) =>
+      k.startsWith("mcp_composio_")
+    )
+    if (hasComposioTools && aiMessages[0]) {
+      aiMessages[0].content += `\n\n## MCP Tool Preference\n\nYou have composio-connected MCP tools available (prefixed with mcp_composio_). These provide direct access to services like GitHub, Linear, Slack, etc. When a user's request can be satisfied using these MCP tools, prefer them over running commands via run_command or other built-in tools. For example, use mcp_composio_github_* tools for GitHub operations instead of running gh CLI commands.`
+    }
+
     // Wire the subagent runtime so the `delegate` tool can spawn focused subtasks.
     setDelegateRuntime({
       model: (provider as any).model ?? null,
