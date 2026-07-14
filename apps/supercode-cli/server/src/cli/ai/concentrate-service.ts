@@ -29,7 +29,7 @@ interface NonStreamingResponse {
   usage?: { prompt_tokens?: number; completion_tokens?: number }
 }
 
-async function nonStreamingRequest(modelName: string, system: string, messages: Array<{ role: string; content: string }>): Promise<NonStreamingResponse> {
+async function nonStreamingRequest(modelName: string, system: string, messages: Array<{ role: string; content: string }>, tools?: any): Promise<NonStreamingResponse> {
   const body: Record<string, unknown> = {
     model: modelName,
     messages: system ? [{ role: "system", content: system }, ...messages] : messages,
@@ -37,6 +37,12 @@ async function nonStreamingRequest(modelName: string, system: string, messages: 
     stream: false,
   }
   if (!HIGH_VALUE_MODELS.includes(modelName)) body.max_tokens = 8192
+  if (tools && typeof tools === "object") {
+    body.tools = Object.entries(tools).map(([name, fn]: [string, any]) => ({
+      type: "function",
+      function: { name, description: fn.description || "", parameters: fn.parameters || { type: "object", properties: {} } },
+    }))
+  }
   const res = await fetchWithRetry(`${BASE_URL}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${CONCENTRATE_API_KEY}`, "Content-Type": "application/json" },
@@ -309,6 +315,7 @@ export class ConcentrateService {
       })
 
       let toolChunkCount = 0
+      let sawToolEvents = false
       // Iterate fullStream to surface reasoning chunks alongside text.
       for await (const event of result.fullStream) {
         if (event.type === "text-delta") {
@@ -318,14 +325,17 @@ export class ConcentrateService {
           onChunk?.(event.text)
         } else if (event.type === "reasoning-delta") {
           if (event.text) onReasoning?.(event.text)
+        } else if (event.type === "tool-call" || event.type === "tool-result") {
+          sawToolEvents = true
         }
       }
       // console.error(`[d] tools streamed ${toolChunkCount} chunks resp="${fullResponse}"`)
 
       // Same empty-stream fallback as non-tools path — ConcentrateAI's
       // Novita proxy intermittently drops content on streaming requests.
-      if (!fullResponse.trim()) {
-        const nonStreamData = await nonStreamingRequest(this.modelName, system, nonSystemMessages.map((m: any) => ({ role: m.role, content: typeof m.content === "string" ? m.content : JSON.stringify(m.content) })))
+      // Skip if the model made tool calls (tool-text-only responses are valid).
+      if (!fullResponse.trim() && !sawToolEvents) {
+        const nonStreamData = await nonStreamingRequest(this.modelName, system, nonSystemMessages.map((m: any) => ({ role: m.role, content: typeof m.content === "string" ? m.content : JSON.stringify(m.content) })), tools)
         const content = nonStreamData?.choices?.[0]?.message?.content ?? ""
         if (content) {
           onChunk?.(content)

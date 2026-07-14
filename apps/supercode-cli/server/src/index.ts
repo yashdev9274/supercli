@@ -14,8 +14,11 @@ import { writeFileSync, unlinkSync } from "fs"
 import { randomUUID } from "crypto"
 
 function toolParams(fn: any): object {
-  const raw = fn.inputSchema ?? fn.parameters ?? {}
-  return raw && typeof raw === "object" && "_def" in raw ? {} : raw
+  const raw = fn.inputSchema ?? fn.parameters
+  if (!raw || (typeof raw === "object" && "_def" in raw)) {
+    return { type: "object", properties: {} }
+  }
+  return raw
 }
 
 loadEnvOnce()
@@ -738,6 +741,7 @@ app.post("/api/ai/chat", async (req, res) => {
               }
               const finishReason = data.choices?.[0]?.finish_reason
               if (finishReason === "tool_calls") {
+                sawToolCalls = true
                 for (const [, call] of Object.entries(pendingToolCalls)) {
                   if (call.name && call.args) {
                     try {

@@ -74,26 +74,16 @@ export const wakeUpAction = async (resumeId: string | null = null) => {
   }
 
   if (stored) {
-    switch (stored.mode) {
-      case "agent":
-        await startAgentChat(stored.provider, stored.model, resumeId, workspaceInfo ?? undefined)
-        break
-      default:
-        await startChat(stored.provider, stored.model, resumeId, workspaceInfo ?? undefined, stored.mode)
-        break
+    if (resumeId && stored.mode === "agent") {
+      await startAgentChat(stored.provider, stored.model, resumeId, workspaceInfo ?? undefined)
+    } else {
+      await startChat(stored.provider, stored.model, resumeId, workspaceInfo ?? undefined, "chat")
     }
     return
   }
 
   const defaults = await saveCliConfig({})
-  switch (defaults.mode) {
-    case "agent":
-      await startAgentChat(defaults.provider, defaults.model, resumeId, workspaceInfo ?? undefined)
-      break
-    default:
-      await startChat(defaults.provider, defaults.model, resumeId, workspaceInfo ?? undefined, defaults.mode)
-      break
-  }
+  await startChat(defaults.provider, defaults.model, resumeId, workspaceInfo ?? undefined, "chat")
 }
 
 export const supercodeInit = new Command("init")
