@@ -913,6 +913,25 @@ let ddListLines = 0
 const atPicker = new AtPicker()
 const ddTracker = new DragDropTracker()
 
+function renderChatHeader(modelName: string, mode: string): void {
+  const modeLabel = mode === "agent" ? "agent" : "chat"
+  const subtitle = modeLabel === "chat" ? `ai chat · ${modelName}` : `agent · ${modelName}`
+  const w = process.stdout.columns ?? 80
+  const title = chalk.hex(theme.green).bold("SUPERCODE")
+  const tagline = chalk.hex(theme.greenDim)(`${subtitle}`)
+  const headerText = `${title}  ${tagline}`
+  const headerLen = stripAnsi(headerText).length
+  console.log(" ".repeat(Math.max(0, Math.floor((w - headerLen) / 2))) + headerText)
+  console.log()
+  console.log(
+    statusBar({
+      left: ["supercode", modeLabel, modelName],
+      right: ["ready", "type to chat"],
+    }),
+  )
+  console.log()
+}
+
 // Filter the slash-command list by what the user has typed. Empty query
 // returns everything. Match is case-insensitive substring on the command
 // name (e.g. "/co" → /connect, /compact, /context).
@@ -1903,6 +1922,62 @@ export async function chatLoop(
           verboseMode = !verboseMode
           process.stdout.write(
             `\r\n ${chalk.hex(theme.green)("◆")} verbose mode ${verboseMode ? chalk.hex(theme.green)("on") : chalk.hex(theme.greenDim)("off")} — ${verboseMode ? "per-tool debug lines enabled" : "clean UI"}\r\n\n`,
+          )
+        } else if (result?.type === "clear") {
+          messageCount = 0
+          sessionTokens = 0
+          sessionStartTime = Date.now()
+          lastUsage = undefined
+          lastElapsed = undefined
+          footer.unmount()
+          console.clear()
+          console.log()
+          renderChatHeader(provider.modelName, conversation.mode)
+          if (workspaceInfo) {
+            console.log(renderWorkspaceBanner(workspaceInfo))
+            console.log()
+          }
+          console.log(
+            `  ${chalk.hex(theme.greenDim)("hint")} ${chalk.hex(theme.green)("·")} ${chalk.hex(theme.greenGlow)("/model")} to switch  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("Ctrl+V")} voice  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("/help")} for commands  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("Tab")} to cycle mode`,
+          )
+          console.log()
+          footer.mount()
+          footer.setTokens(0)
+          process.stdout.write(
+            ` ${chalk.hex(theme.green)("◆")} ${chalk.hex(theme.green)("session content cleared")}\r\n`,
+          )
+        } else if (result?.type === "new_conversation") {
+          try {
+            const newConversation = await getOrCreateConversation(null, conversation.mode)
+            conversation.id = newConversation.id
+            conversation.title = newConversation.title ?? null
+          } catch {
+            process.stdout.write(
+              `\r\n ${chalk.hex(theme.amber)("◆")} ${chalk.hex(theme.amber)("could not create new conversation, continuing with current")}\r\n`,
+            )
+            continue
+          }
+          messageCount = 0
+          sessionTokens = 0
+          sessionStartTime = Date.now()
+          lastUsage = undefined
+          lastElapsed = undefined
+          footer.unmount()
+          console.clear()
+          console.log()
+          renderChatHeader(provider.modelName, conversation.mode)
+          if (workspaceInfo) {
+            console.log(renderWorkspaceBanner(workspaceInfo))
+            console.log()
+          }
+          console.log(
+            `  ${chalk.hex(theme.greenDim)("hint")} ${chalk.hex(theme.green)("·")} ${chalk.hex(theme.greenGlow)("/model")} to switch  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("Ctrl+V")} voice  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("/help")} for commands  ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)("Tab")} to cycle mode`,
+          )
+          console.log()
+          footer.mount()
+          footer.setTokens(0)
+          process.stdout.write(
+            ` ${chalk.hex(theme.green)("◆")} ${chalk.hex(theme.green)("started new conversation")}\r\n`,
           )
         } else if (result?.type === "unknown") {
           process.stdout.write(`\r\n ${chalk.hex(theme.red)("◆")} unknown slash command: ${trimmed.split(" ")[0]}\r\n\n`)
