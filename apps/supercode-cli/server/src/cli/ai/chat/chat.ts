@@ -349,9 +349,6 @@ async function streamAIResponse(
   let currentSubChain: ThoughtChain | null = null
   // Task name extracted from delegate/task args (e.g. "Find BUILTIN_CONNECTORS").
   let currentSubChainTaskName = ""
-  // Track whether we've printed the "Explore" header for the current sub-chain.
-  let subChainHeaderPrinted = false
-
   // Live status row above the input prompt — shows model name, current
   // step, current tool, and elapsed time. Replaces the on-input
   // ThinkingDisplay spinner pattern (kept for non-TTY fallback) and the
@@ -494,23 +491,8 @@ async function streamAIResponse(
           }
           currentSubChain.printToolRow(toolName, args)
         }
-        // Also live-print each sub-agent tool call with deeper indent so
-        // the user sees progress while the delegate runs.
-        if (currentSubChain && process.stdout.isTTY) {
-          const rail = chalk.hex(theme.greenDim)("┃")
-          const subIndent = `${rail}   ${rail}`
-          if (!subChainHeaderPrinted) {
-            subChainHeaderPrinted = true
-            const taskDesc = currentSubChainTaskName
-              ? ` ${chalk.hex(theme.greenDim)("—")} ${chalk.hex(theme.white)(currentSubChainTaskName)}`
-              : ""
-            process.stdout.write(
-              `${subIndent} ${chalk.hex(theme.greenGlow)("▼")} ${chalk.hex(theme.greenMute)("Explore Task")}${taskDesc}\n`,
-            )
-          }
-          const row = toolLabel(toolName, args)
-          process.stdout.write(`${subIndent}   ${row}\n`)
-        }
+        // Sub-agent tool calls are tracked internally in the sub-chain
+        // for Ctrl+X toggle — no live printing to keep the terminal clean.
         statusRow.setCurrentTool(toolName, args)
         verbosePrint(toolName, args, provider.modelName, Date.now())
         if (statusBar) statusBar.incTools()
@@ -588,7 +570,6 @@ async function streamAIResponse(
           if (extracted) {
             currentSubChainTaskName = extracted
           }
-          subChainHeaderPrinted = false
         }
         statusRow.setCurrentTool(toolName, args)
         verbosePrint(toolName, args, provider.modelName, Date.now())
@@ -629,8 +610,8 @@ async function streamAIResponse(
         // initial begin() are discarded.
         if (currentSubChain && (toolName === "delegate" || toolName === "task")) {
           currentSubChain.finish()
-          // Close the live-printed Explore section
-          if (subChainHeaderPrinted && process.stdout.isTTY) {
+          // Print a collapsed "Explore Task" summary for the sub-agent
+          if (process.stdout.isTTY) {
             const rail = chalk.hex(theme.greenDim)("┃")
             const subIndent = `${rail}   ${rail}`
             const elapsed = currentSubChain.elapsed
@@ -656,7 +637,6 @@ async function streamAIResponse(
                 `${subIndent}   ${chalk.hex(theme.greenDim)("↳")} ${chalk.hex(theme.greenMute)(`${toolCount} toolcall${toolCount === 1 ? "" : "s"} · ${elapsedStr}`)}\n`,
               )
             }
-            subChainHeaderPrinted = false
           }
           const lastEntry = chain.thoughts[chain.thoughts.length - 1]
           if (lastEntry) {

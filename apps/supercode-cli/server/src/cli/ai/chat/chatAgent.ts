@@ -152,11 +152,10 @@ async function agentLoop(
         system: agentSystemPrompt,
         prompt: userInput,
         onStepFinish: async ({ stepNumber, text, toolCalls, finishReason }: any) => {
-          // Reasoning text arrived with this step — feed it into the chain.
+          // Track raw step text for the final answer output, but don't
+          // feed it into the thought chain — that would leak BTS reasoning
+          // into the visible toggle block.
           if (text) {
-            chain.begin()
-            chain.append(text)
-            chain.finish()
             accumulatedText += text
           }
           // Track tool calls. The AI SDK sometimes emits the same call

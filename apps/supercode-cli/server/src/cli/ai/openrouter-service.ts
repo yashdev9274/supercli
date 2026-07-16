@@ -221,8 +221,31 @@ export class OpenRouterService {
     // a system message forcing the model to stop inventing content.
     const allToolResults: Array<{ toolName: string; result: string }> = []
     const deniedCounts = new Map<string, number>()
+    const toolCallHistory: Array<{ toolName: string; argsKey: string }> = []
 
     while (true) {
+      // Tool call repetition guard: same tool + same args 3+ times → stop.
+      {
+        let stopForRepetition = false
+        for (const h of toolCallHistory) {
+          let count = 0
+          for (const h2 of toolCallHistory) {
+            if (h2.toolName === h.toolName && h2.argsKey === h.argsKey) count++
+          }
+          if (count >= 3) { stopForRepetition = true; break }
+        }
+        if (stopForRepetition) {
+          currentMessages.push({
+            role: "system",
+            content:
+              "SYSTEM NOTICE: You have called the same tools with the same arguments " +
+              "multiple times without making progress. Stop repeating yourself. " +
+              "Analyze what you already have and respond to the user.",
+          })
+          break
+        }
+      }
+
       // Permission-denial loop guard
       let stopForDenialLoop = false
       for (const [name, count] of deniedCounts.entries()) {
@@ -303,6 +326,12 @@ export class OpenRouterService {
           deniedCounts.set(call.toolName, prev + 1)
         } else {
           deniedCounts.set(call.toolName, 0)
+        }
+        // Tool call repetition guard: same tool + same args 3+ times → stop.
+        const argsKey = JSON.stringify(call.args, Object.keys(call.args).sort())
+        toolCallHistory.push({ toolName: call.toolName, argsKey })
+        if (toolCallHistory.length > 12) {
+          toolCallHistory.splice(0, toolCallHistory.length - 12)
         }
 
         currentMessages.push({

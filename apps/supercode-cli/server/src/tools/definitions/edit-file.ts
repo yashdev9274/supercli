@@ -50,7 +50,8 @@ export const editFileTool = {
 
       if (occurrences === 0) {
         return fail(
-          `oldText not found in "${filePath}". Re-read the file (read_file) to get the current content, then retry. Make sure whitespace, indentation, and trailing newlines match exactly.`,
+          `oldText not found in "${filePath}". The file may have changed since you read it. Use read_file to get the exact current content, then copy-paste the exact text (including whitespace and indentation) as oldText.`,
+          "Read the file again and verify the exact content before retrying",
         )
       }
 

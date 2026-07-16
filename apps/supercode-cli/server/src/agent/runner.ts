@@ -66,6 +66,9 @@ export async function runAgent(
 
   // Track tool results across steps for the empty-result sentinel
   const seenStepResults: Array<{ toolName: string; result: string }> = []
+  // Track tool call repetition — same tool + same args 3+ times signals a loop
+  const toolCallHistory: Array<{ toolName: string; argsKey: string }> = []
+  let stopForRepetition = false
 
   const messages = buildMessages(opts)
 
@@ -84,8 +87,19 @@ export async function runAgent(
         }
       },
       prepareStep: async () => {
-        if (seenStepResults.length === 0) return undefined
         if (opts.signal?.aborted) return undefined
+        if (stopForRepetition) {
+          return {
+            messages: [{
+              role: "system" as const,
+              content:
+                "SYSTEM NOTICE: You have called the same tools with the same arguments " +
+                "multiple times without making progress. Stop repeating yourself. " +
+                "Analyze what you already know and respond to the user.",
+            }],
+          }
+        }
+        if (seenStepResults.length === 0) return undefined
         const allEmpty = seenStepResults.every((r) => isEmptyToolResult(r.result))
         if (!allEmpty) return undefined
         const summary = seenStepResults
@@ -134,7 +148,11 @@ export async function runAgent(
             }
           }
         }
-        // Capture tool results for the prepareStep sentinel
+        // Per-step tool results for the prepareStep sentinel — reset each
+        // step so the sentinel only checks the PREVIOUS step's results.
+        // Without this, one successful tool call permanently disarms the
+        // empty-result guard and the model can hallucinate for budget-1 steps.
+        seenStepResults.length = 0
         if (event.toolResults?.length) {
           for (const tr of event.toolResults) {
             const name = tr.toolName ?? "unknown"
@@ -146,6 +164,27 @@ export async function runAgent(
                   ? ""
                   : JSON.stringify(out)
             seenStepResults.push({ toolName: name, result: text })
+          }
+        }
+        // Tool call repetition guard: same tool + same args 3+ times → stop.
+        if (event.toolCalls?.length) {
+          for (const tc of event.toolCalls) {
+            const args = tc.input ?? {}
+            const argsKey = JSON.stringify(args)
+            toolCallHistory.push({ toolName: tc.toolName, argsKey })
+            // Count how many times this exact call appeared in the window
+            let count = 0
+            for (const h of toolCallHistory) {
+              if (h.toolName === tc.toolName && h.argsKey === argsKey) count++
+            }
+            if (count >= 3) {
+              stopForRepetition = true
+              break
+            }
+          }
+          // Prune history to last 12 calls to avoid unbounded memory
+          if (toolCallHistory.length > 12) {
+            toolCallHistory.splice(0, toolCallHistory.length - 12)
           }
         }
         opts.onStepFinish?.(event)
