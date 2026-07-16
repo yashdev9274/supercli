@@ -48,10 +48,11 @@ export function loadPromptSync(name: string): string | undefined {
 export async function listPrompts(): Promise<string[]> {
   try {
     const files = await readdir(PROMPTS_DIR)
-    return files
-      .filter((f) => f.endsWith(".txt"))
-      .map((f) => f.replace(/\.txt$/, ""))
-      .sort()
+    const names: string[] = []
+    for (const f of files) {
+      if (f.endsWith(".txt")) names.push(f.replace(/\.txt$/, ""))
+    }
+    return names.sort()
   } catch {
     return []
   }

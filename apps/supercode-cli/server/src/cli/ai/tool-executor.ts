@@ -44,9 +44,22 @@ export async function executeToolLoop(
   const allToolResults: Array<{ toolName: string; result: string }> = []
   const deniedCounts = new Map<string, number>()
   let stopForDenialLoop = false
+  const toolCallHistory: Array<{ toolName: string; argsKey: string }> = []
+  let stopForRepetition = false
 
   for (let iter = 0; iter < maxIterations; iter++) {
     if (callbacks.signal?.aborted) throw new DOMException("Aborted", "AbortError")
+
+    if (stopForRepetition) {
+      ;(messages as any).push({
+        role: "system",
+        content:
+          "SYSTEM NOTICE: You have called the same tools with the same arguments " +
+          "multiple times without making progress. Stop repeating yourself. " +
+          "Analyze what you already have and respond to the user.",
+      })
+      break
+    }
 
     if (accumulatedContent) callbacks.onChunk?.("\n\n")
 
@@ -157,6 +170,17 @@ export async function executeToolLoop(
         if (prev + 1 >= 2) stopForDenialLoop = true
       } else {
         deniedCounts.set(tc.toolName, 0)
+      }
+      // Tool call repetition guard: same tool + same args 3+ times → stop.
+      const argsKey = JSON.stringify(tc.args, Object.keys(tc.args).sort())
+      toolCallHistory.push({ toolName: tc.toolName, argsKey })
+      let repCount = 0
+      for (const h of toolCallHistory) {
+        if (h.toolName === tc.toolName && h.argsKey === argsKey) repCount++
+      }
+      if (repCount >= 3) stopForRepetition = true
+      if (toolCallHistory.length > 12) {
+        toolCallHistory.splice(0, toolCallHistory.length - 12)
       }
 
       ;(messages as any).push({

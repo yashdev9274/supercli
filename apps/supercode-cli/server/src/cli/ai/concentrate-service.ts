@@ -220,6 +220,9 @@ export class ConcentrateService {
       // on a permission prompt the user already answered.
       const deniedCounts = new Map<string, number>()
       let stopForDenialLoop = false
+      // Track tool call repetition — same tool + same args 3+ times signals a loop
+      const toolCallHistory: Array<{ toolName: string; argsKey: string }> = []
+      let stopForRepetition = false
 
       const result = streamText({
         model: this.model,
@@ -230,6 +233,20 @@ export class ConcentrateService {
         stopWhen: stepCountIs(8),
         abortSignal: streamAbortController.signal,
         prepareStep: async ({ messages }) => {
+          if (stopForRepetition) {
+            return {
+              messages: [
+                ...messages,
+                {
+                  role: "system" as const,
+                  content:
+                    "SYSTEM NOTICE: You have called the same tools with the same arguments " +
+                    "multiple times without making progress. Stop repeating yourself. " +
+                    "Analyze what you already have and respond to the user.",
+                },
+              ],
+            }
+          }
           if (stopForDenialLoop) {
             return {
               messages: [
@@ -286,6 +303,11 @@ export class ConcentrateService {
           const toolResults = (event as any).toolResults as
             | Array<{ toolName?: string; toolCallId?: string; input?: unknown; output?: unknown }>
             | undefined
+          // Reset per-step results before collecting this step's, so the
+          // prepareStep sentinel only sees the PREVIOUS step's results.
+          // Without this, one successful tool call permanently disarms the
+          // empty-result guard and the model can hallucinate for 7 more steps.
+          seenStepResults.length = 0
           if (toolResults?.length) {
             for (const tr of toolResults) {
               const name = tcName(tr.toolName) ?? "unknown"
@@ -309,6 +331,25 @@ export class ConcentrateService {
               } else {
                 deniedCounts.set(name, 0)
               }
+            }
+          }
+          // Tool call repetition guard: same tool + same args 3+ times → stop.
+          if (event.toolCalls?.length) {
+            for (const tc of event.toolCalls) {
+              const args = (tc as any).input ?? {}
+              const argsKey = JSON.stringify(args, Object.keys(args).sort())
+              toolCallHistory.push({ toolName: tc.toolName, argsKey })
+              let count = 0
+              for (const h of toolCallHistory) {
+                if (h.toolName === tc.toolName && h.argsKey === argsKey) count++
+              }
+              if (count >= 3) {
+                stopForRepetition = true
+                break
+              }
+            }
+            if (toolCallHistory.length > 12) {
+              toolCallHistory.splice(0, toolCallHistory.length - 12)
             }
           }
         },

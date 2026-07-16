@@ -158,9 +158,9 @@ export function renderReasoningBlock(reasoning: string, elapsedMs: number): stri
   const elapsed = elapsedMs < 1000 ? `${elapsedMs}ms` : `${(elapsedMs / 1000).toFixed(1)}s`
   const indent = chalk.hex(theme.greenDim)("┃")
   const toggle = chalk.hex(theme.greenGlow)("▼")
-  const label = chalk.hex(theme.greenMute)("Thought")
-  const time = chalk.hex(theme.greenDim)(`· ${elapsed}`)
-  return `${indent} ${toggle} ${label} ${time}`
+      const label = chalk.hex(theme.greenMute)("Thoughts")
+      const time = chalk.hex(theme.greenDim)(`· ${elapsed}`)
+      return `${indent} ${toggle} ${label} ${time}`
 }
 
 // Row where the spinner lives during streaming. Matches the row the user
@@ -537,50 +537,27 @@ export class ThoughtChain {
   }
 
   // Per-step live render. Each call writes one ANSI line to stdout.
-  // `beginAndPrint` opens an expanded ▼ Thought: 0.0s block.
-  // `printToolRow` appends one ┃   → Read foo.ts line.
-  // `finishAndPrint` closes the block: flips to + and adds a summary line.
-  // All three are no-ops when stdout isn't a TTY (the chat loop already
-  // captures the alternative plain-text path via printUnified).
+  // `beginAndPrint` opens a collapsed + Thoughts: 0.0s block (no tool rows
+  // printed live — those are only shown on Ctrl+T expand). `finishAndPrint`
+  // closes the block: shows the summary line. All three are no-ops when
+  // stdout isn't a TTY (the chat loop already captures the alternative
+  // plain-text path via printUnified).
   beginAndPrint(): ThoughtEntry | null {
     if (!this.buffered && !process.stdout.isTTY) return null
     const entry = this.begin()
     entry.openInProgress = true
-    if (!this.buffered) {
-      const elapsedStr = "0.0s"
-      const indent = chalk.hex(theme.greenDim)("┃")
-      const toggle = chalk.hex(theme.greenGlow)("▼")
-      const label = chalk.hex(theme.greenMute)("Thought")
-      const time = chalk.hex(theme.greenDim)(elapsedStr)
-      process.stdout.write(
-        `${indent} ${toggle} ${label} ${chalk.hex(theme.greenDim)("·")} ${time}\n`,
-      )
-    }
+    entry.collapsed = true
     entry.printed = true
     return entry
   }
 
   printToolRow(name: string, args?: unknown, flagged = false): void {
-    if (!this.buffered && !process.stdout.isTTY) return
     if (!this.current || !this.current.openInProgress) return
-    if (!this.buffered) {
-      const indent = chalk.hex(theme.greenDim)("┃")
-      const argsSerialized =
-        typeof args === "string" ? safeParse(args) : args
-      const row = toolLabel(name, argsSerialized)
-      // Red ✗ marker after the tool label when the call was denied or returned
-      // empty/error. Small visual hint that this row is the failure case.
-      const marker = flagged
-        ? ` ${chalk.hex(theme.red)("✗")}`
-        : ""
-      process.stdout.write(`${indent}   ${row}${marker}\n`)
-    }
-    // Keep entry.tools in sync so Ctrl+T toggle re-render matches what we
-    // just printed.
+    // Only record the tool internally for Ctrl+T re-render — don't print
+    // live lines to stdout. Summary is handled by finishAndPrint.
     const serializedArgs =
       typeof args === "string" ? args : JSON.stringify(args ?? null)
     this.current.tools.push({ name, args: serializedArgs, flagged })
-    // Mark the entry printed so togglePrinted knows how many lines to redraw
     this.current.printed = true
     if (flagged) this.current.hadFlaggedTool = true
   }
@@ -604,7 +581,7 @@ export class ThoughtChain {
       const toggle = entry.collapsed
         ? chalk.hex(theme.greenGlow)("+")
         : chalk.hex(theme.greenGlow)("▼")
-      const label = chalk.hex(theme.greenMute)("Thought")
+      const label = chalk.hex(theme.greenMute)("Thoughts")
       const time = chalk.hex(theme.greenDim)(elapsedStr)
       process.stdout.write(
         `${indent} ${toggle} ${label} ${chalk.hex(theme.greenDim)("·")} ${time}\n`,
@@ -817,7 +794,7 @@ export class ThoughtChain {
     const toggleIcon = entry.collapsed
       ? chalk.hex(theme.greenDim)("▶")
       : chalk.hex(theme.greenGlow)("▼")
-    const header = `${toggleIcon} ${chalk.hex(theme.greenMute)("Thought")}${chalk.hex(theme.greenDim)(":")} ${chalk.hex(theme.greenGlow)(elapsed)}`
+    const header = `${toggleIcon} ${chalk.hex(theme.greenMute)("Thoughts")}${chalk.hex(theme.greenDim)(":")} ${chalk.hex(theme.greenGlow)(elapsed)}`
     const indent = chalk.hex(theme.greenDim)("┃")
 
     const lines: string[] = []
@@ -957,16 +934,13 @@ export class ThoughtChain {
   }
 
   //
-  // Render all thoughts as a SINGLE collapsible "▼ Thought: ..." block.
-  // This is the opencode TUI style: one toggle containing the full chain,
-  // collapsed by default. Reasoning + tool calls are listed inside; if the
-  // chain is empty, returns "" so the caller can skip the print.
+  // Render all thoughts as a SINGLE collapsed "+ Thought: ..." block.
+  // Collapsed by default — shows only the toggle header + per-category tool
+  // counts, no reasoning body text. Matches the chat-mode pattern.
   //
   renderUnified(): string {
     if (this.thoughts.length === 0) return ""
 
-    // Merge every thought's body + tools into one block. Total elapsed is
-    // from first thought start to last thought end.
     const first = this.thoughts[0]!
     const last = this.thoughts[this.thoughts.length - 1]!
     const elapsedMs = (last.endTime ?? Date.now()) - first.startTime
@@ -974,14 +948,14 @@ export class ThoughtChain {
       elapsedMs < 1000 ? `${elapsedMs}ms` : `${(elapsedMs / 1000).toFixed(1)}s`
 
     const indent = chalk.hex(theme.greenDim)("┃")
-    const toggle = chalk.hex(theme.greenGlow)("▼")
-    const label = chalk.hex(theme.greenMute)("Thought")
+    const toggle = chalk.hex(theme.greenGlow)("+")
+    const label = chalk.hex(theme.greenMute)("explore task")
     const time = chalk.hex(theme.greenDim)(elapsed)
 
     const lines: string[] = []
     lines.push(`${indent} ${toggle} ${label} ${chalk.hex(theme.greenDim)("·")} ${time}`)
 
-    // Per-category tool counts — keeps the collapsed block informative.
+    // Per-category tool counts
     const allTools = this.thoughts.flatMap((t) => t.tools)
     if (allTools.length > 0) {
       const allGroups = groupToolsByCategory(allTools)
@@ -996,46 +970,6 @@ export class ThoughtChain {
         lines.push(
           `${indent}   ${chalk.hex(theme.greenDim)("↳")} ${chalk.hex(theme.greenMute)(parts.join(" · "))}`,
         )
-      }
-    }
-
-    // Expand the block: list each thought's reasoning + tool calls grouped
-    // by category.
-    for (const thought of this.thoughts) {
-      const body = thought.body.trim()
-      if (body) {
-        for (const bl of body.split("\n")) {
-          const trimmed = bl.trim()
-          if (trimmed) {
-            lines.push(
-              `${indent}   ${chalk.hex(theme.greenMute)(trimmed)}`,
-            )
-          }
-        }
-      }
-      if (thought.tools.length > 0) {
-        const groups = groupToolsByCategory(thought.tools)
-        let groupIdx = 0
-        for (const cat of CATEGORY_ORDER) {
-          const tools = groups.get(cat)
-          if (!tools || tools.length === 0) continue
-          if (groupIdx > 0) lines.push("")
-          groupIdx++
-          if (tools.length > 1) {
-            const label = CATEGORY_LABELS[cat]
-            const color = CATEGORY_COLORS[cat]
-            lines.push(`${indent}   ${chalk.hex(color)(`${label} [${tools.length}]:`)}`)
-          }
-          for (const t of tools) {
-            const argsParsed =
-              typeof t.args === "string" ? safeParse(t.args) : t.args
-            const { verb, color } = describeTool(
-              t.name,
-              extractToolArg(t.name, argsParsed),
-            )
-            lines.push(`${indent}     ${chalk.hex(color)(verb)}`)
-          }
-        }
       }
     }
 

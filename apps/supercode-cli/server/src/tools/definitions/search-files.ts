@@ -27,7 +27,7 @@ export const searchFilesTool = {
       cmd += ` 2>/dev/null | head -${maxResults ?? 20}`
 
       try {
-        const output = execSync(cmd, { encoding: "utf-8", maxBuffer: 1024 * 1024 })
+        const output = execSync(cmd, { encoding: "utf-8", maxBuffer: 1024 * 1024, timeout: 15_000 })
         if (!output.trim()) return ok({ matches: [], total: 0, pattern })
 
         const lines = output.trim().split("\n").slice(0, maxResults ?? 20)

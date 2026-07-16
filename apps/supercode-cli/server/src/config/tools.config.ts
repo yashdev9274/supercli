@@ -133,13 +133,18 @@ export function toggleTool(toolId: string): boolean {
 }
 
 export function enableTools(toolIds: string[]): void {
+  const toolIdSet = new Set(toolIds)
   availableTools.forEach(tool => {
-    tool.enabled = toolIds.includes(tool.id)
+    tool.enabled = toolIdSet.has(tool.id)
   })
 }
 
 export function getEnabledToolNames(): string[] {
-  return availableTools.filter(t => t.enabled).map(t => t.name)
+  const names: string[] = []
+  for (const t of availableTools) {
+    if (t.enabled) names.push(t.name)
+  }
+  return names
 }
 
 export function resetTools(): void {

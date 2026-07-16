@@ -96,6 +96,8 @@ export class MergeDevService {
       const seenStepResults: Array<{ toolName: string; result: string }> = []
       const deniedCounts = new Map<string, number>()
       let stopForDenialLoop = false
+      const toolCallHistory: Array<{ toolName: string; argsKey: string }> = []
+      let stopForRepetition = false
 
       const result = streamText({
         model: this.model,
@@ -106,6 +108,20 @@ export class MergeDevService {
         stopWhen: stepCountIs(8),
         abortSignal: streamAbortController.signal,
         prepareStep: async ({ messages }) => {
+          if (stopForRepetition) {
+            return {
+              messages: [
+                ...messages,
+                {
+                  role: "system" as const,
+                  content:
+                    "SYSTEM NOTICE: You have called the same tools with the same arguments " +
+                    "multiple times without making progress. Stop repeating yourself. " +
+                    "Analyze what you already have and respond to the user.",
+                },
+              ],
+            }
+          }
           if (stopForDenialLoop) {
             return {
               messages: [
@@ -144,6 +160,18 @@ export class MergeDevService {
           if (event.toolCalls?.length) {
             for (const tc of event.toolCalls) {
               onToolCall?.({ toolName: tc.toolName, args: (tc as any).input as Record<string, unknown> })
+              // Tool call repetition guard: same tool + same args 3+ times → stop.
+              const args = (tc as any).input ?? {}
+              const argsKey = JSON.stringify(args, Object.keys(args).sort())
+              toolCallHistory.push({ toolName: tc.toolName, argsKey })
+              let repCount = 0
+              for (const h of toolCallHistory) {
+                if (h.toolName === tc.toolName && h.argsKey === argsKey) repCount++
+              }
+              if (repCount >= 3) stopForRepetition = true
+              if (toolCallHistory.length > 12) {
+                toolCallHistory.splice(0, toolCallHistory.length - 12)
+              }
             }
           }
           const inputByCallId = new Map<string, unknown>()

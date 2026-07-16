@@ -57,11 +57,19 @@ export class CitationTracker {
   }
 
   urls(): string[] {
-    return this.citations.filter((c) => c.kind === "url").map((c) => c.reference)
+    const refs: string[] = []
+    for (const c of this.citations) {
+      if (c.kind === "url") refs.push(c.reference)
+    }
+    return refs
   }
 
   files(): string[] {
-    return this.citations.filter((c) => c.kind === "file").map((c) => c.reference)
+    const refs: string[] = []
+    for (const c of this.citations) {
+      if (c.kind === "file") refs.push(c.reference)
+    }
+    return refs
   }
 
   /**
