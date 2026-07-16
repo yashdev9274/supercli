@@ -39,6 +39,7 @@ export const COMMANDS = [
   { cmd: "/help", desc: "Show available commands and models" },
   { cmd: "/exit", desc: "End the session" },
   { cmd: "/mcp", desc: "Manage MCP connections (add, connect, toggle, remove)" },
+  { cmd: "/connectors", desc: "Manage app connectors (Merge, Composer, etc.)" },
 ]
 
 function chatify(cmd: string, args: string): string {
@@ -103,6 +104,10 @@ const handlers: Record<string, (args: string) => Promise<SlashCommandResult>> = 
   mcp: async (args) => {
     const { mcpCommand } = await import("./mcp.ts")
     return mcpCommand(args)
+  },
+  connectors: async (args) => {
+    const { connectorsCommand } = await import("./connectors.ts")
+    return connectorsCommand(args)
   },
   search: async (args) => ({ type: "message", message: chatify("search", args) }),
   scrape: async (args) => ({ type: "message", message: chatify("scrape", args) }),

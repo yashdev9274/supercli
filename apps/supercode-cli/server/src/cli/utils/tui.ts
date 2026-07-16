@@ -2,6 +2,7 @@ import chalk from "chalk"
 import * as readline from "readline"
 import boxen from "boxen"
 import yoctoSpinner from "yocto-spinner"
+import { highlightLine } from "./code-highlighter"
 
 //
 // ─── PHOSPHOR TERMINAL THEME ──────────────────────────────────────────────────
@@ -777,6 +778,8 @@ export function chatStatusBar(opts: {
 //   2. `update(...)` — overwrites in place via `\r\x1b[K`
 //   3. `unmount()` — releases the reserved row
 //
+const STATUS_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
 export class PersistentStatusBar {
   private mounted = false
   private state = {
@@ -791,6 +794,8 @@ export class PersistentStatusBar {
   }
   private lastRow = 0
   private cols = 80
+  private spinnerFrame = 0
+  private spinnerInterval: ReturnType<typeof setInterval> | null = null
 
   mount() {
     if (this.mounted) return
@@ -811,7 +816,27 @@ export class PersistentStatusBar {
     this.mounted = true
   }
 
+  private startSpinner() {
+    this.stopSpinner()
+    this.spinnerInterval = setInterval(() => {
+      this.spinnerFrame = (this.spinnerFrame + 1) % STATUS_SPINNER_FRAMES.length
+      if (!this.mounted) return
+      process.stdout.write("\x1b7")
+      process.stdout.write(`\x1b[${this.lastRow + 1};1H`)
+      this.renderLine()
+      process.stdout.write("\x1b8")
+    }, 120)
+  }
+
+  private stopSpinner() {
+    if (this.spinnerInterval) {
+      clearInterval(this.spinnerInterval)
+      this.spinnerInterval = null
+    }
+  }
+
   unmount() {
+    this.stopSpinner()
     if (!this.mounted) return
     this.mounted = false
     if (!process.stdout.isTTY) return
@@ -841,7 +866,12 @@ export class PersistentStatusBar {
   }
 
   update(partial: Partial<typeof this.state>) {
+    const prevStreaming = this.state.isStreaming
     this.state = { ...this.state, ...partial }
+    if (partial.isStreaming !== undefined && partial.isStreaming !== prevStreaming) {
+      if (partial.isStreaming) this.startSpinner()
+      else this.stopSpinner()
+    }
     if (!this.mounted) return
     if (!process.stdout.isTTY) return
     process.stdout.write("\x1b7")
@@ -907,6 +937,10 @@ export class PersistentStatusBar {
     parts.push(
       `\x1b[7;${ansiFg(theme.green)};${ansiBg(theme.black)}m ${this.state.mode} \x1b[0m`,
     )
+    if (this.state.isStreaming) {
+      const frame = STATUS_SPINNER_FRAMES[this.spinnerFrame] ?? "⠋"
+      parts.push(ansiColor(theme.greenGlow, frame))
+    }
     if (this.state.model) parts.push(ansiColor(theme.greenGlow, this.state.model))
 
     if (this.state.cumulativeTokens > 0) {
@@ -986,11 +1020,16 @@ export function sectionHeading(text: string): string {
   ].join("\n")
 }
 
+import { highlightCode } from "./code-highlighter"
+
+// ... (preserving all other imports above)
+
 export function codeBlock(code: string, language?: string): string {
   const lines = code.split("\n")
+  const lang = language ?? "ts"
   const header = language ? ` ${chalk.hex(theme.amber)(language)} ` : ""
   const wrapped = lines
-    .map((line) => `  ${chalk.hex(theme.green)(line)}`)
+    .map((line) => `  ${highlightLine(line, lang)}`)
     .join("\n")
   return boxen(header + "\n" + wrapped, {
     padding: { top: 0, bottom: 0, left: 2, right: 2 },

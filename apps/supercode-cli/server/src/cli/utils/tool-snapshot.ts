@@ -32,6 +32,7 @@
 
 import chalk from "chalk"
 import { theme } from "./tui"
+import { highlightLine, detectLanguage, renderGitDiff, codeBlockEditor } from "./code-highlighter"
 
 const RAIL = chalk.hex(theme.greenDim)("┃")
 const SUB = chalk.hex(theme.greenDim)("·")
@@ -52,6 +53,9 @@ function formatBytes(n: number): string {
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} kB`
   return `${(n / 1024 / 1024).toFixed(1)} MB`
 }
+
+const DIFF_HEADER_RE = /^(diff --git |index |new file|deleted file|--- a\/|\+\+\+ b\/|@@ |rename)/
+const DIFF_LINE_RE = /^[+-]/
 
 /**
  * Compact unified diff between two strings. Returns an array of {kind, text}
@@ -113,6 +117,7 @@ export function diffLines(before: string, after: string): Array<{ kind: "add" | 
  * `meta` is the secondary right-side text (e.g. "220 B · replaced").
  */
 export function renderWriteSnapshot(path: string, content: string, meta?: string): string[] {
+  const lang = detectLanguage(path)
   const lines: string[] = []
   const headerRight = meta ? `     ${chalk.hex(theme.muted)(meta)}` : ""
   lines.push(`${RAIL}     ${chalk.hex("#7ee2a8").bold(`+ ${path}`)}${headerRight}`)
@@ -123,8 +128,10 @@ export function renderWriteSnapshot(path: string, content: string, meta?: string
 
   for (let i = 0; i < visible.length; i++) {
     const num = chalk.hex(theme.greenDim)(String(i + 1).padStart(padWidth, " "))
-    const text = truncate(visible[i] ?? "", MAX_COLS)
-    lines.push(`${RAIL}     ${num} ${chalk.hex(theme.white)(text)}`)
+    const raw = visible[i] ?? ""
+    const text = truncate(raw, MAX_COLS)
+    const highlighted = highlightLine(text, lang)
+    lines.push(`${RAIL}     ${num} ${chalk.hex(theme.greenDim)("│")} ${highlighted}`)
   }
   if (split.length > MAX_LINES) {
     lines.push(`${RAIL}     ${SUB} ${chalk.hex(theme.muted)(`… ${split.length - MAX_LINES} more lines`)}`)
@@ -138,29 +145,31 @@ export function renderWriteSnapshot(path: string, content: string, meta?: string
  * `meta` carries the counts (e.g. "+6 / −0 · 1 replacement").
  */
 export function renderEditSnapshot(path: string, before: string, after: string, meta?: string): string[] {
+  const lang = detectLanguage(path)
   const lines: string[] = []
   const headerRight = meta ? `     ${chalk.hex(theme.muted)(meta)}` : ""
   lines.push(`${RAIL}     ${chalk.hex("#f0b87c").bold(`~ ${path}`)}${headerRight}`)
 
   const diff = diffLines(before, after)
-  // Trim trailing unchanged lines so the snapshot shows the actual change.
   let lastIdx = diff.length - 1
   while (lastIdx >= 0 && diff[lastIdx]?.kind === "ctx") lastIdx--
   const trimmed = diff.slice(0, lastIdx + 1)
   const visible = trimmed.length > MAX_LINES ? trimmed.slice(0, MAX_LINES) : trimmed
 
-  let additions = 0
-  let deletions = 0
-  for (const d of trimmed) {
-    if (d.kind === "add") additions++
-    else if (d.kind === "del") deletions++
-  }
-
+  let lineNum = 1
   for (const d of visible) {
-    const text = truncate(d.text, MAX_COLS)
-    if (d.kind === "add") lines.push(`${RAIL}     ${PLUS} ${chalk.hex("#c8e6c9")(text)}`)
-    else if (d.kind === "del") lines.push(`${RAIL}     ${MINUS} ${chalk.hex("#f8d7da")(text)}`)
-    else lines.push(`${RAIL}     ${CONTEXT} ${text}`)
+    const num = chalk.hex(theme.greenDim)(String(lineNum).padStart(3, " "))
+    const raw = truncate(d.text, MAX_COLS)
+    if (d.kind === "add") {
+      const highlighted = highlightLine(raw, lang)
+      lines.push(`${RAIL}     ${PLUS}${num} ${chalk.hex("#c8e6c9")(highlighted)}`)
+    } else if (d.kind === "del") {
+      const highlighted = highlightLine(raw, lang)
+      lines.push(`${RAIL}     ${MINUS}${num} ${chalk.hex("#f8d7da")(highlighted)}`)
+    } else {
+      lines.push(`${RAIL}     ${CONTEXT} ${chalk.hex(theme.greenMute)(raw)}`)
+    }
+    lineNum++
   }
   if (trimmed.length > MAX_LINES) {
     lines.push(`${RAIL}     ${SUB} ${chalk.hex(theme.muted)(`… ${trimmed.length - MAX_LINES} more lines`)}`)
@@ -192,7 +201,16 @@ export function renderCommandSnapshot(
     lines.push(`${RAIL}     ${SUB} ${chalk.hex(theme.muted)("(no output)")}`)
     return lines
   }
+
   const split = body.split("\n")
+  const isGitDiff = split.some((l) => l.startsWith("diff --git ")) &&
+    split.some((l) => l.startsWith("@@"))
+
+  if (isGitDiff) {
+    lines.push(...renderGitDiff(body, { rail: RAIL, indent: 5, maxLines: MAX_LINES }))
+    return lines
+  }
+
   const visible = split.length > MAX_LINES ? split.slice(0, MAX_LINES) : split
   for (const line of visible) {
     lines.push(`${RAIL}       ${truncate(line, MAX_COLS)}`)
@@ -222,6 +240,7 @@ export function countDiff(
  * Render a `read_file` snapshot — path + first N lines of content.
  */
 export function renderReadSnapshot(path: string, content: string): string[] {
+  const lang = detectLanguage(path)
   const lines: string[] = []
   lines.push(`${RAIL}     ${chalk.hex("#7a8a82").bold(`📄 ${path}`)}     ${chalk.hex(theme.muted)(`${content.split("\n").length} lines`)}`)
 
@@ -231,11 +250,13 @@ export function renderReadSnapshot(path: string, content: string): string[] {
 
   for (let i = 0; i < visible.length; i++) {
     const num = chalk.hex(theme.greenDim)(String(i + 1).padStart(padWidth, " "))
-    const text = truncate(visible[i] ?? "", MAX_COLS)
-    lines.push(`${RAIL}       ${num} ${text}`)
+    const raw = visible[i] ?? ""
+    const text = truncate(raw, MAX_COLS)
+    const highlighted = highlightLine(text, lang)
+    lines.push(`${RAIL}     ${num} ${chalk.hex(theme.greenDim)("│")} ${highlighted}`)
   }
   if (split.length > 16) {
-    lines.push(`${RAIL}       ${SUB} ${chalk.hex(theme.muted)(`… ${split.length - 16} more lines`)}`)
+    lines.push(`${RAIL}     ${SUB} ${chalk.hex(theme.muted)(`… ${split.length - 16} more lines`)}`)
   }
   return lines
 }

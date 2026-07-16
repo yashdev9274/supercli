@@ -17,6 +17,16 @@ export interface CliConfig {
   mcpCredentials?: Record<string, McpCredentials>
   composioApiKey?: string
   composioSessionId?: string
+  connectorConfigs?: Record<string, ConnectorCliConfig>
+}
+
+export interface ConnectorCliConfig {
+  provider: string
+  apiKey?: string
+  endpointUrl?: string
+  toolPackId?: string
+  registeredUserId?: string
+  enabled: boolean
 }
 
 export interface McpServerConfig {
