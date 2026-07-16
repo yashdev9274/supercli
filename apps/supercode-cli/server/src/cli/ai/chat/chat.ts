@@ -355,7 +355,7 @@ async function streamAIResponse(
   // previous noisy per-tool debug lines.
   const statusRow = new StepStatusRow()
   const agentName = mode === "plan" ? "plan" : (mode === "chat" ? "chat" : "build")
-  statusRow.start(agentName, provider.modelName)
+  statusRow.start(agentName, provider.modelName, provider.connectionType)
   // Publish to the module-scoped slot so the persistent footer's resize
   // handler can notify us too — StepStatusRow reserves no row of its own,
   // but its render math depends on the current terminal width.
@@ -827,8 +827,9 @@ async function streamAIResponse(
     const elapsedStr =
       elapsed < 1000 ? `${elapsed}ms` : `${(elapsed / 1000).toFixed(1)}s`
     const modeLabel = mode === "plan" ? "plan" : (mode === "chat" ? "chat" : "build")
+    const connBadge = provider.connectionType === "direct" ? " 🔑" : " ☁️"
     console.log(
-      ` ${chalk.hex(theme.green)("▣")}  ${chalk.hex(theme.greenMute)(modeLabel)} ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.muted)(provider.modelName)} ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.muted)(elapsedStr)}`,
+      ` ${chalk.hex(theme.green)("▣")}  ${chalk.hex(theme.greenMute)(modeLabel)} ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.muted)(provider.modelName)}${chalk.hex(theme.amber)(connBadge)} ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.muted)(elapsedStr)}`,
     )
     console.log()
     return {
@@ -1902,17 +1903,25 @@ export async function chatLoop(
             provider = newProvider
             contextWindow = getContextWindow(provider.modelName)
             const label = result.label || provider.modelName
-            footer.setModel(provider.modelName)
+  footer.setModel(provider.modelName)
+  footer.setConnectionType(provider.connectionType)
             footer.setContextWindow(contextWindow)
             process.stdout.write(`\r\n ${chalk.hex(theme.green)("◆")} switched to ${chalk.hex(theme.green)(label)}\r\n\n`)
             saveCliConfig({ provider: result.provider!, model: result.model || provider.modelName, mode: conversation.mode as "chat" | "agent" })
           }
         } else if (result?.type === "connect") {
           if (result.provider) {
-            const newProvider = createProvider(result.provider, provider.modelName)
+            const modelToUse = result.model || provider.modelName
+            const newProvider = createProvider(result.provider, modelToUse)
             if (newProvider) {
               provider = newProvider
               contextWindow = getContextWindow(provider.modelName)
+              footer.setModel(provider.modelName)
+              footer.setConnectionType(provider.connectionType)
+              footer.setContextWindow(contextWindow)
+              const label = `${provider.name} · ${provider.modelName}`
+              process.stdout.write(`\r\n ${chalk.hex(theme.green)("◆")} switched to ${chalk.hex(theme.green)(label)}\r\n`)
+              saveCliConfig({ provider: result.provider!, model: modelToUse, mode: conversation.mode as "chat" | "agent" })
             }
           }
           process.stdout.write(`\r\n`)

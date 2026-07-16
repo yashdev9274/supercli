@@ -41,6 +41,7 @@ export class StepStatusRow {
   private frameIndex = 0
   private agentName = ""
   private modelName = ""
+  private connectionType = ""
   private phase: StepPhase = "idle"
   private currentToolName = ""
   private currentToolArgs: unknown = undefined
@@ -53,11 +54,12 @@ export class StepStatusRow {
   // Simple ETA: rolling average of tool durations per tool type (ms)
   private toolDurationHistory = new Map<string, number[]>()
 
-  start(agentName: string, modelName: string) {
+  start(agentName: string, modelName: string, connectionType: string = "") {
     if (this.running) return
     this.running = true
     this.agentName = agentName
     this.modelName = modelName
+    this.connectionType = connectionType
     this.phase = "thinking"
     this.currentToolName = ""
     this.currentToolArgs = undefined
@@ -171,7 +173,7 @@ export class StepStatusRow {
       }
       // Simple ETA: average of past durations × estimated remaining steps
       const estimatedRemaining = this.estimateRemaining()
-      if (estimatedRemaining > 0) {
+      if (estimatedRemaining) {
         parts.push(chalk.hex(theme.greenDim)(`~${estimatedRemaining}`))
       }
     } else if (this.agentName) {
@@ -180,6 +182,11 @@ export class StepStatusRow {
         ? `Model processing tool result`
         : `▣ ${this.agentName}${this.modelName ? " · " + this.modelName : ""}`
       parts.push(chalk.hex(theme.greenMute)(modelLabel))
+      if (this.connectionType === "direct") {
+        parts.push(chalk.hex(theme.amber)("🔑"))
+      } else if (this.connectionType === "proxy") {
+        parts.push(chalk.hex(theme.amber)("☁️"))
+      }
     } else if (this.modelName) {
       parts.push(chalk.hex(theme.greenGlow)(this.modelName))
     }

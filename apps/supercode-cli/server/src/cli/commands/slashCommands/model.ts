@@ -1,5 +1,5 @@
 import * as readline from "node:readline"
-import { isCancel, confirm } from "@clack/prompts"
+import { isCancel, confirm, text } from "@clack/prompts"
 import chalk from "chalk"
 import { theme, heavyDivider } from "src/cli/utils/tui.ts"
 import type { ModelProvider } from "src/cli/ai/provider.ts"
@@ -13,23 +13,114 @@ interface ModelEntry {
   desc: string
 }
 
-const MODELS: ModelEntry[] = [
-  { value: "glm-5.2", label: "GLM 5.2", provider: "concentrateai", cost: "0.5x", desc: "Latest GLM" },
-  { value: "kimi-k2-6", label: "Kimi K2.6", provider: "concentrateai", cost: "0.8x", desc: "Long context" },
-  { value: "deepseek-v4-flash", label: "DeepSeek V4 Flash", provider: "concentrateai", cost: "1.0x", desc: "Fast & capable" },
-  { value: "minimax-m3", label: "MiniMax M3", provider: "concentrateai", cost: "0.5x", desc: "Fast & smart" },
-  // { value: "anthropic/claude-opus-4-8", label: "Opus 4.8", provider: "concentrateai", cost: "40x", desc: "Deep reasoning" },
-  // { value: "anthropic/claude-opus-4-8", label: "Opus 4.8", provider: "mergedev", cost: "40x", desc: "Via Merge Dev" },
+export const MODELS: ModelEntry[] = [
+  // ── ConcentrateAI (BYOK) ──────────────────────────────────────
+  { value: "anthropic/claude-opus-4-8", label: "Claude Opus 4.8", provider: "concentrateai", cost: "", desc: "Deep reasoning" },
+  { value: "anthropic/claude-opus-4", label: "Claude Opus 4", provider: "concentrateai", cost: "", desc: "Top-tier reasoning" },
+  { value: "anthropic/claude-sonnet-4-5", label: "Claude Sonnet 4.5", provider: "concentrateai", cost: "", desc: "Latest sonnet" },
+  { value: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4", provider: "concentrateai", cost: "", desc: "Balanced" },
+  { value: "anthropic/claude-3-5-haiku", label: "Claude 3.5 Haiku", provider: "concentrateai", cost: "", desc: "Fast & cheap" },
+  { value: "openai/gpt-4o", label: "GPT-4o", provider: "concentrateai", cost: "", desc: "OpenAI flagship" },
+  { value: "openai/gpt-4o-mini", label: "GPT-4o Mini", provider: "concentrateai", cost: "", desc: "Cheap & fast" },
+  { value: "openai/gpt-4-1", label: "GPT-4.1", provider: "concentrateai", cost: "", desc: "Latest GPT" },
+  { value: "openai/o3-mini", label: "o3-mini", provider: "concentrateai", cost: "", desc: "Reasoning mini" },
+  { value: "openai/o4-mini", label: "o4-mini", provider: "concentrateai", cost: "", desc: "Reasoning v4 mini" },
+  { value: "x-ai/grok-4-5", label: "Grok 4.5", provider: "concentrateai", cost: "", desc: "xAI latest" },
+  { value: "x-ai/grok-3", label: "Grok 3", provider: "concentrateai", cost: "", desc: "xAI flagship" },
+  { value: "x-ai/grok-3-mini", label: "Grok 3 Mini", provider: "concentrateai", cost: "", desc: "Compact Grok" },
+  { value: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash", provider: "concentrateai", cost: "", desc: "Fast & capable" },
+  { value: "deepseek/deepseek-v3", label: "DeepSeek V3", provider: "concentrateai", cost: "", desc: "DeepSeek flagship" },
+  { value: "deepseek/deepseek-r1", label: "DeepSeek R1", provider: "concentrateai", cost: "", desc: "Reasoning model" },
+  { value: "meta-llama/llama-4-maverick", label: "Llama 4 Maverick", provider: "concentrateai", cost: "", desc: "Latest Llama" },
+  { value: "z-ai/glm-5-2", label: "GLM 5.2", provider: "concentrateai", cost: "", desc: "Latest GLM" },
+  { value: "moonshotai/kimi-k2-6", label: "Kimi K2.6", provider: "concentrateai", cost: "", desc: "Long context" },
+  { value: "minimax/minimax-m3", label: "MiniMax M3", provider: "concentrateai", cost: "", desc: "Fast & smart" },
+
+  // ── Google Gemini ─────────────────────────────────────────────
   { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", provider: "google", cost: "2.0x", desc: "Smart & fast" },
   { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", provider: "google", cost: "4.0x", desc: "Deep reasoning" },
+  { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash", provider: "google", cost: "1.5x", desc: "Previous gen" },
+  { value: "gemini-2.5-flash-preview", label: "Gemini 2.5 Flash Preview", provider: "google", cost: "2.0x", desc: "Latest preview" },
+  { value: "gemini-2.5-pro-preview", label: "Gemini 2.5 Pro Preview", provider: "google", cost: "4.0x", desc: "Max preview" },
+  { value: "learnlm-1.5-pro", label: "LearnLM 1.5 Pro", provider: "google", cost: "1.0x", desc: "Teaching optimized" },
+
+  // ── MiniMax ──────────────────────────────────────────────────
+  { value: "MiniMax-M2", label: "MiniMax M2", provider: "minimax", cost: "0.8x", desc: "MiniMax flagship" },
+  { value: "MiniMax-M3", label: "MiniMax M3", provider: "minimax", cost: "0.5x", desc: "Fast & smart" },
+
+  // ── NVIDIA NIM ───────────────────────────────────────────────
+  { value: "meta/llama-3.1-405b-instruct", label: "Llama 3.1 405B", provider: "nvidia", cost: "2.0x", desc: "Via NVIDIA NIM" },
+  { value: "meta/llama-3.3-70b-instruct", label: "Llama 3.3 70B", provider: "nvidia", cost: "1.2x", desc: "Open weights" },
+  { value: "meta/llama-3.1-70b-instruct", label: "Llama 3.1 70B", provider: "nvidia", cost: "1.0x", desc: "Via NVIDIA NIM" },
+  { value: "meta/llama-3.1-8b-instruct", label: "Llama 3.1 8B", provider: "nvidia", cost: "0.5x", desc: "Via NVIDIA NIM" },
+  { value: "nvidia/llama-3.1-nemotron-70b-instruct", label: "Nemotron 70B", provider: "nvidia", cost: "1.2x", desc: "RLHF optimized" },
+  { value: "nvidia/llama-3.1-nemotron-ultra-253b", label: "Nemotron Ultra 253B", provider: "nvidia", cost: "2.5x", desc: "Biggest NIM" },
+  { value: "mistralai/mistral-7b-instruct-v0.3", label: "Mistral 7B", provider: "nvidia", cost: "0.5x", desc: "Via NVIDIA NIM" },
+  { value: "qwen/qwen2.5-72b-instruct", label: "Qwen 2.5 72B", provider: "nvidia", cost: "1.2x", desc: "Via NVIDIA NIM" },
   { value: "minimaxai/minimax-m3", label: "MiniMax M3", provider: "nvidia", cost: "0.5x", desc: "Via NVIDIA NIM" },
   { value: "deepseek-ai/deepseek-v4-flash", label: "DeepSeek V4 Flash", provider: "nvidia", cost: "1.0x", desc: "Via NVIDIA NIM" },
-  { value: "meta/llama-3.3-70b-instruct", label: "Llama 3.3 70B", provider: "nvidia", cost: "1.2x", desc: "Open weights" },
-  { value: "openai/gpt-oss-120b:free", label: "GPT OSS 120B", provider: "openrouter", cost: "free", desc: "OpenAI open-weight" },
+
+  // ── OpenRouter ──────────────────────────────────────────────
+  // Anthropic
+  { value: "anthropic/claude-opus-4-8", label: "Claude Opus 4.8", provider: "openrouter", cost: "40x", desc: "Deep reasoning" },
+  { value: "anthropic/claude-opus-4", label: "Claude Opus 4", provider: "openrouter", cost: "30x", desc: "Top-tier reasoning" },
+  { value: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4", provider: "openrouter", cost: "12x", desc: "Balanced" },
+  { value: "anthropic/claude-sonnet-4.5", label: "Claude Sonnet 4.5", provider: "openrouter", cost: "10x", desc: "Latest sonnet" },
+  { value: "anthropic/claude-3.5-haiku", label: "Claude 3.5 Haiku", provider: "openrouter", cost: "3x", desc: "Fast & cheap" },
+
+  // OpenAI
+  { value: "openai/gpt-4o", label: "GPT-4o", provider: "openrouter", cost: "4x", desc: "OpenAI flagship" },
+  { value: "openai/gpt-4o-mini", label: "GPT-4o Mini", provider: "openrouter", cost: "0.5x", desc: "Cheap & fast" },
+  { value: "openai/gpt-4.1", label: "GPT-4.1", provider: "openrouter", cost: "3x", desc: "Latest GPT" },
+  { value: "openai/gpt-4.1-mini", label: "GPT-4.1 Mini", provider: "openrouter", cost: "1x", desc: "Compact GPT" },
+  { value: "openai/gpt-4.1-nano", label: "GPT-4.1 Nano", provider: "openrouter", cost: "0.3x", desc: "Tiny & fast" },
+  { value: "openai/o3-mini", label: "o3-mini", provider: "openrouter", cost: "3x", desc: "Reasoning mini" },
+  { value: "openai/o4-mini", label: "o4-mini", provider: "openrouter", cost: "3x", desc: "Reasoning v4 mini" },
+  { value: "openai/gpt-oss-120b:free", label: "GPT OSS 120B", provider: "openrouter", cost: "free", desc: "Open-weight free" },
+
+  // xAI (Grok)
+  { value: "x-ai/grok-3", label: "Grok 3", provider: "openrouter", cost: "10x", desc: "xAI flagship" },
+  { value: "x-ai/grok-3-mini", label: "Grok 3 Mini", provider: "openrouter", cost: "5x", desc: "Compact Grok" },
+  { value: "x-ai/grok-3-mini-fast", label: "Grok 3 Mini Fast", provider: "openrouter", cost: "5x", desc: "Fast Grok" },
+
+  // DeepSeek
   { value: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash", provider: "openrouter", cost: "1.2x", desc: "Via OpenRouter" },
+  { value: "deepseek/deepseek-v3", label: "DeepSeek V3", provider: "openrouter", cost: "1.5x", desc: "DeepSeek flagship" },
+  { value: "deepseek/deepseek-r1", label: "DeepSeek R1", provider: "openrouter", cost: "4x", desc: "Reasoning model" },
+
+  // Meta (Llama)
+  { value: "meta-llama/llama-4-maverick", label: "Llama 4 Maverick", provider: "openrouter", cost: "2x", desc: "Latest Llama" },
+  { value: "meta-llama/llama-4-scout", label: "Llama 4 Scout", provider: "openrouter", cost: "1x", desc: "Lightweight Llama" },
+  { value: "meta-llama/llama-3.3-70b", label: "Llama 3.3 70B", provider: "openrouter", cost: "1.2x", desc: "Open weights" },
+
+  // Mistral
+  { value: "mistral/mistral-large", label: "Mistral Large", provider: "openrouter", cost: "4x", desc: "Mistral flagship" },
+  { value: "mistral/mistral-small", label: "Mistral Small", provider: "openrouter", cost: "0.5x", desc: "Compact Mistral" },
+  { value: "mistral/codestral-2501", label: "Codestral", provider: "openrouter", cost: "2x", desc: "Code specialist" },
+
+  // Google (via OpenRouter)
+  { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro", provider: "openrouter", cost: "4x", desc: "Via OpenRouter" },
+  { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash", provider: "openrouter", cost: "2x", desc: "Via OpenRouter" },
+
+  // Qwen
+  { value: "qwen/qwen-2.5-72b", label: "Qwen 2.5 72B", provider: "openrouter", cost: "1.2x", desc: "Alibaba flagship" },
+  { value: "qwen/qwen-2.5-coder-32b", label: "Qwen 2.5 Coder 32B", provider: "openrouter", cost: "1x", desc: "Coding specialist" },
+  { value: "qwen/qwq-32b", label: "QWQ 32B", provider: "openrouter", cost: "1.2x", desc: "Reasoning model" },
+
+  // Others
+  { value: "cohere/command-r-plus", label: "Command R+", provider: "openrouter", cost: "3x", desc: "Cohere flagship" },
   { value: "minimax/minimax-m3", label: "MiniMax M3", provider: "openrouter", cost: "3.0x", desc: "Via OpenRouter" },
   { value: "z-ai/glm-5.1", label: "GLM 5.1", provider: "openrouter", cost: "1.0x", desc: "Via OpenRouter" },
   { value: "moonshotai/kimi-k2.6", label: "Kimi K2.6", provider: "openrouter", cost: "1.5x", desc: "Via OpenRouter" },
+
+  // ── Merge Dev Gateway ────────────────────────────────────────
+  { value: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4", provider: "mergedev", cost: "12x", desc: "Via Merge Dev" },
+  { value: "anthropic/claude-opus-4-8", label: "Claude Opus 4.8", provider: "mergedev", cost: "40x", desc: "Deep reasoning" },
+  { value: "openai/gpt-4o", label: "GPT-4o", provider: "mergedev", cost: "4x", desc: "Via Merge Dev" },
+  { value: "x-ai/grok-3", label: "Grok 3", provider: "mergedev", cost: "10x", desc: "Via Merge Dev" },
+  { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", provider: "mergedev", cost: "2x", desc: "Via Merge Dev" },
+  { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", provider: "mergedev", cost: "4x", desc: "Via Merge Dev" },
+  { value: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash", provider: "mergedev", cost: "1.2x", desc: "Via Merge Dev" },
 ]
 
 export class ModelPicker {
@@ -92,7 +183,7 @@ export class ModelPicker {
         ? ` ${chalk.bgHex(theme.amber).hex(theme.black).bold(" current ")}`
         : ""
       const freeTag =
-        !isCurrent && (m.cost === "free" || m.provider === "concentrateai" || m.provider === "mergedev")
+        !isCurrent && m.cost === "free"
           ? ` ${chalk.bgHex(theme.green).hex(theme.black).bold(" FREE ")}`
           : ""
 
@@ -195,12 +286,27 @@ function readRawKey(): Promise<"up" | "down" | "enter" | "escape"> {
   })
 }
 
-export async function pickModel(): Promise<{ provider: ModelProvider; model?: string }> {
+export async function pickModel(
+  providerFilter?: ModelProvider,
+  opts?: { allowCustom?: boolean },
+): Promise<{ provider: ModelProvider; model?: string }> {
   const stored = await getCliConfig()
   const currentProvider = stored?.provider || "concentrateai"
   const currentModel = stored?.model || "glm-5.1"
 
   const picker = new ModelPicker()
+  if (providerFilter) {
+    picker.items = MODELS.filter((m) => m.provider === providerFilter)
+    if (opts?.allowCustom) {
+      picker.items.push({
+        value: "__custom__",
+        label: "Custom model",
+        provider: providerFilter,
+        cost: "",
+        desc: "Type any model name",
+      })
+    }
+  }
   const cols = process.stdout.columns ?? 80
 
   const draw = () => {
@@ -254,6 +360,23 @@ export async function pickModel(): Promise<{ provider: ModelProvider; model?: st
 
   if (!selected) {
     return { provider: currentProvider as ModelProvider, model: currentModel }
+  }
+
+  // Handle custom model selection
+  if (selected.value === "__custom__") {
+    process.stdout.write(`\n`)
+    const customName = await text({
+      message: chalk.hex(theme.green)(`enter model name for ${selected.provider}`),
+      placeholder: "e.g. my-custom-model-v1",
+    })
+    if (isCancel(customName) || !(customName as string).trim()) {
+      return { provider: selected.provider, model: undefined }
+    }
+    const trimmed = (customName as string).trim()
+    process.stdout.write(
+      `  ${chalk.hex(theme.green)("✓")} model set to ${chalk.hex(theme.greenGlow)(trimmed)}\n\n`,
+    )
+    return { provider: selected.provider, model: trimmed }
   }
 
   // Ask about setting as default

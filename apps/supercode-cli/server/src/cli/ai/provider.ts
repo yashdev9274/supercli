@@ -14,9 +14,12 @@ import { mergedevConfig } from "../../config/mergedev.config.ts"
 
 export type ModelProvider = "google" | "minimax" | "openrouter" | "nvidia" | "concentrateai" | "mergedev"
 
+export type ConnectionType = "direct" | "proxy"
+
 export interface AIProvider {
   readonly name: string
   readonly modelName: string
+  readonly connectionType: ConnectionType
   readonly model?: any
   sendMessage(
     messages: ModelMessage[],
@@ -62,6 +65,7 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
       return {
         name: provider,
         modelName: model || meta.defaultModel,
+        connectionType: "proxy",
         sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish) =>
           svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish),
       generateObject: (schema, prompt) => svc.generateObject(schema, prompt),
@@ -74,6 +78,7 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
       return {
         name: "google",
         modelName: svc.modelName,
+        connectionType: "direct",
         model: svc.model,
         sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult) =>
           svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult),
@@ -84,6 +89,7 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
       return {
         name: "openrouter",
         modelName: svc.modelName,
+        connectionType: "direct",
         sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult) =>
           svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult),
       }
@@ -93,6 +99,7 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
       return {
         name: "nvidia",
         modelName: svc.modelName,
+        connectionType: "direct",
         model: svc.model,
         sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish) =>
           svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish),
@@ -103,6 +110,7 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
       return {
         name: "concentrateai",
         modelName: svc.modelName,
+        connectionType: "direct",
         model: svc.model,
         sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish, onStepBudget) =>
           svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish, onStepBudget),
@@ -113,6 +121,7 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
       return {
         name: "mergedev",
         modelName: svc.modelName,
+        connectionType: "direct",
         model: svc.model,
         sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish) =>
           svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish),

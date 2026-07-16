@@ -1,6 +1,6 @@
 
 
 export const config = {
-  googleApiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || "",
-  model: process.env.MODEL1 || "gemini-2.5-flash"
+  get googleApiKey() { return process.env.GOOGLE_GENERATIVE_AI_API_KEY || "" },
+  get model() { return process.env.MODEL1 || "gemini-2.5-flash" },
 }

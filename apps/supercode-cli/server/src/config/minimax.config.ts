@@ -1,6 +1,6 @@
 
 
 export const minimaxConfig = {
-  apiKey: process.env.MINIMAX_API_KEY || "",
-  model: process.env.MINIMAX_MODEL || "MiniMax-M2",
+  get apiKey() { return process.env.MINIMAX_API_KEY || "" },
+  get model() { return process.env.MINIMAX_MODEL || "MiniMax-M2" },
 }
