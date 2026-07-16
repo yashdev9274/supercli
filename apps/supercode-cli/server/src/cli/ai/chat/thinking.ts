@@ -24,6 +24,8 @@ export function extractToolArg(toolName: string, args: unknown): string | undefi
   if (typeof url === "string") return url
   if (a.command) return String(a.command)
   if (a.prompt) return String(a.prompt).slice(0, 60)
+  if (a.task) return String(a.task).slice(0, 60)
+  if (a.description) return String(a.description).slice(0, 60)
   return undefined
 }
 
@@ -438,6 +440,8 @@ export interface ThoughtEntry {
   body: string
   tools: ThoughtTool[]
   subThoughts: ThoughtEntry[]
+  // Task name for delegate/task subagent entries (e.g. "Find BUILTIN_CONNECTORS")
+  taskName?: string
   startTime: number
   endTime: number | null
   collapsed: boolean
@@ -707,39 +711,34 @@ export class ThoughtChain {
       const subElapsedStr =
         subElapsed < 1000 ? `${subElapsed}ms` : `${(subElapsed / 1000).toFixed(1)}s`
 
+      const hadFailures = sub.tools.some((t) => t.flagged)
       const subToggle = sub.collapsed
-        ? chalk.hex(theme.greenGlow)("+")
+        ? (hadFailures ? chalk.hex(theme.greenGlow)("+") : chalk.hex("#5ec27e")("✓"))
         : chalk.hex(theme.greenGlow)("▼")
-      const subLabel = chalk.hex(theme.greenMute)("Explore")
+      const subLabel = chalk.hex(theme.greenMute)("Explore Task")
+      const taskDesc = sub.taskName
+        ? ` ${chalk.hex(theme.greenDim)("—")} ${chalk.hex(theme.white)(sub.taskName)}`
+        : ""
       process.stdout.write(
-        `${indent}   ${subToggle} ${subLabel} ${chalk.hex(theme.greenDim)("·")} ${subElapsedStr}\n`,
+        `${indent}   ${subToggle} ${subLabel}${taskDesc} ${chalk.hex(theme.greenDim)("·")} ${subElapsedStr}\n`,
       )
 
       if (sub.collapsed) {
-        // Summary line for collapsed sub-thought — per-category counts
-        const groups = groupToolsByCategory(sub.tools)
-        const parts: string[] = []
-        let hasFailures = false
-        for (const cat of CATEGORY_ORDER) {
-          const tools = groups.get(cat)
-          if (!tools || tools.length === 0) continue
-          const label = CATEGORY_LABELS[cat].toLowerCase()
-          const flaggedCount = tools.filter((t) => t.flagged).length
-          if (flaggedCount > 0) {
-            const okCount = tools.length - flaggedCount
-            if (okCount > 0) parts.push(`${okCount} ${label}`)
-            parts.push(`${chalk.hex(theme.red)(`${flaggedCount} failed`)}`)
-            hasFailures = true
-          } else {
-            parts.push(`${tools.length} ${label}`)
-          }
-        }
-        const summary = parts.length > 0 ? parts.join(" · ") : `${sub.tools.length} tool call${sub.tools.length === 1 ? "" : "s"}`
+        const toolCount = sub.tools.length
+        const subThoughtCount = sub.subThoughts.reduce((n, s) => n + s.tools.length, 0)
+        const totalTools = toolCount + subThoughtCount
         process.stdout.write(
-          `${indent}     ${chalk.hex(theme.greenDim)("↳")} ${chalk.hex(theme.greenMute)(summary)}\n`,
+          `${indent}     ${chalk.hex(theme.greenDim)("↳")} ${chalk.hex(theme.greenMute)(`${totalTools} toolcall${totalTools === 1 ? "" : "s"} · ${subElapsedStr}`)}\n`,
         )
       } else {
-        // Expanded sub-thought — tool rows with snapshots (grouped by category)
+        const bodyLines = sub.body.trim().split("\n")
+        for (const bl of bodyLines) {
+          const trimmed = bl.trim()
+          if (trimmed) {
+            process.stdout.write(`${indent}     ${chalk.hex(theme.greenMute)(trimmed)}\n`)
+          }
+        }
+
         const groups = groupToolsByCategory(sub.tools)
         let groupIdx = 0
         for (const cat of CATEGORY_ORDER) {
@@ -747,13 +746,6 @@ export class ThoughtChain {
           if (!tools || tools.length === 0) continue
           if (groupIdx > 0) process.stdout.write("\n")
           groupIdx++
-          if (tools.length > 1) {
-            const label = CATEGORY_LABELS[cat]
-            const color = CATEGORY_COLORS[cat]
-            process.stdout.write(
-              `${indent}     ${chalk.hex(color)(`${label} [${tools.length}]:`)}\n`,
-            )
-          }
           for (const t of tools) {
             const argsParsed =
               typeof t.args === "string" ? safeParse(t.args) : t.args
@@ -762,7 +754,7 @@ export class ThoughtChain {
               extractToolArg(t.name, argsParsed),
             )
             const marker = t.flagged ? ` ${chalk.hex(theme.red)("✗")}` : ""
-            process.stdout.write(`${indent}       ${chalk.hex(color)(verb)}${marker}\n`)
+            process.stdout.write(`${indent}     ${chalk.hex(color)(verb)}${marker}\n`)
             if (t.snapshot) {
               for (const snapLine of t.snapshot) {
                 process.stdout.write(snapLine + "\n")
@@ -884,25 +876,29 @@ export class ThoughtChain {
         const subElapsed = sub.endTime
           ? `${sub.endTime - sub.startTime}ms`
           : `${Date.now() - sub.startTime}ms`
+        const hadFailures = sub.tools.some((t) => t.flagged)
         const subToggle = sub.collapsed
-          ? chalk.hex(theme.greenDim)("▶")
+          ? (hadFailures ? chalk.hex(theme.greenDim)("▶") : chalk.hex("#5ec27e")("✓"))
           : chalk.hex(theme.greenGlow)("▼")
-        const subHeader = `${subToggle} ${chalk.hex(theme.greenMute)("Explore")}${chalk.hex(theme.greenDim)(":")} ${chalk.hex(theme.greenGlow)(subElapsed)}`
+        const taskDesc = sub.taskName
+          ? ` ${chalk.hex(theme.greenDim)("—")} ${chalk.hex(theme.white)(sub.taskName)}`
+          : ""
+        const subHeader = `${subToggle} ${chalk.hex(theme.greenMute)("Explore Task")}${taskDesc} ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.greenGlow)(subElapsed)}`
         lines.push(`${indent}   ${subHeader}`)
 
         if (!sub.collapsed) {
+          const bodyLines = sub.body.trim().split("\n")
+          for (const bl of bodyLines) {
+            const trimmed = bl.trim()
+            if (trimmed) {
+              lines.push(`${indent}     ${chalk.hex(theme.greenMute)(trimmed)}`)
+            }
+          }
+
           const subGroups = groupToolsByCategory(sub.tools)
-          let subGroupIdx = 0
           for (const cat of CATEGORY_ORDER) {
             const tools = subGroups.get(cat)
             if (!tools || tools.length === 0) continue
-            if (subGroupIdx > 0) lines.push("")
-            subGroupIdx++
-            if (tools.length > 1) {
-              const label = CATEGORY_LABELS[cat]
-              const color = CATEGORY_COLORS[cat]
-              lines.push(`${indent}     ${chalk.hex(color)(`${label} [${tools.length}]:`)}`)
-            }
             for (const t of tools) {
               const argsParsed =
                 typeof t.args === "string" ? safeParse(t.args) : t.args
@@ -910,7 +906,7 @@ export class ThoughtChain {
                 t.name,
                 extractToolArg(t.name, argsParsed),
               )
-              lines.push(`${indent}       ${chalk.hex(color)(verb)}`)
+              lines.push(`${indent}     ${chalk.hex(color)(verb)}`)
               if (t.snapshot) {
                 for (const snapLine of t.snapshot) {
                   lines.push(snapLine)

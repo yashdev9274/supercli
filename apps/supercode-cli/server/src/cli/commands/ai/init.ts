@@ -6,6 +6,7 @@ import { startChat, type ModelProvider } from "src/cli/ai/chat/chat"
 import { startAgentChat } from "src/cli/ai/chat/chatAgent"
 import { getMcpManager } from "src/mcp/mcp-manager"
 import { composioSessionManager } from "src/mcp/composio"
+import { mergeConnectorManager } from "src/connectors"
 import { createThinking, errorBox } from "src/cli/utils/tui"
 import { renderWelcome } from "src/cli/utils/welcome"
 import { scanWorkspace } from "src/cli/workspace/scanner.ts"
@@ -69,6 +70,19 @@ export const wakeUpAction = async (resumeId: string | null = null) => {
         })
       } catch {
         // composio auto-reconnect failed — user can use /mcp to reconnect
+      }
+    }
+  }
+
+  // Auto-connect Merge Agent Handler (silent — no user-facing output)
+  if (mergeConnectorManager.isConfigured) {
+    mergeConnectorManager.loadConfigFromEnv()
+    const mcpConfig = mergeConnectorManager.getMcpConfig()
+    if (mcpConfig) {
+      try {
+        await getMcpManager().start({ mergedev: mcpConfig })
+      } catch {
+        // Merge AH auto-connect failed — tools degrade gracefully
       }
     }
   }

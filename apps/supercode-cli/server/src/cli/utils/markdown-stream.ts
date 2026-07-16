@@ -124,6 +124,21 @@ export class MarkdownStream {
     return this.renderStyled()
   }
 
+  // Render the buffered markdown all at once, without the typing animation.
+  // Used for the end-of-turn Result section where the text was already
+  // streamed inline — no need to animate it character by character.
+  endInstant() {
+    if (this.closed) return
+    this.closed = true
+    if (!this.buffer) return
+    const width = (process.stdout.columns ?? 80) - 2
+    const renderer = getRenderer(width)
+    let rendered = marked(this.buffer, { renderer: renderer as any, async: false }) as string
+    rendered = rendered.replace(/\n+$/, "")
+    if (!rendered) return
+    process.stdout.write(rendered.endsWith("\n") ? rendered : rendered + "\n")
+  }
+
   reset() {
     this.buffer = ""
     this.closed = false
@@ -132,9 +147,9 @@ export class MarkdownStream {
   // Run the buffered response through marked-terminal with the
   // supercode palette and write the styled result to stdout with a
   // typing animation so the user sees content appearing progressively.
-  // In live mode the raw transcript is already on screen, so we open a
-  // fresh line first; in default (buffer-only) mode we animate the
-  // styled payload directly.
+  // Writes in line-sized chunks so each ANSI escape sequence stays
+  // intact — character-by-character output would let the spinner's
+  // interval writes corrupt in-progress escape sequences.
   private async renderStyled() {
     if (!this.buffer) return
     const width = (process.stdout.columns ?? 80) - 2
@@ -149,18 +164,27 @@ export class MarkdownStream {
       process.stdout.write("\r\n")
     }
 
-    // Typing animation — write the styled payload character by character
-    // so the user sees content appearing progressively.
-    const len = styledPayload.length
+    // Split into lines — each line contains complete ANSI sequences.
+    // Write line by line with a delay between each for the typing feel.
+    const lines = styledPayload.split("\n")
     const delay =
-      len < 100 ? 20
-      : len < 500 ? 15
-      : len < 2000 ? 10
-      : 5
+      lines.length < 10 ? 40
+      : lines.length < 30 ? 25
+      : 15
 
-    for (let i = 0; i < len; i++) {
-      process.stdout.write(styledPayload[i]!)
+    for (let i = 0; i < lines.length - 1; i++) {
+      const line = lines[i]!
+      if (line) {
+        process.stdout.write(line)
+      }
+      process.stdout.write("\n")
       await new Promise((r) => setTimeout(r, delay))
+    }
+    // Last line (may be empty if input ended with \n)
+    const last = lines[lines.length - 1]
+    if (last && last.length > 0) {
+      process.stdout.write(last)
+      // No trailing \n — the turn footer will add one
     }
   }
 }

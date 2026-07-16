@@ -35,7 +35,7 @@ import {
   heavyDivider,
   responseDivider,
 } from "src/cli/utils/tui.ts"
-import { ThinkingDisplay, TurnTracker, toolLabel, ThoughtChain } from "./thinking.ts"
+import { ThinkingDisplay, TurnTracker, toolLabel, ThoughtChain, extractToolArg } from "./thinking.ts"
 import { StepStatusRow } from "./step-status-row.ts"
 import { MarkdownStream } from "src/cli/utils/markdown-stream.ts"
 import { getContextWindow } from "src/cli/ai/context-windows.ts"
@@ -347,6 +347,8 @@ async function streamAIResponse(
   // the delegate onToolResult fires. Each sub-chain entry becomes a sub-thought
   // on the parent ThoughtEntry.
   let currentSubChain: ThoughtChain | null = null
+  // Task name extracted from delegate/task args (e.g. "Find BUILTIN_CONNECTORS").
+  let currentSubChainTaskName = ""
   // Track whether we've printed the "Explore" header for the current sub-chain.
   let subChainHeaderPrinted = false
 
@@ -400,26 +402,74 @@ async function streamAIResponse(
     // Ensure .env vars are loaded (Bun only auto-loads .env from CWD, which
     // may not be the server directory when launched from elsewhere).
     loadEnvOnce()
-    // Priority: Firecrawl > Exa > legacy web_search.
-    // When Firecrawl is configured, use firecrawl tools exclusively.
-    if (process.env.FIRECRAWL_API_KEY) {
-      delete (toolsToUse as Record<string, unknown>).web_search
-      delete (toolsToUse as Record<string, unknown>).exa_search
-      delete (toolsToUse as Record<string, unknown>).exa_fetch
-    } else if (process.env.EXA_API_KEY) {
-      // When Exa is configured (without Firecrawl), use exa tools and hide legacy.
-      delete (toolsToUse as Record<string, unknown>).web_search
+
+    // Determine what tools MergeDev provides. When connected, its Exa/Firecrawl
+    // MCP tools already overwrote our built-in ones via Object.assign above.
+    // Only delete our local Exa/Firecrawl tools if neither MergeDev nor local
+    // API keys can serve them — avoids the AI calling dead tools.
+    const isMergeDevConnected = mcpManager.connectedServers.includes("mergedev")
+    const mergedevTools = isMergeDevConnected
+      ? await mcpManager.getTools("mergedev")
+      : {}
+    const mcpProvided = new Set(Object.keys(mergedevTools))
+
+    delete (toolsToUse as Record<string, unknown>).web_search
+
+    // Determine whether Exa search is available (via local key or MergeDev)
+    const hasExaSearch = !!process.env.EXA_API_KEY || mcpProvided.has("exa_search")
+
+    // Determine whether Firecrawl search is available (via local key or MergeDev)
+    const hasFirecrawlSearch = !!process.env.FIRECRAWL_API_KEY || mcpProvided.has("firecrawl_search")
+
+    // Exa is preferred for web search. When Exa is available, remove
+    // firecrawl_search to avoid redundancy — keep firecrawl_scrape and
+    // firecrawl_map for URL scraping and site mapping (different use cases).
+    if (hasExaSearch && hasFirecrawlSearch) {
+      delete (toolsToUse as Record<string, unknown>).firecrawl_search
+    }
+
+    if (!hasFirecrawlSearch) {
       delete (toolsToUse as Record<string, unknown>).firecrawl_search
       delete (toolsToUse as Record<string, unknown>).firecrawl_scrape
       delete (toolsToUse as Record<string, unknown>).firecrawl_map
     }
-    // If composio MCP tools are available, instruct the AI to prefer them
-    // over built-in tools for the corresponding services.
-    const hasComposioTools = Object.keys(toolsToUse).some((k) =>
-      k.startsWith("mcp_composio_")
-    )
-    if (hasComposioTools && aiMessages[0]) {
-      aiMessages[0].content += `\n\n## MCP Tool Preference\n\nYou have composio-connected MCP tools available (prefixed with mcp_composio_). These provide direct access to services like GitHub, Linear, Slack, etc. When a user's request can be satisfied using these MCP tools, prefer them over running commands via run_command or other built-in tools. For example, use mcp_composio_github_* tools for GitHub operations instead of running gh CLI commands.`
+
+    if (!hasExaSearch) {
+      delete (toolsToUse as Record<string, unknown>).exa_search
+      delete (toolsToUse as Record<string, unknown>).exa_fetch
+    }
+
+    // Build a prompt hint block for tool preference guidance
+    const preferenceHints: string[] = []
+
+    if (hasExaSearch) {
+      preferenceHints.push(
+        "For general web search, use `exa_search` — it is preferred. " +
+        "Use `firecrawl_scrape` when the user asks for deep websearch or webscraping (extracting full page content, " +
+        "following links, or fetching structured data from a page). " +
+        "Use `firecrawl_map` to discover URLs on a site." +
+        (isMergeDevConnected ? " These tools are routed through MergeDev's connectors." : "")
+      )
+    } else if (hasFirecrawlSearch) {
+      preferenceHints.push(
+        "For web search, use `firecrawl_search`. For scraping a specific URL use `firecrawl_scrape`, " +
+        "and for discovering URLs on a site use `firecrawl_map`." +
+        (isMergeDevConnected ? " These tools are routed through MergeDev's connectors." : "")
+      )
+    }
+
+    if (Object.keys(toolsToUse).some((k) => k.startsWith("mcp_composio_"))) {
+      preferenceHints.push(
+        "Composio-connected MCP tools are available (prefixed with mcp_composio_). " +
+        "These provide direct access to services like GitHub, Linear, Slack, etc. " +
+        "When a user's request can be satisfied using these MCP tools, prefer them over running commands " +
+        "via run_command or other built-in tools. For example, use mcp_composio_github_* tools for GitHub " +
+        "operations instead of running gh CLI commands."
+      )
+    }
+
+    if (preferenceHints.length > 0 && aiMessages[0]) {
+      aiMessages[0].content += `\n\n## Tool Preference\n\n${preferenceHints.join("\n\n")}`
     }
 
     // Wire the subagent runtime so the `delegate` tool can spawn focused subtasks.
@@ -451,8 +501,11 @@ async function streamAIResponse(
           const subIndent = `${rail}   ${rail}`
           if (!subChainHeaderPrinted) {
             subChainHeaderPrinted = true
+            const taskDesc = currentSubChainTaskName
+              ? ` ${chalk.hex(theme.greenDim)("—")} ${chalk.hex(theme.white)(currentSubChainTaskName)}`
+              : ""
             process.stdout.write(
-              `${subIndent} ${chalk.hex(theme.greenGlow)("▼")} ${chalk.hex(theme.greenMute)("Explore")}\n`,
+              `${subIndent} ${chalk.hex(theme.greenGlow)("▼")} ${chalk.hex(theme.greenMute)("Explore Task")}${taskDesc}\n`,
             )
           }
           const row = toolLabel(toolName, args)
@@ -519,10 +572,23 @@ async function streamAIResponse(
         }
         chain.printToolRow(toolName, args)
         // When the main agent calls delegate/task, create a buffered sub-chain
-        // so subagent tool calls are captured as a nested "Explore" section.
+        // so subagent tool calls are captured as a nested "Explore Task" section.
         // The first entry is created lazily when the first subagent tool fires.
         if (toolName === "delegate" || toolName === "task") {
           currentSubChain = new ThoughtChain(true)
+          let extracted = extractToolArg(toolName, args)
+          if (!extracted && args && typeof args === "object") {
+            const a = args as Record<string, unknown>
+            const items = a.items
+            if (Array.isArray(items) && items.length > 0 && typeof items[0] === "object" && items[0] !== null) {
+              const first = items[0] as Record<string, unknown>
+              if (typeof first.task === "string") extracted = first.task.slice(0, 60)
+            }
+          }
+          if (extracted) {
+            currentSubChainTaskName = extracted
+          }
+          subChainHeaderPrinted = false
         }
         statusRow.setCurrentTool(toolName, args)
         verbosePrint(toolName, args, provider.modelName, Date.now())
@@ -570,15 +636,24 @@ async function streamAIResponse(
             const elapsed = currentSubChain.elapsed
             const elapsedStr =
               elapsed < 1000 ? `${elapsed}ms` : `${(elapsed / 1000).toFixed(1)}s`
+            const hadFailures = currentSubChain.thoughts.some(
+              (t) => t.tools.some((tt) => tt.flagged),
+            )
+            const toggle = hadFailures
+              ? chalk.hex(theme.greenGlow)("+")
+              : chalk.hex("#5ec27e")("✓")
+            const taskDesc = currentSubChainTaskName
+              ? ` ${chalk.hex(theme.greenDim)("—")} ${chalk.hex(theme.white)(currentSubChainTaskName)}`
+              : ""
             process.stdout.write(
-              `${subIndent} ${chalk.hex(theme.greenGlow)("+")} ${chalk.hex(theme.greenMute)("Explore")} ${chalk.hex(theme.greenDim)("·")} ${elapsedStr}\n`,
+              `${subIndent} ${toggle} ${chalk.hex(theme.greenMute)("Explore Task")}${taskDesc} ${chalk.hex(theme.greenDim)("·")} ${elapsedStr}\n`,
             )
             const toolCount = currentSubChain.thoughts.reduce(
               (n, t) => n + t.tools.length, 0,
             )
             if (toolCount > 0) {
               process.stdout.write(
-                `${subIndent}   ${chalk.hex(theme.greenDim)("↳")} ${chalk.hex(theme.greenMute)(`${toolCount} tool call${toolCount === 1 ? "" : "s"}`)}\n`,
+                `${subIndent}   ${chalk.hex(theme.greenDim)("↳")} ${chalk.hex(theme.greenMute)(`${toolCount} toolcall${toolCount === 1 ? "" : "s"} · ${elapsedStr}`)}\n`,
               )
             }
             subChainHeaderPrinted = false
@@ -589,10 +664,14 @@ async function streamAIResponse(
               (t) => t.tools.length > 0 || t.body.trim().length > 0,
             )
             if (nonEmpty.length > 0) {
+              for (const entry of nonEmpty) {
+                entry.taskName = currentSubChainTaskName
+              }
               lastEntry.subThoughts.push(...nonEmpty)
             }
           }
           currentSubChain = null
+          currentSubChainTaskName = ""
         }
 
         // Detect a mode-switch request (Phase 2: clean function-call return
@@ -660,6 +739,26 @@ async function streamAIResponse(
     // Flush any trailing markdown — finalizes the open block with a
     // typing animation so the user sees content appear progressively.
     await md.end()
+
+    // After streaming + tools complete, render a "Result" section with the
+    // model's analysis text (like agent mode).  The text was already streamed
+    // inline during tool execution, but re-rendering it under a clear header
+    // makes it visible even when interleaved with tool output.
+    if (turnTracker.hasAnyToolCalls() && fullResponse.trim().length > 0) {
+      const w = process.stdout.columns ?? 80
+      const dim = (s: string) => chalk.hex(theme.greenDim)(s)
+      console.log(` ${chalk.hex(theme.green)("┃")} ${chalk.hex(theme.green).bold("Result")} ${dim("─".repeat(Math.max(0, w - 15)))}`)
+      const resultMd = new MarkdownStream()
+      resultMd.push(fullResponse)
+      await resultMd.end()
+    } else if (turnTracker.hasAnyToolCalls() && fullResponse.trim().length === 0) {
+      // Tools ran but model produced no text — show a minimal result marker
+      // so the turn doesn't end with a dangling thought block.
+      const w = process.stdout.columns ?? 80
+      const dim = (s: string) => chalk.hex(theme.greenDim)(s)
+      console.log(` ${chalk.hex(theme.green)("┃")} ${chalk.hex(theme.green).bold("Result")} ${dim("─".repeat(Math.max(0, w - 15)))}`)
+      console.log(` ${chalk.hex(theme.green)("┃")} ${chalk.hex(theme.muted)("Tools completed — no analysis text returned.")}`)
+    }
 
     // Update the persistent status bar with final turn state
     if (statusBar) {
