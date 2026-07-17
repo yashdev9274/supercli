@@ -1,7 +1,7 @@
 import * as readline from "node:readline"
 import { isCancel, confirm, text, password } from "@clack/prompts"
 import chalk from "chalk"
-import { theme, heavyDivider } from "src/cli/utils/tui.ts"
+import { theme, heavyDivider, CARET } from "src/cli/utils/tui.ts"
 import { type ModelProvider, providerMeta } from "src/cli/ai/provider.ts"
 import { getCliConfig, saveCliConfig, saveProviderApiKey, getProviderApiKeys } from "src/lib/cli-config.ts"
 
@@ -15,6 +15,32 @@ interface ModelEntry {
 
 const SECTION_CLOUD = "__section_cloud__"
 const SECTION_BYOK = "__section_byok__"
+const SECTION_CONCENTRATEAI = "__section_concentrateai__"
+const SECTION_MERGEDEV = "__section_mergedev__"
+const SECTION_GOOGLE = "__section_google__"
+const SECTION_MINIMAX = "__section_minimax__"
+const SECTION_NVIDIA = "__section_nvidia__"
+const SECTION_OPENROUTER = "__section_openrouter__"
+
+const ALL_SECTIONS = new Set([
+  SECTION_CLOUD, SECTION_BYOK,
+  SECTION_CONCENTRATEAI, SECTION_MERGEDEV,
+  SECTION_GOOGLE, SECTION_MINIMAX,
+  SECTION_NVIDIA, SECTION_OPENROUTER,
+])
+
+const SECTION_LABELS: Record<string, string> = {
+  [SECTION_CLOUD]: "Supercode Cloud",
+  [SECTION_BYOK]: "Bring Your Own Key",
+  [SECTION_CONCENTRATEAI]: "ConcentrateAI",
+  [SECTION_MERGEDEV]: "Merge Dev Gateway",
+  [SECTION_GOOGLE]: "Google Gemini",
+  [SECTION_MINIMAX]: "MiniMax",
+  [SECTION_NVIDIA]: "NVIDIA NIM",
+  [SECTION_OPENROUTER]: "OpenRouter",
+}
+
+const isMainSection = (v: string) => v === SECTION_CLOUD || v === SECTION_BYOK
 
 // Models available through the Supercode cloud proxy (no API key needed)
 export const CLOUD_MODELS: ModelEntry[] = [
@@ -28,6 +54,7 @@ export const CLOUD_MODELS: ModelEntry[] = [
 // Models available when you bring your own API key (BYOK)
 export const BYOK_MODELS: ModelEntry[] = [
   // ── ConcentrateAI (BYOK) ──────────────────────────────────────
+  { value: SECTION_CONCENTRATEAI, label: "ConcentrateAI", provider: "concentrateai", cost: "", desc: "" },
   { value: "anthropic/claude-opus-4-8", label: "Claude Opus 4.8", provider: "concentrateai", cost: "", desc: "Deep reasoning" },
   { value: "anthropic/claude-opus-4", label: "Claude Opus 4", provider: "concentrateai", cost: "", desc: "Top-tier reasoning" },
   { value: "anthropic/claude-sonnet-4-5", label: "Claude Sonnet 4.5", provider: "concentrateai", cost: "", desc: "Latest sonnet" },
@@ -50,6 +77,7 @@ export const BYOK_MODELS: ModelEntry[] = [
   { value: "minimax/minimax-m3", label: "MiniMax M3", provider: "concentrateai", cost: "", desc: "Fast & smart" },
 
   // ── Merge Dev Gateway ────────────────────────────────────────
+  { value: SECTION_MERGEDEV, label: "Merge Dev Gateway", provider: "mergedev", cost: "", desc: "" },
   { value: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4", provider: "mergedev", cost: "12x", desc: "Via Merge Dev" },
   { value: "anthropic/claude-opus-4-8", label: "Claude Opus 4.8", provider: "mergedev", cost: "40x", desc: "Deep reasoning" },
   { value: "openai/gpt-4o", label: "GPT-4o", provider: "mergedev", cost: "4x", desc: "Via Merge Dev" },
@@ -57,8 +85,10 @@ export const BYOK_MODELS: ModelEntry[] = [
   { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", provider: "mergedev", cost: "2x", desc: "Via Merge Dev" },
   { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", provider: "mergedev", cost: "4x", desc: "Via Merge Dev" },
   { value: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash", provider: "mergedev", cost: "1.2x", desc: "Via Merge Dev" },
+  { value: "kimi/kimi-k3", label: "Kimi K3", provider: "mergedev", cost: "3x", desc: "Via Merge Dev" },
 
   // ── Google Gemini ─────────────────────────────────────────────
+  { value: SECTION_GOOGLE, label: "Google Gemini", provider: "google", cost: "", desc: "" },
   { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", provider: "google", cost: "2.0x", desc: "Smart & fast" },
   { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", provider: "google", cost: "4.0x", desc: "Deep reasoning" },
   { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash", provider: "google", cost: "1.5x", desc: "Previous gen" },
@@ -67,10 +97,12 @@ export const BYOK_MODELS: ModelEntry[] = [
   { value: "learnlm-1.5-pro", label: "LearnLM 1.5 Pro", provider: "google", cost: "1.0x", desc: "Teaching optimized" },
 
   // ── MiniMax ──────────────────────────────────────────────────
+  { value: SECTION_MINIMAX, label: "MiniMax", provider: "minimax", cost: "", desc: "" },
   { value: "MiniMax-M2", label: "MiniMax M2", provider: "minimax", cost: "0.8x", desc: "MiniMax flagship" },
   { value: "MiniMax-M3", label: "MiniMax M3", provider: "minimax", cost: "0.5x", desc: "Fast & smart" },
 
   // ── NVIDIA NIM ───────────────────────────────────────────────
+  { value: SECTION_NVIDIA, label: "NVIDIA NIM", provider: "nvidia", cost: "", desc: "" },
   { value: "meta/llama-3.1-405b-instruct", label: "Llama 3.1 405B", provider: "nvidia", cost: "2.0x", desc: "Via NVIDIA NIM" },
   { value: "meta/llama-3.3-70b-instruct", label: "Llama 3.3 70B", provider: "nvidia", cost: "1.2x", desc: "Open weights" },
   { value: "meta/llama-3.1-70b-instruct", label: "Llama 3.1 70B", provider: "nvidia", cost: "1.0x", desc: "Via NVIDIA NIM" },
@@ -83,6 +115,7 @@ export const BYOK_MODELS: ModelEntry[] = [
   { value: "deepseek-ai/deepseek-v4-flash", label: "DeepSeek V4 Flash", provider: "nvidia", cost: "1.0x", desc: "Via NVIDIA NIM" },
 
   // ── OpenRouter ──────────────────────────────────────────────
+  { value: SECTION_OPENROUTER, label: "OpenRouter", provider: "openrouter", cost: "", desc: "" },
   { value: "anthropic/claude-opus-4-8", label: "Claude Opus 4.8", provider: "openrouter", cost: "40x", desc: "Deep reasoning" },
   { value: "anthropic/claude-opus-4", label: "Claude Opus 4", provider: "openrouter", cost: "30x", desc: "Top-tier reasoning" },
   { value: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4", provider: "openrouter", cost: "12x", desc: "Balanced" },
@@ -117,8 +150,6 @@ export const BYOK_MODELS: ModelEntry[] = [
   { value: "minimax/minimax-m3", label: "MiniMax M3", provider: "openrouter", cost: "3.0x", desc: "Via OpenRouter" },
   { value: "z-ai/glm-5.1", label: "GLM 5.1", provider: "openrouter", cost: "1.0x", desc: "Via OpenRouter" },
   { value: "moonshotai/kimi-k2.6", label: "Kimi K2.6", provider: "openrouter", cost: "1.5x", desc: "Via OpenRouter" },
-
-  
 ]
 
 export const MODELS: ModelEntry[] = [
@@ -130,11 +161,77 @@ export const MODELS: ModelEntry[] = [
 
 export class ModelPicker {
   items: ModelEntry[] = MODELS
-  selected = 0
+  filterQuery = ""
+
+  private _filtered: number[] = []
+  filteredIndex = 0
   overlayLines = 0
 
-  private isSection(item: ModelEntry): boolean {
-    return item.value === SECTION_CLOUD || item.value === SECTION_BYOK
+  constructor() {
+    this.computeFiltered()
+  }
+
+  private isSection(value: string): boolean {
+    return ALL_SECTIONS.has(value)
+  }
+
+  private computeFiltered(): void {
+    const q = this.filterQuery.toLowerCase().trim()
+    this._filtered = this.items.reduce<number[]>((acc, item, idx) => {
+      if (this.isSection(item.value)) {
+        acc.push(idx)
+        return acc
+      }
+      if (q && !item.label.toLowerCase().includes(q) && !item.value.toLowerCase().includes(q)) {
+        return acc
+      }
+      acc.push(idx)
+      return acc
+    }, [])
+    // Start at first non-section item
+    this.filteredIndex = this._filtered.findIndex((i) => !this.isSection(this.items[i]!.value))
+    if (this.filteredIndex < 0) this.filteredIndex = 0
+  }
+
+  setFilter(q: string): void {
+    this.filterQuery = q
+    this.computeFiltered()
+  }
+
+  getSelected(): ModelEntry {
+    const item = this.items[this._filtered[this.filteredIndex]!]!
+    if (this.isSection(item.value)) {
+      for (const idx of this._filtered) {
+        if (!this.isSection(this.items[idx]!.value)) return this.items[idx]!
+      }
+    }
+    return item
+  }
+
+  selectNext(): void {
+    if (this._filtered.length === 0) return
+    let next = (this.filteredIndex + 1) % this._filtered.length
+    let attempts = 0
+    while (attempts < this._filtered.length && this.isSection(this.items[this._filtered[next]!]!.value)) {
+      next = (next + 1) % this._filtered.length
+      attempts++
+    }
+    if (!this.isSection(this.items[this._filtered[next]!]!.value)) {
+      this.filteredIndex = next
+    }
+  }
+
+  selectPrev(): void {
+    if (this._filtered.length === 0) return
+    let prev = (this.filteredIndex - 1 + this._filtered.length) % this._filtered.length
+    let attempts = 0
+    while (attempts < this._filtered.length && this.isSection(this.items[this._filtered[prev]!]!.value)) {
+      prev = (prev - 1 + this._filtered.length) % this._filtered.length
+      attempts++
+    }
+    if (!this.isSection(this.items[this._filtered[prev]!]!.value)) {
+      this.filteredIndex = prev
+    }
   }
 
   render(
@@ -143,54 +240,73 @@ export class ModelPicker {
     currentModel: string,
   ): string[] {
     const lines: string[] = []
-    const visible = this.items.filter((m) => !this.isSection(m))
-    const totalVisible = visible.length
-    if (totalVisible === 0) return lines
+    const allIndices = this._filtered
+    if (allIndices.length === 0) return lines
 
     const maxVisible = 10
     const half = Math.floor(maxVisible / 2)
 
-    const visibleIdx = visible.indexOf(this.items[this.selected]!)
-    let startIdx = Math.max(0, visibleIdx - half)
-    let endIdx = Math.min(totalVisible, startIdx + maxVisible)
+    let startIdx = Math.max(0, this.filteredIndex - half)
+    let endIdx = Math.min(allIndices.length, startIdx + maxVisible)
     if (endIdx - startIdx < maxVisible && startIdx > 0) {
       startIdx = Math.max(0, endIdx - maxVisible)
     }
 
-    const visibleSlice = visible.slice(startIdx, endIdx)
-
+    const visibleSlice = allIndices.slice(startIdx, endIdx)
     const hasPrev = startIdx > 0
-    const hasNext = endIdx < totalVisible
+    const hasNext = endIdx < allIndices.length
 
     const divider = heavyDivider()
     lines.push(divider)
     lines.push(
       ` ${chalk.hex(theme.greenGlow)("Switch Model")} ${chalk.hex(theme.muted)("· ")}`,
     )
+
+    // Search bar
+    if (this.filterQuery) {
+      lines.push(
+        ` ${chalk.hex(theme.greenDim)("Search:")} ${chalk.hex(theme.white)(this.filterQuery)}${chalk.hex(theme.amber)(CARET)}`,
+      )
+    } else {
+      lines.push(
+        ` ${chalk.hex(theme.greenDim)("Search:")} ${chalk.hex(theme.muted)("type to filter · ↑↓ navigate · enter select · esc cancel")}`,
+      )
+    }
+
     lines.push(divider)
 
     if (hasPrev) {
       lines.push(` ${chalk.hex(theme.greenDim)(`▲ ${startIdx} more`)}`)
     }
 
-    let lastSection = ""
-    for (const m of visibleSlice) {
-      // Determine section for this model
-      const section = m.provider === "supercode" ? SECTION_CLOUD : SECTION_BYOK
-      if (section !== lastSection) {
-        lastSection = section
-        const sectionLabel = section === SECTION_CLOUD ? "Supercode Cloud" : "Bring Your Own Key"
-        lines.push(` ${chalk.hex(theme.greenDim).bold(sectionLabel)}`)
+    let currentMainSection = ""
+    for (const idx of visibleSlice) {
+      const m = this.items[idx]!
+
+      if (this.isSection(m.value)) {
+        const main = isMainSection(m.value)
+        if (main) {
+          currentMainSection = m.value
+          lines.push(` ${chalk.hex(theme.greenDim).bold(SECTION_LABELS[m.value]!)}`)
+        } else {
+          // Provider sub-section under BYOK
+          const indent = currentMainSection === SECTION_BYOK ? "  " : " "
+          const sectionLabel = SECTION_LABELS[m.value]
+          const count = visibleSlice.filter((i) => {
+            const item = this.items[i]!
+            return !this.isSection(item.value) && item.provider === m.provider
+          }).length
+          const countStr = count > 0 ? ` ${chalk.hex(theme.dim)(`${count}`)}` : ""
+          lines.push(
+            `${indent}${chalk.hex(theme.greenDim).bold(sectionLabel)}${countStr}`,
+          )
+        }
+        continue
       }
 
       const isCurrent =
         m.provider === currentProvider && m.value === currentModel
-      const isSelected = m === this.items[this.selected]
-
-      const providerTag =
-        m.provider === "supercode" || m.provider === "concentrateai"
-          ? ""
-          : ` ${chalk.hex(theme.greenDim)(m.provider)}`
+      const isSelected = idx === this._filtered[this.filteredIndex]
 
       const prefix = isSelected ? chalk.hex(theme.amber)("▸") : " "
       const name = chalk.hex(
@@ -212,7 +328,7 @@ export class ModelPicker {
           ? ` ${chalk.bgHex(theme.green).hex(theme.black).bold(" FREE ")}`
           : ""
 
-      const label = `${prefix} ${name} ${cost}${desc}${providerTag}${marker}${cloudTag}${freeTag}`
+      const label = `${prefix} ${name} ${cost}${desc}${marker}${cloudTag}${freeTag}`
 
       if (isSelected) {
         const bg = chalk.bgHex(theme.greenDeep)
@@ -223,36 +339,12 @@ export class ModelPicker {
     }
 
     if (hasNext) {
-      lines.push(` ${chalk.hex(theme.greenDim)(`▼ ${endIdx - startIdx} more`)}`)
+      lines.push(` ${chalk.hex(theme.greenDim)(`▼ ${allIndices.length - endIdx} more`)}`)
     }
 
     lines.push(divider)
     this.overlayLines = lines.length
     return lines
-  }
-
-  selectNext(): void {
-    if (this.items.length === 0) return
-    let next = (this.selected + 1) % this.items.length
-    while (next !== this.selected && this.isSection(this.items[next]!)) {
-      next = (next + 1) % this.items.length
-    }
-    this.selected = next
-  }
-
-  selectPrev(): void {
-    if (this.items.length === 0) return
-    let prev =
-      (this.selected - 1 + this.items.length) % this.items.length
-    while (prev !== this.selected && this.isSection(this.items[prev]!)) {
-      prev =
-        (prev - 1 + this.items.length) % this.items.length
-    }
-    this.selected = prev
-  }
-
-  getSelected(): ModelEntry {
-    return this.items[this.selected]!
   }
 }
 
@@ -261,52 +353,69 @@ export class ModelPicker {
  * If the buffer starts with ESC, it waits up to 80ms for more bytes so that
  * escape sequences (arrows) are disambiguated from a lone Escape press.
  */
-function readRawKey(): Promise<"up" | "down" | "enter" | "escape"> {
+type KeyPress =
+  | "up"
+  | "down"
+  | "enter"
+  | "escape"
+  | "backspace"
+  | "ctrl_c"
+  | "ctrl_u"
+  | { char: string }
+
+function readRawKey(): Promise<KeyPress> {
   return new Promise((resolve) => {
     let buf = Buffer.alloc(0)
 
     const handler = (chunk: Buffer) => {
       buf = Buffer.concat([buf, chunk])
       const b = Array.from(buf)
-      // Enter (0x0d or 0x0a)
-      if (b.length === 1 && (b[0] === 0x0d || b[0] === 0x0a)) {
-        cleanup()
-        resolve("enter")
-        return
+
+      if (b.length === 1) {
+        // Enter
+        if (b[0] === 0x0d || b[0] === 0x0a) {
+          cleanup(); resolve("enter"); return
+        }
+        // Escape — wait briefly for more bytes
+        if (b[0] === 0x1b) return
+        // Ctrl+C
+        if (b[0] === 0x03) {
+          cleanup(); resolve("ctrl_c"); return
+        }
+        // Ctrl+U (clear line)
+        if (b[0] === 0x15) {
+          cleanup(); resolve("ctrl_u"); return
+        }
+        // Backspace (DEL or ^H)
+        if (b[0] === 0x7f || b[0] === 0x08) {
+          cleanup(); resolve("backspace"); return
+        }
+        // Printable ASCII (space through ~)
+        if (b[0]! >= 0x20 && b[0]! <= 0x7e) {
+          cleanup(); resolve({ char: String.fromCodePoint(b[0]!) }); return
+        }
       }
-      // Escape sequence: ESC [ A/B (up/down) — exactly 3 bytes
-      if (b[0] === 0x1b && b.length >= 2) {
+
+      // Escape sequence: ESC [ A/B (up/down)
+      if (b.length >= 2 && b[0] === 0x1b) {
         if (b[1] === 0x5b && b.length >= 3) {
           if (b[2] === 0x41) { cleanup(); resolve("up"); return }
           if (b[2] === 0x42) { cleanup(); resolve("down"); return }
-          // Unknown escape sequence — treat as escape
-          cleanup()
-          resolve("escape")
-          return
+          cleanup(); resolve("escape"); return
         }
-        // ESC followed by something other than '[' — treat as escape
-        cleanup()
-        resolve("escape")
-        return
+        cleanup(); resolve("escape"); return
       }
-      // Lone ESC: wait briefly for more bytes
-      if (b.length === 1 && b[0] === 0x1b) {
-        // Still waiting for more bytes via the data listener below
-        return
-      }
-      // Anything else (including j/k vim keys) — ignore
+
+      // Ignore everything else
       cleanup()
-      // Don't resolve; keep reading
       process.stdin.once("data", handler)
     }
 
     const timeout = setTimeout(() => {
-      // If only ESC byte arrived within the window → cancel
       if (buf.length === 1 && buf[0] === 0x1b) {
         cleanup()
         resolve("escape")
       } else {
-        // Just keep waiting
         process.stdin.once("data", handler)
       }
     }, 80)
@@ -340,6 +449,7 @@ export async function pickModel(
         desc: "Type any model name",
       })
     }
+    picker.setFilter("")
   }
   const cols = process.stdout.columns ?? 80
 
@@ -383,6 +493,22 @@ export async function pickModel(
       break
     } else if (key === "escape") {
       break
+    } else if (key === "backspace") {
+      picker.setFilter(picker.filterQuery.slice(0, -1))
+      clear(picker.overlayLines)
+      draw()
+    } else if (key === "ctrl_u") {
+      picker.setFilter("")
+      clear(picker.overlayLines)
+      draw()
+    } else if (key === "ctrl_c") {
+      process.stdout.write("^C\n")
+      if (process.stdin.isTTY) process.stdin.setRawMode(wasRaw ?? false)
+      process.exit(1)
+    } else if (typeof key === "object" && "char" in key) {
+      picker.setFilter(picker.filterQuery + key.char)
+      clear(picker.overlayLines)
+      draw()
     }
   }
 
@@ -390,10 +516,26 @@ export async function pickModel(
   if (process.stdin.isTTY) process.stdin.setRawMode(wasRaw ?? false)
 
   // Clear the picker overlay
-  clear(picker.overlayLines + 1) // +1 for the leading \n
+  clear(picker.overlayLines + 1)
 
   if (!selected) {
     return { provider: currentProvider as ModelProvider, model: currentModel }
+  }
+
+  if (selected.value === "__custom__") {
+    process.stdout.write(`\n`)
+    const customName = await text({
+      message: chalk.hex(theme.green)(`enter model name for ${selected.provider}`),
+      placeholder: "e.g. my-custom-model-v1",
+    })
+    if (isCancel(customName) || !(customName as string).trim()) {
+      return { provider: selected.provider, model: undefined }
+    }
+    const trimmed = (customName as string).trim()
+    process.stdout.write(
+      `  ${chalk.hex(theme.green)("✓")} model set to ${chalk.hex(theme.greenGlow)(trimmed)}\n\n`,
+    )
+    return { provider: selected.provider, model: trimmed }
   }
 
   // For BYOK providers, check if an API key is configured
@@ -425,23 +567,6 @@ export async function pickModel(
         `  ${chalk.hex(theme.green)("✓")} ${meta.label} API key saved — requests will go direct (🔑)\n\n`,
       )
     }
-  }
-
-  // Handle custom model selection
-  if (selected.value === "__custom__") {
-    process.stdout.write(`\n`)
-    const customName = await text({
-      message: chalk.hex(theme.green)(`enter model name for ${selected.provider}`),
-      placeholder: "e.g. my-custom-model-v1",
-    })
-    if (isCancel(customName) || !(customName as string).trim()) {
-      return { provider: selected.provider, model: undefined }
-    }
-    const trimmed = (customName as string).trim()
-    process.stdout.write(
-      `  ${chalk.hex(theme.green)("✓")} model set to ${chalk.hex(theme.greenGlow)(trimmed)}\n\n`,
-    )
-    return { provider: selected.provider, model: trimmed }
   }
 
   // Ask about setting as default
