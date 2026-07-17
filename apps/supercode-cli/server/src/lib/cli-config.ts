@@ -50,12 +50,13 @@ export interface McpCredentials {
 
 const DEFAULTS: CliConfig = {
   version,
-  provider: "concentrateai",
-  model: "glm-5.1",
+  provider: "supercode",
+  model: "deepseek-v4-flash",
   mode: "chat",
 }
 
 const API_KEY_ENV_MAP: Record<ModelProvider, string> = {
+  supercode: "",
   google: "GOOGLE_GENERATIVE_AI_API_KEY",
   minimax: "MINIMAX_API_KEY",
   openrouter: "OPENROUTER_API_KEY",

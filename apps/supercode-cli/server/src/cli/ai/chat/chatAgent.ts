@@ -236,7 +236,7 @@ async function saveMessage(conversationId: string, role: string, content: string
 }
 
 export async function startAgentChat(
-  provider: ModelProvider = "concentrateai",
+  provider: ModelProvider = "supercode",
   model?: string,
   conversationId: string | null = null,
   workspaceInfo?: WorkspaceInfo,

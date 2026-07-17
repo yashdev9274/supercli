@@ -785,6 +785,7 @@ export class PersistentStatusBar {
   private state = {
     mode: "chat",
     model: "",
+    connectionType: "",
     cumulativeTokens: 0,
     contextWindow: 0,
     elapsed: 0,
@@ -888,6 +889,10 @@ export class PersistentStatusBar {
     this.update({ model })
   }
 
+  setConnectionType(type: string) {
+    this.update({ connectionType: type })
+  }
+
   setStreaming(streaming: boolean) {
     this.update({ isStreaming: streaming })
   }
@@ -942,6 +947,11 @@ export class PersistentStatusBar {
       parts.push(ansiColor(theme.greenGlow, frame))
     }
     if (this.state.model) parts.push(ansiColor(theme.greenGlow, this.state.model))
+    if (this.state.connectionType === "direct") {
+      parts.push(ansiColor(theme.amber, "🔑"))
+    } else if (this.state.connectionType === "proxy") {
+      parts.push(ansiColor(theme.amber, "☁️"))
+    }
 
     if (this.state.cumulativeTokens > 0) {
       const formatted = formatTokenCount(this.state.cumulativeTokens)

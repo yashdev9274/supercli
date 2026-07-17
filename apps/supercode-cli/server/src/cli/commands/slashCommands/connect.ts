@@ -1,16 +1,23 @@
-import { select, isCancel, password, note } from "@clack/prompts"
+import { select, isCancel, password, note, text } from "@clack/prompts"
 import chalk from "chalk"
 import { theme } from "src/cli/utils/tui.ts"
-import { saveProviderApiKey } from "src/lib/cli-config.ts"
+import {
+  getCliConfig,
+  saveProviderApiKey,
+  getProviderApiKeys,
+} from "src/lib/cli-config.ts"
 import type { ModelProvider } from "src/cli/ai/provider.ts"
+import { BYOK_MODELS } from "./model.ts"
 
 const PROVIDERS: Array<{ value: ModelProvider; label: string; hint: string; link: string }> = [
   { value: "google", label: "Google Gemini", hint: "gemini-2.5 models", link: "https://aistudio.google.com/apikey" },
   { value: "openrouter", label: "OpenRouter", hint: "multi-provider access", link: "https://openrouter.ai/keys" },
   { value: "nvidia", label: "NVIDIA NIM", hint: "free NVIDIA hosted models", link: "https://build.nvidia.com/explore/discover" },
+  { value: "concentrateai", label: "ConcentrateAI", hint: "deepseek-v4 & glm models", link: "https://concentrate.ai" },
+  { value: "mergedev", label: "Merge Dev Gateway", hint: "unified API gateway", link: "https://app.merge.dev" },
 ]
 
-export async function connectProvider(): Promise<{ type: "connect"; provider?: ModelProvider }> {
+export async function connectProvider(): Promise<{ type: "connect"; provider?: ModelProvider; model?: string }> {
   console.log()
   console.log(` ${chalk.hex(theme.amber)("◆")}  ${chalk.hex(theme.green).bold("connect API key")}`)
   console.log(` ${chalk.hex(theme.muted)("Save an API key so requests go direct instead of through the proxy.")}`)
@@ -29,21 +36,77 @@ export async function connectProvider(): Promise<{ type: "connect"; provider?: M
 
   const provider = PROVIDERS.find((p) => p.value === providerChoice)!
 
-  note(chalk.hex(theme.muted)(`Get your key at: ${provider.link}`), `${provider.label}`)
+  // Check if user already has a key saved for this provider
+  const config = await getCliConfig()
+  const envKeys = getProviderApiKeys()
+  const existingKey = config?.apiKeys?.[provider.value] || envKeys[provider.value]
 
-  const apiKey = await password({
-    message: chalk.hex(theme.green)(`paste your ${provider.label} API key`),
-    validate: (val: string | undefined) => {
-      if (!val || val.trim().length < 8) return "Key looks too short — please check and try again"
-    },
-  })
+  if (existingKey) {
+    console.log(` ${chalk.hex(theme.green)("✓")} ${chalk.hex(theme.green)(`Already have a key for ${provider.label} — switching to direct mode (🔑)`)}`)
+    console.log()
+  } else {
+    note(chalk.hex(theme.muted)(`Get your key at: ${provider.link}`), `${provider.label}`)
 
-  if (isCancel(apiKey)) return { type: "connect" }
+    const apiKey = await password({
+      message: chalk.hex(theme.green)(`paste your ${provider.label} API key`),
+      validate: (val: string | undefined) => {
+        if (!val || val.trim().length < 8) return "Key looks too short — please check and try again"
+      },
+    })
 
-  await saveProviderApiKey(provider.value, apiKey as string)
+    if (isCancel(apiKey)) return { type: "connect" }
 
-  console.log(` ${chalk.hex(theme.green)("✓")} ${chalk.hex(theme.green)(`${provider.label} API key saved`)}`)
-  console.log()
+    await saveProviderApiKey(provider.value, apiKey as string)
 
-  return { type: "connect", provider: provider.value }
+    console.log(` ${chalk.hex(theme.green)("✓")} ${chalk.hex(theme.green)(`${provider.label} API key saved — requests will now go direct (🔑) instead of through the proxy (☁️)`)}`)
+    console.log()
+  }
+
+  // Model selection via @clack — safe with the chat loop's stdin management
+  const modelsForProvider = BYOK_MODELS.filter((m) => m.provider === provider.value)
+  let chosenModel: string | undefined
+
+  if (modelsForProvider.length > 0) {
+    const modelChoice = await select({
+      message: chalk.hex(theme.green)("select model"),
+      options: [
+        ...modelsForProvider.map((m) => ({
+          value: m.value,
+          label: `${m.label}  ${chalk.hex(theme.muted)(m.desc)}`,
+          hint: m.cost ? `${m.cost}x` : "",
+        })),
+        { value: "__custom__", label: "Custom model (type the name)", hint: "" },
+      ],
+    })
+    if (isCancel(modelChoice)) {
+      // No model selected
+    } else if (modelChoice === "__custom__") {
+      const customName = await text({
+        message: chalk.hex(theme.green)(`enter model name for ${provider.label}`),
+        placeholder: "e.g. claude-sonnet-4",
+      })
+      if (!isCancel(customName) && (customName as string).trim()) {
+        chosenModel = (customName as string).trim()
+      }
+    } else {
+      chosenModel = modelChoice as string
+    }
+    if (chosenModel) {
+      const label = modelsForProvider.find((m) => m.value === modelChoice)?.label || chosenModel
+      console.log(` ${chalk.hex(theme.green)("✓")} model set to ${chalk.hex(theme.greenGlow)(label)}`)
+      console.log()
+    }
+  } else {
+    const customName = await text({
+      message: chalk.hex(theme.green)(`enter model name for ${provider.label}`),
+      placeholder: "e.g. claude-sonnet-4",
+    })
+    if (!isCancel(customName) && (customName as string).trim()) {
+      chosenModel = (customName as string).trim()
+      console.log(` ${chalk.hex(theme.green)("✓")} model set to ${chalk.hex(theme.greenGlow)(chosenModel)}`)
+      console.log()
+    }
+  }
+
+  return { type: "connect", provider: provider.value, model: chosenModel }
 }
