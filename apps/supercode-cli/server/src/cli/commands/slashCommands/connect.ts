@@ -7,14 +7,14 @@ import {
   getProviderApiKeys,
 } from "src/lib/cli-config.ts"
 import type { ModelProvider } from "src/cli/ai/provider.ts"
-import { BYOK_MODELS } from "./model.ts"
+import { BYOK_MODELS, ALL_SECTIONS } from "./model.ts"
 
 const PROVIDERS: Array<{ value: ModelProvider; label: string; hint: string; link: string }> = [
+  { value: "concentrateai", label: "ConcentrateAI", hint: "deepseek-v4 & glm models", link: "https://concentrate.ai" },
+  { value: "mergedev", label: "Merge Dev Gateway", hint: "unified API gateway", link: "https://app.merge.dev" },
   { value: "google", label: "Google Gemini", hint: "gemini-2.5 models", link: "https://aistudio.google.com/apikey" },
   { value: "openrouter", label: "OpenRouter", hint: "multi-provider access", link: "https://openrouter.ai/keys" },
   { value: "nvidia", label: "NVIDIA NIM", hint: "free NVIDIA hosted models", link: "https://build.nvidia.com/explore/discover" },
-  { value: "concentrateai", label: "ConcentrateAI", hint: "deepseek-v4 & glm models", link: "https://concentrate.ai" },
-  { value: "mergedev", label: "Merge Dev Gateway", hint: "unified API gateway", link: "https://app.merge.dev" },
 ]
 
 export async function connectProvider(): Promise<{ type: "connect"; provider?: ModelProvider; model?: string }> {
@@ -63,7 +63,7 @@ export async function connectProvider(): Promise<{ type: "connect"; provider?: M
   }
 
   // Model selection via @clack — safe with the chat loop's stdin management
-  const modelsForProvider = BYOK_MODELS.filter((m) => m.provider === provider.value)
+  const modelsForProvider = BYOK_MODELS.filter((m) => m.provider === provider.value && !ALL_SECTIONS.has(m.value))
   let chosenModel: string | undefined
 
   if (modelsForProvider.length > 0) {

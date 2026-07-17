@@ -22,7 +22,7 @@ const SECTION_MINIMAX = "__section_minimax__"
 const SECTION_NVIDIA = "__section_nvidia__"
 const SECTION_OPENROUTER = "__section_openrouter__"
 
-const ALL_SECTIONS = new Set([
+export const ALL_SECTIONS = new Set([
   SECTION_CLOUD, SECTION_BYOK,
   SECTION_CONCENTRATEAI, SECTION_MERGEDEV,
   SECTION_GOOGLE, SECTION_MINIMAX,
