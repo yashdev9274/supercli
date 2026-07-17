@@ -7,7 +7,7 @@ import {
   getProviderApiKeys,
 } from "src/lib/cli-config.ts"
 import type { ModelProvider } from "src/cli/ai/provider.ts"
-import { MODELS } from "./model.ts"
+import { BYOK_MODELS } from "./model.ts"
 
 const PROVIDERS: Array<{ value: ModelProvider; label: string; hint: string; link: string }> = [
   { value: "google", label: "Google Gemini", hint: "gemini-2.5 models", link: "https://aistudio.google.com/apikey" },
@@ -63,7 +63,7 @@ export async function connectProvider(): Promise<{ type: "connect"; provider?: M
   }
 
   // Model selection via @clack — safe with the chat loop's stdin management
-  const modelsForProvider = MODELS.filter((m) => m.provider === provider.value)
+  const modelsForProvider = BYOK_MODELS.filter((m) => m.provider === provider.value)
   let chosenModel: string | undefined
 
   if (modelsForProvider.length > 0) {

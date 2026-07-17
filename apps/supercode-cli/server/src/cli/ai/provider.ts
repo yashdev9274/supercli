@@ -12,7 +12,7 @@ import { openRouterConfig } from "../../config/openrouter.config.ts"
 import { nvidiaConfig } from "../../config/nvidia.config.ts"
 import { mergedevConfig } from "../../config/mergedev.config.ts"
 
-export type ModelProvider = "google" | "minimax" | "openrouter" | "nvidia" | "concentrateai" | "mergedev"
+export type ModelProvider = "supercode" | "google" | "minimax" | "openrouter" | "nvidia" | "concentrateai" | "mergedev"
 
 export type ConnectionType = "direct" | "proxy"
 
@@ -39,7 +39,8 @@ export interface AIProvider {
   generateObject?(schema: any, prompt: string): Promise<{ object: unknown }>
 }
 
-const providerMeta: Record<ModelProvider, { env: string; label: string; defaultModel: string; link?: string }> = {
+export const providerMeta: Record<ModelProvider, { env: string; label: string; defaultModel: string; link?: string }> = {
+  supercode: { env: "", label: "Supercode Cloud", defaultModel: "deepseek-v4-flash" },
   google: { env: "GOOGLE_GENERATIVE_AI_API_KEY", label: "Google Gemini", defaultModel: "gemini-2.5-flash", link: "https://aistudio.google.com/apikey" },
   minimax: { env: "MINIMAX_API_KEY", label: "MiniMax", defaultModel: "MiniMax-M2" },
   openrouter: { env: "OPENROUTER_API_KEY", label: "OpenRouter", defaultModel: "openai/gpt-oss-120b:free", link: "https://openrouter.ai/keys" },
@@ -49,6 +50,7 @@ const providerMeta: Record<ModelProvider, { env: string; label: string; defaultM
 }
 
 const providerConfigs: Record<ModelProvider, () => string> = {
+  supercode: () => "",
   google: () => config.googleApiKey,
   minimax: () => minimaxConfig.apiKey,
   openrouter: () => openRouterConfig.apiKey,
@@ -60,7 +62,10 @@ const providerConfigs: Record<ModelProvider, () => string> = {
 export function createProvider(provider: ModelProvider, model?: string): AIProvider {
   const meta = providerMeta[provider]
 
+  // Only supercode cloud models are allowed through the proxy without an API key.
+  // All other providers require the user to connect their own key first.
   if (!providerConfigs[provider]()) {
+    if (provider === "supercode") {
       const svc = new ServerProxyService(provider, model || meta.defaultModel)
       return {
         name: provider,
@@ -68,8 +73,14 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
         connectionType: "proxy",
         sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish) =>
           svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish),
-      generateObject: (schema, prompt) => svc.generateObject(schema, prompt),
+        generateObject: (schema, prompt) => svc.generateObject(schema, prompt),
+      }
     }
+    throw new Error(
+      `No API key configured for ${meta.label}. ` +
+      `Run \`/connect\` and select "${meta.label}" to save your key, ` +
+      `then select this model again.`
+    )
   }
 
   switch (provider) {

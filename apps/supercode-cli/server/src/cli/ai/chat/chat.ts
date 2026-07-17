@@ -2234,7 +2234,7 @@ export async function chatLoop(
 }
 
 export async function startChat(
-  provider: ModelProvider = "concentrateai",
+  provider: ModelProvider = "supercode",
   model?: string,
   conversationId?: string | null,
   workspaceInfo?: WorkspaceInfo,
