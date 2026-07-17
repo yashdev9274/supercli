@@ -16,6 +16,8 @@ import { codeExecTool } from "./definitions/code-exec.ts"
 import { readInstructionsTool } from "./definitions/read-instructions.ts"
 import { switchToAgentModeTool } from "./definitions/switch-to-agent-mode.ts"
 import { delegateTool, taskTool } from "./definitions/delegate.ts"
+import { questionTool } from "./definitions/question.ts"
+import { todowriteTool } from "./definitions/todowrite.ts"
 import { permissionManager } from "./permission-manager.ts"
 
 //
@@ -89,6 +91,8 @@ export const toolMeta: Record<string, ToolMeta> = {
   switch_to_agent_mode: { category: "agent", requiresPermission: false, description: switchToAgentModeTool.description },
   delegate: { category: "agent", requiresPermission: false, description: delegateTool.description },
   task: { category: "agent", requiresPermission: false, description: taskTool.description },
+  question: { category: "agent", requiresPermission: false, description: questionTool.description },
+  todowrite: { category: "agent", requiresPermission: false, description: todowriteTool.description },
 }
 
 export const tools = {
@@ -109,4 +113,6 @@ export const tools = {
   switch_to_agent_mode: defineTool(switchToAgentModeTool),
   delegate: defineTool(delegateTool),
   task: defineTool(taskTool),
+  question: defineTool(questionTool),
+  todowrite: defineTool(todowriteTool),
 }

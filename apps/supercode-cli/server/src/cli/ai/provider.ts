@@ -66,7 +66,11 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
   // All other providers require the user to connect their own key first.
   if (!providerConfigs[provider]()) {
     if (provider === "supercode") {
-      const svc = new ServerProxyService(provider, model || meta.defaultModel)
+      // Cloud models run through ConcentrateAI with the server's own API key.
+      // Send "concentrateai" as the provider so the server's existing handler
+      // picks it up — it falls back to CONCENTRATEAI_API_KEY when no forwarded
+      // key is provided.
+      const svc = new ServerProxyService("concentrateai", model || meta.defaultModel)
       return {
         name: provider,
         modelName: model || meta.defaultModel,

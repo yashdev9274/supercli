@@ -346,6 +346,7 @@ const DEFAULT_RULES: RulesetArray = [
   { permission: "read_instructions", pattern: "*", action: "allow" },
   { permission: "todo_read", pattern: "*", action: "allow" },
   { permission: "todo_write", pattern: "*", action: "allow" },
+  { permission: "question", pattern: "*", action: "allow" },
   { permission: "task", pattern: "*", action: "allow" },
   { permission: "delegate", pattern: "*", action: "allow" },
   { permission: "switch_to_agent_mode", pattern: "*", action: "allow" },
