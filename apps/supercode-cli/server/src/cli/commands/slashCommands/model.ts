@@ -78,14 +78,27 @@ export const BYOK_MODELS: ModelEntry[] = [
 
   // ── Merge Dev Gateway ────────────────────────────────────────
   { value: SECTION_MERGEDEV, label: "Merge Dev Gateway", provider: "mergedev", cost: "", desc: "" },
-  { value: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4", provider: "mergedev", cost: "12x", desc: "Via Merge Dev" },
+  { value: "anthropic/claude-sonnet-4-6", label: "Claude Sonnet 4.6", provider: "mergedev", cost: "12x", desc: "Latest sonnet" },
   { value: "anthropic/claude-opus-4-8", label: "Claude Opus 4.8", provider: "mergedev", cost: "40x", desc: "Deep reasoning" },
-  { value: "openai/gpt-4o", label: "GPT-4o", provider: "mergedev", cost: "4x", desc: "Via Merge Dev" },
-  { value: "x-ai/grok-3", label: "Grok 3", provider: "mergedev", cost: "10x", desc: "Via Merge Dev" },
-  { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", provider: "mergedev", cost: "2x", desc: "Via Merge Dev" },
-  { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", provider: "mergedev", cost: "4x", desc: "Via Merge Dev" },
+  { value: "gpt-4o", label: "GPT-4o", provider: "mergedev", cost: "4x", desc: "OpenAI flagship" },
+  { value: "xai/grok-4.3", label: "Grok 4.3", provider: "mergedev", cost: "10x", desc: "Via Merge Dev" },
+  { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash", provider: "mergedev", cost: "2x", desc: "Via Merge Dev" },
+  { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro", provider: "mergedev", cost: "4x", desc: "Via Merge Dev" },
   { value: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash", provider: "mergedev", cost: "1.2x", desc: "Via Merge Dev" },
-  { value: "kimi/kimi-k3", label: "Kimi K3", provider: "mergedev", cost: "3x", desc: "Via Merge Dev" },
+  { value: "moonshot/kimi-k3", label: "Kimi K3", provider: "mergedev", cost: "3x", desc: "Via Merge Dev" },
+  // ConcentrateAI-like models through Merge Dev
+  { value: "anthropic/claude-opus-4-20250514", label: "Claude Opus 4", provider: "mergedev", cost: "30x", desc: "Top-tier reasoning" },
+  { value: "anthropic/claude-sonnet-4-5-20250929", label: "Claude Sonnet 4.5", provider: "mergedev", cost: "15x", desc: "Latest sonnet" },
+  { value: "gpt-4o-mini", label: "GPT-4o Mini", provider: "mergedev", cost: "1x", desc: "Cheap & fast" },
+  { value: "gpt-4.1", label: "GPT-4.1", provider: "mergedev", cost: "3x", desc: "Latest GPT" },
+  { value: "o3-mini", label: "o3-mini", provider: "mergedev", cost: "3x", desc: "Reasoning mini" },
+  { value: "o4-mini", label: "o4-mini", provider: "mergedev", cost: "3x", desc: "Reasoning v4 mini" },
+  { value: "xai/grok-4.5", label: "Grok 4.5", provider: "mergedev", cost: "15x", desc: "xAI latest" },
+  { value: "deepseek/deepseek-v3", label: "DeepSeek V3", provider: "mergedev", cost: "1.5x", desc: "DeepSeek flagship" },
+  { value: "deepseek/deepseek-r1", label: "DeepSeek R1", provider: "mergedev", cost: "4x", desc: "Reasoning model" },
+  { value: "meta/llama-4-maverick-17b-128e-instruct", label: "Llama 4 Maverick", provider: "mergedev", cost: "2x", desc: "Latest Llama" },
+  { value: "moonshot/kimi-k2.6", label: "Kimi K2.6", provider: "mergedev", cost: "3x", desc: "Long context" },
+  { value: "minimax/minimax-m3", label: "MiniMax M3", provider: "mergedev", cost: "1.5x", desc: "Fast & smart" },
 
   // ── Google Gemini ─────────────────────────────────────────────
   { value: SECTION_GOOGLE, label: "Google Gemini", provider: "google", cost: "", desc: "" },
