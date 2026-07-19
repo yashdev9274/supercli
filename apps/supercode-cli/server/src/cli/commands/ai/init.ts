@@ -88,6 +88,12 @@ export const wakeUpAction = async (resumeId: string | null = null) => {
   }
 
   if (stored) {
+    // session-only BYOK providers can't persist across restarts — fall back to cloud
+    if (stored.provider === "concentrateai" && !process.env.CONCENTRATE_BYOK_PROD_KEY && !process.env.CONCENTRATE_BYOK_DEV_KEY) {
+      stored.provider = "supercode"
+      await saveCliConfig({ provider: "supercode", model: stored.model })
+    }
+
     if (resumeId && stored.mode === "agent") {
       await startAgentChat(stored.provider, stored.model, resumeId, workspaceInfo ?? undefined)
     } else {
