@@ -10,7 +10,13 @@ const HIGH_VALUE_MODELS = ["anthropic/claude-fable-5", "anthropic/claude-opus-4-
 const OPUS_MODELS = ["anthropic/claude-opus-4-8", "anthropic/claude-opus-4-7"]
 const OPUS_MODEL = "anthropic/claude-opus-4-8"
 
-const CONCENTRATE_API_KEY = process.env.CONCENTRATEAI_API_KEY || ""
+function getConcentrateApiKey(): string {
+  return process.env.CONCENTRATE_BYOK_PROD_KEY
+    || process.env.CONCENTRATE_BYOK_DEV_KEY
+    || process.env.CONCENTRATEAI_API_KEY
+    || ""
+}
+
 const BASE_URL = "https://api.concentrate.ai/v1"
 
 const MAX_RETRIES = 3
@@ -45,7 +51,7 @@ async function nonStreamingRequest(modelName: string, system: string, messages: 
   }
   const res = await fetchWithRetry(`${BASE_URL}/chat/completions`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${CONCENTRATE_API_KEY}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${getConcentrateApiKey()}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(60_000),
   })
@@ -68,8 +74,9 @@ export class ConcentrateService {
   readonly modelName: string
 
   constructor(modelName?: string) {
-    if (!CONCENTRATE_API_KEY) {
-      throw new Error("ConcentrateAI is not configured.\n\n  Set CONCENTRATEAI_API_KEY in your environment:\n    export CONCENTRATEAI_API_KEY=<your-key>\n\n  Get a key at: https://concentrate.ai")
+    const apiKey = getConcentrateApiKey()
+    if (!apiKey) {
+      throw new Error("ConcentrateAI is not configured.\n\n  Set CONCENTRATE_BYOK_PROD_KEY or CONCENTRATE_BYOK_DEV_KEY in your\n  environment, or run /connect to provide your API key.\n\n  Get a key at: https://concentrate.ai")
     }
 
     this.modelName = modelName || "deepseek-v4-flash"
@@ -78,7 +85,7 @@ export class ConcentrateService {
       name: "concentrate",
       baseURL: BASE_URL,
       headers: {
-        Authorization: `Bearer ${CONCENTRATE_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       fetch: fetchWithRetry as typeof fetch,
     })

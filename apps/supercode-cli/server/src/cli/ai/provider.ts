@@ -45,7 +45,7 @@ export const providerMeta: Record<ModelProvider, { env: string; label: string; d
   minimax: { env: "MINIMAX_API_KEY", label: "MiniMax", defaultModel: "MiniMax-M2" },
   openrouter: { env: "OPENROUTER_API_KEY", label: "OpenRouter", defaultModel: "openai/gpt-oss-120b:free", link: "https://openrouter.ai/keys" },
   nvidia: { env: "NVIDIA_API_KEY", label: "NVIDIA NIM", defaultModel: "minimaxai/minimax-m3" },
-  concentrateai: { env: "CONCENTRATEAI_API_KEY", label: "ConcentrateAI", defaultModel: "deepseek-v4-flash", link: "https://concentrate.ai" },
+  concentrateai: { env: "CONCENTRATE_BYOK_PROD_KEY / CONCENTRATE_BYOK_DEV_KEY", label: "ConcentrateAI", defaultModel: "deepseek-v4-flash", link: "https://concentrate.ai" },
   mergedev: { env: "MERGE_DEV_API_KEY", label: "Merge Dev Gateway", defaultModel: "anthropic/claude-opus-4-8", link: "https://app.merge.dev" },
 }
 
@@ -55,7 +55,7 @@ const providerConfigs: Record<ModelProvider, () => string> = {
   minimax: () => minimaxConfig.apiKey,
   openrouter: () => openRouterConfig.apiKey,
   nvidia: () => nvidiaConfig.apiKey,
-  concentrateai: () => process.env.CONCENTRATEAI_API_KEY || "",
+  concentrateai: () => process.env.CONCENTRATE_BYOK_PROD_KEY || process.env.CONCENTRATE_BYOK_DEV_KEY || process.env.CONCENTRATEAI_API_KEY || "",
   mergedev: () => mergedevConfig.apiKey,
 }
 
