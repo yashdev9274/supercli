@@ -41,22 +41,22 @@ export interface AIProvider {
 
 export const providerMeta: Record<ModelProvider, { env: string; label: string; defaultModel: string; link?: string }> = {
   supercode: { env: "", label: "Supercode Cloud", defaultModel: "deepseek-v4-flash" },
-  google: { env: "GOOGLE_GENERATIVE_AI_API_KEY", label: "Google Gemini", defaultModel: "gemini-2.5-flash", link: "https://aistudio.google.com/apikey" },
+  google: { env: "GOOGLE_BYOK_PROD_KEY / GOOGLE_BYOK_DEV_KEY", label: "Google Gemini", defaultModel: "gemini-2.5-flash", link: "https://aistudio.google.com/apikey" },
   minimax: { env: "MINIMAX_API_KEY", label: "MiniMax", defaultModel: "MiniMax-M2" },
-  openrouter: { env: "OPENROUTER_API_KEY", label: "OpenRouter", defaultModel: "openai/gpt-oss-120b:free", link: "https://openrouter.ai/keys" },
-  nvidia: { env: "NVIDIA_API_KEY", label: "NVIDIA NIM", defaultModel: "minimaxai/minimax-m3" },
+  openrouter: { env: "OPENROUTER_BYOK_PROD_KEY / OPENROUTER_BYOK_DEV_KEY", label: "OpenRouter", defaultModel: "openai/gpt-oss-120b:free", link: "https://openrouter.ai/keys" },
+  nvidia: { env: "NVIDIA_BYOK_PROD_KEY / NVIDIA_BYOK_DEV_KEY", label: "NVIDIA NIM", defaultModel: "minimaxai/minimax-m3" },
   concentrateai: { env: "CONCENTRATE_BYOK_PROD_KEY / CONCENTRATE_BYOK_DEV_KEY", label: "ConcentrateAI", defaultModel: "deepseek-v4-flash", link: "https://concentrate.ai" },
-  mergedev: { env: "MERGE_DEV_API_KEY", label: "Merge Dev Gateway", defaultModel: "anthropic/claude-opus-4-8", link: "https://app.merge.dev" },
+  mergedev: { env: "MERGE_DEV_BYOK_PROD_KEY / MERGE_DEV_BYOK_DEV_KEY", label: "Merge Dev Gateway", defaultModel: "anthropic/claude-opus-4-8", link: "https://app.merge.dev" },
 }
 
 const providerConfigs: Record<ModelProvider, () => string> = {
   supercode: () => "",
-  google: () => config.googleApiKey,
+  google: () => process.env.GOOGLE_BYOK_PROD_KEY || process.env.GOOGLE_BYOK_DEV_KEY || config.googleApiKey,
   minimax: () => minimaxConfig.apiKey,
-  openrouter: () => openRouterConfig.apiKey,
-  nvidia: () => nvidiaConfig.apiKey,
+  openrouter: () => process.env.OPENROUTER_BYOK_PROD_KEY || process.env.OPENROUTER_BYOK_DEV_KEY || openRouterConfig.apiKey,
+  nvidia: () => process.env.NVIDIA_BYOK_PROD_KEY || process.env.NVIDIA_BYOK_DEV_KEY || nvidiaConfig.apiKey,
   concentrateai: () => process.env.CONCENTRATE_BYOK_PROD_KEY || process.env.CONCENTRATE_BYOK_DEV_KEY || process.env.CONCENTRATEAI_API_KEY || "",
-  mergedev: () => mergedevConfig.apiKey,
+  mergedev: () => process.env.MERGE_DEV_BYOK_PROD_KEY || process.env.MERGE_DEV_BYOK_DEV_KEY || mergedevConfig.apiKey,
 }
 
 export function createProvider(provider: ModelProvider, model?: string): AIProvider {

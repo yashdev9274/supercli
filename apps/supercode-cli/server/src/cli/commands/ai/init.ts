@@ -89,7 +89,16 @@ export const wakeUpAction = async (resumeId: string | null = null) => {
 
   if (stored) {
     // session-only BYOK providers can't persist across restarts — fall back to cloud
-    if (stored.provider === "concentrateai" && !process.env.CONCENTRATE_BYOK_PROD_KEY && !process.env.CONCENTRATE_BYOK_DEV_KEY) {
+    const BYOK_PROVIDER_VARS: Record<string, string[]> = {
+      concentrateai: ["CONCENTRATE_BYOK_PROD_KEY", "CONCENTRATE_BYOK_DEV_KEY"],
+      mergedev: ["MERGE_DEV_BYOK_PROD_KEY", "MERGE_DEV_BYOK_DEV_KEY"],
+      google: ["GOOGLE_BYOK_PROD_KEY", "GOOGLE_BYOK_DEV_KEY"],
+      openrouter: ["OPENROUTER_BYOK_PROD_KEY", "OPENROUTER_BYOK_DEV_KEY"],
+      nvidia: ["NVIDIA_BYOK_PROD_KEY", "NVIDIA_BYOK_DEV_KEY"],
+    }
+    const sp = stored.provider
+    const byokVars = sp && BYOK_PROVIDER_VARS[sp]
+    if (byokVars && !byokVars.some((v) => process.env[v])) {
       stored.provider = "supercode"
       await saveCliConfig({ provider: "supercode", model: stored.model })
     }

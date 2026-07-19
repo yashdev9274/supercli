@@ -4,7 +4,7 @@ import { theme } from "src/cli/utils/tui.ts"
 import {
   getCliConfig,
   saveProviderApiKey,
-  getProviderApiKeys,
+  getByokSessionKey,
 } from "src/lib/cli-config.ts"
 import type { ModelProvider } from "src/cli/ai/provider.ts"
 import { BYOK_MODELS, ALL_SECTIONS } from "./model.ts"
@@ -36,12 +36,9 @@ export async function connectProvider(): Promise<{ type: "connect"; provider?: M
 
   const provider = PROVIDERS.find((p) => p.value === providerChoice)!
 
-  // Check if user already has a BYOK key for this session (for concentrateai, don't count the proxy key)
+  // Check if user already has a BYOK key for this session
   const config = await getCliConfig()
-  const envKeys = getProviderApiKeys()
-  const byokSessionKey = process.env.CONCENTRATE_BYOK_PROD_KEY || process.env.CONCENTRATE_BYOK_DEV_KEY
-  const existingKey = config?.apiKeys?.[provider.value]
-    || (provider.value === "concentrateai" ? byokSessionKey : envKeys[provider.value])
+  const existingKey = config?.apiKeys?.[provider.value] || getByokSessionKey(provider.value)
 
   if (existingKey) {
     console.log(` ${chalk.hex(theme.green)("✓")} ${chalk.hex(theme.green)(`Already have a key for ${provider.label} — switching to direct mode (🔑)`)}`)

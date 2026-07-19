@@ -3,7 +3,7 @@ import { isCancel, confirm, text, password } from "@clack/prompts"
 import chalk from "chalk"
 import { theme, heavyDivider, CARET } from "src/cli/utils/tui.ts"
 import { type ModelProvider, providerMeta } from "src/cli/ai/provider.ts"
-import { getCliConfig, saveCliConfig, saveProviderApiKey, getProviderApiKeys } from "src/lib/cli-config.ts"
+import { getCliConfig, saveCliConfig, saveProviderApiKey, getByokSessionKey } from "src/lib/cli-config.ts"
 
 interface ModelEntry {
   value: string
@@ -73,7 +73,8 @@ export const BYOK_MODELS: ModelEntry[] = [
   { value: "deepseek/deepseek-r1", label: "DeepSeek R1", provider: "concentrateai", cost: "", desc: "Reasoning model" },
   { value: "meta-llama/llama-4-maverick", label: "Llama 4 Maverick", provider: "concentrateai", cost: "", desc: "Latest Llama" },
   { value: "z-ai/glm-5-2", label: "GLM 5.2", provider: "concentrateai", cost: "", desc: "Latest GLM" },
-  { value: "moonshotai/kimi-k2-6", label: "Kimi K2.6", provider: "concentrateai", cost: "", desc: "Long context" },
+  { value: "kimi-k3", label: "Kimi K3", provider: "concentrateai", cost: "", desc: "Moonshot latest" },
+  { value: "kimi-k2-6", label: "Kimi K2.6", provider: "concentrateai", cost: "", desc: "Long context" },
   { value: "minimax/minimax-m3", label: "MiniMax M3", provider: "concentrateai", cost: "", desc: "Fast & smart" },
 
   // ── Merge Dev Gateway ────────────────────────────────────────
@@ -554,8 +555,7 @@ export async function pickModel(
   // For BYOK providers, check if an API key is configured
   if (selected.provider !== "supercode") {
     const config = await getCliConfig()
-    const envKeys = getProviderApiKeys()
-    const existingKey = config?.apiKeys?.[selected.provider] || envKeys[selected.provider]
+    const existingKey = config?.apiKeys?.[selected.provider] || getByokSessionKey(selected.provider)
     if (!existingKey) {
       process.stdout.write("\n")
       const meta = providerMeta[selected.provider]
