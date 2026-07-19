@@ -22,6 +22,471 @@ export default function ChangelogPage() {
             <div className="flex items-baseline gap-4 mb-8">
               <h2 className="text-[24px] font-semibold tracking-tight">
                 <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.77"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.77
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jul 19, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">BYOK / Provider</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Enhanced BYOK provider management with session-only API key auto-fallback for multiple providers.</li>
+                  <li>- Streamlined API key retrieval logic across all BYOK commands — reduced duplication.</li>
+                  <li>- Chat input now shows placeholder text when empty for clearer UX.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.76"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.76
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jul 19, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">BYOK / Provider</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Session-only BYOK provider now falls back to cloud provider when session key is missing — smoother provider experience.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.75"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.75
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jul 19, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">BYOK / Provider</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- ConcentrateAI key management refactored to support multiple environment variables.</li>
+                  <li>- Clearer error messages when API keys are missing — shows exactly which env var to set.</li>
+                  <li>- Cleaned up old persisted ConcentrateAI keys; fully transitioned to session-only BYOK variables.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.74"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.74
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jul 19, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Removed custom model entry from model selection for a cleaner, simpler UX.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.73"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.73
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jul 18, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- New <strong>"supercode" cloud model provider</strong> with enhanced API integration for chat and task generation.</li>
+                  <li>- New user interaction tools: <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">question</code> (ask user during agent runs) and <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">todowrite</code> (inline task tracking).</li>
+                  <li>- Permission management extended to cover question/todo tool usage.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.72"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.72
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jul 17, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Infrastructure</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Bug fix and npm version update.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.71"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.71
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jul 17, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Infrastructure</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- npm version update and publish.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.70"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.70
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jul 17, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Providers</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Major provider expansion: <strong>ConcentrateAI</strong>, <strong>Merge Dev Gateway</strong>, <strong>Google Gemini</strong>, <strong>MiniMax</strong>, <strong>NVIDIA NIM</strong>, and <strong>OpenRouter</strong>.</li>
+                  <li>- Improved model selection with provider-specific filtering and better categorization.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.69"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.69
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jul 17, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- "supercode" added as a cloud model provider in the provider interface.</li>
+                  <li>- Default provider for chat and agent functions switched to <strong>supercode</strong>.</li>
+                  <li>- Model selection refactored to clearly distinguish between cloud and BYOK models.</li>
+                  <li>- Better error handling for API key configuration in <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">createProvider</code>.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.68"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.68
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jul 16, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Connection type (<code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">direct</code> vs <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">proxy</code>) added to AI provider interface.</li>
+                  <li>- Chat UI and status bar now display connection type for the active provider.</li>
+                  <li>- Model selection enhanced to support new providers and models.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.67"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.67
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jul 16, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Tool call repetition guard — prevents infinite loops by tracking tool call history.</li>
+                  <li>- Tool call history tracking integrated across all AI services.</li>
+                  <li>- Citation tracking performance improvements.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.66"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.66
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jul 16, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Build agent prompts enhanced with review and analysis workflow steps.</li>
+                  <li>- Better AI response streaming — improved handling of tool preferences and task descriptions.</li>
+                  <li>- New <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/connectors</code> command for managing app connectors, including Merge Agent Handler setup.</li>
+                  <li>- New code highlighting utility for improved code presentation in CLI outputs.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.65"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.65
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jul 14, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- New <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/new</code> command — clears session messages and starts a fresh conversation.</li>
+                  <li>- <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">renderChatHeader</code> function improves chat interface presentation.</li>
+                  <li>- Enhanced chat loop for new conversation and session management commands.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.64"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.64
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jul 14, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Docs</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Mercury MCP Integration Security & Architecture Guide published — covers end-to-end architecture, OAuth flow, permission enforcement, data handling protocols, and tool naming conventions.</li>
+                  <li>- Includes structural diagrams and key architectural invariants.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.63"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.63
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jul 14, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Tool parameter handling improvements — <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">toolParams</code> returns a default object structure when necessary.</li>
+                  <li>- <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">nonStreamingRequest</code> accepts tools as an optional parameter.</li>
+                  <li>- ConcentrateService tracks tool events during streaming responses.</li>
+                  <li>- Simplified chat initialization in <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">wakeUpAction</code> for clarity and efficiency.</li>
+                  <li>- New model entry: <strong>Opus 4.8</strong>.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
+                  href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.62"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary underline underline-offset-4 transition-colors"
+                >
+                  v0.1.62
+                </a>
+              </h2>
+              <span className="text-[14px] text-muted-foreground font-mono">Jul 13, 2026</span>
+            </div>
+
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">MCP / Composio</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Enhanced Composio app management — improved MCP slash command UI and server-side session handling.</li>
+                  <li>- Server-side endpoint refactored for better Composio session creation and management.</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Dependencies</h3>
+                <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
+                  <li>- Added <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">nodemailer</code> for email handling capabilities.</li>
+                  <li>- Added <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">@dodopayments/nextjs</code> and <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">dodopayments</code> packages for payment processing.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          <section>
+            <div className="flex items-baseline gap-4 mb-8">
+              <h2 className="text-[24px] font-semibold tracking-tight">
+                <a
                   href="https://github.com/yashdev9274/supercli/releases/tag/v0.1.61"
                   target="_blank"
                   rel="noopener noreferrer"
