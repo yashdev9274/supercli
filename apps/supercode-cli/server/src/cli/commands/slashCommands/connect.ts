@@ -69,25 +69,14 @@ export async function connectProvider(): Promise<{ type: "connect"; provider?: M
   if (modelsForProvider.length > 0) {
     const modelChoice = await select({
       message: chalk.hex(theme.green)("select model"),
-      options: [
-        ...modelsForProvider.map((m) => ({
-          value: m.value,
-          label: `${m.label}  ${chalk.hex(theme.muted)(m.desc)}`,
-          hint: m.cost ? `${m.cost}x` : "",
-        })),
-        { value: "__custom__", label: "Custom model (type the name)", hint: "" },
-      ],
+      options: modelsForProvider.map((m) => ({
+        value: m.value,
+        label: `${m.label}  ${chalk.hex(theme.muted)(m.desc)}`,
+        hint: m.cost ? `${m.cost}x` : "",
+      })),
     })
     if (isCancel(modelChoice)) {
       // No model selected
-    } else if (modelChoice === "__custom__") {
-      const customName = await text({
-        message: chalk.hex(theme.green)(`enter model name for ${provider.label}`),
-        placeholder: "e.g. claude-sonnet-4",
-      })
-      if (!isCancel(customName) && (customName as string).trim()) {
-        chosenModel = (customName as string).trim()
-      }
     } else {
       chosenModel = modelChoice as string
     }
