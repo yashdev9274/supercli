@@ -15,6 +15,7 @@ const PROVIDERS: Array<{ value: ModelProvider; label: string; hint: string; link
   { value: "google", label: "Google Gemini", hint: "gemini-2.5 models", link: "https://aistudio.google.com/apikey" },
   { value: "openrouter", label: "OpenRouter", hint: "multi-provider access", link: "https://openrouter.ai/keys" },
   { value: "nvidia", label: "NVIDIA NIM", hint: "free NVIDIA hosted models", link: "https://build.nvidia.com/explore/discover" },
+  { value: "orcarouter", label: "OrcaRouter", hint: "multi-provider router", link: "https://orcarouter.ai" },
 ]
 
 export async function connectProvider(): Promise<{ type: "connect"; provider?: ModelProvider; model?: string }> {

@@ -5,14 +5,16 @@ import { OpenRouterService } from "./openrouter-service.ts"
 import { NvidiaService } from "./nvidia-service.ts"
 import { ConcentrateService } from "./concentrate-service.ts"
 import { MergeDevService } from "./mergedev-service.ts"
+import { OrcaRouterService } from "./orcarouter-service.ts"
 import { ServerProxyService } from "./server-proxy-service.ts"
 import { config } from "../../config/google.config.ts"
 import { minimaxConfig } from "../../config/minimax.config.ts"
 import { openRouterConfig } from "../../config/openrouter.config.ts"
 import { nvidiaConfig } from "../../config/nvidia.config.ts"
 import { mergedevConfig } from "../../config/mergedev.config.ts"
+import { orcarouterConfig } from "../../config/orcarouter.config.ts"
 
-export type ModelProvider = "supercode" | "google" | "minimax" | "openrouter" | "nvidia" | "concentrateai" | "mergedev"
+export type ModelProvider = "supercode" | "google" | "minimax" | "openrouter" | "nvidia" | "concentrateai" | "mergedev" | "orcarouter"
 
 export type ConnectionType = "direct" | "proxy"
 
@@ -47,6 +49,7 @@ export const providerMeta: Record<ModelProvider, { env: string; label: string; d
   nvidia: { env: "NVIDIA_BYOK_PROD_KEY / NVIDIA_BYOK_DEV_KEY", label: "NVIDIA NIM", defaultModel: "minimaxai/minimax-m3" },
   concentrateai: { env: "CONCENTRATE_BYOK_PROD_KEY / CONCENTRATE_BYOK_DEV_KEY", label: "ConcentrateAI", defaultModel: "deepseek-v4-flash", link: "https://concentrate.ai" },
   mergedev: { env: "MERGE_DEV_BYOK_PROD_KEY / MERGE_DEV_BYOK_DEV_KEY", label: "Merge Dev Gateway", defaultModel: "anthropic/claude-opus-4-8", link: "https://app.merge.dev" },
+  orcarouter: { env: "ORCAROUTER_BYOK_PROD_KEY / ORCAROUTER_BYOK_DEV_KEY", label: "OrcaRouter", defaultModel: "openai/gpt-4o-mini", link: "https://orcarouter.ai" },
 }
 
 const providerConfigs: Record<ModelProvider, () => string> = {
@@ -57,6 +60,7 @@ const providerConfigs: Record<ModelProvider, () => string> = {
   nvidia: () => process.env.NVIDIA_BYOK_PROD_KEY || process.env.NVIDIA_BYOK_DEV_KEY || nvidiaConfig.apiKey,
   concentrateai: () => process.env.CONCENTRATE_BYOK_PROD_KEY || process.env.CONCENTRATE_BYOK_DEV_KEY || process.env.CONCENTRATEAI_API_KEY || "",
   mergedev: () => process.env.MERGE_DEV_BYOK_PROD_KEY || process.env.MERGE_DEV_BYOK_DEV_KEY || mergedevConfig.apiKey,
+  orcarouter: () => process.env.ORCAROUTER_BYOK_PROD_KEY || process.env.ORCAROUTER_BYOK_DEV_KEY || orcarouterConfig.apiKey,
 }
 
 export function createProvider(provider: ModelProvider, model?: string): AIProvider {
@@ -135,6 +139,17 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
       const svc = new MergeDevService(model)
       return {
         name: "mergedev",
+        modelName: svc.modelName,
+        connectionType: "direct",
+        model: svc.model,
+        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish) =>
+          svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish),
+      }
+    }
+    case "orcarouter": {
+      const svc = new OrcaRouterService(model)
+      return {
+        name: "orcarouter",
         modelName: svc.modelName,
         connectionType: "direct",
         model: svc.model,

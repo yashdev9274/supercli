@@ -63,6 +63,7 @@ const API_KEY_ENV_MAP: Record<ModelProvider, string> = {
   nvidia: "NVIDIA_API_KEY",
   concentrateai: "CONCENTRATEAI_API_KEY",
   mergedev: "MERGE_DEV_API_KEY",
+  orcarouter: "ORCAROUTER_API_KEY",
 }
 
 export function getProviderApiKeys(): Partial<Record<ModelProvider, string>> {
@@ -103,6 +104,7 @@ const BYOK_ENV_OVERRIDES: Partial<Record<ModelProvider, { prod: string; dev: str
   google: { prod: "GOOGLE_BYOK_PROD_KEY", dev: "GOOGLE_BYOK_DEV_KEY" },
   openrouter: { prod: "OPENROUTER_BYOK_PROD_KEY", dev: "OPENROUTER_BYOK_DEV_KEY" },
   nvidia: { prod: "NVIDIA_BYOK_PROD_KEY", dev: "NVIDIA_BYOK_DEV_KEY" },
+  orcarouter: { prod: "ORCAROUTER_BYOK_PROD_KEY", dev: "ORCAROUTER_BYOK_DEV_KEY" },
 }
 
 export function getByokSessionKey(provider: ModelProvider): string | undefined {

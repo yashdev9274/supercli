@@ -21,12 +21,14 @@ const SECTION_GOOGLE = "__section_google__"
 const SECTION_MINIMAX = "__section_minimax__"
 const SECTION_NVIDIA = "__section_nvidia__"
 const SECTION_OPENROUTER = "__section_openrouter__"
+const SECTION_ORCAROUTER = "__section_orcarouter__"
 
 export const ALL_SECTIONS = new Set([
   SECTION_CLOUD, SECTION_BYOK,
   SECTION_CONCENTRATEAI, SECTION_MERGEDEV,
   SECTION_GOOGLE, SECTION_MINIMAX,
   SECTION_NVIDIA, SECTION_OPENROUTER,
+  SECTION_ORCAROUTER,
 ])
 
 const SECTION_LABELS: Record<string, string> = {
@@ -38,6 +40,7 @@ const SECTION_LABELS: Record<string, string> = {
   [SECTION_MINIMAX]: "MiniMax",
   [SECTION_NVIDIA]: "NVIDIA NIM",
   [SECTION_OPENROUTER]: "OpenRouter",
+  [SECTION_ORCAROUTER]: "OrcaRouter",
 }
 
 const isMainSection = (v: string) => v === SECTION_CLOUD || v === SECTION_BYOK
@@ -164,6 +167,22 @@ export const BYOK_MODELS: ModelEntry[] = [
   { value: "minimax/minimax-m3", label: "MiniMax M3", provider: "openrouter", cost: "3.0x", desc: "Via OpenRouter" },
   { value: "z-ai/glm-5.1", label: "GLM 5.1", provider: "openrouter", cost: "1.0x", desc: "Via OpenRouter" },
   { value: "moonshotai/kimi-k2.6", label: "Kimi K2.6", provider: "openrouter", cost: "1.5x", desc: "Via OpenRouter" },
+
+  // ── OrcaRouter ──────────────────────────────────────────────
+  { value: SECTION_ORCAROUTER, label: "OrcaRouter", provider: "orcarouter", cost: "", desc: "" },
+  { value: "openai/gpt-4o-mini", label: "GPT-4o Mini", provider: "orcarouter", cost: "0.5x", desc: "Cheap & fast" },
+  { value: "openai/gpt-4o", label: "GPT-4o", provider: "orcarouter", cost: "4x", desc: "OpenAI flagship" },
+  { value: "openai/gpt-4.1", label: "GPT-4.1", provider: "orcarouter", cost: "3x", desc: "Latest GPT" },
+  { value: "openai/o3-mini", label: "o3-mini", provider: "orcarouter", cost: "3x", desc: "Reasoning mini" },
+  { value: "openai/o4-mini", label: "o4-mini", provider: "orcarouter", cost: "3x", desc: "Reasoning v4 mini" },
+  { value: "anthropic/claude-sonnet-4.6", label: "Claude Sonnet 4.6", provider: "orcarouter", cost: "12x", desc: "Latest sonnet" },
+  { value: "anthropic/claude-opus-4.7", label: "Claude Opus 4.7", provider: "orcarouter", cost: "40x", desc: "Deep reasoning" },
+  { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash", provider: "orcarouter", cost: "2x", desc: "Smart & fast" },
+  { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro", provider: "orcarouter", cost: "4x", desc: "Deep reasoning" },
+  { value: "deepseek/deepseek-chat", label: "DeepSeek Chat", provider: "orcarouter", cost: "0.5x", desc: "Via OrcaRouter" },
+  { value: "deepseek/deepseek-reasoner", label: "DeepSeek Reasoner", provider: "orcarouter", cost: "1.5x", desc: "Reasoning model" },
+  { value: "grok/grok-4-fast-reasoning", label: "Grok 4 Fast", provider: "orcarouter", cost: "5x", desc: "Fast reasoning" },
+  { value: "orcarouter/auto", label: "OrcaRouter Auto", provider: "orcarouter", cost: "0x", desc: "Auto-pick cheapest" },
 ]
 
 export const MODELS: ModelEntry[] = [
@@ -608,6 +627,6 @@ export function formatModelChange(p: ModelProvider, m?: string): string {
     p === "concentrateai" ? "ConcentrateAI" :
     p === "google" ? "Gemini" :
     p === "nvidia" ? "NVIDIA" : p === "minimax" ? "MiniMax" :
-    p === "mergedev" ? "Merge Dev" : "OpenRouter"
+    p === "mergedev" ? "Merge Dev" : p === "orcarouter" ? "OrcaRouter" : "OpenRouter"
   return `${label}${m ? ` · ${m}` : ""}`
 }

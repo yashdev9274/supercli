@@ -29,6 +29,12 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   "anthropic/claude-opus-4-8": { inputPrice: 5.00, outputPrice: 25.00, cachedPrice: 0.50 },
   "anthropic/claude-opus-4-7": { inputPrice: 5.00, outputPrice: 25.00, cachedPrice: 0.50 },
   "openai/gpt-5.5":          { inputPrice: 5.00,   outputPrice: 30.00,  cachedPrice: 0.50 },
+  "anthropic/claude-sonnet-4.6": { inputPrice: 3.00, outputPrice: 15.00, cachedPrice: 0.30 },
+  "anthropic/claude-opus-4.7": { inputPrice: 5.00,  outputPrice: 25.00, cachedPrice: 0.50 },
+  "deepseek/deepseek-chat":  { inputPrice: 0.15,   outputPrice: 0.60,   cachedPrice: 0 },
+  "deepseek/deepseek-reasoner": { inputPrice: 0.50, outputPrice: 2.00,  cachedPrice: 0 },
+  "grok/grok-4-fast-reasoning": { inputPrice: 1.00, outputPrice: 5.00,  cachedPrice: 0 },
+  "orcarouter/auto":         { inputPrice: 0,      outputPrice: 0,      cachedPrice: 0 },
 }
 
 export function computeCost(model: string, inputTokens: number, outputTokens: number, cachedInputTokens: number): number {
@@ -58,6 +64,7 @@ export function getProviderDisplayNameFromRaw(raw: string): string {
     nvidia: "NVIDIA",
     minimax: "MiniMax",
     mergedev: "Merge Dev",
+    orcarouter: "OrcaRouter",
   }
   return map[raw] ?? raw
 }
@@ -69,6 +76,7 @@ export const PROVIDER_COLORS: Record<string, string> = {
   nvidia: "#75e02e",
   minimax: "#06b6d4",
   mergedev: "#f59e0b",
+  orcarouter: "#2563eb",
   other: "#6b7280",
 }
 
