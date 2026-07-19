@@ -1043,7 +1043,8 @@ function renderInput() {
   const cols = process.stdout.columns || 80
   const promptLen = getStdoutPromptLen()
   stdinPromptLen = promptLen
-  const totalChars = promptLen + stdinInput.length
+  const visibleLen = stdinInput.length || 'Ask anything... "Fix broken tests"'.length
+  const totalChars = promptLen + visibleLen
   const wrapLines = Math.max(1, Math.ceil(totalChars / cols))
 
   // Clear old list + overlays + input from bottom to top
@@ -1062,9 +1063,10 @@ function renderInput() {
     }
   }
 
-  // Write prompt + input
+  // Write prompt + input (with placeholder when empty)
   readline.cursorTo(process.stdout, 0)
-  process.stdout.write(promptText() + stdinInput)
+  const inputText = stdinInput || chalk.hex(theme.greenDim)('Ask anything... "Fix broken tests"')
+  process.stdout.write(promptText() + inputText)
   stdinPrevWrapLines = wrapLines
 
   // Show slash autocomplete list with scrolling window (mirrors AtPicker

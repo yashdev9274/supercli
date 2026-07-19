@@ -68,8 +68,10 @@ const API_KEY_ENV_MAP: Record<ModelProvider, string> = {
 export function getProviderApiKeys(): Partial<Record<ModelProvider, string>> {
   const keys: Partial<Record<ModelProvider, string>> = {}
   for (const [p, envVar] of Object.entries(API_KEY_ENV_MAP)) {
-    const val = process.env[envVar]
-    if (val) keys[p as ModelProvider] = val
+    const provider = p as ModelProvider
+    const byokKey = getByokSessionKey(provider)
+    const val = byokKey || process.env[envVar]
+    if (val) keys[provider] = val
   }
   return keys
 }
@@ -86,36 +88,39 @@ export async function applyStoredApiKeys(): Promise<void> {
         }
       }
     }
-    // Clean up old persisted concentrateai key — now session-only via BYOK vars
-    if (config.apiKeys?.["concentrateai"]) {
-      const cleaned = { ...config.apiKeys }
-      delete cleaned.concentrateai
-      await saveCliConfig({ apiKeys: cleaned } as any)
+    // Clean up old persisted keys — all BYOK providers are now session-only
+    if (config.apiKeys && Object.keys(config.apiKeys).length > 0) {
+      await saveCliConfig({ apiKeys: {} } as any)
     }
   } catch {
     // no stored keys — fine
   }
 }
 
-function getConcentrateByokVar(): string {
-  const serverUrl = process.env.SUPERCODE_SERVER_URL
-  if (serverUrl && (serverUrl.includes("localhost") || serverUrl.includes("127.0.0.1"))) {
-    return "CONCENTRATE_BYOK_DEV_KEY"
+const BYOK_ENV_OVERRIDES: Partial<Record<ModelProvider, { prod: string; dev: string }>> = {
+  concentrateai: { prod: "CONCENTRATE_BYOK_PROD_KEY", dev: "CONCENTRATE_BYOK_DEV_KEY" },
+  mergedev: { prod: "MERGE_DEV_BYOK_PROD_KEY", dev: "MERGE_DEV_BYOK_DEV_KEY" },
+  google: { prod: "GOOGLE_BYOK_PROD_KEY", dev: "GOOGLE_BYOK_DEV_KEY" },
+  openrouter: { prod: "OPENROUTER_BYOK_PROD_KEY", dev: "OPENROUTER_BYOK_DEV_KEY" },
+  nvidia: { prod: "NVIDIA_BYOK_PROD_KEY", dev: "NVIDIA_BYOK_DEV_KEY" },
+}
+
+export function getByokSessionKey(provider: ModelProvider): string | undefined {
+  const override = BYOK_ENV_OVERRIDES[provider]
+  if (override) {
+    return process.env[override.prod] || process.env[override.dev]
   }
-  return "CONCENTRATE_BYOK_PROD_KEY"
+  return process.env[API_KEY_ENV_MAP[provider]] || undefined
 }
 
 export async function saveProviderApiKey(provider: ModelProvider, apiKey: string): Promise<void> {
-  if (provider === "concentrateai") {
-    const byokVar = getConcentrateByokVar()
-    process.env[byokVar] = apiKey
+  const byokOverride = BYOK_ENV_OVERRIDES[provider]
+  if (byokOverride) {
+    const serverUrl = process.env.SUPERCODE_SERVER_URL
+    const isDev = !!(serverUrl && (serverUrl.includes("localhost") || serverUrl.includes("127.0.0.1")))
+    process.env[isDev ? byokOverride.dev : byokOverride.prod] = apiKey
     return
   }
-  const config = await getCliConfig()
-  const existingConfig = config || {}
-  const currentKeys = (existingConfig as any)?.apiKeys || {}
-  const updatedKeys = { ...currentKeys, [provider]: apiKey }
-  await saveCliConfig({ apiKeys: updatedKeys } as any)
   const envVar = API_KEY_ENV_MAP[provider]
   if (envVar) process.env[envVar] = apiKey
 }
