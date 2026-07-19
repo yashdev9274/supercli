@@ -36,10 +36,12 @@ export async function connectProvider(): Promise<{ type: "connect"; provider?: M
 
   const provider = PROVIDERS.find((p) => p.value === providerChoice)!
 
-  // Check if user already has a key saved for this provider
+  // Check if user already has a BYOK key for this session (for concentrateai, don't count the proxy key)
   const config = await getCliConfig()
   const envKeys = getProviderApiKeys()
-  const existingKey = config?.apiKeys?.[provider.value] || envKeys[provider.value]
+  const byokSessionKey = process.env.CONCENTRATE_BYOK_PROD_KEY || process.env.CONCENTRATE_BYOK_DEV_KEY
+  const existingKey = config?.apiKeys?.[provider.value]
+    || (provider.value === "concentrateai" ? byokSessionKey : envKeys[provider.value])
 
   if (existingKey) {
     console.log(` ${chalk.hex(theme.green)("✓")} ${chalk.hex(theme.green)(`Already have a key for ${provider.label} — switching to direct mode (🔑)`)}`)

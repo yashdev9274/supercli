@@ -86,12 +86,31 @@ export async function applyStoredApiKeys(): Promise<void> {
         }
       }
     }
+    // Clean up old persisted concentrateai key — now session-only via BYOK vars
+    if (config.apiKeys?.["concentrateai"]) {
+      const cleaned = { ...config.apiKeys }
+      delete cleaned.concentrateai
+      await saveCliConfig({ apiKeys: cleaned } as any)
+    }
   } catch {
     // no stored keys — fine
   }
 }
 
+function getConcentrateByokVar(): string {
+  const serverUrl = process.env.SUPERCODE_SERVER_URL
+  if (serverUrl && (serverUrl.includes("localhost") || serverUrl.includes("127.0.0.1"))) {
+    return "CONCENTRATE_BYOK_DEV_KEY"
+  }
+  return "CONCENTRATE_BYOK_PROD_KEY"
+}
+
 export async function saveProviderApiKey(provider: ModelProvider, apiKey: string): Promise<void> {
+  if (provider === "concentrateai") {
+    const byokVar = getConcentrateByokVar()
+    process.env[byokVar] = apiKey
+    return
+  }
   const config = await getCliConfig()
   const existingConfig = config || {}
   const currentKeys = (existingConfig as any)?.apiKeys || {}
