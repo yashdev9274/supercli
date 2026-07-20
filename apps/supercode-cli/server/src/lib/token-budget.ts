@@ -34,13 +34,17 @@ function todayStart(): Date {
 }
 
 export async function getDailyTokenUsage(model?: string): Promise<number> {
-  const where: Record<string, unknown> = { createdAt: { gte: todayStart() } }
-  if (model) where.model = model
-  const result = await prisma.usageEvent.aggregate({
-    _sum: { totalTokens: true },
-    where: where as any,
-  })
-  return result._sum.totalTokens ?? 0
+  try {
+    const where: Record<string, unknown> = { createdAt: { gte: todayStart() } }
+    if (model) where.model = model
+    const result = await prisma.usageEvent.aggregate({
+      _sum: { totalTokens: true },
+      where: where as any,
+    })
+    return result._sum.totalTokens ?? 0
+  } catch {
+    return 0
+  }
 }
 
 export async function checkDailyTokenBudget(): Promise<void> {

@@ -29,7 +29,7 @@ export async function recordUsage(record: UsageRecord): Promise<void> {
         conversationId: record.conversationId,
       },
     })
-  } catch (error) {
-    console.error("[track-usage] Failed to record usage event:", error)
+  } catch {
+    console.error("[track-usage] Failed to record usage event (DB unavailable)")
   }
 }
