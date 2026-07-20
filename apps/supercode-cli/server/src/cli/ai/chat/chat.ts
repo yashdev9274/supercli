@@ -720,20 +720,9 @@ async function streamAIResponse(
     // typing animation so the user sees content appear progressively.
     await md.end()
 
-    // After streaming + tools complete, render a "Result" section with the
-    // model's analysis text (like agent mode).  The text was already streamed
-    // inline during tool execution, but re-rendering it under a clear header
-    // makes it visible even when interleaved with tool output.
-    if (turnTracker.hasAnyToolCalls() && fullResponse.trim().length > 0) {
-      const w = process.stdout.columns ?? 80
-      const dim = (s: string) => chalk.hex(theme.greenDim)(s)
-      console.log(` ${chalk.hex(theme.green)("┃")} ${chalk.hex(theme.green).bold("Result")} ${dim("─".repeat(Math.max(0, w - 15)))}`)
-      const resultMd = new MarkdownStream()
-      resultMd.push(fullResponse)
-      await resultMd.end()
-    } else if (turnTracker.hasAnyToolCalls() && fullResponse.trim().length === 0) {
-      // Tools ran but model produced no text — show a minimal result marker
-      // so the turn doesn't end with a dangling thought block.
+    // If tools ran but the model produced no analysis text, show a minimal
+    // marker so the turn doesn't end with a dangling thought block.
+    if (turnTracker.hasAnyToolCalls() && fullResponse.trim().length === 0) {
       const w = process.stdout.columns ?? 80
       const dim = (s: string) => chalk.hex(theme.greenDim)(s)
       console.log(` ${chalk.hex(theme.green)("┃")} ${chalk.hex(theme.green).bold("Result")} ${dim("─".repeat(Math.max(0, w - 15)))}`)
