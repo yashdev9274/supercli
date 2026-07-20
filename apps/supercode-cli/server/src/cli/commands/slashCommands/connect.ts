@@ -16,6 +16,7 @@ const PROVIDERS: Array<{ value: ModelProvider; label: string; hint: string; link
   { value: "openrouter", label: "OpenRouter", hint: "multi-provider access", link: "https://openrouter.ai/keys" },
   { value: "nvidia", label: "NVIDIA NIM", hint: "free NVIDIA hosted models", link: "https://build.nvidia.com/explore/discover" },
   { value: "orcarouter", label: "OrcaRouter", hint: "multi-provider router", link: "https://orcarouter.ai" },
+  { value: "minimax", label: "MiniMax", hint: "fast & smart models", link: "https://platform.minimax.ai" },
 ]
 
 export async function connectProvider(): Promise<{ type: "connect"; provider?: ModelProvider; model?: string }> {

@@ -44,7 +44,7 @@ export interface AIProvider {
 export const providerMeta: Record<ModelProvider, { env: string; label: string; defaultModel: string; link?: string }> = {
   supercode: { env: "", label: "Supercode Cloud", defaultModel: "deepseek-v4-flash" },
   google: { env: "GOOGLE_BYOK_PROD_KEY / GOOGLE_BYOK_DEV_KEY", label: "Google Gemini", defaultModel: "gemini-2.5-flash", link: "https://aistudio.google.com/apikey" },
-  minimax: { env: "MINIMAX_API_KEY", label: "MiniMax", defaultModel: "MiniMax-M2" },
+  minimax: { env: "MINIMAX_BYOK_PROD_KEY / MINIMAX_BYOK_DEV_KEY", label: "MiniMax", defaultModel: "MiniMax-M2", link: "https://platform.minimax.ai" },
   openrouter: { env: "OPENROUTER_BYOK_PROD_KEY / OPENROUTER_BYOK_DEV_KEY", label: "OpenRouter", defaultModel: "openai/gpt-oss-120b:free", link: "https://openrouter.ai/keys" },
   nvidia: { env: "NVIDIA_BYOK_PROD_KEY / NVIDIA_BYOK_DEV_KEY", label: "NVIDIA NIM", defaultModel: "minimaxai/minimax-m3" },
   concentrateai: { env: "CONCENTRATE_BYOK_PROD_KEY / CONCENTRATE_BYOK_DEV_KEY", label: "ConcentrateAI", defaultModel: "deepseek-v4-flash", link: "https://concentrate.ai" },
@@ -55,7 +55,7 @@ export const providerMeta: Record<ModelProvider, { env: string; label: string; d
 const providerConfigs: Record<ModelProvider, () => string> = {
   supercode: () => "",
   google: () => process.env.GOOGLE_BYOK_PROD_KEY || process.env.GOOGLE_BYOK_DEV_KEY || config.googleApiKey,
-  minimax: () => minimaxConfig.apiKey,
+  minimax: () => process.env.MINIMAX_BYOK_PROD_KEY || process.env.MINIMAX_BYOK_DEV_KEY || minimaxConfig.apiKey,
   openrouter: () => process.env.OPENROUTER_BYOK_PROD_KEY || process.env.OPENROUTER_BYOK_DEV_KEY || openRouterConfig.apiKey,
   nvidia: () => process.env.NVIDIA_BYOK_PROD_KEY || process.env.NVIDIA_BYOK_DEV_KEY || nvidiaConfig.apiKey,
   concentrateai: () => process.env.CONCENTRATE_BYOK_PROD_KEY || process.env.CONCENTRATE_BYOK_DEV_KEY || process.env.CONCENTRATEAI_API_KEY || "",
@@ -75,6 +75,19 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
       // picks it up — it falls back to CONCENTRATEAI_API_KEY when no forwarded
       // key is provided.
       const svc = new ServerProxyService("concentrateai", model || meta.defaultModel)
+      return {
+        name: provider,
+        modelName: model || meta.defaultModel,
+        connectionType: "proxy",
+        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish) =>
+          svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish),
+        generateObject: (schema, prompt) => svc.generateObject(schema, prompt),
+      }
+    }
+    if (provider === "orcarouter") {
+      // Fall back to Supercode Cloud proxy when no BYOK key is configured.
+      // The server uses its own ORCAROUTER_API_KEY to handle the request.
+      const svc = new ServerProxyService("orcarouter", model || meta.defaultModel)
       return {
         name: provider,
         modelName: model || meta.defaultModel,
