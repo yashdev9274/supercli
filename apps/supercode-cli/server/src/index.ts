@@ -660,6 +660,113 @@ app.post("/api/ai/chat", async (req, res) => {
         res.end()
         break
       }
+      case "orcarouter": {
+        const apiKey = process.env.ORCAROUTER_API_KEY
+        if (!apiKey) { res.status(500).json({ error: "OrcaRouter not configured on server" }); return }
+        const modelName = modelParam || "openai/gpt-4o-mini"
+        const orStart = Date.now()
+        const bodyObj: any = {
+          model: modelName,
+          messages: nonSystemMessages.map((m: any) => {
+            const msg: any = {
+              role: m.role,
+              content: m.content !== null && m.content !== undefined ? String(m.content) : "",
+            }
+            if (m.tool_calls) msg.tool_calls = m.tool_calls
+            if (m.tool_call_id) msg.tool_call_id = m.tool_call_id
+            return msg
+          }),
+          max_tokens: getModelMaxTokens(modelName),
+          temperature: 0.7,
+          stream: true,
+        }
+        if (system && nonSystemMessages.length > 0) {
+          bodyObj.messages = [{ role: "system", content: system }, ...bodyObj.messages]
+        }
+        if (tools) {
+          bodyObj.tools = Object.entries(tools).map(([name, fn]: [string, any]) => ({
+            type: "function",
+            function: { name, description: fn.description || "", parameters: toolParams(fn) },
+          }))
+        }
+        const response = await fetch("https://api.orcarouter.ai/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify(bodyObj),
+        })
+        if (!response.ok) {
+          const errText = await response.text().catch(() => "unknown error")
+          res.status(response.status).json({ error: `OrcaRouter API ${response.status}: ${errText}` })
+          return
+        }
+        const reader = response.body?.getReader()
+        if (!reader) { res.status(500).json({ error: "No response body" }); return }
+        const decoder = new TextDecoder()
+        let buffer = ""
+        let inputTokens = 0
+        let outputTokens = 0
+        let pendingToolCalls: Record<number, { id: string; name: string; args: string }> = {}
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split("\n")
+          buffer = lines.pop() || ""
+          for (const line of lines) {
+            const trimmed = line.trim()
+            if (!trimmed || !trimmed.startsWith("data: ")) continue
+            const jsonStr = trimmed.slice(6)
+            if (jsonStr === "[DONE]") break
+            try {
+              const data = JSON.parse(jsonStr)
+              const delta = data.choices?.[0]?.delta
+              if (delta?.content) {
+                res.write(JSON.stringify({ type: "text", content: delta.content }) + "\n")
+              }
+              if (delta?.tool_calls) {
+                for (const tc of delta.tool_calls) {
+                  const index = tc.index ?? 0
+                  if (!pendingToolCalls[index]) {
+                    pendingToolCalls[index] = { id: "", name: "", args: "" }
+                  }
+                  if (tc.id) pendingToolCalls[index].id = tc.id
+                  if (tc.function?.name) pendingToolCalls[index].name = tc.function.name
+                  if (tc.function?.arguments) pendingToolCalls[index].args += tc.function.arguments
+                }
+              }
+              const finishReason = data.choices?.[0]?.finish_reason
+              if (finishReason === "tool_calls") {
+                for (const [, call] of Object.entries(pendingToolCalls)) {
+                  if (call.name && call.args) {
+                    try {
+                      const parsed = JSON.parse(call.args)
+                      res.write(JSON.stringify({ type: "tool-call", toolName: call.name, args: parsed, toolCallId: call.id }) + "\n")
+                    } catch { /* skip malformed args */ }
+                  }
+                }
+                pendingToolCalls = {}
+              }
+              if (data.usage) {
+                inputTokens = data.usage.prompt_tokens ?? 0
+                outputTokens = data.usage.completion_tokens ?? 0
+              }
+            } catch { /* skip malformed */ }
+          }
+        }
+        recordUsage({
+          provider: "orcarouter", model: modelName,
+          inputTokens, outputTokens, cachedInputTokens: 0,
+          totalTokens: inputTokens + outputTokens,
+          costUsd: computeCost(modelName, inputTokens, outputTokens, 0),
+          durationMs: Date.now() - orStart,
+        })
+        res.write(JSON.stringify({
+          type: "finish", reason: "stop",
+          usage: { inputTokens, outputTokenDetails: { textTokens: outputTokens, reasoningTokens: 0 }, outputTokens, inputTokenDetails: { noCacheTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, totalTokens: inputTokens + outputTokens }
+        }) + "\n")
+        res.end()
+        break
+      }
       case "concentrateai": {
         const { concentrateAiKey: forwardedKey } = req.body
         const apiKey = forwardedKey || process.env.CONCENTRATEAI_API_KEY
@@ -1050,6 +1157,29 @@ app.post("/api/ai/generate-object", async (req, res) => {
         if (!response.ok) {
           const errText = await response.text().catch(() => "unknown error")
           res.status(response.status).json({ error: `Merge Dev API ${response.status}: ${errText}` })
+          return
+        }
+        const data: any = await response.json()
+        res.json({ object: { content: data.choices?.[0]?.message?.content || "" } })
+        break
+      }
+      case "orcarouter": {
+        const apiKey = process.env.ORCAROUTER_API_KEY
+        if (!apiKey) { res.status(500).json({ error: "OrcaRouter not configured on server" }); return }
+        const modelName = modelParam || "openai/gpt-4o-mini"
+        const response = await fetch("https://api.orcarouter.ai/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: modelName,
+            messages: [{ role: "user", content: prompt }],
+            max_tokens: getModelMaxTokens(modelName),
+            stream: false,
+          }),
+        })
+        if (!response.ok) {
+          const errText = await response.text().catch(() => "unknown error")
+          res.status(response.status).json({ error: `OrcaRouter API ${response.status}: ${errText}` })
           return
         }
         const data: any = await response.json()

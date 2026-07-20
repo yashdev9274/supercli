@@ -103,6 +103,7 @@ const BYOK_ENV_OVERRIDES: Partial<Record<ModelProvider, { prod: string; dev: str
   mergedev: { prod: "MERGE_DEV_BYOK_PROD_KEY", dev: "MERGE_DEV_BYOK_DEV_KEY" },
   google: { prod: "GOOGLE_BYOK_PROD_KEY", dev: "GOOGLE_BYOK_DEV_KEY" },
   openrouter: { prod: "OPENROUTER_BYOK_PROD_KEY", dev: "OPENROUTER_BYOK_DEV_KEY" },
+  minimax: { prod: "MINIMAX_BYOK_PROD_KEY", dev: "MINIMAX_BYOK_DEV_KEY" },
   nvidia: { prod: "NVIDIA_BYOK_PROD_KEY", dev: "NVIDIA_BYOK_DEV_KEY" },
   orcarouter: { prod: "ORCAROUTER_BYOK_PROD_KEY", dev: "ORCAROUTER_BYOK_DEV_KEY" },
 }
@@ -110,7 +111,7 @@ const BYOK_ENV_OVERRIDES: Partial<Record<ModelProvider, { prod: string; dev: str
 export function getByokSessionKey(provider: ModelProvider): string | undefined {
   const override = BYOK_ENV_OVERRIDES[provider]
   if (override) {
-    return process.env[override.prod] || process.env[override.dev]
+    return process.env[override.prod] || process.env[override.dev] || process.env[API_KEY_ENV_MAP[provider]] || undefined
   }
   return process.env[API_KEY_ENV_MAP[provider]] || undefined
 }
