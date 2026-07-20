@@ -17,7 +17,7 @@ const PartnershipsSection = () => {
               $ Partnerships
             </h2>
             <h3 className="text-[28px] md:text-[36px] text-[#A1A1AA] font-semibold tracking-tight max-w-[500px] leading-[1.15]">
-              Real teams shipping with Supercode
+              Built together
             </h3>
           </div>
           <Link
@@ -36,9 +36,9 @@ const PartnershipsSection = () => {
               href={`/partnerships/${partner.slug}`}
               className="group border text-[#A1A1AA] border-border rounded-lg p-6 hover:border-primary/40 transition-colors duration-200 bg-card/30 hover:bg-card/60"
             >
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold font-mono text-[16px] mb-4">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-primary font-bold font-mono text-[16px] mb-4 ${partner.slug === "mergedev" || partner.slug === "concentrateai" || partner.slug === "dodopayments" || partner.slug === "orcarouter" ? "bg-black/40" : "bg-primary/10"}`}>
                 {partner.logoSrc ? (
-                  <img src={partner.logoSrc} alt={partner.name} className="w-6 h-6 brightness-0 invert" />
+                  <img src={partner.logoSrc} alt={partner.name} className={`w-6 h-6 ${partner.slug !== "mergedev" && partner.slug !== "dodopayments" && partner.slug !== "orcarouter" ? "brightness-0 invert" : ""}`} />
                 ) : (
                   partner.logo
                 )}

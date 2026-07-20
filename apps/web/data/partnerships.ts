@@ -1,6 +1,8 @@
 export interface Partner {
   slug: string
   name: string
+  website: string
+  tweetId?: string
   logo: string
   logoSrc?: string
   tagline: string
@@ -14,8 +16,10 @@ export interface Partner {
 
 export const partners: Partner[] = [
   {
+    tweetId: "2074153899997745276",
     slug: "concentrateai",
     name: "Concentrate AI",
+    website: "https://concentrate.ai",
     logo: "CA",
     logoSrc: "/concentrate-ai-black-symbol.svg",
     description: "A strategic partnership bringing together Supercode's AI code generation with Concentrate AI's LLM API gateway infrastructure.",
@@ -32,18 +36,21 @@ export const partners: Partner[] = [
     ],
     solution: [
       "Supercode partnered with Concentrate AI to integrate their enterprise-grade LLM API gateway as the backbone of Supercode's AI infrastructure. Concentrate AI's gateway handles request routing across multiple LLM providers (OpenAI, Anthropic, Groq), automatic failover, token usage optimization, and real-time cost tracking — all abstracted behind a single, unified API.",
-      "In return, Concentrate AI adopted Supercode across their own engineering team to accelerate development of their gateway platform. Their engineers use Supercode to rapidly prototype new routing logic, generate integration tests for provider APIs, and maintain consistent code quality across their growing codebase. It's a true partnership — each company empowers the other's core product.",
+      "This partnership means Concentrate AI's gateway infrastructure powers Supercode's AI requests, while Concentrate AI benefits from close collaboration on the gateway features their LLM-forward customers need most. It's a true partnership — each company empowers the other's core product.",
     ],
     results: [
       { text: "Supercode achieved enterprise-grade LLM infrastructure without building it in-house, powered by Concentrate AI's gateway", metric: "Zero-infra AI" },
-      { text: "Concentrate AI's engineering team ships gateway features 3x faster using Supercode for development", metric: "3x faster shipping" },
+      { text: "Tight collaboration with Concentrate AI ensures our gateway integration stays ahead of LLM API changes", metric: "Always in sync" },
       { text: "Users get reliable, low-latency code generation with automatic failover across multiple LLM providers", metric: "99.9% uptime" },
     ],
   },
   {
+    tweetId: "",
     slug: "mergedev",
     name: "Merge",
+    website: "https://merge.dev",
     logo: "MD",
+    logoSrc: "/mergedev.jpeg",
     description:
       "Supercode's AI coding agents connect to 200+ developer tools through Merge's Agent Handler, giving AI governed access to the entire development workflow.",
     tagline: "Connective infrastructure for production AI",
@@ -59,18 +66,21 @@ export const partners: Partner[] = [
     ],
     solution: [
       "Supercode integrated Merge's Agent Handler and Unified API as the connectivity backbone for AI agent tool access. Merge handles authentication, rate limiting, pagination, and API versioning across 200+ developer tools — all behind a single, consistent API. Supercode agents can now read issues, create PRs, review code, post messages, and trigger deployments across any supported tool without handling a single integration detail.",
-      "In turn, Merge adopted Supercode across their engineering organization to accelerate development of their integration platform. Merge engineers use Supercode to rapidly prototype new connectors, generate integration test suites for third-party APIs, and maintain code quality as their connector catalog grows. Each company builds what the other needs — Merge owns the connectivity infrastructure, Supercode owns the AI agent experience.",
+      "This partnership means Supercode agents natively support Merge's 200+ integrations out of the box, while Merge gains deep insight into how AI coding agents consume their API — driving improvements that benefit their entire ecosystem. Each company builds what the other needs — Merge owns the connectivity infrastructure, Supercode owns the AI agent experience.",
     ],
     results: [
       { text: "Supercode agents access 200+ developer tools through a single integration, not 200 individual ones", metric: "One integration" },
-      { text: "Merge's engineering team ships new connectors 2x faster using Supercode for development", metric: "2x faster connectors" },
+      { text: "Deep integration with Merge's Unified API removes the need to build and maintain individual tool connectors", metric: "Zero connector maintenance" },
       { text: "Users get governed, authenticated agent actions with full audit trails — no security compromises", metric: "Full audit trail" },
     ],
   },
   {
+    tweetId: "",
     slug: "dodopayments",
     name: "Dodo Payments",
+    website: "https://dodopayments.com",
     logo: "DP",
+    logoSrc: "/ddp-logo.png",
     description:
       "Supercode uses Dodo Payments for subscription billing — powering checkout, recurring payments, and license fulfillment for Pro and Ultra tiers.",
     tagline: "Developer-friendly payment infrastructure for digital products",
@@ -86,12 +96,42 @@ export const partners: Partner[] = [
     ],
     solution: [
       "Supercode integrated Dodo Payments as its billing infrastructure. Dodo's Checkout Sessions handle one-time and subscription purchases with a hosted, localized checkout experience. Webhooks drive the entire post-payment workflow — on `payment.succeeded`, Supercode generates and delivers license keys; on `subscription.renewed`, it extends access; on `subscription.cancelled`, it gracefully degrades the tier. Dodo's Better-Auth plugin ties user authentication to subscription status seamlessly.",
-      "Dodo Payments' engineering team adopted Supercode to accelerate development of their SDKs, API clients, and integration examples. Their developers use Supercode to rapidly generate idiomatic SDK code across Node.js, Python, Go, and PHP — ensuring every language client stays in sync with API changes. It's a partnership where Supercode handles the AI, Dodo handles the payments, and both teams ship faster because of each other.",
+      "This partnership means Dodo Payments handles all the payment complexity — checkout, recurring billing, tax compliance — while Supercode focuses on AI. Dodo benefits from being the payment backbone for a fast-growing AI dev tool, and their team gets direct feedback on what AI-native SaaS businesses need from their payment infrastructure. It's a partnership where Supercode handles the AI, Dodo handles the payments, and both teams win.",
     ],
     results: [
       { text: "Supercode launched subscription billing in days instead of months with Dodo's checkout sessions and webhooks", metric: "Days to launch" },
       { text: "Automatic VAT, GST, and sales tax handling for global customers — zero compliance overhead", metric: "Global compliance" },
-      { text: "Dodo Payments ships SDK updates 3x faster across 4 languages using Supercode for code generation", metric: "3x faster SDKs" },
+      { text: "Seamless webhook-driven billing flow — from checkout to license key delivery to subscription management", metric: "End-to-end billing" },
+    ],
+  },
+  {
+    tweetId: "",
+    slug: "orcarouter",
+    name: "OrcaRouter",
+    website: "https://orcarouter.ai",
+    logo: "OR",
+    logoSrc: "/orcarouter-logo.jpg",
+    description:
+      "Supercode integrates OrcaRouter's intelligent LLM routing to deliver users the best model for every task — balancing speed, cost, and capability automatically.",
+    tagline: "Intelligent routing for the AI-powered developer",
+    stat: { value: "50+", label: "Models available through OrcaRouter's routing layer" },
+    quote: {
+      text: "Not every coding task needs the same model. Simple edits should go through a cheap, fast model — complex reasoning deserves the best. OrcaRouter's intelligent routing lets Supercode automatically match each user request to the optimal model, giving users the best experience without manual model selection.",
+      author: "Yash Dewasthale",
+      role: "Founder, Supercode",
+    },
+    challenge: [
+      "Supercode's AI coding agents support a wide range of tasks — from quick code completions and inline edits to deep architectural reasoning and multi-file refactors. Each type of task has different requirements: simple completions need low latency and low cost, while complex reasoning tasks need the most capable models available. Asking users to manually pick the right model for each task creates friction and leads to suboptimal choices — too expensive for simple tasks, or not capable enough for hard ones.",
+      "What Supercode needed was an intelligent routing layer that could automatically dispatch each request to the optimal model based on the task's complexity, the user's latency expectations, and cost considerations — without the user ever needing to think about which model is running underneath.",
+    ],
+    solution: [
+      "Supercode integrated OrcaRouter as its intelligent model routing layer. OrcaRouter evaluates each incoming request and routes it to the most appropriate model across a portfolio of 50+ models from OpenAI, Anthropic, Google, Meta, DeepSeek, and more. Simple code completions go through fast, economical models; complex refactoring and architectural tasks are routed to the most capable reasoning models — all automatically, with zero user configuration.",
+      "This partnership means OrcaRouter's intelligent routing becomes the brain behind Supercode's model selection — automatically dispatching each request to the optimal model. OrcaRouter gains a demanding AI coding use case that pushes their routing algorithms to handle diverse task types, from quick completions to deep reasoning. It's a mutually reinforcing partnership — Supercode provides the AI agent experience, OrcaRouter provides the intelligence layer that makes it work optimally for every task.",
+    ],
+    results: [
+      { text: "Users get optimal model selection automatically — fast models for simple tasks, capable models for complex ones", metric: "Auto-optimized" },
+      { text: "OrcaRouter handles model routing so Supercode never has to — automatic selection based on task complexity and cost", metric: "Routing handled" },
+      { text: "Cost-efficient AI assistance with intelligent routing that matches model capability to task complexity", metric: "Smart cost allocation" },
     ],
   },
 ]
