@@ -51,9 +51,9 @@ export default function PartnershipsPage() {
               className="group relative border border-border rounded-lg p-8 hover:border-primary/40 transition-colors duration-200 bg-card/50 hover:bg-card/80"
             >
               <div className="flex items-start justify-between mb-6">
-                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold font-mono text-[18px]">
+                <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-primary font-bold font-mono text-[18px] ${partner.slug === "mergedev" || partner.slug === "concentrateai" || partner.slug === "dodopayments" || partner.slug === "orcarouter" ? "bg-black/40" : "bg-primary/10"}`}>
                   {partner.logoSrc ? (
-                    <img src={partner.logoSrc} alt={partner.name} className="w-7 h-7 brightness-0 invert" />
+                    <img src={partner.logoSrc} alt={partner.name} className={`w-7 h-7 ${partner.slug !== "mergedev" && partner.slug !== "dodopayments" && partner.slug !== "orcarouter" ? "brightness-0 invert" : ""}`} />
                   ) : (
                     partner.logo
                   )}

@@ -21,6 +21,12 @@ const CONTEXT_WINDOWS: Record<string, number> = {
   "anthropic/claude-opus-4-8": 1_000_000,
   "anthropic/claude-opus-4-7": 1_000_000,
   "openai/gpt-5.5": 1_100_000,
+  "anthropic/claude-sonnet-4.6": 200_000,
+  "anthropic/claude-opus-4.7": 200_000,
+  "deepseek/deepseek-chat": 128_000,
+  "deepseek/deepseek-reasoner": 128_000,
+  "grok/grok-4-fast-reasoning": 131_072,
+  "orcarouter/auto": 128_000,
 }
 
 const FALLBACK_CONTEXT_WINDOW = 128_000

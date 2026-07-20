@@ -45,7 +45,7 @@ const HeroSection = () => {
           {/* Version tag */}
           <div className="flex justify-center mb-4">
             <div className="px-3 py-1 bg-primary/10 text-primary text-[12px] font-mono rounded-md">
-              v0.1.77-beta
+              v0.1.77-beta live
             </div>
           </div>
 

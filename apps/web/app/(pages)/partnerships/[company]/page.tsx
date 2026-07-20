@@ -1,6 +1,8 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
+import { Suspense } from "react"
+import { Tweet } from "react-tweet"
 import { ArrowLeft, ArrowUpRight, Quote } from "lucide-react"
 import Navbar from "@/components/homepage/navbar"
 import Footer from "@/components/homepage/footer"
@@ -62,16 +64,24 @@ export default async function PartnershipDetailPage({ params }: Props) {
 
         {/* Hero */}
         <div className="mb-16">
-          <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center text-white font-bold font-mono text-[22px] mb-6">
+          <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-white font-bold font-mono text-[22px] mb-6 ${partner.slug === "mergedev" || partner.slug === "concentrateai" || partner.slug === "dodopayments" || partner.slug === "orcarouter" ? "bg-black/40" : "bg-primary/10"}`}>
             {partner.logoSrc ? (
-              <img src={partner.logoSrc} alt={partner.name} className="w-8 h-8 brightness-0 invert" />
+              <img src={partner.logoSrc} alt={partner.name} className={`w-8 h-8 ${partner.slug !== "mergedev" && partner.slug !== "dodopayments" && partner.slug !== "orcarouter" ? "brightness-0 invert" : ""}`} />
             ) : (
               partner.logo
             )}
           </div>
 
           <h1 className="text-[36px] md:text-[48px] text-[#A1A1AA] font-semibold tracking-tight mb-3">
-            {partner.name}
+            <a
+              href={partner.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group inline-flex items-center gap-3 hover:text-primary transition-colors duration-200"
+            >
+              {partner.name}
+              <ArrowUpRight className="w-5 h-5 text-muted-foreground/40 group-hover:text-primary/60 transition-colors duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-200" />
+            </a>
           </h1>
           <p className="text-[18px] text-muted-foreground leading-relaxed">
             {partner.tagline}
@@ -126,6 +136,20 @@ export default async function PartnershipDetailPage({ params }: Props) {
           </div>
         </section>
 
+        {/* Tweet */}
+        {partner.tweetId && (
+          <section className="mb-14">
+            <h2 className="text-[13px] font-mono uppercase tracking-[0.15em] text-primary mb-6">
+              $ Public Launch
+            </h2>
+            <Suspense fallback={<div className="text-muted-foreground text-sm">Loading tweet...</div>}>
+              <div className="flex justify-center">
+                <Tweet id={partner.tweetId} />
+              </div>
+            </Suspense>
+          </section>
+        )}
+
         {/* Results */}
         <section className="mb-16">
           <h2 className="text-[13px] font-mono uppercase tracking-[0.15em] text-primary mb-6">
@@ -154,8 +178,7 @@ export default async function PartnershipDetailPage({ params }: Props) {
             Ready to ship faster?
           </p>
           <a
-            href="https://github.com/yashdev9274/superCli"
-            target="_blank"
+            href="/download"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg text-[14px] font-medium hover:opacity-90 transition-opacity"
           >
