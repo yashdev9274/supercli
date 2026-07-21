@@ -13,6 +13,7 @@ import { scanWorkspace } from "src/cli/workspace/scanner.ts"
 import { getCliConfig, saveCliConfig, applyStoredApiKeys } from "src/lib/cli-config"
 import { checkForUpdate } from "src/cli/utils/auto-update"
 import { checkPaidTierInterest } from "src/cli/utils/paid-tier-check"
+import { CLOUD_MODELS } from "src/cli/commands/slashCommands/model"
 
 export const wakeUpAction = async (resumeId: string | null = null) => {
   renderWelcome(version)
@@ -96,11 +97,16 @@ export const wakeUpAction = async (resumeId: string | null = null) => {
       openrouter: ["OPENROUTER_BYOK_PROD_KEY", "OPENROUTER_BYOK_DEV_KEY"],
       nvidia: ["NVIDIA_BYOK_PROD_KEY", "NVIDIA_BYOK_DEV_KEY"],
     }
+    const CLOUD_MODEL_NAMES = new Set(CLOUD_MODELS.map((m) => m.value))
     const sp = stored.provider
     const byokVars = sp && BYOK_PROVIDER_VARS[sp]
     if (byokVars && !byokVars.some((v) => process.env[v])) {
+      stored.model = CLOUD_MODEL_NAMES.has(stored.model) ? stored.model : "deepseek-v4-flash"
       stored.provider = "supercode"
       await saveCliConfig({ provider: "supercode", model: stored.model })
+    } else if (sp === "supercode" && !CLOUD_MODEL_NAMES.has(stored.model)) {
+      stored.model = "deepseek-v4-flash"
+      await saveCliConfig({ model: stored.model })
     }
 
     if (resumeId && stored.mode === "agent") {

@@ -3,7 +3,6 @@
 export function getMinimaxApiKey(): string {
   return process.env.MINIMAX_BYOK_PROD_KEY
     || process.env.MINIMAX_BYOK_DEV_KEY
-    || process.env.MINIMAX_API_KEY
     || ""
 }
 

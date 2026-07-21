@@ -3,7 +3,6 @@
 export function getNvidiaApiKey(): string {
   return process.env.NVIDIA_BYOK_PROD_KEY
     || process.env.NVIDIA_BYOK_DEV_KEY
-    || process.env.NVIDIA_API_KEY
     || ""
 }
 

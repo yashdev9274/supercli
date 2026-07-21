@@ -2,7 +2,6 @@
 export function getOpenRouterApiKey(): string {
   return process.env.OPENROUTER_BYOK_PROD_KEY
     || process.env.OPENROUTER_BYOK_DEV_KEY
-    || process.env.OPENROUTER_API_KEY
     || ""
 }
 
