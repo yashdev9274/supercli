@@ -1,7 +1,6 @@
 export function getMergeDevApiKey(): string {
   return process.env.MERGE_DEV_BYOK_PROD_KEY
     || process.env.MERGE_DEV_BYOK_DEV_KEY
-    || process.env.MERGE_DEV_API_KEY
     || ""
 }
 

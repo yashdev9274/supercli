@@ -54,6 +54,15 @@ function getModelMaxTokens(model: string): number {
   }
   return 8192
 }
+
+// Models allowed through the server proxy without a user-provided API key
+const CLOUD_ALLOWED_MODELS = new Set([
+  "deepseek-v4-flash",
+  "glm-5.2",
+  "glm-5.1",
+  "kimi-k2-6",
+  "minimax-m3",
+])
 const app = express()
 
 app.use(
@@ -772,6 +781,10 @@ app.post("/api/ai/chat", async (req, res) => {
         const apiKey = forwardedKey || process.env.CONCENTRATEAI_API_KEY
         if (!apiKey) { res.status(500).json({ error: "ConcentrateAI not configured on server" }); return }
         const modelName = modelParam || "deepseek-v4-flash"
+        if (!forwardedKey && !CLOUD_ALLOWED_MODELS.has(modelName)) {
+          res.status(403).json({ error: `Bring your own API key to use ${modelName}` })
+          return
+        }
         const caStart = Date.now()
         const bodyObj: any = {
           model: modelName,
@@ -923,6 +936,10 @@ app.post("/api/ai/chat", async (req, res) => {
         const apiKey = process.env.CONCENTRATEAI_API_KEY
         if (!apiKey) { res.status(500).json({ error: "Supercode Cloud not configured on server" }); return }
         const modelName = modelParam || "deepseek-v4-flash"
+        if (!CLOUD_ALLOWED_MODELS.has(modelName)) {
+          res.status(403).json({ error: `Bring your own API key to use ${modelName}` })
+          return
+        }
         const scStart = Date.now()
         const bodyObj: any = {
           model: modelName,
@@ -1191,6 +1208,10 @@ app.post("/api/ai/generate-object", async (req, res) => {
         const apiKey = forwardedKey || process.env.CONCENTRATEAI_API_KEY
         if (!apiKey) { res.status(500).json({ error: "ConcentrateAI not configured on server" }); return }
         const modelName = modelParam || "deepseek-v4-flash"
+        if (!forwardedKey && !CLOUD_ALLOWED_MODELS.has(modelName)) {
+          res.status(403).json({ error: `Bring your own API key to use ${modelName}` })
+          return
+        }
         const response = await fetch("https://api.concentrate.ai/v1/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -1215,6 +1236,10 @@ app.post("/api/ai/generate-object", async (req, res) => {
         const apiKey = process.env.CONCENTRATEAI_API_KEY
         if (!apiKey) { res.status(500).json({ error: "Supercode Cloud not configured on server" }); return }
         const modelName = modelParam || "deepseek-v4-flash"
+        if (!CLOUD_ALLOWED_MODELS.has(modelName)) {
+          res.status(403).json({ error: `Bring your own API key to use ${modelName}` })
+          return
+        }
         const response = await fetch("https://api.concentrate.ai/v1/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },

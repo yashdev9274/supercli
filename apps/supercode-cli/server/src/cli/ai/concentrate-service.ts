@@ -13,7 +13,6 @@ const OPUS_MODEL = "anthropic/claude-opus-4-8"
 function getConcentrateApiKey(): string {
   return process.env.CONCENTRATE_BYOK_PROD_KEY
     || process.env.CONCENTRATE_BYOK_DEV_KEY
-    || process.env.CONCENTRATEAI_API_KEY
     || ""
 }
 

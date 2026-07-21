@@ -111,7 +111,7 @@ const BYOK_ENV_OVERRIDES: Partial<Record<ModelProvider, { prod: string; dev: str
 export function getByokSessionKey(provider: ModelProvider): string | undefined {
   const override = BYOK_ENV_OVERRIDES[provider]
   if (override) {
-    return process.env[override.prod] || process.env[override.dev] || process.env[API_KEY_ENV_MAP[provider]] || undefined
+    return process.env[override.prod] || process.env[override.dev] || undefined
   }
   return process.env[API_KEY_ENV_MAP[provider]] || undefined
 }

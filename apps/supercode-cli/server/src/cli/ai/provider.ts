@@ -7,12 +7,7 @@ import { ConcentrateService } from "./concentrate-service.ts"
 import { MergeDevService } from "./mergedev-service.ts"
 import { OrcaRouterService } from "./orcarouter-service.ts"
 import { ServerProxyService } from "./server-proxy-service.ts"
-import { config } from "../../config/google.config.ts"
-import { minimaxConfig } from "../../config/minimax.config.ts"
-import { openRouterConfig } from "../../config/openrouter.config.ts"
-import { nvidiaConfig } from "../../config/nvidia.config.ts"
-import { mergedevConfig } from "../../config/mergedev.config.ts"
-import { orcarouterConfig } from "../../config/orcarouter.config.ts"
+
 
 export type ModelProvider = "supercode" | "google" | "minimax" | "openrouter" | "nvidia" | "concentrateai" | "mergedev" | "orcarouter"
 
@@ -54,13 +49,13 @@ export const providerMeta: Record<ModelProvider, { env: string; label: string; d
 
 const providerConfigs: Record<ModelProvider, () => string> = {
   supercode: () => "",
-  google: () => process.env.GOOGLE_BYOK_PROD_KEY || process.env.GOOGLE_BYOK_DEV_KEY || config.googleApiKey,
-  minimax: () => process.env.MINIMAX_BYOK_PROD_KEY || process.env.MINIMAX_BYOK_DEV_KEY || minimaxConfig.apiKey,
-  openrouter: () => process.env.OPENROUTER_BYOK_PROD_KEY || process.env.OPENROUTER_BYOK_DEV_KEY || openRouterConfig.apiKey,
-  nvidia: () => process.env.NVIDIA_BYOK_PROD_KEY || process.env.NVIDIA_BYOK_DEV_KEY || nvidiaConfig.apiKey,
-  concentrateai: () => process.env.CONCENTRATE_BYOK_PROD_KEY || process.env.CONCENTRATE_BYOK_DEV_KEY || process.env.CONCENTRATEAI_API_KEY || "",
-  mergedev: () => process.env.MERGE_DEV_BYOK_PROD_KEY || process.env.MERGE_DEV_BYOK_DEV_KEY || mergedevConfig.apiKey,
-  orcarouter: () => process.env.ORCAROUTER_BYOK_PROD_KEY || process.env.ORCAROUTER_BYOK_DEV_KEY || orcarouterConfig.apiKey,
+  google: () => process.env.GOOGLE_BYOK_PROD_KEY || process.env.GOOGLE_BYOK_DEV_KEY || "",
+  minimax: () => process.env.MINIMAX_BYOK_PROD_KEY || process.env.MINIMAX_BYOK_DEV_KEY || "",
+  openrouter: () => process.env.OPENROUTER_BYOK_PROD_KEY || process.env.OPENROUTER_BYOK_DEV_KEY || "",
+  nvidia: () => process.env.NVIDIA_BYOK_PROD_KEY || process.env.NVIDIA_BYOK_DEV_KEY || "",
+  concentrateai: () => process.env.CONCENTRATE_BYOK_PROD_KEY || process.env.CONCENTRATE_BYOK_DEV_KEY || "",
+  mergedev: () => process.env.MERGE_DEV_BYOK_PROD_KEY || process.env.MERGE_DEV_BYOK_DEV_KEY || "",
+  orcarouter: () => process.env.ORCAROUTER_BYOK_PROD_KEY || process.env.ORCAROUTER_BYOK_DEV_KEY || "",
 }
 
 export function createProvider(provider: ModelProvider, model?: string): AIProvider {

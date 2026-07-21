@@ -1,7 +1,6 @@
 export function getOrcaRouterApiKey(): string {
   return process.env.ORCAROUTER_BYOK_PROD_KEY
     || process.env.ORCAROUTER_BYOK_DEV_KEY
-    || process.env.ORCAROUTER_API_KEY
     || ""
 }
 
