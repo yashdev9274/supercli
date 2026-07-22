@@ -14,7 +14,7 @@ import { writeFileSync, unlinkSync } from "fs"
 import { randomUUID } from "crypto"
 
 function toolParams(fn: any): object {
-  const raw = fn.inputSchema ?? fn.parameters
+  const raw = fn.parameters ?? fn.inputSchema
   if (!raw || (typeof raw === "object" && "_def" in raw)) {
     return { type: "object", properties: {} }
   }
@@ -41,6 +41,7 @@ const MODEL_MAX_TOKENS: Record<string, number> = {
   "glm-5.2": 4096,
   "glm-5.1": 4096,
   "minimax-m3": 8192,
+  "hy3": 8192,
   "anthropic/claude-fable-5": 128000,
   "anthropic/claude-opus-4-7": 128000,
   "anthropic/claude-opus-4-8": 128000,
@@ -62,6 +63,7 @@ const CLOUD_ALLOWED_MODELS = new Set([
   "glm-5.1",
   "kimi-k2-6",
   "minimax-m3",
+  "hy3",
 ])
 const app = express()
 
@@ -376,6 +378,10 @@ app.post("/api/ai/chat", async (req, res) => {
               if (delta?.content) {
                 res.write(JSON.stringify({ type: "text", content: delta.content }) + "\n")
               }
+              const reasoningChunk = delta?.reasoning_content || delta?.reasoning
+              if (reasoningChunk) {
+                res.write(JSON.stringify({ type: "reasoning", content: reasoningChunk }) + "\n")
+              }
               if (delta?.tool_calls) {
                 for (const tc of delta.tool_calls) {
                   const index = tc.index ?? 0
@@ -519,6 +525,10 @@ app.post("/api/ai/chat", async (req, res) => {
               if (delta?.content) {
                 res.write(JSON.stringify({ type: "text", content: delta.content }) + "\n")
               }
+              const reasoningChunk = delta?.reasoning_content || delta?.reasoning
+              if (reasoningChunk) {
+                res.write(JSON.stringify({ type: "reasoning", content: reasoningChunk }) + "\n")
+              }
               if (delta?.tool_calls) {
                 for (const tc of delta.tool_calls) {
                   const index = tc.index ?? 0
@@ -624,6 +634,10 @@ app.post("/api/ai/chat", async (req, res) => {
               const delta = data.choices?.[0]?.delta
               if (delta?.content) {
                 res.write(JSON.stringify({ type: "text", content: delta.content }) + "\n")
+              }
+              const reasoningChunk = delta?.reasoning_content || delta?.reasoning
+              if (reasoningChunk) {
+                res.write(JSON.stringify({ type: "reasoning", content: reasoningChunk }) + "\n")
               }
               if (delta?.tool_calls) {
                 for (const tc of delta.tool_calls) {
@@ -732,6 +746,10 @@ app.post("/api/ai/chat", async (req, res) => {
               if (delta?.content) {
                 res.write(JSON.stringify({ type: "text", content: delta.content }) + "\n")
               }
+              const reasoningChunk = delta?.reasoning_content || delta?.reasoning
+              if (reasoningChunk) {
+                res.write(JSON.stringify({ type: "reasoning", content: reasoningChunk }) + "\n")
+              }
               if (delta?.tool_calls) {
                 for (const tc of delta.tool_calls) {
                   const index = tc.index ?? 0
@@ -827,6 +845,7 @@ app.post("/api/ai/chat", async (req, res) => {
         let inputTokens = 0
         let outputTokens = 0
         let fullContent = ""
+        let reasoningContent = ""
         let sawToolCalls = false
         let pendingToolCalls: Record<number, { id: string; name: string; args: string }> = {}
         while (true) {
@@ -846,6 +865,11 @@ app.post("/api/ai/chat", async (req, res) => {
               if (delta?.content) {
                 fullContent += delta.content
                 res.write(JSON.stringify({ type: "text", content: delta.content }) + "\n")
+              }
+              const reasoningChunk = delta?.reasoning_content || delta?.reasoning
+              if (reasoningChunk) {
+                reasoningContent += reasoningChunk
+                res.write(JSON.stringify({ type: "reasoning", content: reasoningChunk }) + "\n")
               }
               if (delta?.tool_calls) {
                 sawToolCalls = true
@@ -909,9 +933,12 @@ app.post("/api/ai/chat", async (req, res) => {
           })
           if (fbRes.ok) {
             const fbData: any = await fbRes.json()
-            const fbContent = fbData?.choices?.[0]?.message?.content ?? ""
+            const fbMsg = fbData?.choices?.[0]?.message ?? {}
+            const fbContent = fbMsg.content ?? fbMsg.reasoning_content ?? ""
             if (fbContent) {
               res.write(JSON.stringify({ type: "text", content: fbContent }) + "\n")
+            } else if (reasoningContent.trim()) {
+              res.write(JSON.stringify({ type: "text", content: reasoningContent }) + "\n")
             }
             inputTokens = fbData?.usage?.prompt_tokens ?? 0
             outputTokens = fbData?.usage?.completion_tokens ?? 0
@@ -982,6 +1009,7 @@ app.post("/api/ai/chat", async (req, res) => {
         let inputTokens = 0
         let outputTokens = 0
         let fullContent = ""
+        let reasoningContent = ""
         let sawToolCalls = false
         let pendingToolCalls: Record<number, { id: string; name: string; args: string }> = {}
         while (true) {
@@ -1001,6 +1029,11 @@ app.post("/api/ai/chat", async (req, res) => {
               if (delta?.content) {
                 fullContent += delta.content
                 res.write(JSON.stringify({ type: "text", content: delta.content }) + "\n")
+              }
+              const reasoningChunk = delta?.reasoning_content || delta?.reasoning
+              if (reasoningChunk) {
+                reasoningContent += reasoningChunk
+                res.write(JSON.stringify({ type: "reasoning", content: reasoningChunk }) + "\n")
               }
               if (delta?.tool_calls) {
                 sawToolCalls = true
@@ -1060,9 +1093,12 @@ app.post("/api/ai/chat", async (req, res) => {
           })
           if (fbRes.ok) {
             const fbData: any = await fbRes.json()
-            const fbContent = fbData?.choices?.[0]?.message?.content ?? ""
+            const fbMsg = fbData?.choices?.[0]?.message ?? {}
+            const fbContent = fbMsg.content ?? fbMsg.reasoning_content ?? ""
             if (fbContent) {
               res.write(JSON.stringify({ type: "text", content: fbContent }) + "\n")
+            } else if (reasoningContent.trim()) {
+              res.write(JSON.stringify({ type: "text", content: reasoningContent }) + "\n")
             }
             inputTokens = fbData?.usage?.prompt_tokens ?? 0
             outputTokens = fbData?.usage?.completion_tokens ?? 0

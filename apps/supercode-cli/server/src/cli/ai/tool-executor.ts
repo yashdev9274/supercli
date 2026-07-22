@@ -228,8 +228,8 @@ export async function executeToolLoop(
           "dates, leaderboard rankings, or any factual claims. Tell the user which tools failed " +
           "and what you would need to proceed.\n\nTool outcomes:\n" + summary,
       })
-      // Break after one sentinel injection — the model should respond next.
-      iter = maxIterations
+      // Allow one more iteration so the model sees the sentinel and responds.
+      iter = maxIterations - 1
     }
 
     // Merge usage data from this iteration

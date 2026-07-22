@@ -88,3 +88,7 @@ apps/web/scripts/
 .commandcode
 .opencode
 
+.agents/skills/brag
+.claude/skills/brag
+.factory/skills/brag
+/brag-output
