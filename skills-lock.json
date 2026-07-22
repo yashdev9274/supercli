@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "brag": {
+      "source": "latent-spaces/brag",
+      "sourceType": "github",
+      "skillPath": "skills/brag/SKILL.md",
+      "computedHash": "b4f38b2d4a535100ba5617782b938aec77c83ff3641f77e012e549d1c7087db4"
+    },
     "frontend-design": {
       "source": "anthropics/skills",
       "sourceType": "github",

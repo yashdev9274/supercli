@@ -9,6 +9,7 @@
 | 3 | Deep Learning | [03-deep-learning.md](./03-deep-learning.md) |
 | 4 | Natural Language Processing | [04-nlp.md](./04-nlp.md) |
 | 5 | LLMs, RAG, Graph, Prompt Engineering, Agents, Fine-tuning, Evaluation | [05-llm-rag-graph.md](./05-llm-rag-graph.md) |
+| 6 | Transformers, LLMs, and Fine-tuning — Foundational Deep Dive | [06-transformers-llm-finetuning.md](./06-transformers-llm-finetuning.md) |
 
 ## Format Per Concept
 

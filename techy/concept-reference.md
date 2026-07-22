@@ -447,6 +447,24 @@
 
 ---
 
+## 13. TRANSFORMERS, LLMs & FINE-TUNING — FOUNDATIONAL DEEP DIVE
+
+*This section covers the foundational deep-dive content in [06-transformers-llm-finetuning.md](./06-transformers-llm-finetuning.md), which expands on topics introduced in files 03 and 05 with greater theoretical depth and practical detail.*
+
+| Concept | Section | File |
+|---------|---------|------|
+| Transformer Architecture Families (Encoder-only vs Decoder-only vs Encoder-Decoder) | [Transformer Architecture Families](./06-transformers-llm-finetuning.md#transformer-architecture-families) | [06](./06-transformers-llm-finetuning.md#transformer-architecture-families) |
+| LLM Training Pipeline (Pre-train → SFT → Preference Optimization) | [LLM Training Pipeline](./06-transformers-llm-finetuning.md#llm-training-pipeline) | [06](./06-transformers-llm-finetuning.md#llm-training-pipeline) |
+| Base Model vs Instruct/Chat Model | [Base Model vs Instruct/Chat Model](./06-transformers-llm-finetuning.md#base-model-vs-instructchat-model) | [06](./06-transformers-llm-finetuning.md#base-model-vs-instructchat-model) |
+| Prompt Templates & Chat Formats (ChatML, LLaMA 3, Mistral, Alpaca, Phi, Gemma) | [Prompt Templates & Chat Formats](./06-transformers-llm-finetuning.md#prompt-templates--chat-formats) | [06](./06-transformers-llm-finetuning.md#prompt-templates--chat-formats) |
+| When to Fine-tune vs RAG vs Prompt Engineering | [When to Fine-tune vs RAG vs Prompt Engineering](./06-transformers-llm-finetuning.md#when-to-fine-tune-vs-rag-vs-prompt-engineering) | [06](./06-transformers-llm-finetuning.md#when-to-fine-tune-vs-rag-vs-prompt-engineering) |
+| Instruction Tuning (dataset format, diversity, multi-turn, quality guidelines) | [Instruction Tuning](./06-transformers-llm-finetuning.md#instruction-tuning) | [06](./06-transformers-llm-finetuning.md#instruction-tuning) |
+| Full Fine-tuning vs PEFT (LoRA, QLoRA, Adapters, Prefix Tuning, Prompt Tuning) | [Fine-tuning Methods: Full Fine-tuning vs PEFT](./06-transformers-llm-finetuning.md#fine-tuning-methods-full-fine-tuning-vs-peft) | [06](./06-transformers-llm-finetuning.md#fine-tuning-methods-full-fine-tuning-vs-peft) |
+| Loss Functions & Training Considerations (cross-entropy, learning rate, batch size, gradient accumulation, overfitting prevention) | [Loss Functions & Training Considerations](./06-transformers-llm-finetuning.md#loss-functions--training-considerations) | [06](./06-transformers-llm-finetuning.md#loss-functions--training-considerations) |
+| Evaluation of Fine-tuned Models (task-specific metrics, human eval, LLM-as-judge, A/B testing, catastrophic forgetting eval) | [Evaluation of Fine-tuned Models](./06-transformers-llm-finetuning.md#evaluation-of-fine-tuned-models) | [06](./06-transformers-llm-finetuning.md#evaluation-of-fine-tuned-models) |
+
+---
+
 ## Status Legend
 
 | Icon | Meaning |

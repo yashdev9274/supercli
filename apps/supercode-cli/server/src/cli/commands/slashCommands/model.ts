@@ -52,6 +52,7 @@ export const CLOUD_MODELS: ModelEntry[] = [
   { value: "glm-5.1", label: "GLM 5.1", provider: "supercode", cost: "free", desc: "Stable & reliable" },
   { value: "kimi-k2-6", label: "Kimi K2.6", provider: "supercode", cost: "free", desc: "Long context" },
   { value: "minimax-m3", label: "MiniMax M3", provider: "supercode", cost: "free", desc: "Fast & smart" },
+  { value: "hy3", label: "Hunyuan Hy3", provider: "supercode", cost: "free", desc: "Tencent flagship" },
 ]
 
 // Models available when you bring your own API key (BYOK)

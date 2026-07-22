@@ -74,8 +74,10 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
         name: provider,
         modelName: model || meta.defaultModel,
         connectionType: "proxy",
-        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish) =>
-          svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish),
+        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish, onStepBudget) => {
+          onStepBudget?.(8)
+          return svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish)
+        },
         generateObject: (schema, prompt) => svc.generateObject(schema, prompt),
       }
     }
