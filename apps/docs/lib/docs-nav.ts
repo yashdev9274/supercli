@@ -15,7 +15,14 @@ export const DOCS_NAV: NavSection[] = [
   {
     title: "Terminal",
     items: [
+      { title: "Getting Started", slug: "terminal-getting-started" },
       { title: "Architecture", slug: "terminal-architecture" },
+    ],
+  },
+  {
+    title: "Providers",
+    items: [
+      { title: "Overview", slug: "providers" },
     ],
   },
 ]

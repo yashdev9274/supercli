@@ -52,8 +52,8 @@ export default async function DocPage({ params }: Props) {
   }
 
   return (
-    <div className="flex gap-16">
-      <article className="docs-prose min-w-0 flex-1 max-w-3xl">
+    <div className="flex justify-center gap-12">
+      <article className="docs-prose min-w-0 w-full max-w-3xl">
         <MDXRemote source={doc.content} components={components} />
         <DocsFooter slug={slug} />
       </article>

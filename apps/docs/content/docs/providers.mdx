@@ -1,0 +1,197 @@
+---
+title: Providers
+description: Supported AI providers, configuration, and API key management for Supercode.
+---
+
+# Providers
+
+Supercode supports multiple AI providers. You can configure them through the CLI with `/connect` or through the web dashboard at the Providers page.
+
+Currently supported providers:
+
+- Google Gemini
+- OpenRouter
+- MiniMax
+- NVIDIA NIM
+- OpenAI
+- Anthropic
+
+## Provider Configuration
+
+### CLI: `/connect`
+
+The `/connect` command walks you through configuring a provider interactively:
+
+```
+/connect
+```
+
+Select from the list of supported providers, then paste your API key when prompted. Keys are sent to the server and stored securely.
+
+### Web Dashboard
+
+The Providers page in the dashboard offers a visual interface:
+
+1. Navigate to the **Providers** page from the sidebar
+2. Each provider card shows its status (connected/disconnected)
+3. Click a provider to enter or update your API key
+4. Set a default provider for new sessions
+
+## Google Gemini
+
+Google Gemini offers competitive pricing and strong performance.
+
+| Model | Description |
+|-------|-------------|
+| gemini-2.5-flash | Fast, cost-effective for most tasks |
+| gemini-2.0-flash | Previous generation, widely available |
+
+**Setup:**
+1. Get an API key from [Google AI Studio](https://aistudio.google.com)
+2. Configure via `/connect` or Dashboard
+3. Server must have `GOOGLE_GENERATIVE_AI_API_KEY` set
+
+## OpenRouter
+
+OpenRouter provides access to multiple models through a single API.
+
+| Model | Description |
+|-------|-------------|
+| gpt-oss-120b | Open-source 120B parameter model |
+| deepseek-v4-flash | Fast reasoning model |
+| claude-3.5-sonnet | Anthropic's balanced model |
+| Various | Access to 100+ models |
+
+**Setup:**
+1. Create an account at [openrouter.ai](https://openrouter.ai)
+2. Generate an API key
+3. Server must have `OPENROUTER_API_KEY` set
+
+## MiniMax
+
+MiniMax provides the MiniMax-M2 model with strong coding capabilities.
+
+| Model | Description |
+|-------|-------------|
+| MiniMax-M2 | General purpose coding model |
+
+**Setup:**
+1. Sign up at [minimax.com](https://minimax.com)
+2. Generate an API key
+3. Server must have `MINIMAX_API_KEY` set
+
+## NVIDIA NIM
+
+NVIDIA NIM offers optimized model inference with multiple model options.
+
+| Model | Description |
+|-------|-------------|
+| minimax-m2.7 | MiniMax optimized for NVIDIA |
+| deepseek-v4-flash | DeepSeek reasoning model |
+| llama-3.3-70b | Meta's 70B parameter model |
+
+**Setup:**
+1. Access NVIDIA NIM at [build.nvidia.com](https://build.nvidia.com)
+2. Generate an API key
+3. Server must have `NVIDIA_API_KEY` set
+
+## OpenAI
+
+OpenAI provides GPT-4 and GPT-4o models.
+
+| Model | Description |
+|-------|-------------|
+| gpt-4o | Latest multimodal model |
+| gpt-4o-mini | Smaller, faster variant |
+| gpt-4-turbo | High-performance option |
+
+**Setup:**
+1. Get an API key from [platform.openai.com](https://platform.openai.com)
+2. Configure via `/connect` or Dashboard
+
+## Anthropic
+
+Anthropic provides Claude models with strong reasoning capabilities.
+
+| Model | Description |
+|-------|-------------|
+| claude-4-opus | Most capable model |
+| claude-4-sonnet | Balanced performance |
+| claude-3.5-haiku | Fast, lightweight |
+
+**Setup:**
+1. Get an API key from [anthropic.com](https://anthropic.com)
+2. Configure via `/connect` or Dashboard
+
+## Environment Variables
+
+For self-hosted or development setups, configure providers via environment variables:
+
+```bash
+# Google Gemini
+GOOGLE_GENERATIVE_AI_API_KEY=your-key
+
+# OpenRouter
+OPENROUTER_API_KEY=your-key
+
+# MiniMax
+MINIMAX_API_KEY=your-key
+MINIMAX_API_BASE=https://api.minimax.com
+
+# NVIDIA NIM
+NVIDIA_API_KEY=your-key
+NVIDIA_API_BASE=https://api.nvcf.nvidia.com
+
+# OpenAI
+OPENAI_API_KEY=your-key
+
+# Anthropic
+ANTHROPIC_API_KEY=your-key
+```
+
+## Switching Providers Mid-Session
+
+Use the `/model` command to switch providers or models during an active session:
+
+```
+/model
+```
+
+This opens a selection menu. The conversation history is preserved when switching.
+
+## Default Provider
+
+Set a default provider so new sessions always start with your preferred model:
+
+- **CLI**: Set via the initial setup prompts
+- **Dashboard**: Select default in the Providers page
+
+## Troubleshooting
+
+### API Key Issues
+
+```
+Error: Provider API key not configured
+```
+
+1. Run `/connect` to set up a provider
+2. Verify the API key in the Dashboard
+3. Ensure the API key has not expired
+4. Check server environment variables for correct configuration
+
+### Rate Limiting
+
+If you encounter rate limits:
+1. Wait before retrying
+2. Consider switching to a different provider
+3. Upgrade your API plan
+
+### Model Not Available
+
+```
+Model unavailable for this provider
+```
+
+1. Check that the provider supports the requested model
+2. Verify your API plan includes access to the model
+3. Try a different model from the same provider

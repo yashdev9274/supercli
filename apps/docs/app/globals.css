@@ -1,15 +1,59 @@
 @import "tailwindcss";
 @custom-variant dark (&:is(.dark *));
+@custom-variant hoverable (@media (hover: hover) and (pointer: fine));
 
 :root {
-  --background: oklch(0.145 0.005 285);
-  --foreground: oklch(0.92 0 0);
-  --muted: oklch(0.22 0.006 285);
-  --muted-foreground: oklch(0.62 0.01 285);
-  --border: oklch(0.28 0.006 285);
-  --primary: oklch(0.72 0.14 165);
-  --primary-muted: oklch(0.72 0.14 165 / 0.1);
-  --radius: 0.5rem;
+  --background: oklch(0.1797 0.0043 308.1928);
+  --foreground: oklch(0.8109 0 0);
+  --card: oklch(0.1822 0 0);
+  --card-foreground: oklch(0.8109 0 0);
+  --popover: oklch(0.1797 0.0043 308.1928);
+  --popover-foreground: oklch(0.8109 0 0);
+  --primary: oklch(0.7214 0.1337 49.9802);
+  --primary-foreground: oklch(0.1797 0.0043 308.1928);
+  --secondary: oklch(0.5940 0.0443 196.0233);
+  --secondary-foreground: oklch(0.1797 0.0043 308.1928);
+  --muted: oklch(0.2520 0 0);
+  --muted-foreground: oklch(0.6268 0 0);
+  --accent: oklch(0.3211 0 0);
+  --accent-foreground: oklch(0.8109 0 0);
+  --destructive: oklch(0.5940 0.0443 196.0233);
+  --destructive-foreground: oklch(0.1797 0.0043 308.1928);
+  --border: oklch(0.2520 0 0);
+  --input: oklch(0.2520 0 0);
+  --ring: oklch(0.7214 0.1337 49.9802);
+  --primary-muted: color-mix(in oklch, var(--primary) 15%, transparent);
+
+  --radius: 0.75rem;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 body {
@@ -17,6 +61,10 @@ body {
   color: var(--foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  border-color: var(--border);
 }
 
 /* Scrollbar styling */
@@ -30,6 +78,7 @@ body {
 ::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 4px;
+  transition: background 150ms var(--ease-out);
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--muted-foreground);
@@ -134,7 +183,7 @@ body {
   color: var(--muted-foreground);
   font-size: 0.9375rem;
   border-radius: 0 0.375rem 0.375rem 0;
-  background: var(--primary-muted);
+  background: color-mix(in oklch, var(--primary) 10%, transparent);
 }
 
 .docs-prose strong {
@@ -146,7 +195,7 @@ body {
   color: var(--primary);
   text-decoration: none;
   border-bottom: 1px solid transparent;
-  transition: border-color 150ms ease-out;
+  transition: border-color 150ms var(--ease-out);
 }
 
 .docs-prose a:hover {
@@ -160,54 +209,110 @@ body {
   background: var(--border);
 }
 
-/* Tables */
 .docs-prose table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   margin-bottom: 1.5rem;
   font-size: 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
 }
 
-.docs-prose th,
-.docs-prose td {
-  padding: 0.625rem 0.75rem;
-  text-align: left;
-  border: 1px solid var(--border);
+.docs-prose tr:first-child {
+  border-bottom: 1px solid var(--border);
+  background: var(--muted);
 }
 
 .docs-prose th {
+  padding: 0.625rem 0.875rem;
+  text-align: left;
   font-weight: 600;
+  font-size: 0.8125rem;
+  color: var(--foreground);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.docs-prose td {
+  padding: 0.625rem 0.875rem;
+  text-align: left;
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
+  line-height: 1.5;
+}
+
+.docs-prose tr:last-child td {
+  border-bottom: none;
+}
+
+.docs-prose tr:not(:first-child):hover {
+  background: color-mix(in oklch, var(--primary) 5%, transparent);
+}
+
+.docs-prose table code {
+  font-size: 0.8em;
+  padding: 0.15em 0.35em;
+  border-radius: 0.25rem;
   background: var(--muted);
   color: var(--foreground);
 }
 
-.docs-prose td {
-  color: oklch(0.8 0 0);
+.docs-prose table strong {
+  color: var(--foreground);
 }
 
-/* Step numbers in headings */
 .docs-prose h2:has(strong) {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-/* Tip block */
 .docs-prose blockquote > p:first-child {
   margin-bottom: 0.25rem;
 }
 
-/* Animation */
-@keyframes fade-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+/* Stagger content entrance — Emil: stagger for multi-element entrances */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .docs-prose > * {
-  animation: fade-in 0.3s ease-out both;
+  animation: fade-in-up 0.35s var(--ease-out) both;
 }
 
 .docs-prose > *:nth-child(2) { animation-delay: 0.02s; }
 .docs-prose > *:nth-child(3) { animation-delay: 0.04s; }
 .docs-prose > *:nth-child(4) { animation-delay: 0.06s; }
 .docs-prose > *:nth-child(5) { animation-delay: 0.08s; }
+.docs-prose > *:nth-child(6) { animation-delay: 0.10s; }
+.docs-prose > *:nth-child(7) { animation-delay: 0.12s; }
+.docs-prose > *:nth-child(8) { animation-delay: 0.14s; }
+.docs-prose > *:nth-child(9) { animation-delay: 0.16s; }
+.docs-prose > *:nth-child(10) { animation-delay: 0.18s; }
+
+/* @starting-style for entry animations — Emil: modern CSS patterns */
+@starting-style {
+  .docs-sidebar-item {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+}
+
+/* prefers-reduced-motion — Emil: always provide fallback */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

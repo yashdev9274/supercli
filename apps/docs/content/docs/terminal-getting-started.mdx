@@ -1,85 +1,130 @@
 ---
 title: Getting Started
-description: Setting up the Terminal.
+description: Installing and configuring the Supercode Terminal CLI.
 ---
 
 # Getting Started
 
-This guide will help you get started with the Supercode Terminal once it's available.
+This guide covers the detailed setup for the Supercode Terminal CLI.
 
 ## Prerequisites
 
-Before using Terminal, ensure you have:
+- **Node.js 18+** or **Bun 1.x** — Runtime for the CLI
+- **Git** — Required for repository operations
+- **GitHub Account** — For authentication
+- **AI Provider API Key** — For the AI model (optional if using server-configured models)
 
-1. **Supercode Account** - Sign up via the Dashboard at [supercli.com](https://supercli.com)
-2. **GitHub Account** - For authentication (via OAuth)
-3. **AI Provider API Key** - For the AI model (see below)
+## Installation
 
-## Supported AI Providers
+### Install Script (Recommended)
 
-Terminal will support multiple AI providers:
+```bash
+curl -fsSL https://supercode.ai/install | bash
+```
 
-| Provider | Models | Setup |
-|----------|--------|-------|
-| OpenAI | GPT-4, GPT-4o | API key from openai.com |
-| Anthropic | Claude 3.5, Claude 4 | API key from anthropic.com |
-| Google | Gemini 1.5, Gemini 2 | API key from aistudio.google.com |
-| Ollama | Local models | Local installation |
+The install script detects your platform, downloads the appropriate binary, and adds it to your PATH.
 
-## Setting Up
+### npm / Bun
 
-### 1. Create Account
+```bash
+npm install -g supercode-cli@latest
+```
 
-1. Go to [supercli.com](https://supercli.com)
-2. Sign in with GitHub
-3. Complete your profile
+```bash
+bun install -g supercode-cli@latest
+```
 
-### 2. Access Terminal
+### Homebrew
 
-Navigate to [terminal.supercli.com](https://terminal.supercli.com) (or use local development)
+```bash
+brew install supercode
+```
 
-### 3. Add API Key
+### NPX (No Install)
 
-1. Go to Settings in Terminal
-2. Add your AI provider API key
-3. Set a default provider (optional)
+```bash
+npx supercode-cli
+```
 
-### 4. Create a Session
+### Windows (WSL)
 
-1. Click **New Session**
-2. Give your session a name
-3. Start chatting with the AI
+Windows support is via WSL. Install WSL first, then use any of the methods above:
 
-## Using Terminal
+```bash
+# Inside WSL (Ubuntu/Debian)
+npm install -g supercode-cli@latest
+```
 
-### Basic Commands
+## Post-Install Verification
 
-| Command | Description |
-|---------|-------------|
-| `/new` | Start a new session |
-| `/clear` | Clear current conversation |
-| `/context` | View/set context files |
-| `/model` | Switch AI model |
+```bash
+supercode --version
+```
 
-### Tips
+If this fails, ensure the install path is in your `$PATH`:
 
-- Be specific in your requests
-- Use **Plan mode** (Tab) for complex features
-- Use `@filename` to reference specific files
-- Use `/undo` to revert changes
+```bash
+# npm global prefix
+export PATH="$(npm root -g)/../bin:$PATH"
+```
 
-## Troubleshooting
+## First Run
 
-### Connection Issues
+### 1. Authenticate
 
-If you can't connect to Terminal:
-1. Check your internet connection
-2. Ensure you're signed in
-3. Try refreshing the page
+```bash
+supercode login
+```
 
-### API Key Issues
+### 2. Navigate to a Project
 
-If AI responses fail:
-1. Verify your API key is valid
-2. Check you have credits/quota available
-3. Try a different provider
+```bash
+cd ~/projects/my-app
+```
+
+### 3. Start Supercode
+
+```bash
+supercode
+```
+
+On first run in a project, Supercode asks:
+
+1. **Trust prompt** — "Do you trust the files in this folder?" Select **Yes**.
+2. **Taste profile** — Supercode scans for package manager, language, and structure.
+
+### 4. Initialize
+
+Run `/init` to let Supercode deeply analyze your project:
+
+```
+/init
+```
+
+This indexes your codebase for context-aware assistance.
+
+## Configuration
+
+### AI Provider
+
+Configure your AI provider with `/connect`:
+
+```
+/connect
+```
+
+This walks you through selecting a provider and entering an API key.
+
+### Command-Line Options
+
+```bash
+supercode --trust         # Skip trust prompt
+supercode --skip-taste    # Skip taste profiling
+supercode --no-init       # Skip project initialization
+```
+
+## What's Next
+
+- [Architecture](/docs/terminal-architecture) — How the CLI works under the hood
+- [Providers](/docs/providers) — All supported AI providers
+- [Intro](/docs/intro) — Full overview of Supercode

@@ -49,7 +49,7 @@ export function OnThisPage({ headings }: Props) {
               <a
                 href={`#${h.id}`}
                 className={cn(
-                  "block py-0.5 text-[13px] transition-all duration-150 ease-out border-l-2 pl-3 -ml-[2px]",
+                  "block py-0.5 text-[13px] transition-all duration-150 border-l-2 pl-3 -ml-[2px]",
                   activeId === h.id
                     ? "border-[var(--primary)] font-medium text-[var(--primary)]"
                     : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:border-[var(--border)]"

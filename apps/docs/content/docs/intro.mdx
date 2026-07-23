@@ -1,167 +1,116 @@
 ---
 title: Intro
-description: Get started with the Supercode Terminal.
+description: Get started with Supercode — the open source AI coding agent for your terminal, web, and IDE.
 ---
 
-# Intro
+Supercode is an open source AI coding agent that works where you work — terminal, web, IDE, Slack, and more. Describe what you need, and Supercode handles the rest.
 
-Get started with Supercode.
+This documentation covers everything from installation to advanced usage.
 
-Supercode is an open source AI coding agent. It's available as a terminal-based CLI and web terminal interface.
+## Quick Start
 
-## Prerequisites
-
-To use Supercode Terminal, you'll need:
-
-- A modern browser (Chrome, Firefox, or Safari)
-- An account on [supercode-terminal.vercel.app](https://supercode-terminal.vercel.app)
-- API keys for the LLM providers you want to use
-
-## Install
-
-The easiest way to install Supercode is through the install script.
-
-```bash
-curl -fsSL https://supercode.ai/install | bash
-```
-
-You can also install it with the following commands:
-
-Using Node.js (npm or Bun):
+Get Supercode running in under a minute:
 
 ```bash
 npm install -g supercode-cli
 ```
 
-Using Homebrew on macOS and Linux:
-
-```bash
-brew install supercode
-```
-
-Using NPX (no install):
+Or try it without installing:
 
 ```bash
 npx supercode-cli
 ```
 
-Windows — recommended: use WSL. For the best experience on Windows, we recommend Windows Subsystem for Linux (WSL).
+```bash
+curl -fsSL https://supercode.ai/install | bash
+```
 
 ```bash
-npm install -g supercode-cli
+brew install supercode
 ```
 
-You can also grab the binary from the [Releases](https://github.com/yashdev9274/superCli/releases).
-
-## Configure
-
-With Supercode you can use any LLM provider by configuring their API keys.
-
-If you are new to using LLM providers, we recommend starting with the free models included — GPT, Gemini, Minimax, Deepseek and more available out of the box.
-
-### Connect a Provider
-
-1. Run the `/connect` command in the terminal
-2. Select your provider
-3. Enter your API key
+Verify the install:
 
 ```bash
-/connect
+supercode --version
 ```
 
-You'll be prompted to paste your API key.
-
-```
-┌ API key
-│
-│
-└ enter
-```
-
-Supported providers include OpenAI, Anthropic, Google Gemini, Minimax, NVIDIA, and OpenRouter.
-
-## Initialize
-
-Navigate to a project you want to work on.
+Then authenticate and start coding:
 
 ```bash
-cd /path/to/project
+supercode login
+cd /path/to/your-project
+supercode
 ```
 
-And run Supercode.
+## How It Works
 
-```bash
-supercode-cli
-```
+Supercode is a terminal-based AI coding agent that understands your codebase. It uses AI models to read, write, and execute code based on natural language instructions.
 
-Next, initialize Supercode for the project by running the following command.
+- **Codebase-aware** — Supercode analyzes your project structure, coding patterns, and dependencies to make relevant changes
+- **Multi-provider** — Use OpenAI, Anthropic, Google Gemini, OpenRouter, MiniMax, NVIDIA, and more
+- **Taste learning** — Supercode learns your preferences as you work (package manager, libraries, code style)
+- **Undo/redo** — Every change is reversible with `/undo` and `/redo`
 
-```bash
-/init
-```
+## Three Modes
 
-This will get Supercode to analyze your project and understand the structure and coding patterns used.
+Supercode operates in three modes, each suited for different workflows:
 
-## Usage
+| Mode | Description | Best for |
+|------|-------------|----------|
+| **Chat** | Direct conversation with AI, workspace context as system prompt | Questions, code review, explanations |
+| **Tools** | AI with file system access (read, search, grep) | Changes that need file exploration |
+| **Agent** | Autonomous coding agent that can read, write, and execute commands | Building features, refactoring, debugging |
 
-You are now ready to use Supercode to work on your project. Feel free to ask it anything!
-
-### Ask Questions
-
-You can ask Supercode to explain the codebase to you.
-
-How is authentication handled in the API?
-
-This is helpful if there's a part of the codebase that you didn't work on.
-
-### Add Features
-
-You can ask Supercode to add new features to your project. We recommend first asking it to create a plan.
-
-When a user deletes a note, we'd like to flag it as deleted in the database.
-Then create a screen that shows all the recently deleted notes.
-
-You want to give Supercode enough details to understand what you want. It helps to talk to it like you are talking to a junior developer on your team.
-
-### Make Changes
-
-For more straightforward changes, you can ask Supercode to directly build them.
-
-We need to add authentication to the /settings route.
-
-Make sure you provide a good amount of detail so Supercode makes the right changes.
-
-### Undo Changes
-
-If Supercode makes changes you don't want, use the `/undo` command.
-
-```bash
-/undo
-```
-
-You can run `/undo` multiple times to undo multiple changes. Or use `/redo` to redo changes.
+Switch modes mid-session with the `/mode` command.
 
 ## Web Terminal
 
-You can also access Supercode from your browser at [supercode-terminal.vercel.app](https://supercode-terminal.vercel.app).
-
-Features include:
+Supercode also runs in your browser at [supercode-terminal.vercel.app](https://supercode-terminal.vercel.app). Features include:
 
 - Session management with conversation history
 - Workspace file explorer
 - Multi-session tabs
 - Device authorization for secure CLI login
 
-## Customize
+## Key Features
 
-To make Supercode your own:
+### Codebase Understanding
 
-- Pick a theme from the settings
-- Configure API keys for your preferred providers
-- Set up workspace integrations
+Run `/init` in any project to have Supercode analyze your codebase. It learns:
+
+- Project structure and framework
+- Coding patterns and conventions
+- Dependencies and configuration
+- Language and runtime specifics
+
+### Taste Profile
+
+Supercode builds a taste profile as you work. Run `supercode taste` to see what it knows about your preferences. This profile carries between sessions and only relevant taste context loads per session.
+
+### Multi-step Reasoning
+
+For complex tasks, Supercode can:
+
+- Create detailed plans before making changes
+- Search across files to find relevant code
+- Make coordinated multi-file edits
+- Run commands and interpret output
+- Undo unwanted changes
+
+## Supported Platforms
+
+| Platform | Status |
+|----------|--------|
+| macOS | ✅ Supported |
+| Linux | ✅ Supported (x86_64, aarch64) |
+| Windows | ✅ WSL recommended |
+| Web | ✅ Available at supercode-terminal.vercel.app |
 
 ## Next Steps
 
-- Check out the [Getting Started](/docs/terminal-getting-started) guide for detailed setup
-- Learn about the [Architecture](/docs/terminal-architecture)
-- Join our [GitHub community](https://github.com/yashdev9274/superCli)
+- [Quickstart](/docs/quickstart) — Get up and running in 5 minutes
+- [Authentication](/docs/authentication) — Set up authentication and API keys
+- [Terminal Getting Started](/docs/terminal-getting-started) — Detailed terminal setup guide
+- [Architecture](/docs/terminal-architecture) — How Supercode works under the hood
+- [Providers](/docs/providers) — Supported AI providers and configuration
