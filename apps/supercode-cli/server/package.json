@@ -70,7 +70,7 @@
   "devDependencies": {
     "@clack/prompts": "^1.5.0",
     "@openrouter/ai-sdk-provider": "^2.9.0",
-    "@openrouter/sdk": "^0.12.79",
+    "@openrouter/sdk": "^1.0.12",
     "@super/db-terminal": "workspace:*",
     "@super/skills": "workspace:*",
     "@types/bun": "^1.3.14",
