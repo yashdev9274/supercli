@@ -1,6 +1,6 @@
 {
   "name": "supercode-cli",
-  "version": "0.1.83",
+  "version": "0.1.84",
   "description": "AI-powered coding agent CLI",
   "main": "dist/main.js",
   "bin": {
@@ -72,6 +72,7 @@
     "@openrouter/ai-sdk-provider": "^2.9.0",
     "@openrouter/sdk": "^0.12.79",
     "@super/db-terminal": "workspace:*",
+    "@super/skills": "workspace:*",
     "@types/bun": "^1.3.14",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",

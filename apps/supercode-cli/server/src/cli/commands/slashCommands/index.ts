@@ -9,11 +9,14 @@ import { theme, heavyDivider } from "src/cli/utils/tui.ts"
 import type { ModelProvider } from "src/cli/ai/provider.ts"
 
 export interface SlashCommandResult {
-  type: "model_change" | "help" | "unknown" | "exit" | "connect" | "context" | "compact" | "plan" | "scratch" | "voice" | "verbose" | "message" | "clear" | "new_conversation"
+  type: "model_change" | "help" | "unknown" | "exit" | "connect" | "context" | "compact" | "plan" | "scratch" | "skills" | "voice" | "verbose" | "message" | "clear" | "new_conversation"
   provider?: ModelProvider
   model?: string
   label?: string
   message?: string
+  skillName?: string
+  skillContent?: string
+  trigger?: boolean
   conversationId?: string
   conversationMode?: string
 }
@@ -40,6 +43,8 @@ export const COMMANDS = [
   { cmd: "/exit", desc: "End the session" },
   { cmd: "/mcp", desc: "Manage MCP connections (add, connect, toggle, remove)" },
   { cmd: "/connectors", desc: "Manage app connectors (Merge, Composer, etc.)" },
+  { cmd: "/skills", desc: "List installed agent skills and view their SKILL.md" },
+  { cmd: "/sk", desc: "Alias for /skills" },
 ]
 
 function chatify(cmd: string, args: string): string {
@@ -109,6 +114,22 @@ const handlers: Record<string, (args: string) => Promise<SlashCommandResult>> = 
     const { connectorsCommand } = await import("./connectors.ts")
     return connectorsCommand(args)
   },
+  skills: async (args) => {
+    const { skillCommand } = await import("./skill.ts")
+    const result = await skillCommand(args)
+    if (result?.message) {
+      return { type: "skills", message: result.message, skillName: result.skillName }
+    }
+    return { type: "skills" }
+  },
+  sk: async (args) => {
+    const { skillCommand } = await import("./skill.ts")
+    const result = await skillCommand(args)
+    if (result?.message) {
+      return { type: "skills", message: result.message, skillName: result.skillName }
+    }
+    return { type: "skills" }
+  },
   search: async (args) => ({ type: "message", message: chatify("search", args) }),
   scrape: async (args) => ({ type: "message", message: chatify("scrape", args) }),
   interact: async (args) => ({ type: "message", message: chatify("interact", args) }),
@@ -156,8 +177,23 @@ export async function handleSlashCommand(input: string): Promise<SlashCommandRes
     return { type: "exit" }
   }
 
-  const handler = handlers[cmd.toLowerCase()]
-  if (!handler) return { type: "unknown" }
+  const safeCmd = cmd.toLowerCase()
+  const handler = handlers[safeCmd]
+  if (!handler) {
+    // Check if the command matches a skill name — load it directly
+    const { skillCommand } = await import("./skill.ts")
+    const result = await skillCommand(`load ${safeCmd}`)
+    if (result?.message) {
+      const userArgs = args.trim()
+      if (userArgs) {
+        // User typed text after skill name — send as message with skill in context
+        return { type: "message", message: userArgs, skillName: result.skillName, skillContent: result.message }
+      }
+      // Just /{name} — load and trigger the skill welcome
+      return { type: "skills", message: result.message, skillName: result.skillName, trigger: true }
+    }
+    return { type: "unknown" }
+  }
 
   return handler(args.trim())
 }

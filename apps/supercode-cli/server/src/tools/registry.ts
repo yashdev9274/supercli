@@ -18,6 +18,7 @@ import { switchToAgentModeTool } from "./definitions/switch-to-agent-mode.ts"
 import { delegateTool, taskTool } from "./definitions/delegate.ts"
 import { questionTool } from "./definitions/question.ts"
 import { todowriteTool } from "./definitions/todowrite.ts"
+import { skillTool } from "./definitions/skill.ts"
 import { permissionManager } from "./permission-manager.ts"
 
 //
@@ -93,6 +94,7 @@ export const toolMeta: Record<string, ToolMeta> = {
   task: { category: "agent", requiresPermission: false, description: taskTool.description },
   question: { category: "agent", requiresPermission: false, description: questionTool.description },
   todowrite: { category: "agent", requiresPermission: false, description: todowriteTool.description },
+  skill: { category: "agent", requiresPermission: false, description: skillTool.description },
 }
 
 export const tools = {
@@ -115,4 +117,5 @@ export const tools = {
   task: defineTool(taskTool),
   question: defineTool(questionTool),
   todowrite: defineTool(todowriteTool),
+  skill: defineTool(skillTool),
 }

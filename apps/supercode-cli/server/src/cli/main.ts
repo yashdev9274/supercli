@@ -7,6 +7,7 @@ import { Command } from "commander"
 import { loginCommand } from "./commands/login"
 import { theme } from "./utils/tui"
 import { supercodeInit } from "./commands/ai/init"
+import { skillCommand } from "./commands/skill"
 import { renderWelcome } from "./utils/welcome"
 
 process.on("unhandledRejection", (reason) => {
@@ -31,6 +32,7 @@ async function main() {
     .version(version)
     .addCommand(loginCommand)
     .addCommand(supercodeInit)
+    .addCommand(skillCommand)
 
   program.action(async () => {
     renderWelcome(version)
