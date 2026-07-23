@@ -5,11 +5,11 @@ description: Get up and running with Supercode in under 5 minutes.
 
 # Quickstart
 
-In this quickstart guide, we'll walk you through the steps to get started with Supercode. By the end, you'll have a working setup and be ready to start building.
+This guide walks you through installing Supercode, authenticating, and running your first prompt. By the end, you'll have a working setup.
 
 ## 1. Install Supercode
 
-Use your preferred package manager:
+Choose your preferred method:
 
 ```bash
 curl -fsSL https://supercli.vercel.app/install | bash
@@ -37,52 +37,48 @@ Verify the install:
 supercode --version
 ```
 
-## 2. Log in
+## 2. Log In
 
-Run the following command to log in to the CLI:
+Authenticate with GitHub OAuth:
 
 ```bash
 supercode login
 ```
 
-This opens a browser to authenticate. Click **Authorize** to sign in and return to the terminal after the login successful message appears.
+This opens a browser window for authorization. Click **Authorize** to sign in.
 
-**Tip:** Chrome may ask to allow access to your local network. Supercode runs a temporary local server to complete the OAuth callback. This is safe and expected. Click **Allow** to proceed.
+**Tip:** Chrome may ask for local network access — Supercode runs a temporary local server for the OAuth callback. This is safe. Click **Allow**.
 
-## 3. Start coding
+## 3. Start Coding
 
-Navigate to a project directory and run:
+Navigate to a project and run:
 
 ```bash
 cd /path/to/your-project
 supercode
 ```
 
-The first time you run `supercode` in a project, it asks whether to trust the files in that folder. Select **Yes** to continue. Supercode asks this once per project.
+The first time you run `supercode`, it asks whether to trust the files in that folder. Select **Yes** (skip with `supercode --trust`).
 
-**Tip:** Skip this prompt with `supercode --trust`.
+Supercode then builds a taste profile — learning your preferences as you work.
 
-Next, Supercode checks for your coding preferences. It builds a taste profile as you work — learning which package manager you use, which libraries you prefer, and how you structure code.
+## 4. Run Your First Prompt
 
-## 4. Run your first prompt
+Type this in the Supercode prompt:
 
-Let's run a small prompt. Type the following in the input box:
-
-```bash
+```
 Create a date.js CLI that outputs the ISO format of the current date. Use commander.js.
 ```
 
-Supercode will analyze the request, create the file, and report back when it's done. Review the changes and type `y` to accept.
+Supercode analyzes the request, creates the file, and reports back. Review the changes and type `y` to accept.
 
-After Supercode finishes executing, check what it learned about your preferences:
+Check what it learned:
 
 ```bash
 supercode taste
 ```
 
-As you work, Supercode builds a taste profile that carries into future sessions — and only relevant taste context loads per session.
-
-## Useful shortcuts
+## Useful Shortcuts
 
 | Shortcut | Action |
 | -------- | ------ |
@@ -91,21 +87,19 @@ As you work, Supercode builds a taste profile that carries into future sessions 
 | `/undo` | Undo last change |
 | `/redo` | Redo undone change |
 | `/connect` | Connect an AI provider |
-
-## Conclusion
-
-You've installed Supercode, logged in, and run your first prompt. From here, every session only gets smarter as Supercode adapts to your patterns and learns your preferences.
+| `/mode` | Switch between Chat, Tools, Agent modes |
 
 ## Updating
 
-Keep Supercode up to date for the latest features and fixes:
+Keep Supercode up to date:
 
 ```bash
 npm update -g supercode-cli@latest
 ```
 
-## What's next
+## What's Next
 
 - [Intro](/docs/intro) — Full overview of Supercode
 - [Authentication](/docs/authentication) — Auth setup and API keys
 - [Architecture](/docs/terminal-architecture) — How Supercode works under the hood
+- [Providers](/docs/providers) — Configure AI providers

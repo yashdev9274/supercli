@@ -9,8 +9,10 @@ export default function DocsLayout({
       <DocsHeader />
       <div className="flex flex-1">
         <DocsSidebar />
-        <main className="flex-1 min-w-0 py-10 px-6 sm:px-10 lg:px-14 max-w-4xl">
-          {children}
+        <main className="flex-1 min-w-0 py-10 px-6">
+          <div className="mx-auto max-w-[1200px]">
+            {children}
+          </div>
         </main>
       </div>
     </div>

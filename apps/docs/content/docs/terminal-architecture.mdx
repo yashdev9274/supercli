@@ -1,30 +1,59 @@
 ---
 title: Architecture
-description: Technical architecture of the Supercode CLI.
+description: Technical architecture of the Supercode CLI — components, data flow, and deployment.
 ---
 
 # Architecture
 
-This document describes the technical architecture of the Supercode CLI — a terminal-based AI coding agent.
+Supercode CLI is a terminal-based AI coding agent built with TypeScript on Bun. This document describes its architecture, components, and data flow.
 
-## Overview
+## System Overview
 
 The system consists of two main components:
 
 1. **CLI App** — Commander-based terminal application (Bun/TypeScript)
 2. **API Server** — Express server for auth, AI proxy, and persistence (deployed on Render)
 
-## Database Schema
+```
+┌─────────────┐         ┌──────────────┐        ┌──────────┐
+│   Terminal   │ ─────►   │  API Server  │ ─────► │   AI    │
+│  (Bun/CLI)   │ ◄───── │  (Express)   │ ◄───── │ Providers│
+└─────────────┘         └──────────────┘        └──────────┘
+                              │
+                              ▼
+                        ┌──────────┐
+                        │PostgreSQL│
+                        │ (Prisma) │
+                        └──────────┘
+```
 
-Terminal uses a PostgreSQL database via Prisma with the following models:
+### CLI App (supercode-cli)
+
+The CLI is the primary interface. It handles:
+- User authentication (device code flow)
+- Project initialization and taste profiling
+- AI interaction (Chat, Tools, Agent modes)
+- File system operations and command execution
+
+### API Server
+
+The server acts as a secured proxy between the CLI and AI providers:
+- Manages authentication sessions via Better-Auth
+- Proxies AI requests (API keys stay server-side)
+- Stores conversations and messages in PostgreSQL
+- Handles device authorization flow
+
+## Database Schema
 
 ### User
 - GitHub-authenticated user accounts
 - Links to sessions, accounts, and conversations
+- Stores provider API keys (encrypted)
 
 ### Session
 - Better-Auth session management
 - Tracks expiry, IP, and user agent
+- 30-day inactivity timeout
 
 ### Account
 - OAuth provider accounts (GitHub)
@@ -32,17 +61,20 @@ Terminal uses a PostgreSQL database via Prisma with the following models:
 
 ### DeviceCode
 - Device authorization grant codes
-- Tracks polling status and expiry (10-minute TTL)
+- 10-minute TTL with polling status tracking
+- Used for CLI authentication flow
 
 ### Conversation
 - AI chat sessions
-- Supports multiple modes: `chat`, `tools`, `agent`
+- Supports three modes: `chat`, `tools`, `agent`
 - Each conversation belongs to a user and contains messages
+- Tracked by title, mode, and creation date
 
 ### Message
 - Individual messages within conversations
 - Roles: `user`, `assistant`, `system`, `tool`
-- Stores raw content as text
+- Stores raw content and metadata
+- Ordered by creation timestamp
 
 ## CLI Flow
 
@@ -52,39 +84,56 @@ Terminal uses a PostgreSQL database via Prisma with the following models:
 supercode <command>
 ```
 
-Outputs a styled banner and registers two commands:
+The CLI outputs a styled banner and registers commands via Commander.js.
+
+### Commands
 
 - **`login`** — Device code authentication via GitHub OAuth
 - **`init`** — Start an interactive AI coding session
+- **`--version`** — Print version
+- **`--help`** — Show help
 
 ### Init Flow
 
-1. Check stored token → authenticate with server (`GET /api/user/me`)
-2. Scan current workspace for project info (language, structure)
-3. Prompt for AI provider and model selection
-4. Prompt for mode: Chat, Tools, or Agent
-5. Launch the chosen mode's interactive loop
+1. **Auth check** — Read stored token → authenticate with server (`GET /api/user/me`)
+2. **Workspace scan** — Analyze project structure, language, dependencies
+3. **Provider prompt** — Select AI provider and model
+4. **Mode prompt** — Choose Chat, Tools, or Agent
+5. **Interactive loop** — Launch the chosen mode
 
-### Supported AI Providers
+```
+supercode
+→ ✓ Authenticated as yashdev9274
+→ Scanning workspace... (Next.js, TypeScript, Tailwind)
+→ Select provider: [Gemini / OpenRouter / MiniMax]
+→ Select mode: [Chat / Tools / Agent]
+→ Ready. Type your prompt.
+```
 
-| Provider | Models | Key Required |
-|----------|--------|--------------|
-| Google Gemini | gemini-2.5-flash | Server-configured |
-| OpenRouter | gpt-oss-120b, deepseek-v4-flash | Server-configured |
-| MiniMax | MiniMax-M2 | Server-configured |
-| NVIDIA NIM | minimax-m2.7, deepseek-v4-flash, llama-3.3-70b | Server-configured |
+## AI Modes
 
-API keys are configured server-side via environment variables (`GOOGLE_GENERATIVE_AI_API_KEY`, `OPENROUTER_API_KEY`, etc.).
+### Chat Mode
+Direct conversation with the AI. Workspace context is sent as a system prompt. Best for questions, explanations, and code review.
 
-### Modes
+### Tools Mode
+AI has file system access via tool calls:
+- `read` — Read file contents
+- `search` — Full-text search across files
+- `grep` — Pattern matching in files
+- `ls` — List directory contents
 
-- **Chat** — Direct conversation with AI. Workspace context is sent as system prompt.
-- **Tools** — AI with file system access (read, search, grep) via tool calls.
-- **Agent** — Autonomous coding agent that can read, write, and execute commands.
+Best for changes that need file exploration.
 
-## API Server
+### Agent Mode
+Autonomous coding agent that can read, write, and execute shell commands:
+- Full file read/write/create/delete
+- Command execution with output capture
+- Multi-step reasoning and planning
+- Git-aware operations (status, diff, commit)
 
-The Express server runs on Render and provides:
+Best for building features, refactoring, and debugging.
+
+## API Endpoints
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
@@ -97,23 +146,37 @@ The Express server runs on Render and provides:
 | `/api/ai/chat` | POST | Streaming AI chat (proxied) |
 | `/api/ai/generate-object` | POST | Structured generation |
 
-AI requests are proxied through the server so API keys remain server-side (not exposed to the CLI client).
+AI requests are proxied through the server so API keys remain server-side.
+
+## Supported AI Providers
+
+| Provider | Models | Key Required |
+|----------|--------|--------------|
+| Google Gemini | gemini-2.5-flash, gemini-2.0-flash | Server-configured |
+| OpenRouter | gpt-oss-120b, deepseek-v4-flash, claude-3.5 | Server-configured |
+| MiniMax | MiniMax-M2 | Server-configured |
+| NVIDIA NIM | minimax-m2.7, deepseek-v4-flash, llama-3.3-70b | Server-configured |
+
+API keys are configured server-side via environment variables.
 
 ## Deployment
 
 ### Server
 - **Platform**: Render (free tier)
 - **Port**: 10000 (default)
-- **Domain**: supercode-8w7e.onrender.com
+- **Runtime**: Node.js / Express
+- **Database**: PostgreSQL via Prisma ORM
 
-### Notes
+### Cold Start Notes
 - Free tier spins down after 15 minutes of inactivity
 - Cold start takes 30-60 seconds
-- First CLI request will fail — wait a minute and retry
+- First CLI request after inactivity will fail — wait and retry
 
-## Security
+## Security Architecture
 
-- AI provider API keys are stored server-side only
-- Session tokens are encrypted with `BETTER_AUTH_SECRET`
+- AI provider API keys stored server-side only (encrypted database columns)
+- Session tokens encrypted with `BETTER_AUTH_SECRET`
 - GitHub OAuth handled entirely server-side
 - All production traffic over HTTPS
+- Device codes have 10-minute TTL
+- CLI stores only a session token locally (`~/.supercode/token.json`)

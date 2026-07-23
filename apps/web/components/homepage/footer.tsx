@@ -333,7 +333,7 @@ const Footer = () => {
           </p>
           <div className="flex items-center gap-6">
             <span className="text-[11px] font-mono text-muted-foreground/20">
-              v0.1.77-beta
+              v0.1.83-beta
             </span>
           </div>
         </div>

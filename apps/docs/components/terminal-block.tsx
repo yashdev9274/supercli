@@ -4,6 +4,7 @@ import { useRef, useState } from "react"
 
 export function TerminalBlock({ children }: { children: React.ReactNode }) {
   const [copied, setCopied] = useState(false)
+  const [hovered, setHovered] = useState(false)
   const codeRef = useRef<HTMLDivElement>(null)
 
   const handleCopy = async () => {
@@ -15,19 +16,40 @@ export function TerminalBlock({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="my-6 rounded-lg overflow-hidden border border-[var(--border)] shadow-lg">
-      {/* Title bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-[#1a1b1e] border-b border-[var(--border)]">
+      <div
+        className="flex items-center justify-between px-4 py-2.5 bg-[#1a1b1e] border-b border-[var(--border)]"
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
         <div className="flex items-center gap-2.5">
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
-            <span className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
-            <span className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
+            <span
+              className="w-2.5 h-2.5 rounded-full bg-[#ff5f57] transition-all duration-200"
+              style={{
+                filter: hovered ? "brightness(1.3)" : undefined,
+                transform: hovered ? "scale(1.15)" : undefined,
+              }}
+            />
+            <span
+              className="w-2.5 h-2.5 rounded-full bg-[#febc2e] transition-all duration-200"
+              style={{
+                filter: hovered ? "brightness(1.3)" : undefined,
+                transform: hovered ? "scale(1.15)" : undefined,
+              }}
+            />
+            <span
+              className="w-2.5 h-2.5 rounded-full bg-[#28c840] transition-all duration-200"
+              style={{
+                filter: hovered ? "brightness(1.3)" : undefined,
+                transform: hovered ? "scale(1.15)" : undefined,
+              }}
+            />
           </div>
           <span className="ml-2 text-[11px] text-[#666] font-mono">~ $</span>
         </div>
         <button
           onClick={handleCopy}
-          className="relative flex items-center gap-1.5 px-2 py-1 text-[11px] font-mono text-[#666] hover:text-[#e4e4e7] bg-[#ffffff08] hover:bg-[#ffffff12] rounded transition-all duration-150 ease-out active:scale-95"
+          className="relative flex items-center gap-1.5 px-2 py-1 text-[11px] font-mono text-[#666] hover:text-[#e4e4e7] bg-[#ffffff08] hover:bg-[#ffffff12] rounded transition-all duration-150 active:scale-[0.95]"
         >
           {copied ? (
             <>
@@ -47,7 +69,6 @@ export function TerminalBlock({ children }: { children: React.ReactNode }) {
           )}
         </button>
       </div>
-      {/* Code area */}
       <div
         ref={codeRef}
         className="bg-[#0d0e10] p-4 overflow-x-auto [&_code]:!bg-transparent [&_code]:!p-0 [&_code]:text-[13px] [&_code]:leading-relaxed [&_code]:text-[#e4e4e7]"
