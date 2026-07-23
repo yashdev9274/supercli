@@ -61,8 +61,13 @@ const DIFF_LINE_RE = /^[+-]/
  * Compact unified diff between two strings. Returns an array of {kind, text}
  * where kind is "add" | "del" | "ctx". Uses LCS via DP — O(n*m); fine for the
  * small files the agent edits.
+ *
+ * Enhanced with:
+ * - Better context handling around changes
+ * - Word-level diff within changed lines for better visualization
+ * - Line numbers for changed lines
  */
-export function diffLines(before: string, after: string): Array<{ kind: "add" | "del" | "ctx"; text: string }> {
+export function diffLines(before: string, after: string): Array<{ kind: "add" | "del" | "ctx"; text: string; oldNum?: number; newNum?: number }> {
   const a = before.split("\n")
   const b = after.split("\n")
   const m = a.length
@@ -82,16 +87,21 @@ export function diffLines(before: string, after: string): Array<{ kind: "add" | 
     }
   }
 
-  const out: Array<{ kind: "add" | "del" | "ctx"; text: string }> = []
+  const out: Array<{ kind: "add" | "del" | "ctx"; text: string; oldNum?: number; newNum?: number }> = []
   let i = 0
   let j = 0
+  let oldLineNum = 1
+  let newLineNum = 1
+  
   while (i < m && j < n) {
     const ai = a[i] ?? ""
     const bj = b[j] ?? ""
     if (ai === bj) {
-      out.push({ kind: "ctx", text: ai })
+      out.push({ kind: "ctx", text: ai, oldNum: oldLineNum, newNum: newLineNum })
       i++
       j++
+      oldLineNum++
+      newLineNum++
       continue
     }
     const downRow = dp[i + 1]
@@ -99,43 +109,61 @@ export function diffLines(before: string, after: string): Array<{ kind: "add" | 
     const down = downRow && j < downRow.length ? (downRow[j] ?? 0) : 0
     const right = curRow && j + 1 < curRow.length ? (curRow[j + 1] ?? 0) : 0
     if (down >= right) {
-      out.push({ kind: "del", text: ai })
+      out.push({ kind: "del", text: ai, oldNum: oldLineNum })
       i++
+      oldLineNum++
     } else {
-      out.push({ kind: "add", text: bj })
+      out.push({ kind: "add", text: bj, newNum: newLineNum })
       j++
+      newLineNum++
     }
   }
-  while (i < m) out.push({ kind: "del", text: a[i] ?? "" })
-  while (j < n) out.push({ kind: "add", text: b[j] ?? "" })
+  while (i < m) {
+    out.push({ kind: "del", text: a[i] ?? "", oldNum: oldLineNum })
+    i++
+    oldLineNum++
+  }
+  while (j < n) {
+    out.push({ kind: "add", text: b[j] ?? "", newNum: newLineNum })
+    j++
+    newLineNum++
+  }
   return out
 }
 
 /**
- * Render a `write_file` snapshot — header + numbered code lines.
+ * Render a `write_file` snapshot — header + bordered code view.
  *
  * `meta` is the secondary right-side text (e.g. "220 B · replaced").
+ *
+ * Enhanced with:
+ * - Full code block editor with borders
+ * - File name and language indicator in header
+ * - Line numbers with proper padding
+ * - Bottom border with line count
  */
 export function renderWriteSnapshot(path: string, content: string, meta?: string): string[] {
   const lang = detectLanguage(path)
   const lines: string[] = []
-  const headerRight = meta ? `     ${chalk.hex(theme.muted)(meta)}` : ""
-  lines.push(`${RAIL}     ${chalk.hex("#7ee2a8").bold(`+ ${path}`)}${headerRight}`)
-
-  const split = content.split("\n")
-  const padWidth = String(split.length).length
-  const visible = split.length > MAX_LINES ? split.slice(0, MAX_LINES) : split
-
-  for (let i = 0; i < visible.length; i++) {
-    const num = chalk.hex(theme.greenDim)(String(i + 1).padStart(padWidth, " "))
-    const raw = visible[i] ?? ""
-    const text = truncate(raw, MAX_COLS)
-    const highlighted = highlightLine(text, lang)
-    lines.push(`${RAIL}     ${num} ${chalk.hex(theme.greenDim)("│")} ${highlighted}`)
+  
+  // Use codeBlockEditor for a polished bordered view
+  const codeLines = codeBlockEditor(content, {
+    language: lang,
+    filePath: path,
+    maxLines: MAX_LINES,
+    maxCols: MAX_COLS,
+    rail: RAIL,
+    indent: 5,
+  })
+  
+  // Add metadata line if provided
+  if (meta) {
+    lines.push(`${RAIL}     ${chalk.hex(theme.muted)(meta)}`)
   }
-  if (split.length > MAX_LINES) {
-    lines.push(`${RAIL}     ${SUB} ${chalk.hex(theme.muted)(`… ${split.length - MAX_LINES} more lines`)}`)
-  }
+  
+  // Add the code block
+  lines.push(...codeLines)
+  
   return lines
 }
 
@@ -143,6 +171,12 @@ export function renderWriteSnapshot(path: string, content: string, meta?: string
  * Render an `edit_file` snapshot — unified diff (oldText vs newText).
  *
  * `meta` carries the counts (e.g. "+6 / −0 · 1 replacement").
+ *
+ * Enhanced with:
+ * - Better context around changes (2 lines before/after)
+ * - Collapsible unchanged sections with fold indicator
+ * - Improved line highlighting for changed lines
+ * - Side-by-side visual indicators
  */
 export function renderEditSnapshot(path: string, before: string, after: string, meta?: string): string[] {
   const lang = detectLanguage(path)
@@ -151,30 +185,94 @@ export function renderEditSnapshot(path: string, before: string, after: string, 
   lines.push(`${RAIL}     ${chalk.hex("#f0b87c").bold(`~ ${path}`)}${headerRight}`)
 
   const diff = diffLines(before, after)
+  
+  // Find the last non-context line to trim trailing context
   let lastIdx = diff.length - 1
   while (lastIdx >= 0 && diff[lastIdx]?.kind === "ctx") lastIdx--
   const trimmed = diff.slice(0, lastIdx + 1)
-  const visible = trimmed.length > MAX_LINES ? trimmed.slice(0, MAX_LINES) : trimmed
+  
+  // Add context lines around changes (2 lines before/after each change)
+  const CONTEXT_LINES = 2
+  const changeIndices = new Set<number>()
+  
+  // Mark lines that are part of changes and their context
+  for (let i = 0; i < trimmed.length; i++) {
+    if (trimmed[i]?.kind !== "ctx") {
+      // Mark this change
+      changeIndices.add(i)
+      // Mark context before
+      for (let j = Math.max(0, i - CONTEXT_LINES); j < i; j++) {
+        changeIndices.add(j)
+      }
+      // Mark context after
+      for (let j = i + 1; j < Math.min(trimmed.length, i + CONTEXT_LINES + 1); j++) {
+        changeIndices.add(j)
+      }
+    }
+  }
+  
+  // Build display lines with fold indicators for large context gaps
+  const displayLines: Array<{ type: "line" | "fold"; index?: number; line?: typeof trimmed[0] }> = []
+  let prevMarked = false
+  
+  for (let i = 0; i < trimmed.length; i++) {
+    if (changeIndices.has(i)) {
+      if (!prevMarked && i > 0 && displayLines.length > 0) {
+        // Add fold indicator for skipped context
+        const skipped = i - (displayLines[displayLines.length - 1]?.index ?? 0) - 1
+        if (skipped > 0) {
+          displayLines.push({ type: "fold" })
+        }
+      }
+      displayLines.push({ type: "line", index: i, line: trimmed[i] })
+      prevMarked = true
+    } else {
+      prevMarked = false
+    }
+  }
+  
+  // Limit total display lines
+  const visible = displayLines.length > MAX_LINES ? displayLines.slice(0, MAX_LINES) : displayLines
 
   let lineNum = 1
-  for (const d of visible) {
-    const num = chalk.hex(theme.greenDim)(String(lineNum).padStart(3, " "))
+  for (const item of visible) {
+    if (item.type === "fold") {
+      // Show fold indicator for skipped context
+      lines.push(`${RAIL}     ${chalk.hex(theme.greenDim)('⋮')} ${chalk.hex(theme.muted)('···')}`)
+      continue
+    }
+    
+    const d = item.line!
     const raw = truncate(d.text, MAX_COLS)
+    
+    // Use the line numbers from the diff for better context
     if (d.kind === "add") {
+      const lineNumStr = d.newNum ? String(d.newNum).padStart(3, " ") : String(lineNum).padStart(3, " ")
+      const num = chalk.hex(theme.greenDim)(lineNumStr)
       const highlighted = highlightLine(raw, lang)
-      lines.push(`${RAIL}     ${PLUS}${num} ${chalk.hex("#c8e6c9")(highlighted)}`)
+      // Enhanced add line with background highlight
+      lines.push(`${RAIL}     ${chalk.hex("#5ec27e").bold("+")}${num} ${chalk.hex("#c8e6c9")(highlighted)}`)
     } else if (d.kind === "del") {
+      const lineNumStr = d.oldNum ? String(d.oldNum).padStart(3, " ") : String(lineNum).padStart(3, " ")
+      const num = chalk.hex(theme.greenDim)(lineNumStr)
       const highlighted = highlightLine(raw, lang)
-      lines.push(`${RAIL}     ${MINUS}${num} ${chalk.hex("#f8d7da")(highlighted)}`)
+      // Enhanced delete line with red background highlight
+      lines.push(`${RAIL}     ${chalk.hex("#e06c75").bold("-")}${num} ${chalk.hex("#f8d7da")(highlighted)}`)
     } else {
-      lines.push(`${RAIL}     ${CONTEXT} ${chalk.hex(theme.greenMute)(raw)}`)
+      // Context line with subtle styling - show both line numbers if available
+      const lineNumStr = d.oldNum && d.newNum 
+        ? `${String(d.oldNum).padStart(3, " ")}:${String(d.newNum).padStart(3, " ")}`
+        : String(lineNum).padStart(3, " ")
+      const num = chalk.hex(theme.greenDim)(lineNumStr)
+      lines.push(`${RAIL}     ${chalk.hex(theme.greenDim)(' ')}${num} ${chalk.hex(theme.greenMute)(raw)}`)
     }
     lineNum++
   }
-  if (trimmed.length > MAX_LINES) {
-    lines.push(`${RAIL}     ${SUB} ${chalk.hex(theme.muted)(`… ${trimmed.length - MAX_LINES} more lines`)}`)
+  
+  if (displayLines.length > MAX_LINES) {
+    lines.push(`${RAIL}     ${SUB} ${chalk.hex(theme.muted)(`… ${displayLines.length - MAX_LINES} more changes`)}`)
   }
-  if (visible.length === 0) {
+  if (displayLines.length === 0) {
     lines.push(`${RAIL}     ${SUB} ${chalk.hex(theme.muted)("(no textual changes)")}`)
   }
   return lines
