@@ -100,6 +100,9 @@ export class MarkdownStream {
   // emits the styled markdown. Defaulting to off prevents the response
   // from showing up twice (once as raw text, once as styled markdown).
   private liveMode = false
+  // Fallback content captured from the chat loop's fullResponse variable.
+  // Used when the buffer is empty but the model did generate text.
+  private fallbackContent = ""
 
   // Opt into the legacy live-transcript behaviour where chunks are
   // written to stdout as they arrive and the styled render sits below.
@@ -118,6 +121,13 @@ export class MarkdownStream {
     }
   }
 
+  // Set fallback content from the chat loop's fullResponse. Used when
+  // the buffer is empty but the model did generate text (edge case where
+  // chunks weren't pushed to the buffer but were captured in fullResponse).
+  setFallback(content: string) {
+    this.fallbackContent = content
+  }
+
   end() {
     if (this.closed) return
     this.closed = true
@@ -130,10 +140,11 @@ export class MarkdownStream {
   endInstant() {
     if (this.closed) return
     this.closed = true
-    if (!this.buffer) return
+    const content = this.buffer || this.fallbackContent
+    if (!content) return
     const width = (process.stdout.columns ?? 80) - 2
     const renderer = getRenderer(width)
-    let rendered = marked(this.buffer, { renderer: renderer as any, async: false }) as string
+    let rendered = marked(content, { renderer: renderer as any, async: false }) as string
     rendered = rendered.replace(/\n+$/, "")
     if (!rendered) return
     process.stdout.write(rendered.endsWith("\n") ? rendered : rendered + "\n")
@@ -141,6 +152,7 @@ export class MarkdownStream {
 
   reset() {
     this.buffer = ""
+    this.fallbackContent = ""
     this.closed = false
   }
 
@@ -151,10 +163,12 @@ export class MarkdownStream {
   // intact — character-by-character output would let the spinner's
   // interval writes corrupt in-progress escape sequences.
   private async renderStyled() {
-    if (!this.buffer) return
+    // Use buffer if available, otherwise fall back to fallbackContent
+    const content = this.buffer || this.fallbackContent
+    if (!content) return
     const width = (process.stdout.columns ?? 80) - 2
     const renderer = getRenderer(width)
-    let rendered = marked(this.buffer, { renderer: renderer as any, async: false }) as string
+    let rendered = marked(content, { renderer: renderer as any, async: false }) as string
     rendered = rendered.replace(/\n+$/, "")
     if (!rendered) return
 

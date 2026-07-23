@@ -1,5 +1,5 @@
 import chalk from "chalk"
-import { theme } from "src/cli/utils/tui"
+import { stripAnsi, theme } from "src/cli/utils/tui"
 
 const SPINNER_FRAMES = ["∴", "∵", "∴", "∵"]
 
@@ -141,6 +141,171 @@ function describeTool(toolName: string, arg?: string): { verb: string; color: st
 function truncateStr(s: string, n: number): string {
   if (s.length <= n) return s
   return s.slice(0, n - 1) + "…"
+}
+
+function formatElapsed(ms: number): string {
+  if (ms < 1000) return `${ms}ms`
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`
+  const minutes = Math.floor(ms / 60_000)
+  const seconds = Math.round((ms % 60_000) / 1000)
+  return `${minutes}m ${seconds}s`
+}
+
+function terminalWidth(): number {
+  return Math.max(40, process.stdout.columns ?? 80)
+}
+
+function codexDivider(): string {
+  return chalk.hex(theme.greenDim)(
+    "─".repeat(Math.max(24, terminalWidth() - 2)),
+  )
+}
+
+function wrapVisible(line: string, width: number, indent = ""): string[] {
+  const plain = stripAnsi(line)
+  if (plain.length <= width) return [line]
+
+  const words = line.split(/\s+/)
+  const lines: string[] = []
+  let current = ""
+
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word
+    if (stripAnsi(next).length > width && current) {
+      lines.push(current)
+      current = `${indent}${word}`
+    } else {
+      current = next
+    }
+  }
+
+  if (current) lines.push(current)
+  return lines
+}
+
+function parseToolArgs(args?: string | unknown): unknown {
+  if (typeof args !== "string") return args
+  return safeParse(args)
+}
+
+function toolArgObject(args: unknown): Record<string, unknown> {
+  return args && typeof args === "object" && !Array.isArray(args)
+    ? args as Record<string, unknown>
+    : {}
+}
+
+function shortPath(path: string, max = 72): string {
+  if (path.length <= max) return path
+  const parts = path.split("/")
+  if (parts.length <= 2) return truncateStr(path, max)
+  const file = parts.pop() ?? ""
+  const parent = parts.pop() ?? ""
+  const shortened = `…/${parent}/${file}`
+  return shortened.length <= max ? shortened : truncateStr(shortened, max)
+}
+
+function codexToolLine(tool: ThoughtTool): string {
+  const args = parseToolArgs(tool.args)
+  const a = toolArgObject(args)
+  const marker = tool.flagged ? ` ${chalk.hex(theme.red)("✗")}` : ""
+
+  switch (tool.name) {
+    case "read_file": {
+      const path = typeof a.path === "string" ? shortPath(a.path) : "file"
+      return `${chalk.hex(CATEGORY_COLORS.read)("Read")} ${chalk.hex(theme.greenMute)(path)}${marker}`
+    }
+    case "search_files": {
+      const pattern = typeof a.pattern === "string" ? a.pattern : extractToolArg(tool.name, args) ?? ""
+      const include = typeof a.include === "string" ? ` in ${a.include}` : ""
+      return `${chalk.hex(CATEGORY_COLORS.read)("Search")} ${chalk.hex(theme.greenMute)(truncateStr(pattern, 68))}${chalk.hex(theme.greenDim)(include)}${marker}`
+    }
+    case "glob": {
+      const pattern = typeof a.pattern === "string" ? a.pattern : extractToolArg(tool.name, args) ?? ""
+      return `${chalk.hex(CATEGORY_COLORS.read)("List")} ${chalk.hex(theme.greenMute)(truncateStr(pattern, 72))}${marker}`
+    }
+    case "run_command": {
+      const command = typeof a.command === "string" ? a.command : extractToolArg(tool.name, args) ?? "command"
+      return `${chalk.hex(CATEGORY_COLORS.command)(truncateStr(command, 92))}${marker}`
+    }
+    case "code_exec": {
+      const prompt = extractToolArg(tool.name, args) ?? "code"
+      return `${chalk.hex(CATEGORY_COLORS.command)("Execute")} ${chalk.hex(theme.greenMute)(truncateStr(prompt, 72))}${marker}`
+    }
+    case "edit_file": {
+      const path = typeof a.path === "string" ? shortPath(a.path) : "file"
+      return `${chalk.hex(CATEGORY_COLORS.edit)("Edit")} ${chalk.hex(theme.greenMute)(path)}${marker}`
+    }
+    case "write_file": {
+      const path = typeof a.path === "string" ? shortPath(a.path) : "file"
+      return `${chalk.hex(CATEGORY_COLORS.edit)("Write")} ${chalk.hex(theme.greenMute)(path)}${marker}`
+    }
+    case "web_search":
+    case "firecrawl_search":
+    case "firecrawl_scrape":
+    case "firecrawl_map":
+    case "url_fetch": {
+      const target = extractToolArg(tool.name, args) ?? tool.name
+      const verb = tool.name.includes("scrape") ? "Scrape" : tool.name.includes("map") ? "Map" : tool.name === "url_fetch" ? "Fetch" : "Search"
+      return `${chalk.hex(CATEGORY_COLORS.web)(verb)} ${chalk.hex(theme.greenMute)(truncateStr(target, 80))}${marker}`
+    }
+    default: {
+      const arg = extractToolArg(tool.name, args)
+      return `${chalk.hex(CATEGORY_COLORS.meta)(tool.name)}${arg ? ` ${chalk.hex(theme.greenMute)(truncateStr(arg, 72))}` : ""}${marker}`
+    }
+  }
+}
+
+function codexSectionTitle(cat: ToolCategory, tools: ThoughtTool[]): string {
+  if (cat === "command" && tools.length === 1) {
+    const args = toolArgObject(parseToolArgs(tools[0]!.args))
+    const command = typeof args.command === "string" ? args.command : extractToolArg(tools[0]!.name, parseToolArgs(tools[0]!.args)) ?? "command"
+    return `Ran ${chalk.hex(theme.greenMute)(truncateStr(command, 92))}`
+  }
+  if (cat === "edit") {
+    if (tools.length === 1) {
+      const args = toolArgObject(parseToolArgs(tools[0]!.args))
+      const path = typeof args.path === "string" ? shortPath(args.path) : "file"
+      const verb = tools[0]!.name === "write_file" ? "Wrote" : "Edited"
+      return `${verb} ${chalk.hex(theme.greenMute)(path)}`
+    }
+    return `Edited ${tools.length} files`
+  }
+  if (cat === "read" || cat === "web") return "Explored"
+  return CATEGORY_LABELS[cat]
+}
+
+function codexResultSummary(tool: ThoughtTool): string | undefined {
+  const args = toolArgObject(parseToolArgs(tool.args))
+  if (tool.name === "run_command") {
+    return typeof args.cwd === "string"
+      ? `in ${args.cwd}`
+      : undefined
+  }
+  if (tool.name === "edit_file") {
+    const oldText = typeof args.oldText === "string" ? args.oldText : ""
+    const newText = typeof args.newText === "string" ? args.newText : ""
+    if (oldText || newText) {
+      const diff = newText.length - oldText.length
+      const sign = diff > 0 ? "+" : ""
+      return `${sign}${diff} chars`
+    }
+  }
+  if (tool.name === "write_file") {
+    const content = typeof args.content === "string" ? args.content : ""
+    if (content) return `${content.split("\n").length} lines`
+  }
+  return undefined
+}
+
+function codexSingleDetail(cat: ToolCategory, tool: ThoughtTool): string {
+  const summary = codexResultSummary(tool)
+  if (cat === "command") {
+    return `${tool.flagged ? chalk.hex(theme.red)("failed") : chalk.hex(theme.greenMute)("completed")}${summary ? ` ${chalk.hex(theme.greenDim)(summary)}` : ""} ${chalk.hex(theme.greenDim)("[Ctrl+T]")}`
+  }
+  if (cat === "edit") {
+    return `${chalk.hex(theme.greenMute)(summary ?? "changed")} ${chalk.hex(theme.greenDim)("[Ctrl+T]")}`
+  }
+  return codexToolLine(tool)
 }
 
 //
@@ -572,27 +737,22 @@ export class ThoughtChain {
     entry.collapsed =
       entry.hadFlaggedTool ? false : (opts?.autoCollapse ?? true)
     const elapsedMs = entry.endTime - entry.startTime
-    const elapsedStr =
-      elapsedMs < 1000 ? `${elapsedMs}ms` : `${(elapsedMs / 1000).toFixed(1)}s`
+    const elapsedStr = formatElapsed(elapsedMs)
 
     if (!this.buffered) {
       const indent = chalk.hex(theme.greenDim)("┃")
-      // Toggle: when auto-collapsing, move ▼ to +. When keeping open, keep ▼.
-      const toggle = entry.collapsed
-        ? chalk.hex(theme.greenGlow)("+")
-        : chalk.hex(theme.greenGlow)("▼")
-      const label = chalk.hex(theme.greenMute)("Thoughts")
-      const time = chalk.hex(theme.greenDim)(elapsedStr)
-      process.stdout.write(
-        `${indent} ${toggle} ${label} ${chalk.hex(theme.greenDim)("·")} ${time}\n`,
-      )
-
-      // When auto-collapsed we show a summary line; when expanded we reprint
-      // each tool so the user can see exactly what was called (with ✗ markers
-      // for denied/empty rows), followed by snapshots and sub-thoughts.
+      // When auto-collapsed we show a Codex-style transcript summary. When
+      // expanded we reprint each tool so Ctrl+T still exposes exact details,
+      // snapshots, and failed rows.
       if (entry.collapsed) {
-        this.writeCollapsedSummary(entry, indent)
+        this.writeCollapsedSummary(entry, indent, elapsedStr)
       } else {
+        const toggle = chalk.hex(theme.greenGlow)("▼")
+        const label = chalk.hex(theme.greenMute)("Thoughts")
+        const time = chalk.hex(theme.greenDim)(elapsedStr)
+        process.stdout.write(
+          `${indent} ${toggle} ${label} ${chalk.hex(theme.greenDim)("·")} ${time}\n`,
+        )
         this.writeExpandedDetail(entry, indent)
       }
     }
@@ -600,43 +760,76 @@ export class ThoughtChain {
     this.current = null
   }
 
-  private writeCollapsedSummary(entry: ThoughtEntry, indent: string): void {
+  private writeCollapsedSummary(entry: ThoughtEntry, indent: string, elapsedStr: string): void {
     const subCount = entry.subThoughts.length
+    if (entry.tools.length === 0 && subCount === 0) {
+      process.stdout.write(`${indent} ${chalk.hex(theme.greenDim)(`Thoughts · ${elapsedStr}`)}\n`)
+      return
+    }
+
+    process.stdout.write(`\n${codexDivider()}\n\n`)
+
     if (entry.tools.length > 0) {
-      // Per-category summary counts
       const groups = groupToolsByCategory(entry.tools)
-      const parts: string[] = []
-      let hasFailures = false
       for (const cat of CATEGORY_ORDER) {
         const tools = groups.get(cat)
         if (!tools || tools.length === 0) continue
-        const label = CATEGORY_LABELS[cat].toLowerCase()
-        const flaggedCount = tools.filter((t) => t.flagged).length
-        if (flaggedCount > 0) {
-          const okCount = tools.length - flaggedCount
-          if (okCount > 0) {
-            parts.push(`${okCount} ${label}`)
+
+        const title = codexSectionTitle(cat, tools)
+        process.stdout.write(`${chalk.hex(theme.amber)("•")} ${title}\n`)
+
+        const details = tools.map((tool) => {
+          const line = codexToolLine(tool)
+          const summary = codexResultSummary(tool)
+          return summary ? `${line} ${chalk.hex(theme.greenDim)(`(${summary})`)}` : line
+        })
+
+        const detailPrefix = `  ${chalk.hex(theme.greenDim)("└")} `
+        const continuation = "    "
+        if (details.length === 1) {
+          const singleDetail = codexSingleDetail(cat, tools[0]!)
+          for (const line of wrapVisible(singleDetail, terminalWidth() - 4, continuation)) {
+            process.stdout.write(`${detailPrefix}${line}\n`)
           }
-          parts.push(`${chalk.hex(theme.red)(`${flaggedCount} failed`)}`)
-          hasFailures = true
+          // Render snapshot inline if available (edit/write file diffs)
+          const tool = tools[0]!
+          if (tool.snapshot && tool.snapshot.length > 0) {
+            for (const snapLine of tool.snapshot) {
+              process.stdout.write(`${snapLine}\n`)
+            }
+          }
         } else {
-          parts.push(`${tools.length} ${label}`)
+          for (const line of details.slice(0, 6)) {
+            for (const wrapped of wrapVisible(line, terminalWidth() - 6, continuation)) {
+              process.stdout.write(`  ${chalk.hex(theme.greenDim)("└")} ${wrapped}\n`)
+            }
+          }
+          // Render snapshots for tools that have them
+          for (const tool of tools.slice(0, 6)) {
+            if (tool.snapshot && tool.snapshot.length > 0) {
+              for (const snapLine of tool.snapshot) {
+                process.stdout.write(`${snapLine}\n`)
+              }
+            }
+          }
+          if (details.length > 6) {
+            process.stdout.write(
+              `  ${chalk.hex(theme.greenDim)("└")} ${chalk.hex(theme.greenMute)(`… +${details.length - 6} more [Ctrl+T]`)}\n`,
+            )
+          } else {
+            process.stdout.write(
+              `  ${chalk.hex(theme.greenDim)("└")} ${chalk.hex(theme.greenDim)(`[Ctrl+T]`)}\n`,
+            )
+          }
         }
       }
-      const summary = hasFailures
-        ? parts.join(" · ")
-        : parts.join(" · ")
-      const hint = subCount > 0
-        ? ` ${chalk.hex(theme.greenDim)("[Ctrl+X]")}`
-        : ` ${chalk.hex(theme.greenDim)("[Ctrl+T]")}`
-      process.stdout.write(
-        `${indent}   ${chalk.hex(theme.greenDim)("↳")} ${chalk.hex(theme.greenMute)(summary)}${hint}\n`,
-      )
     }
+
     if (subCount > 0) {
       const subToolCount = entry.subThoughts.reduce((n, s) => n + s.tools.length, 0)
       process.stdout.write(
-        `${indent}   ${chalk.hex(theme.greenDim)("↳")} ${chalk.hex(theme.greenMute)(`${subCount} explore step${subCount === 1 ? "" : "s"} · ${subToolCount} tool call${subToolCount === 1 ? "" : "s"}`)}\n`,
+        `${chalk.hex(theme.amber)("•")} ${chalk.hex(theme.greenMute)("Explored with subagents")}\n` +
+        `  ${chalk.hex(theme.greenDim)("└")} ${chalk.hex(theme.greenMute)(`${subCount} explore step${subCount === 1 ? "" : "s"} · ${subToolCount} tool call${subToolCount === 1 ? "" : "s"} · ${elapsedStr}`)} ${chalk.hex(theme.greenDim)("[Ctrl+X]")}\n`,
       )
     }
   }

@@ -33,7 +33,6 @@ import {
   cardStack,
   rowCard,
   heavyDivider,
-  responseDivider,
 } from "src/cli/utils/tui.ts"
 import { ThinkingDisplay, TurnTracker, toolLabel, ThoughtChain, extractToolArg } from "./thinking.ts"
 import { StepStatusRow } from "./step-status-row.ts"
@@ -313,8 +312,10 @@ async function streamAIResponse(
       promptContent += `\n\n## Plan Mode Note\n\nYou are in plan mode. You MUST NOT write files, run commands, or execute code. Produce a structured plan and stop. The user will review with /plan execute.`
     }
 
-    // Applied to all modes — shows progress progressively so user never sees a blank screen
-    promptContent += `\n\n## Progress Display\n\nShow your work progressively. Start every significant finding, observation, or intermediate result with "→" on its own line so the user sees you're making progress in real-time. If you would be thinking without visible output for more than ~3 seconds, instead announce what you're about to do.`
+    // Applied to all modes — encourage concise, user-facing progress updates.
+    // These are not hidden chain-of-thought; they are short status messages
+    // like "I’m checking the request parser before changing the chat loop."
+    promptContent += `\n\n## Progress Display\n\nWhile working, share brief first-person progress updates when they help the user follow along. Write them as plain prose, not hidden reasoning: one or two concrete sentences about what you are checking, what you learned, or what you are changing. Do not expose private chain-of-thought. Before using tools, state the next practical step when possible. After tool results reveal an important finding, summarize that finding before continuing.`
 
     if (extraContext) {
       promptContent += `\n\n## Referenced Files\n\nFiles marked with @ in the user message have been read and included below. Do not re-read them with tools.\n\n${extraContext}\n`
@@ -722,6 +723,11 @@ async function streamAIResponse(
 
     // Flush any trailing markdown — finalizes the open block with a
     // typing animation so the user sees content appear progressively.
+    // Set fallback content from fullResponse in case the buffer is empty
+    // but the model did generate text (edge case where chunks weren't pushed).
+    if (fullResponse.trim().length > 0) {
+      md.setFallback(fullResponse)
+    }
     await md.end()
 
     // If tools ran but the model produced no analysis text, show a minimal
@@ -819,10 +825,14 @@ async function streamAIResponse(
     // Turn footer with elapsed time
     const elapsedStr =
       elapsed < 1000 ? `${elapsed}ms` : `${(elapsed / 1000).toFixed(1)}s`
-    const modeLabel = mode === "plan" ? "plan" : (mode === "chat" ? "chat" : "build")
-    const connBadge = provider.connectionType === "direct" ? " 🔑" : " ☁️"
+    const footerText = ` Worked for ${elapsedStr} `
+    const footerWidth = Math.max(0, (process.stdout.columns ?? 80) - stripAnsi(footerText).length - 2)
+    const leftFill = Math.floor(footerWidth / 2)
+    const rightFill = footerWidth - leftFill
     console.log(
-      ` ${chalk.hex(theme.green)("▣")}  ${chalk.hex(theme.greenMute)(modeLabel)} ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.muted)(provider.modelName)}${chalk.hex(theme.amber)(connBadge)} ${chalk.hex(theme.greenDim)("·")} ${chalk.hex(theme.muted)(elapsedStr)}`,
+      chalk.hex(theme.greenDim)(
+        `${"─".repeat(leftFill)}${footerText}${"─".repeat(rightFill)}`,
+      ),
     )
     console.log()
     return {
@@ -845,6 +855,7 @@ async function streamAIResponse(
       }
       statusRow.stop()
       activeStatusRow = null
+      if (fullResponse.trim().length > 0) md.setFallback(fullResponse)
       await md.end()
       if (statusBar) statusBar.update({ isStreaming: false, elapsed: 0 })
       console.log()
@@ -859,6 +870,7 @@ async function streamAIResponse(
     statusRow.stop()
     activeStatusRow = null
     activeChain = null
+    if (fullResponse.trim().length > 0) md.setFallback(fullResponse)
     await md.end()
     if (statusBar) statusBar.update({ isStreaming: false, elapsed: 0 })
     throw error
@@ -2035,6 +2047,8 @@ export async function chatLoop(
               } catch (err: any) {
                 const msg = err.message || String(err)
                 process.stdout.write(`\r\n ${chalk.hex(theme.red)("◆")} ${chalk.hex(theme.red)(msg)}\r\n\n`)
+              } finally {
+                clearSkill()
               }
               footer.renderLine()
             } else {
@@ -2113,10 +2127,10 @@ export async function chatLoop(
           if (result.skillContent) {
             loadedSkillName = result.skillName || ""
             loadedSkillContent = result.skillContent
-            const combinedMsg = `${result.skillContent}\n\n${result.message}`
-            userMessage(`[${result.skillName}]\n\n${result.skillContent}\n\n${result.message}`)
+            const taggedMsg = `[${result.skillName}]\n\n${result.message}`
+            userMessage(taggedMsg)
             messageCount++
-            await addMessage(conversation.id, "user", combinedMsg)
+            await addMessage(conversation.id, "user", taggedMsg)
           } else {
             userMessage(trimmed)
             messageCount++
@@ -2132,6 +2146,8 @@ export async function chatLoop(
           } catch (err: any) {
             const msg = err.message || String(err)
             process.stdout.write(`\r\n ${chalk.hex(theme.red)("◆")} ${chalk.hex(theme.red)(msg)}\r\n\n`)
+          } finally {
+            if (result.skillContent) clearSkill()
           }
           readline.cursorTo(process.stdout, 0)
           continue
@@ -2146,13 +2162,12 @@ export async function chatLoop(
       const cleanInput = unquoted.replace(/@\S+/g, (m) => m.slice(1))
 
       if (loadedSkillContent) {
-        // Skill loaded from picker — combine skill content with user message
-        const combinedMsg = `${loadedSkillContent}\n\n${cleanInput}`
-        userMessage(`[${loadedSkillName}]\n\n${loadedSkillContent}\n\n${cleanInput}`)
+        // Skill instructions are injected as system context for this turn.
+        // Keep the transcript and persisted user message focused on the user's request.
+        const taggedMsg = `[${loadedSkillName}]\n\n${cleanInput}`
+        userMessage(taggedMsg)
         messageCount++
-        await addMessage(conversation.id, "user", combinedMsg)
-        loadedSkillContent = undefined
-        loadedSkillName = undefined
+        await addMessage(conversation.id, "user", taggedMsg)
       } else {
         userMessage(unquoted)
         messageCount++
@@ -2273,6 +2288,8 @@ export async function chatLoop(
       } catch (error: any) {
         const errMsg = error?.message ?? "Unknown error"
         process.stdout.write(`\r\n ${chalk.hex(theme.red)("◆")} ${chalk.hex(theme.red)(errMsg)}\r\n\n`)
+      } finally {
+        clearSkill()
       }
     } catch (error: any) {
       // Catch-all: prevent any error from crashing the chat loop

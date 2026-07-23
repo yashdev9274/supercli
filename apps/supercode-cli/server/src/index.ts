@@ -65,6 +65,7 @@ const CLOUD_ALLOWED_MODELS = new Set([
   "minimax-m3",
   "hy3",
 ])
+const JSON_BODY_LIMIT = process.env.SUPERCODE_JSON_BODY_LIMIT || "10mb"
 const app = express()
 
 app.use(
@@ -93,7 +94,29 @@ app.get("/error", (req, res) => {
   )
 })
 
-app.use(express.json())
+app.use(express.json({ limit: JSON_BODY_LIMIT }))
+app.use(
+  (
+    error: unknown,
+    _req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) => {
+    if (
+      error &&
+      typeof error === "object" &&
+      "type" in error &&
+      error.type === "entity.too.large"
+    ) {
+      res.status(413).json({
+        error: `Request body is too large. Limit is ${JSON_BODY_LIMIT}.`,
+      })
+      return
+    }
+
+    next(error)
+  },
+)
 
 registerAnalyticsRoutes(app, prisma)
 
