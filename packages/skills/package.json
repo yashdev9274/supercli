@@ -1,0 +1,15 @@
+{
+  "name": "@super/skills",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "echo 'skills build pending'",
+    "lint": "echo 'skills lint pending'",
+    "typecheck": "echo 'skills typecheck pending'"
+  }
+}

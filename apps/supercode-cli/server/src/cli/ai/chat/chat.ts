@@ -320,6 +320,10 @@ async function streamAIResponse(
       promptContent += `\n\n## Referenced Files\n\nFiles marked with @ in the user message have been read and included below. Do not re-read them with tools.\n\n${extraContext}\n`
     }
 
+    if (loadedSkillContent) {
+      promptContent += `\n\n## Loaded Skill: ${loadedSkillName || "unknown"}\n\n${loadedSkillContent}\n`
+    }
+
     aiMessages = [
       { role: "system", content: promptContent },
       ...aiMessages,
@@ -930,6 +934,18 @@ let stdinPrevWrapLines = 1
 // Set by the voice capture flow so the next chatInput() preserves the
 // transcribed text instead of wiping stdinInput to "".
 let voiceJustCaptured = false
+
+// Loaded skill context — injected as a system message so the AI uses it
+// without pasting the full text into the user's input.
+export let loadedSkillName: string | undefined
+let loadedSkillContent: string | undefined
+let skillJustLoaded = false
+
+export function clearSkill() {
+  loadedSkillName = undefined
+  loadedSkillContent = undefined
+  skillJustLoaded = false
+}
 
 // When true, prints the legacy ─ toolName · model · N.Ns · esc interrupt
 // debug lines on top of the new per-step UI. Used by /verbose for power users
@@ -1717,9 +1733,12 @@ function stripToolCallXml(chunk: string): string {
 async function chatInput(currentMode: string): Promise<{ input: string; mode: string }> {
   stdinMode = modes.includes(currentMode) ? currentMode : "chat"
   applyModePermissions(stdinMode)
-  // If voice capture just populated stdinInput, preserve it so the user can
-  // see and edit the transcription. Otherwise reset to empty as usual.
-  if (!voiceJustCaptured) {
+  // If voice capture or skill load just populated stdinInput, preserve it.
+  // Otherwise reset to empty as usual.
+  if (skillJustLoaded) {
+    skillJustLoaded = false
+    // keep stdinInput as-is, just re-render
+  } else if (!voiceJustCaptured) {
     stdinInput = ""
     stdinCursor = 0
   } else {
@@ -1997,6 +2016,36 @@ export async function chatLoop(
           // (via setImmediate) so the text should already be visible.
           voiceJustCaptured = true
           process.stdout.write(`\r\n`)
+        } else if (result?.type === "skills") {
+          if (result.skillName && result.message) {
+            loadedSkillName = result.skillName
+            loadedSkillContent = result.message
+
+            if (result.trigger) {
+              // /{name} directly — send trigger message to AI
+              const triggerMsg = `[skill: ${result.skillName}]`
+              userMessage(triggerMsg)
+              messageCount++
+              await addMessage(conversation.id, "user", triggerMsg)
+              try {
+                const aiResult = await streamAIResponse(provider, conversation.id, conversation.mode, workspaceInfo, footer)
+                if (aiResult.aborted) {
+                  process.stdout.write(` ${chalk.hex(theme.muted)("response aborted")}\r\n\n`)
+                }
+              } catch (err: any) {
+                const msg = err.message || String(err)
+                process.stdout.write(`\r\n ${chalk.hex(theme.red)("◆")} ${chalk.hex(theme.red)(msg)}\r\n\n`)
+              }
+              footer.renderLine()
+            } else {
+              // Selected from picker — set /{name} tag and let user type
+              process.stdout.write(
+                `\r\n ${chalk.hex(theme.green)("◆")} ${chalk.hex(theme.greenGlow).bold(result.skillName)} ${chalk.hex(theme.muted)("loaded — type your message and press Enter")}\r\n\n`,
+              )
+              stdinInput = `/${result.skillName} `
+              skillJustLoaded = true
+            }
+          }
         } else if (result?.type === "verbose") {
           verboseMode = !verboseMode
           process.stdout.write(
@@ -2061,10 +2110,19 @@ export async function chatLoop(
         } else if (result?.type === "unknown") {
           process.stdout.write(`\r\n ${chalk.hex(theme.red)("◆")} unknown slash command: ${trimmed.split(" ")[0]}\r\n\n`)
         } else if (result?.type === "message" && result.message) {
-          userMessage(trimmed)
-          messageCount++
-          await addMessage(conversation.id, "user", result.message)
-          await trySetAutoTitle(conversation.id, result.message, messageCount)
+          if (result.skillContent) {
+            loadedSkillName = result.skillName || ""
+            loadedSkillContent = result.skillContent
+            const combinedMsg = `${result.skillContent}\n\n${result.message}`
+            userMessage(`[${result.skillName}]\n\n${result.skillContent}\n\n${result.message}`)
+            messageCount++
+            await addMessage(conversation.id, "user", combinedMsg)
+          } else {
+            userMessage(trimmed)
+            messageCount++
+            await addMessage(conversation.id, "user", result.message)
+            await trySetAutoTitle(conversation.id, result.message, messageCount)
+          }
           try {
             const aiResult = await streamAIResponse(provider, conversation.id, conversation.mode, workspaceInfo, footer)
             if (aiResult.aborted) {
@@ -2086,11 +2144,21 @@ export async function chatLoop(
 
       // Strip @ refs from AI message — file content is already in system prompt
       const cleanInput = unquoted.replace(/@\S+/g, (m) => m.slice(1))
-      userMessage(unquoted)
-      messageCount++
 
-      await addMessage(conversation.id, "user", cleanInput)
-      await trySetAutoTitle(conversation.id, cleanInput, messageCount)
+      if (loadedSkillContent) {
+        // Skill loaded from picker — combine skill content with user message
+        const combinedMsg = `${loadedSkillContent}\n\n${cleanInput}`
+        userMessage(`[${loadedSkillName}]\n\n${loadedSkillContent}\n\n${cleanInput}`)
+        messageCount++
+        await addMessage(conversation.id, "user", combinedMsg)
+        loadedSkillContent = undefined
+        loadedSkillName = undefined
+      } else {
+        userMessage(unquoted)
+        messageCount++
+        await addMessage(conversation.id, "user", cleanInput)
+        await trySetAutoTitle(conversation.id, cleanInput, messageCount)
+      }
 
       // Resolve referenced files (@ + drag-drop) into extra context
       const resolved = await resolveFileReferences(

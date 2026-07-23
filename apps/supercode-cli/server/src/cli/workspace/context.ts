@@ -1,3 +1,6 @@
+import fs from "fs"
+import path from "path"
+import os from "os"
 import type { WorkspaceInfo } from "./scanner.ts"
 
 export function buildSystemPrompt(info: WorkspaceInfo, hasTools = false): string {
@@ -86,6 +89,8 @@ export function buildSystemPrompt(info: WorkspaceInfo, hasTools = false): string
     lines.push("- `read_instructions(path?)` — Read project instruction files")
     lines.push("  (AGENTS.md, CLAUDE.md, README.md). Call this at session start to learn")
     lines.push("  project conventions, build commands, and preferences.")
+    lines.push("- `skill(action, name, source?)` — Manage agent skills. Install (`install`), load (`load`),")
+    lines.push("  list (`list`), or remove (`remove`) skills. See ## Available Skills section for details.")
     lines.push("")
   }
   lines.push("## Web Search Requirement")
@@ -174,6 +179,8 @@ export function buildSystemPrompt(info: WorkspaceInfo, hasTools = false): string
   lines.push("- When the user wraps a URL in single or double quotes, treat it as a")
   lines.push("  string literal — strip the quotes before calling `url_fetch`.")
   lines.push("")
+  pushSkillsSection(lines)
+
   lines.push("## Code Review & Analysis")
   lines.push("")
   lines.push("When asked to review, analyse, or audit a codebase, produce a structured report")
@@ -206,6 +213,47 @@ export function buildSystemPrompt(info: WorkspaceInfo, hasTools = false): string
   lines.push("bullet lists for observations. Be thorough — the user asked for a review,")
   lines.push("not a quick glance.")
   return lines.join("\n")
+}
+
+function pushSkillsSection(lines: string[]): void {
+  const skillsDir = path.join(os.homedir(), ".supercode", "skills")
+  const lockPath = path.join(os.homedir(), ".supercode", "skills-lock.json")
+
+  let lock: Record<string, { source?: string }> = {}
+  try {
+    lock = JSON.parse(fs.readFileSync(lockPath, "utf-8")).skills || {}
+  } catch {
+    return
+  }
+
+  const entries = Object.entries(lock)
+  if (entries.length === 0) return
+
+  lines.push("## Available Skills")
+  lines.push("")
+  lines.push("You have the following agent skills installed. Use the `skill` tool to manage and load them:")
+  lines.push("- `skill({ action: \"load\", name: \"<skill-name>\" })` — Read a skill's full instructions. Call this when a task matches a skill's description.")
+  lines.push("- `skill({ action: \"list\" })` — List all installed skills.")
+  lines.push("- `skill({ action: \"install\", name: \"<name>\", source: \"<owner/repo>\" })` — Install a new skill from GitHub.")
+  lines.push("- `skill({ action: \"remove\", name: \"<name>\" })` — Uninstall a skill.")
+  lines.push("")
+
+  for (const [name, def] of entries) {
+    const skillFile = path.join(skillsDir, name, "SKILL.md")
+    let description = ""
+    try {
+      const content = fs.readFileSync(skillFile, "utf-8")
+      const match = content.match(/description:\s*(.+)/)
+      description = match ? match[1]!.trim() : ""
+    } catch {
+      description = "(not on disk — run `supercode skill sync`)"
+    }
+    lines.push(`- **${name}** — ${description || "(no description)"}`)
+    if (def.source) {
+      lines.push(`  Source: ${def.source}`)
+    }
+  }
+  lines.push("")
 }
 
 function formatTreeForPrompt(nodes: Array<{ name: string; type: "file" | "dir"; children?: any[] }>, indent: string): string {

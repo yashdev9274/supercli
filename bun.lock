@@ -128,6 +128,7 @@
         "@openrouter/ai-sdk-provider": "^2.9.0",
         "@openrouter/sdk": "^0.12.79",
         "@super/db-terminal": "workspace:*",
+        "@super/skills": "workspace:*",
         "@types/bun": "^1.3.14",
         "@types/cors": "^2.8.17",
         "@types/express": "^5.0.0",
@@ -335,6 +336,10 @@
         "@infisical/sdk": "^5.0.2",
         "zod": "^3.24.0",
       },
+    },
+    "packages/skills": {
+      "name": "@super/skills",
+      "version": "0.1.0",
     },
     "packages/superdesign-db": {
       "name": "@super/superdesign-db",
@@ -1398,6 +1403,8 @@
     "@super/sdk": ["@super/sdk@workspace:packages/sdk"],
 
     "@super/secrets": ["@super/secrets@workspace:packages/secrets"],
+
+    "@super/skills": ["@super/skills@workspace:packages/skills"],
 
     "@super/superdesign-db": ["@super/superdesign-db@workspace:packages/superdesign-db"],
 
