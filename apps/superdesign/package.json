@@ -15,7 +15,7 @@
     "@super/design-core": "workspace:*",
     "@super/superdesign-db": "workspace:*",
     "better-auth": "1.6.11",
-    "ai": "^6.0.195",
+    "ai": "^7.0.36",
     "clsx": "^2.1.1",
     "lucide-react": "^0.562.0",
     "nanoid": "^5.0.0",
