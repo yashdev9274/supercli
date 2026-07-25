@@ -13,6 +13,7 @@ export interface CliConfig {
   model: string
   mode: "chat" | "agent"
   apiKeys?: Partial<Record<ModelProvider, string>>
+  checkForUpdates?: boolean
   mcpServers?: Record<string, McpServerConfig>
   mcpCredentials?: Record<string, McpCredentials>
   composioApiKey?: string
