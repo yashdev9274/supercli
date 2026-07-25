@@ -1,10 +1,14 @@
 import { version } from "../../../package.json"
 import chalk from "chalk"
 import { theme, createThinking } from "./tui"
-import { confirm, isCancel } from "@clack/prompts"
 
 const NPM_PACKAGE = "supercode-cli"
 
+/**
+ * Check npm registry for a newer version and print a banner if one exists.
+ * Notification-only — never prompts or installs.
+ * Users should run `supercode upgrade` to actually install.
+ */
 export async function checkForUpdate(): Promise<void> {
   const thinking = createThinking("checking for update")
   try {
@@ -15,7 +19,11 @@ export async function checkForUpdate(): Promise<void> {
       thinking.fail("could not reach registry")
       return
     }
-    const data = (await res.json()) as { version: string }
+    const data = (await res.json()) as { version?: unknown }
+    if (typeof data.version !== "string" || data.version.length === 0) {
+      thinking.fail("invalid registry response")
+      return
+    }
     const latest = data.version
 
     if (latest === version) {
@@ -28,33 +36,10 @@ export async function checkForUpdate(): Promise<void> {
     console.log(
       `  ${chalk.hex(theme.amber)("◆")}  ${chalk.hex(theme.green).bold("Update available:")} ${chalk.hex(theme.greenDim)(`v${version}`)} → ${chalk.hex(theme.greenGlow)(`v${latest}`)}`,
     )
+    console.log(
+      `  ${chalk.hex(theme.greenMute)("Run")} ${chalk.hex(theme.greenGlow)("supercode upgrade")} ${chalk.hex(theme.greenMute)("to update.")}`,
+    )
     console.log()
-
-    const shouldUpdate = await confirm({
-      message: "Update to latest version?",
-      initialValue: true,
-    })
-
-    if (isCancel(shouldUpdate) || !shouldUpdate) {
-      console.log(`  ${chalk.hex(theme.greenMute)("Skipping update")}`)
-      console.log()
-      return
-    }
-
-    const spinner = createThinking("updating supercode")
-    try {
-      const result = await Bun.$`npm install -g ${NPM_PACKAGE}@latest`.quiet()
-      if (result.exitCode === 0) {
-        spinner.succeed(`Updated to v${latest}`)
-        console.log()
-      } else {
-        throw new Error(`exit code ${result.exitCode}`)
-      }
-    } catch {
-      spinner.fail("Update failed")
-      console.log(`  ${chalk.hex(theme.greenMute)("Continuing with current version")}`)
-      console.log()
-    }
   } catch {
     thinking.fail("update check failed")
   }

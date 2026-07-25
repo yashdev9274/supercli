@@ -36,6 +36,14 @@ export async function upgradeAction(options: { yes?: boolean }): Promise<void> {
     process.exit(1)
   }
 
+  if (cmp === 1) {
+    thinking.succeed(`v${currentVersion} (newer than npm's v${latestVersion})`)
+    console.log()
+    console.log(`  ${chalk.hex(theme.green)("◆")} ${chalk.hex(theme.greenMute)("You're on a pre-release or local build — no upgrade needed.")}`)
+    console.log()
+    return
+  }
+
   // currentVersion < latestVersion
   thinking.stop()
   console.log()

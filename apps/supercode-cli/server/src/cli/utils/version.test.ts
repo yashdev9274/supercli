@@ -40,3 +40,28 @@ test("compareVersions returns null for invalid versions", () => {
   expect(compareVersions("", "1.0.0")).toBeNull()
   expect(compareVersions("1.0.0", "")).toBeNull()
 })
+
+test("compareVersions rejects malformed semver suffixes", () => {
+  expect(compareVersions("1.2.3foo", "1.2.3")).toBeNull()
+  expect(compareVersions("1.2.3", "1.2.3foo")).toBeNull()
+  expect(compareVersions("1.2.3.", "1.2.3")).toBeNull()
+  expect(compareVersions("1.2.3.", "1.2.3")).toBeNull()
+})
+
+test("compareVersions orders prereleases below stable", () => {
+  expect(compareVersions("1.0.0-alpha", "1.0.0")).toBe(-1)
+  expect(compareVersions("1.0.0", "1.0.0-alpha")).toBe(1)
+  expect(compareVersions("1.0.0-alpha", "1.0.0-beta")).toBe(-1)
+  expect(compareVersions("1.0.0-beta", "1.0.0-alpha")).toBe(1)
+})
+
+test("compareVersions orders prerelease numeric identifiers correctly", () => {
+  expect(compareVersions("1.0.0-alpha.1", "1.0.0-alpha.2")).toBe(-1)
+  expect(compareVersions("1.0.0-alpha.2", "1.0.0-alpha.1")).toBe(1)
+  expect(compareVersions("1.0.0-alpha.1", "1.0.0-alpha.1")).toBe(0)
+})
+
+test("compareVersions handles build metadata gracefully", () => {
+  expect(compareVersions("1.0.0+build123", "1.0.0")).toBe(0)
+  expect(compareVersions("1.0.0", "1.0.0+build123")).toBe(0)
+})
