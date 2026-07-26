@@ -52,12 +52,12 @@ function comparePrerelease(a: string | null, b: string | null): number {
     if (ap === undefined) return -1
     if (bp === undefined) return 1
 
-    const aNum = parseInt(ap, 10)
-    const bNum = parseInt(bp, 10)
-    const aIsNum = !isNaN(aNum)
-    const bIsNum = !isNaN(bNum)
+    const aIsNum = /^\d+$/.test(ap)
+    const bIsNum = /^\d+$/.test(bp)
 
     if (aIsNum && bIsNum) {
+      const aNum = parseInt(ap, 10)
+      const bNum = parseInt(bp, 10)
       if (aNum !== bNum) return aNum < bNum ? -1 : 1
     } else if (aIsNum) {
       return -1 // numeric < string

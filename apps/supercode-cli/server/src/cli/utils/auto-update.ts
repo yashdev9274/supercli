@@ -1,5 +1,6 @@
 import { version } from "../../../package.json"
 import chalk from "chalk"
+import { compareVersions } from "./version"
 import { theme, createThinking } from "./tui"
 
 const NPM_PACKAGE = "supercode-cli"
@@ -26,8 +27,17 @@ export async function checkForUpdate(): Promise<void> {
     }
     const latest = data.version
 
-    if (latest === version) {
+    const cmp = compareVersions(version, latest)
+    if (cmp === 0) {
       thinking.succeed(`v${version} (latest)`)
+      return
+    }
+    if (cmp === 1) {
+      thinking.succeed(`v${version} (ahead of npm)`)
+      return
+    }
+    if (cmp === null) {
+      thinking.fail("could not compare versions")
       return
     }
 

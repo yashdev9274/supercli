@@ -61,6 +61,12 @@ test("compareVersions orders prerelease numeric identifiers correctly", () => {
   expect(compareVersions("1.0.0-alpha.1", "1.0.0-alpha.1")).toBe(0)
 })
 
+test("compareVersions treats non-numeric prerelease identifiers correctly", () => {
+  // "1a" is non-numeric, "2" is numeric; per semver, numeric < string
+  expect(compareVersions("1.0.0-alpha.1a", "1.0.0-alpha.2")).toBe(1)
+  expect(compareVersions("1.0.0-alpha.2", "1.0.0-alpha.1a")).toBe(-1)
+})
+
 test("compareVersions handles build metadata gracefully", () => {
   expect(compareVersions("1.0.0+build123", "1.0.0")).toBe(0)
   expect(compareVersions("1.0.0", "1.0.0+build123")).toBe(0)
