@@ -1,5 +1,5 @@
-import { test, expect } from "bun:test"
-import { compareVersions } from "./version"
+import { test, expect, mock } from "bun:test"
+import { compareVersions, fetchLatestVersion } from "./version"
 
 test("compareVersions returns 0 for equal versions", () => {
   expect(compareVersions("0.1.0", "0.1.0")).toBe(0)
@@ -67,7 +67,47 @@ test("compareVersions treats non-numeric prerelease identifiers correctly", () =
   expect(compareVersions("1.0.0-alpha.2", "1.0.0-alpha.1a")).toBe(-1)
 })
 
+test("compareVersions handles variable-length prerelease identifiers", () => {
+  // More prerelease fields = higher precedence per semver spec
+  expect(compareVersions("1.0.0-alpha", "1.0.0-alpha.1")).toBe(-1)
+  expect(compareVersions("1.0.0-alpha.1", "1.0.0-alpha")).toBe(1)
+})
+
 test("compareVersions handles build metadata gracefully", () => {
   expect(compareVersions("1.0.0+build123", "1.0.0")).toBe(0)
   expect(compareVersions("1.0.0", "1.0.0+build123")).toBe(0)
+})
+
+test("fetchLatestVersion returns version string on success", async () => {
+  const orig = globalThis.fetch
+  globalThis.fetch = mock(() =>
+    Promise.resolve(new Response(JSON.stringify({ version: "1.2.3" }))),
+  ) as unknown as typeof fetch
+  expect(await fetchLatestVersion("test-pkg")).toBe("1.2.3")
+  globalThis.fetch = orig
+})
+
+test("fetchLatestVersion returns null on non-ok response", async () => {
+  const orig = globalThis.fetch
+  globalThis.fetch = mock(() =>
+    Promise.resolve(new Response(null, { status: 404 })),
+  ) as unknown as typeof fetch
+  expect(await fetchLatestVersion("test-pkg")).toBeNull()
+  globalThis.fetch = orig
+})
+
+test("fetchLatestVersion returns null on malformed json response", async () => {
+  const orig = globalThis.fetch
+  globalThis.fetch = mock(() =>
+    Promise.resolve(new Response(JSON.stringify({}))),
+  ) as unknown as typeof fetch
+  expect(await fetchLatestVersion("test-pkg")).toBeNull()
+  globalThis.fetch = orig
+})
+
+test("fetchLatestVersion returns null on network error", async () => {
+  const orig = globalThis.fetch
+  globalThis.fetch = mock(() => Promise.reject(new Error("network error"))) as unknown as typeof fetch
+  expect(await fetchLatestVersion("test-pkg")).toBeNull()
+  globalThis.fetch = orig
 })

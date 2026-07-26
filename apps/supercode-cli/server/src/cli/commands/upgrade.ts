@@ -1,3 +1,4 @@
+import { execSync } from "child_process"
 import { Command } from "commander"
 import chalk from "chalk"
 import { confirm, isCancel } from "@clack/prompts"
@@ -66,19 +67,16 @@ export async function upgradeAction(options: { yes?: boolean }): Promise<void> {
   const spinner = createThinking("upgrading supercode")
 
   try {
-    const result = await Bun.$`bun install -g ${NPM_PACKAGE}@latest`.quiet()
-    if (result.exitCode === 0) {
-      spinner.succeed(`Updated to v${latestVersion}`)
-      console.log()
-      console.log(`  ${chalk.hex(theme.green)("◆")} ${chalk.hex(theme.greenMute)("Run")} ${chalk.hex(theme.greenGlow)("supercode --version")} ${chalk.hex(theme.greenMute)("to confirm.")}`)
-      console.log()
-    } else {
-      throw new Error(`exit code ${result.exitCode}`)
-    }
+    execSync(`bun install -g ${NPM_PACKAGE}@latest`, { stdio: "pipe" })
+    spinner.succeed(`Updated to v${latestVersion}`)
+    console.log()
+    console.log(`  ${chalk.hex(theme.green)("◆")} ${chalk.hex(theme.greenMute)("Run")} ${chalk.hex(theme.greenGlow)("supercode --version")} ${chalk.hex(theme.greenMute)("to confirm.")}`)
+    console.log()
   } catch {
     spinner.fail("Upgrade failed")
     console.log(`  ${chalk.hex(theme.greenMute)("Try running manually:")}`)
     console.log(`  ${chalk.hex(theme.greenGlow)("bun install -g")} ${chalk.hex(theme.greenDim)(`${NPM_PACKAGE}@latest`)}`)
+    console.log(`  ${chalk.hex(theme.greenGlow)("npm install -g")} ${chalk.hex(theme.greenDim)(`${NPM_PACKAGE}@latest`)}`)
     console.log()
     process.exit(1)
   }
