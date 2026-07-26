@@ -140,6 +140,21 @@ export async function getCliConfig(): Promise<CliConfig | null> {
   }
 }
 
+/**
+ * Read the checkForUpdates setting independently of config version guard.
+ * A preference like this should survive version bumps — it's not tied to
+ * provider/model defaults that may change between versions.
+ */
+export async function getCheckForUpdatesSetting(): Promise<boolean> {
+  try {
+    const data = await fs.readFile(CONFIG_FILE, "utf-8")
+    const config = JSON.parse(data) as CliConfig
+    return config.checkForUpdates === true
+  } catch {
+    return false
+  }
+}
+
 export async function saveCliConfig(updates: Partial<CliConfig>): Promise<CliConfig> {
   try {
     await fs.mkdir(CONFIG_DIR, { recursive: true })

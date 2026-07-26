@@ -11,7 +11,7 @@ import { supercodeInit } from "./commands/ai/init"
 import { skillCommand } from "./commands/skill"
 import { renderWelcome } from "./utils/welcome"
 import { checkForUpdate } from "./utils/auto-update"
-import { getCliConfig } from "src/lib/cli-config"
+import { getCheckForUpdatesSetting } from "src/lib/cli-config"
 
 process.on("unhandledRejection", (reason) => {
   try {
@@ -42,8 +42,7 @@ async function main() {
     renderWelcome(version)
 
     // Opt-in startup version-check notification (disabled by default)
-    const config = await getCliConfig()
-    if (config?.checkForUpdates) {
+    if (await getCheckForUpdatesSetting()) {
       await checkForUpdate()
     }
 
