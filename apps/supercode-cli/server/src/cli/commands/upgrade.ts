@@ -3,9 +3,7 @@ import chalk from "chalk"
 import { confirm, isCancel } from "@clack/prompts"
 import { version as currentVersion } from "../../../package.json"
 import { theme, createThinking } from "../utils/tui"
-import { compareVersions, fetchLatestVersion } from "../utils/version"
-
-const NPM_PACKAGE = "supercode-cli"
+import { compareVersions, fetchLatestVersion, NPM_PACKAGE } from "../utils/version"
 
 export async function upgradeAction(options: { yes?: boolean }): Promise<void> {
 

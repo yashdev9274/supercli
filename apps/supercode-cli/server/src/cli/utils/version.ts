@@ -1,6 +1,6 @@
 const NPM_REGISTRY = "https://registry.npmjs.org"
 
-const NPM_PACKAGE_NAME = "supercode-cli"
+export const NPM_PACKAGE = "supercode-cli"
 
 /**
  * Valid semver pattern: MAJOR.MINOR.PATCH[-PRERELEASE][+BUILD]
@@ -94,7 +94,7 @@ export function compareVersions(a: string, b: string): -1 | 0 | 1 | null {
  * Returns null on failure or if the response is malformed.
  */
 export async function fetchLatestVersion(
-  packageName: string = NPM_PACKAGE_NAME,
+  packageName: string = NPM_PACKAGE,
 ): Promise<string | null> {
   try {
     const res = await fetch(`${NPM_REGISTRY}/${packageName}/latest`, {
