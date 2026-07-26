@@ -1,4 +1,4 @@
-import { test, expect, mock } from "bun:test"
+import { test, expect, mock, describe, beforeEach, afterEach } from "bun:test"
 import { compareVersions, fetchLatestVersion } from "./version"
 
 test("compareVersions returns 0 for equal versions", () => {
@@ -78,36 +78,40 @@ test("compareVersions handles build metadata gracefully", () => {
   expect(compareVersions("1.0.0", "1.0.0+build123")).toBe(0)
 })
 
-test("fetchLatestVersion returns version string on success", async () => {
-  const orig = globalThis.fetch
-  globalThis.fetch = mock(() =>
-    Promise.resolve(new Response(JSON.stringify({ version: "1.2.3" }))),
-  ) as unknown as typeof fetch
-  expect(await fetchLatestVersion("test-pkg")).toBe("1.2.3")
-  globalThis.fetch = orig
-})
+describe("fetchLatestVersion", () => {
+  let origFetch: typeof fetch
 
-test("fetchLatestVersion returns null on non-ok response", async () => {
-  const orig = globalThis.fetch
-  globalThis.fetch = mock(() =>
-    Promise.resolve(new Response(null, { status: 404 })),
-  ) as unknown as typeof fetch
-  expect(await fetchLatestVersion("test-pkg")).toBeNull()
-  globalThis.fetch = orig
-})
+  beforeEach(() => {
+    origFetch = globalThis.fetch
+  })
 
-test("fetchLatestVersion returns null on malformed json response", async () => {
-  const orig = globalThis.fetch
-  globalThis.fetch = mock(() =>
-    Promise.resolve(new Response(JSON.stringify({}))),
-  ) as unknown as typeof fetch
-  expect(await fetchLatestVersion("test-pkg")).toBeNull()
-  globalThis.fetch = orig
-})
+  afterEach(() => {
+    globalThis.fetch = origFetch
+  })
 
-test("fetchLatestVersion returns null on network error", async () => {
-  const orig = globalThis.fetch
-  globalThis.fetch = mock(() => Promise.reject(new Error("network error"))) as unknown as typeof fetch
-  expect(await fetchLatestVersion("test-pkg")).toBeNull()
-  globalThis.fetch = orig
+  test("returns version string on success", async () => {
+    globalThis.fetch = mock(() =>
+      Promise.resolve(new Response(JSON.stringify({ version: "1.2.3" }))),
+    ) as unknown as typeof fetch
+    expect(await fetchLatestVersion("test-pkg")).toBe("1.2.3")
+  })
+
+  test("returns null on non-ok response", async () => {
+    globalThis.fetch = mock(() =>
+      Promise.resolve(new Response(null, { status: 404 })),
+    ) as unknown as typeof fetch
+    expect(await fetchLatestVersion("test-pkg")).toBeNull()
+  })
+
+  test("returns null on malformed json response", async () => {
+    globalThis.fetch = mock(() =>
+      Promise.resolve(new Response(JSON.stringify({}))),
+    ) as unknown as typeof fetch
+    expect(await fetchLatestVersion("test-pkg")).toBeNull()
+  })
+
+  test("returns null on network error", async () => {
+    globalThis.fetch = mock(() => Promise.reject(new Error("network error"))) as unknown as typeof fetch
+    expect(await fetchLatestVersion("test-pkg")).toBeNull()
+  })
 })

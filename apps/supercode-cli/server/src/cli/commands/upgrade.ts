@@ -1,10 +1,11 @@
-import { execSync } from "child_process"
+import { execFileSync } from "child_process"
 import { Command } from "commander"
 import chalk from "chalk"
 import { confirm, isCancel } from "@clack/prompts"
 import { version as currentVersion } from "../../../package.json"
 import { theme, createThinking } from "../utils/tui"
 import { compareVersions, fetchLatestVersion, NPM_PACKAGE } from "../utils/version"
+import { saveCliConfig } from "src/lib/cli-config"
 
 export async function upgradeAction(options: { yes?: boolean }): Promise<void> {
 
@@ -67,7 +68,8 @@ export async function upgradeAction(options: { yes?: boolean }): Promise<void> {
   const spinner = createThinking("upgrading supercode")
 
   try {
-    execSync(`bun install -g ${NPM_PACKAGE}@latest`, { stdio: "pipe" })
+    execFileSync("bun", ["install", "-g", `${NPM_PACKAGE}@latest`], { stdio: "pipe" })
+    await saveCliConfig({ checkForUpdates: true })
     spinner.succeed(`Updated to v${latestVersion}`)
     console.log()
     console.log(`  ${chalk.hex(theme.green)("◆")} ${chalk.hex(theme.greenMute)("Run")} ${chalk.hex(theme.greenGlow)("supercode --version")} ${chalk.hex(theme.greenMute)("to confirm.")}`)
