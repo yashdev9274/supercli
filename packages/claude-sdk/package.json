@@ -6,6 +6,6 @@
   "types": "./src/index.ts",
   "dependencies": {
     "ai": "^5.0.138",
-    "@ai-sdk/anthropic": "^0.0.56"
+    "@ai-sdk/anthropic": "^4.0.15"
   }
 }
