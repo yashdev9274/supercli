@@ -53,7 +53,7 @@
   },
   "packageManager": "bun@1.2.21",
   "dependencies": {
-    "@pinecone-database/pinecone": "^7.0.0",
+    "@pinecone-database/pinecone": "^8.0.0",
     "g": "^2.0.1",
     "inngest": "^3.54.1",
     "vercel": "^50.13.2"
