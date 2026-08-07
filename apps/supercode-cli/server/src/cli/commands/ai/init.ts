@@ -11,7 +11,6 @@ import { createThinking, errorBox } from "src/cli/utils/tui"
 import { renderWelcome } from "src/cli/utils/welcome"
 import { scanWorkspace } from "src/cli/workspace/scanner.ts"
 import { getCliConfig, saveCliConfig, applyStoredApiKeys } from "src/lib/cli-config"
-import { checkForUpdate } from "src/cli/utils/auto-update"
 import { checkPaidTierInterest } from "src/cli/utils/paid-tier-check"
 import { CLOUD_MODELS } from "src/cli/commands/slashCommands/model"
 
@@ -41,7 +40,6 @@ export const wakeUpAction = async (resumeId: string | null = null) => {
   const user = result.user
   thinking.succeed(`Welcome, ${user.name}`)
 
-  await checkForUpdate()
   await checkPaidTierInterest()
 
   const wsThinking = createThinking("scanning workspace")

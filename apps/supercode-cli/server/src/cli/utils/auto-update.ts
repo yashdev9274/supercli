@@ -1,61 +1,43 @@
 import { version } from "../../../package.json"
 import chalk from "chalk"
+import { compareVersions, fetchLatestVersion, NPM_PACKAGE } from "./version"
 import { theme, createThinking } from "./tui"
-import { confirm, isCancel } from "@clack/prompts"
 
-const NPM_PACKAGE = "supercode-cli"
-
+/**
+ * Check npm registry for a newer version and print a banner if one exists.
+ * Notification-only — never prompts or installs.
+ * Users should run `supercode upgrade` to actually install.
+ */
 export async function checkForUpdate(): Promise<void> {
   const thinking = createThinking("checking for update")
-  try {
-    const res = await fetch(`https://registry.npmjs.org/${NPM_PACKAGE}/latest`, {
-      signal: AbortSignal.timeout(5000),
-    })
-    if (!res.ok) {
-      thinking.fail("could not reach registry")
-      return
-    }
-    const data = (await res.json()) as { version: string }
-    const latest = data.version
 
-    if (latest === version) {
-      thinking.succeed(`v${version} (latest)`)
-      return
-    }
-
-    thinking.stop()
-    console.log()
-    console.log(
-      `  ${chalk.hex(theme.amber)("◆")}  ${chalk.hex(theme.green).bold("Update available:")} ${chalk.hex(theme.greenDim)(`v${version}`)} → ${chalk.hex(theme.greenGlow)(`v${latest}`)}`,
-    )
-    console.log()
-
-    const shouldUpdate = await confirm({
-      message: "Update to latest version?",
-      initialValue: true,
-    })
-
-    if (isCancel(shouldUpdate) || !shouldUpdate) {
-      console.log(`  ${chalk.hex(theme.greenMute)("Skipping update")}`)
-      console.log()
-      return
-    }
-
-    const spinner = createThinking("updating supercode")
-    try {
-      const result = await Bun.$`npm install -g ${NPM_PACKAGE}@latest`.quiet()
-      if (result.exitCode === 0) {
-        spinner.succeed(`Updated to v${latest}`)
-        console.log()
-      } else {
-        throw new Error(`exit code ${result.exitCode}`)
-      }
-    } catch {
-      spinner.fail("Update failed")
-      console.log(`  ${chalk.hex(theme.greenMute)("Continuing with current version")}`)
-      console.log()
-    }
-  } catch {
-    thinking.fail("update check failed")
+  const latest = await fetchLatestVersion(NPM_PACKAGE)
+  if (!latest) {
+    thinking.fail("could not reach registry")
+    return
   }
+
+  const cmp = compareVersions(version, latest)
+  if (cmp === 0) {
+    thinking.succeed(`v${version} (latest)`)
+    return
+  }
+  if (cmp === 1) {
+    thinking.succeed(`v${version} (ahead of npm)`)
+    return
+  }
+  if (cmp === null) {
+    thinking.fail("could not compare versions")
+    return
+  }
+
+  thinking.stop()
+  console.log()
+  console.log(
+    `  ${chalk.hex(theme.amber)("◆")}  ${chalk.hex(theme.green).bold("Update available:")} ${chalk.hex(theme.greenDim)(`v${version}`)} → ${chalk.hex(theme.greenGlow)(`v${latest}`)}`,
+  )
+  console.log(
+    `  ${chalk.hex(theme.greenMute)("Run")} ${chalk.hex(theme.greenGlow)("supercode upgrade")} ${chalk.hex(theme.greenMute)("to update.")}`,
+  )
+  console.log()
 }
