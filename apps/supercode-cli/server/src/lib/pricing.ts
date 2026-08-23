@@ -37,6 +37,7 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   "grok/grok-4-fast-reasoning": { inputPrice: 1.00, outputPrice: 5.00,  cachedPrice: 0 },
   "orcarouter/auto":         { inputPrice: 0,      outputPrice: 0,      cachedPrice: 0 },
   "mimo-v2.5":              { inputPrice: 0.15,   outputPrice: 0.60,   cachedPrice: 0 },
+  "stealth/ox-alpha":        { inputPrice: 0,      outputPrice: 0,      cachedPrice: 0 },
   "fireworks/nemotron-3-ultra-nvfp4": { inputPrice: 0.60, outputPrice: 2.40, cachedPrice: 0.12 },
   "kimi-k2-7-code":         { inputPrice: 0.25,   outputPrice: 1.00,   cachedPrice: 0 },
   "kimi-k3":                { inputPrice: 0.50,   outputPrice: 2.00,   cachedPrice: 0 },

@@ -33,6 +33,7 @@ import {
   emitFromNonStreamingMessage,
   writeFinish,
   mergeKnownTools,
+  serializeChatContent,
 } from "./lib/openai-compatible-stream"
 import { stripOrphanToolCalls } from "./cli/ai/sanitize-messages"
 
@@ -42,6 +43,76 @@ function toolParams(fn: any): object {
     return { type: "object", properties: {} }
   }
   return raw
+}
+
+// ── Aggressive tool-definition compression for context-limited models ───
+// Strips ALL descriptions, collapses nested schemas, removes non-essential
+// fields to fit tool definitions within 1M context.
+function slimSchema(schema: any, depth = 0): any {
+  if (!schema || typeof schema !== "object") return schema
+  if (Array.isArray(schema)) return schema.map(s => slimSchema(s, depth + 1))
+
+  // At depth > 2, collapse to just the bare type info
+  if (depth > 2) {
+    if (schema.type === "object" && schema.properties) {
+      return { type: "object" }
+    }
+    return { type: schema.type || "string" }
+  }
+
+  const out: any = {}
+  for (const [key, val] of Object.entries(schema)) {
+    // Drop ALL verbose fields — only keep structural/schema essentials
+    if (key === "description" || key === "default" || key === "examples" ||
+        key === "title" || key === "$schema" || key === "deprecated" ||
+        key === "format" || key === "pattern" || key === "minimum" ||
+        key === "maximum" || key === "minLength" || key === "maxLength" ||
+        key === "minItems" || key === "maxItems" || key === "uniqueItems" ||
+        key === "additionalProperties" || key === "patternProperties" ||
+        key === "if" || key === "then" || key === "else" || key === "not") {
+      continue
+    }
+
+    if (key === "anyOf" || key === "oneOf" || key === "allOf") {
+      const arr = val as any[]
+      if (Array.isArray(arr) && arr.length > 0) {
+        // Collapse unions to first branch
+        out[key] = [slimSchema(arr[0], depth + 1)]
+      }
+      continue
+    }
+    if (key === "properties" && typeof val === "object") {
+      const slimmed: any = {}
+      for (const [propName, propVal] of Object.entries(val as any)) {
+        slimmed[propName] = slimSchema(propVal, depth + 1)
+      }
+      out[key] = slimmed
+      continue
+    }
+    if (key === "items" && typeof val === "object") {
+      out[key] = slimSchema(val, depth + 1)
+      continue
+    }
+    out[key] = val
+  }
+  return out
+}
+
+function slimToolDesc(desc: string): string {
+  if (!desc) return ""
+  // Aggressive truncation: first 50 chars only — enough to identify the tool
+  const trimmed = desc.replace(/\s+/g, " ").trim()
+  return trimmed.length > 50 ? trimmed.slice(0, 50) + "…" : trimmed
+}
+
+function slimToolParams(_fn: any): object {
+  // Strip ALL parameter schema — just tell the model "this tool accepts an object"
+  // Saves ~1M tokens vs full schema; the tool name + description is enough context
+  return { type: "object", properties: {} }
+}
+
+function isStealthModel(model: string): boolean {
+  return model.includes("stealth/ox-alpha")
 }
 
 function knownToolsFromRequest(tools: any): Set<string> {
@@ -75,6 +146,7 @@ const MODEL_MAX_TOKENS: Record<string, number> = {
   "anthropic/claude-opus-4-7": 128000,
   "anthropic/claude-opus-4-8": 128000,
   "openai/gpt-5.5": 128000,
+  "stealth/ox-alpha": 32768,
 }
 function getModelMaxTokens(model: string): number {
   const exact = MODEL_MAX_TOKENS[model]
@@ -102,6 +174,7 @@ const CLOUD_ALLOWED_MODELS = new Set([
   "fireworks/nemotron-3-ultra-nvfp4",
   "kimi-k2-7-code",
   "kimi-k3",
+  "stealth/ox-alpha",
 ])
 const JSON_BODY_LIMIT = process.env.SUPERCODE_JSON_BODY_LIMIT || "10mb"
 const app = express()
@@ -465,7 +538,7 @@ app.post("/api/ai/chat", async (req, res) => {
           messages: nonSystemMessages.map((m: any) => {
             const msg: any = {
               role: m.role,
-              content: m.content !== null && m.content !== undefined ? String(m.content) : "",
+              content: serializeChatContent(m.content),
             }
             if (m.tool_calls) msg.tool_calls = m.tool_calls
             if (m.tool_call_id) msg.tool_call_id = m.tool_call_id
@@ -474,24 +547,39 @@ app.post("/api/ai/chat", async (req, res) => {
           max_tokens: getModelMaxTokens(modelName),
           temperature: 0.7,
           stream: true,
+          stream_options: { include_usage: true },
         }
         if (system && nonSystemMessages.length > 0) {
           bodyObj.messages = [{ role: "system", content: system }, ...bodyObj.messages]
         }
-        if (tools) {
+        if (tools && !isStealthModel(modelName)) {
           bodyObj.tools = Object.entries(tools).map(([name, fn]: [string, any]) => ({
             type: "function",
-            function: { name, description: fn.description || "", parameters: toolParams(fn) },
+            function: {
+              name,
+              description: fn.description || "",
+              parameters: toolParams(fn),
+            },
           }))
         }
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify(bodyObj),
-        })
-        if (!response.ok) {
-          const errText = await response.text().catch(() => "unknown error")
-          res.status(response.status).json({ error: `OpenRouter API ${response.status}: ${errText}` })
+        // Retry on 429 with exponential backoff (up to 3 attempts)
+        let response: Response | null = null
+        const MAX_RETRIES = 3
+        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+          response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify(bodyObj),
+          })
+          if (response.status !== 429) break
+          if (attempt < MAX_RETRIES - 1) {
+            const delayMs = Math.min(2000 * Math.pow(2, attempt), 8000)
+            await new Promise(r => setTimeout(r, delayMs))
+          }
+        }
+        if (!response || !response.ok) {
+          const errText = await response!.text().catch(() => "unknown error")
+          res.status(response!.status).json({ error: `OpenRouter API ${response!.status}: ${errText}` })
           return
         }
         const reader = response.body?.getReader()

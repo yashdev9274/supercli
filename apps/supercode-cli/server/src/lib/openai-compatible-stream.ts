@@ -49,6 +49,64 @@ export interface StreamChatOptions {
   knownTools?: Set<string>
 }
 
+function joinTextParts(value: unknown): string {
+  if (value == null) return ""
+  if (typeof value === "string") return value
+  if (typeof value === "number" || typeof value === "boolean") return String(value)
+  if (Array.isArray(value)) {
+    return value.map((part) => joinTextParts(part)).join("")
+  }
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>
+    if (typeof obj.text === "string") return obj.text
+    if (typeof obj.content === "string") return obj.content
+    if (typeof obj.summary === "string") return obj.summary
+  }
+  return ""
+}
+
+/** Visible assistant text from an OpenAI/OpenRouter stream delta. */
+export function extractDeltaContent(delta: any): string {
+  if (!delta) return ""
+  return joinTextParts(delta.content)
+}
+
+/**
+ * Reasoning / thinking text from an OpenAI/OpenRouter stream delta.
+ * Ox Alpha (and other stealth reasoning models) put tokens in
+ * `reasoning_details[]` rather than `content` or `reasoning_content`.
+ */
+export function extractDeltaReasoning(delta: any): string {
+  if (!delta) return ""
+  const chunks: string[] = []
+  const direct = joinTextParts(delta.reasoning_content) || joinTextParts(delta.reasoning)
+  if (direct) chunks.push(direct)
+  if (Array.isArray(delta.reasoning_details)) {
+    for (const detail of delta.reasoning_details) {
+      const text = joinTextParts(detail)
+      if (text) chunks.push(text)
+    }
+  }
+  return chunks.join("")
+}
+
+/** Flatten AI-SDK / OpenAI message content (string or parts array) for upstream APIs. */
+export function serializeChatContent(content: unknown): string {
+  return joinTextParts(content)
+}
+
+function streamErrorMessage(data: any): string | null {
+  const err = data?.error ?? data?.choices?.[0]?.error
+  if (!err) return null
+  if (typeof err === "string") return err
+  if (typeof err?.message === "string") return err.message
+  try {
+    return JSON.stringify(err)
+  } catch {
+    return "Upstream stream error"
+  }
+}
+
 /**
  * Read an OpenAI-compatible SSE body, write NDJSON events to `res`, and
  * return summary stats. Handles:
@@ -125,10 +183,16 @@ export async function streamOpenAICompatibleChat(
         if (jsonStr === "[DONE]") break
         try {
           const data = JSON.parse(jsonStr)
+          const errMsg = streamErrorMessage(data)
+          if (errMsg) {
+            res.write(JSON.stringify({ type: "error", message: errMsg }) + "\n")
+            continue
+          }
           const delta = data.choices?.[0]?.delta
 
-          if (delta?.content) {
-            const blk = embedded.push(String(delta.content))
+          const contentChunk = extractDeltaContent(delta)
+          if (contentChunk) {
+            const blk = embedded.push(contentChunk)
             if (blk.text) {
               fullContent += blk.text
               res.write(JSON.stringify({ type: "text", content: blk.text }) + "\n")
@@ -136,7 +200,7 @@ export async function streamOpenAICompatibleChat(
             emitEmbedded(blk.calls)
           }
 
-          const reasoningChunk = delta?.reasoning_content || delta?.reasoning
+          const reasoningChunk = extractDeltaReasoning(delta)
           if (reasoningChunk) {
             reasoningContent += reasoningChunk
             res.write(JSON.stringify({ type: "reasoning", content: reasoningChunk }) + "\n")
@@ -196,6 +260,21 @@ export async function streamOpenAICompatibleChat(
 
   // Final pending structured tool calls (if any remain).
   if (Object.keys(pendingToolCalls).length > 0) flushPending()
+
+  // Fallback: if model returned only reasoning content and no visible text, emit reasoning as text.
+  if (!fullContent && reasoningContent.trim()) {
+    fullContent = reasoningContent
+    res.write(JSON.stringify({ type: "text", content: reasoningContent }) + "\n")
+  }
+
+  if (!fullContent && !emittedToolCalls) {
+    res.write(
+      JSON.stringify({
+        type: "error",
+        message: "Model returned an empty response. Try again or switch models with /model.",
+      }) + "\n",
+    )
+  }
 
   return {
     fullContent,

@@ -94,6 +94,19 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
         generateObject: (schema, prompt) => svc.generateObject(schema, prompt),
       }
     }
+    if (provider === "openrouter") {
+      // Fall back to server proxy when no BYOK key is configured.
+      // The server uses its own OPENROUTER_API_KEY to handle the request.
+      const svc = new ServerProxyService("openrouter", model || meta.defaultModel)
+      return {
+        name: provider,
+        modelName: model || meta.defaultModel,
+        connectionType: "proxy",
+        sendMessage: (messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish) =>
+          svc.sendMessage(messages, onChunk, tools, onToolCall, signal, onReasoning, onToolResult, onStepFinish),
+        generateObject: (schema, prompt) => svc.generateObject(schema, prompt),
+      }
+    }
     throw new Error(
       `No API key configured for ${meta.label}. ` +
       `Run \`/connect\` and select "${meta.label}" to save your key, ` +
