@@ -102,7 +102,7 @@ const navigation: NavigationGroup[] = [
         children: [
           { name: "Settings", href: "/settings" },
           { name: "Logs", href: "/logs" },
-          { name: "Analytics", href: "/analytics" },
+
           { name: "Custom Context", href: "/context" },
         ]
       },
