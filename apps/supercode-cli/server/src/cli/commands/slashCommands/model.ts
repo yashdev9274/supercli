@@ -89,6 +89,7 @@ export const CLOUD_MODELS: ModelEntry[] = [
   { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", provider: "supercode", cost: "", desc: "Google smart & fast" },
   { value: "meta/llama-3.3-70b-instruct", label: "Llama 3.3 70B", provider: "supercode", cost: "", desc: "Open weights" },
   { value: "orcarouter/auto", label: "OrcaRouter Auto", provider: "supercode", cost: "", desc: "Auto-pick cheapest" },
+  { value: "stealth/ox-alpha", label: "OX Alpha", provider: "supercode", cost: "", desc: "Free · Coding & reasoning" },
 ]
 
 // Models available when you bring your own API key (BYOK)
@@ -172,6 +173,7 @@ export const BYOK_MODELS: ModelEntry[] = [
 
   // ── OpenRouter ──────────────────────────────────────────────
   { value: SECTION_OPENROUTER, label: "OpenRouter", provider: "openrouter", cost: "", desc: "" },
+  { value: "stealth/ox-alpha", label: "OX Alpha", provider: "openrouter", cost: "", desc: "Free · Coding & reasoning" },
   { value: "anthropic/claude-opus-5", label: "Claude Opus 5", provider: "openrouter", cost: "50x", desc: "Most capable" },
   { value: "anthropic/claude-opus-4-8", label: "Claude Opus 4.8", provider: "openrouter", cost: "40x", desc: "Deep reasoning" },
   { value: "anthropic/claude-opus-4", label: "Claude Opus 4", provider: "openrouter", cost: "30x", desc: "Top-tier reasoning" },
@@ -680,8 +682,9 @@ export async function pickModel(
     return { provider: currentProvider as ModelProvider, model: currentModel }
   }
 
-  // For BYOK providers, check if an API key is configured
-  if (selected.provider !== "supercode") {
+  // For BYOK providers, check if an API key is configured.
+  // OpenRouter free models route through the server's key — skip BYOK check.
+  if (selected.provider !== "supercode" && selected.provider !== "openrouter") {
     const config = await getCliConfig()
     const existingKey = config?.apiKeys?.[selected.provider] || getByokSessionKey(selected.provider)
     if (!existingKey) {

@@ -7,6 +7,7 @@ const MODEL_BASE_COST: Record<string, number> = {
   "MiniMax-M3": 1.5, // $0.015
   "minimax/minimax-m3": 1.5,
   "mimo-v2.5": 5.0, // $0.05
+  "stealth/ox-alpha": 0.0, // free
   "kimi-k2-6": 0.5, // $0.005 (other open models)
   "kimi-k2-7-code": 0.5,
   "kimi-k3": 0.5,

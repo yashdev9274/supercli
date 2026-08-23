@@ -171,6 +171,8 @@ const MODELS = [
   // CLI cloud picker uses this slug; keep both so plan-gate matches either form
   { slug: "minimax-m3",                displayName: "MiniMax M3 (cloud)",       provider: "supercode",  minTier: "spark", inputPrice: 0.20,  outputPrice: 0.80,  cachedPrice: 0.04 },
   { slug: "mimo-v2.5",                displayName: "MiMo v2.5",                provider: "orcarouter", minTier: "spark", inputPrice: 0.15,  outputPrice: 0.60,  cachedPrice: 0 },
+  { slug: "stealth/ox-alpha",         displayName: "OX Alpha",                 provider: "supercode", minTier: "spark", inputPrice: 0,     outputPrice: 0,      cachedPrice: 0 },
+  { slug: "stealth/ox-alpha",         displayName: "OX Alpha (OpenRouter)",    provider: "openrouter", minTier: "spark", inputPrice: 0,     outputPrice: 0,      cachedPrice: 0 },
   { slug: "kimi-k2-6",                 displayName: "Kimi K2.6",               provider: "openrouter", minTier: "spark", inputPrice: 0.15,  outputPrice: 0.60,  cachedPrice: 0 },
   { slug: "kimi-k2-7-code",           displayName: "Kimi K2.7 Code",           provider: "openrouter", minTier: "spark", inputPrice: 0.25,  outputPrice: 1.00,  cachedPrice: 0 },
   { slug: "kimi-k3",                   displayName: "Kimi K3",                  provider: "openrouter", minTier: "spark", inputPrice: 0.50,  outputPrice: 2.00,  cachedPrice: 0 },
