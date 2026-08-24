@@ -1,50 +1,109 @@
-import prisma from "@super/db";
-import { inngest } from "../client";
-import { getRepoFileContents } from "@/modules/github/lib/github";
-import { indexCodebase } from "@/modules/pinecone/rag";
+import prisma from "@super/db"
+import { inngest } from "../client"
+import {
+  getRepoFileContentsByPaths,
+  listRepoFilePaths,
+} from "@/modules/github/lib/github"
+import { indexCodebase } from "@/modules/pinecone/rag"
+
+// Keep each index step small enough for Inngest step output limits + serverless timeouts.
+const INDEX_BATCH_SIZE = 40
 
 export const helloWorld = inngest.createFunction(
   { id: "hello-world" },
   { event: "test/hello.world" },
   async ({ event, step }) => {
-    await step.sleep("wait-a-moment", "1s");
-    return { message: `Hello ${event.data.email}!` };
+    await step.sleep("wait-a-moment", "1s")
+    return { message: `Hello ${event.data.email}!` }
   },
-);
+)
 
 export const indexRepo = inngest.createFunction(
-  {id: "index-repo"},
-  {event: "repository-connected"},
+  {
+    id: "index-repo",
+    // Long-running indexing; retries help with transient GitHub/embedding/Pinecone errors
+    retries: 2,
+  },
+  { event: "repository-connected" },
 
-  async ({event, step})=>{
-    const{owner, repo, userId} = event.data
-  
-    const files = await step.run("fetch-files", async()=>{
-      console.log("[DEBUG] Starting to fetch files for", owner, repo)
+  async ({ event, step }) => {
+    const { owner, repo, userId } = event.data
+    const repoId = `${owner}/${repo}`
+
+    // Step 1: resolve GitHub token + list paths only (small step output)
+    const paths = await step.run("list-file-paths", async () => {
+      console.log("[DEBUG] Listing file paths for", owner, repo)
+
       const account = await prisma.account.findFirst({
-        where:{
-          userId:userId,
-          providerId:"github"
-        }
+        where: {
+          userId,
+          providerId: "github",
+        },
       })
 
-      if(!account?.accessToken){
-        throw new Error("No github access token found");
+      if (!account?.accessToken) {
+        throw new Error("No github access token found")
       }
 
-      const files = await getRepoFileContents(account.accessToken, owner, repo)
-      console.log("[DEBUG] Fetched files count:", files.length)
-      console.log("[DEBUG] File paths:", files.map(f => f.path).join(", "))
-      return files
+      const filePaths = await listRepoFilePaths(account.accessToken, owner, repo)
+      console.log("[DEBUG] Indexable file paths:", filePaths.length)
+      return filePaths
     })
 
-    const indexedCount = await step.run("index-codebase", async()=>{
-      console.log("[DEBUG] Starting indexing for", owner, repo, "with", files.length, "files")
-      const result = await indexCodebase(`${owner}/${repo}`, files)
-      console.log("[DEBUG] Indexed count:", result)
-      return result
-    })
+    // Step 2+: fetch + embed + upsert in batches so step outputs stay small
+    // and individual steps finish within serverless time limits.
+    let indexedTotal = 0
+    const batchCount = Math.ceil(paths.length / INDEX_BATCH_SIZE)
 
-    return {success:true, indexedFiles: indexedCount}
-  }
+    for (let batchIndex = 0; batchIndex < batchCount; batchIndex++) {
+      const batchPaths = paths.slice(
+        batchIndex * INDEX_BATCH_SIZE,
+        (batchIndex + 1) * INDEX_BATCH_SIZE,
+      )
+
+      const batchIndexed = await step.run(
+        `index-batch-${batchIndex}`,
+        async () => {
+          console.log(
+            `[DEBUG] Indexing batch ${batchIndex + 1}/${batchCount} (${batchPaths.length} files)`,
+          )
+
+          const account = await prisma.account.findFirst({
+            where: {
+              userId,
+              providerId: "github",
+            },
+          })
+
+          if (!account?.accessToken) {
+            throw new Error("No github access token found")
+          }
+
+          const files = await getRepoFileContentsByPaths(
+            account.accessToken,
+            owner,
+            repo,
+            batchPaths,
+          )
+
+          console.log(
+            `[DEBUG] Fetched ${files.length}/${batchPaths.length} files for batch ${batchIndex}`,
+          )
+
+          const count = await indexCodebase(repoId, files)
+          console.log(`[DEBUG] Batch ${batchIndex} indexed:`, count)
+          return count
+        },
+      )
+
+      indexedTotal += batchIndexed
+    }
+
+    return {
+      success: true,
+      pathCount: paths.length,
+      indexedFiles: indexedTotal,
+      batches: batchCount,
+    }
+  },
 )
