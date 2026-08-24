@@ -171,55 +171,166 @@ export const deleteWebhook = async (owner:string, repo:string)=>{
 }
 
 
+const BINARY_EXTENSIONS = /\.(png|jpe?g|gif|svg|ico|webp|pdf|zip|tar|gz|tgz|bz2|7z|rar|woff2?|ttf|eot|mp[34]|wav|mov|avi|mkv|webm|lock|bin|exe|dll|so|dylib|class|jar|wasm|parquet|pkl|npy|onnx|pt|safetensors)$/i
+
+const SKIP_PATH_SEGMENTS = [
+  "node_modules/",
+  ".git/",
+  "dist/",
+  "build/",
+  ".next/",
+  "coverage/",
+  "__pycache__/",
+  ".turbo/",
+  "vendor/",
+  ".venv/",
+  "venv/",
+]
+
+const MAX_FILE_BYTES = 200_000
+
+function shouldIndexPath(path: string): boolean {
+  if (BINARY_EXTENSIONS.test(path)) return false
+  if (path.endsWith(".min.js") || path.endsWith(".min.css")) return false
+  if (path.endsWith("bun.lock") || path.endsWith("package-lock.json") || path.endsWith("yarn.lock") || path.endsWith("pnpm-lock.yaml")) {
+    return false
+  }
+  return !SKIP_PATH_SEGMENTS.some((segment) => path.includes(segment))
+}
+
+/** List indexable file paths via the Git Trees API (1 request). */
+export async function listRepoFilePaths(
+  token: string,
+  owner: string,
+  repo: string,
+): Promise<string[]> {
+  const octokit = new Octokit({ auth: token })
+
+  const { data: repoData } = await octokit.rest.repos.get({ owner, repo })
+  const defaultBranch = repoData.default_branch
+
+  const { data: ref } = await octokit.rest.git.getRef({
+    owner,
+    repo,
+    ref: `heads/${defaultBranch}`,
+  })
+
+  const { data: tree } = await octokit.rest.git.getTree({
+    owner,
+    repo,
+    tree_sha: ref.object.sha,
+    recursive: "true",
+  })
+
+  return (tree.tree ?? [])
+    .filter((item) => item.type === "blob" && item.path && shouldIndexPath(item.path))
+    .filter((item) => !item.size || item.size <= MAX_FILE_BYTES)
+    .map((item) => item.path as string)
+}
+
+/** Fetch contents for a list of paths (batched Contents API). */
+export async function getRepoFileContentsByPaths(
+  token: string,
+  owner: string,
+  repo: string,
+  paths: string[],
+): Promise<{ path: string; content: string }[]> {
+  const octokit = new Octokit({ auth: token })
+  const files: { path: string; content: string }[] = []
+
+  // Keep concurrency modest to avoid secondary rate limits
+  const concurrency = 8
+  for (let i = 0; i < paths.length; i += concurrency) {
+    const batch = paths.slice(i, i + concurrency)
+    const results = await Promise.all(
+      batch.map(async (path) => {
+        try {
+          const { data } = await octokit.rest.repos.getContent({
+            owner,
+            repo,
+            path,
+          })
+
+          if (Array.isArray(data) || data.type !== "file" || !("content" in data) || !data.content) {
+            return null
+          }
+
+          // GitHub Contents API only returns content for files under ~1MB
+          if (data.encoding !== "base64") {
+            return null
+          }
+
+          const content = Buffer.from(data.content, "base64").toString("utf-8")
+          // Skip likely-binary / empty
+          if (!content.trim()) return null
+          if (content.includes("\u0000")) return null
+
+          return { path: data.path, content }
+        } catch (error) {
+          console.error(`[github] failed to fetch ${path}:`, error)
+          return null
+        }
+      }),
+    )
+
+    for (const result of results) {
+      if (result) files.push(result)
+    }
+  }
+
+  return files
+}
+
+/** @deprecated Prefer listRepoFilePaths + getRepoFileContentsByPaths for large repos. */
 export async function getRepoFileContents(
   token: string,
   owner: string,
   repo: string,
-  path: string = ""
-): Promise<{path: string, content: string}[]> {
-  const octokit = new Octokit({auth:token});
+  path: string = "",
+): Promise<{ path: string; content: string }[]> {
+  // Keep recursive Contents-API path for single-directory callers / tests,
+  // but use the tree API for full-repo walks.
+  if (path === "") {
+    const paths = await listRepoFilePaths(token, owner, repo)
+    return getRepoFileContentsByPaths(token, owner, repo, paths)
+  }
 
-  const {data} = await octokit.rest.repos.getContent({
+  const octokit = new Octokit({ auth: token })
+
+  const { data } = await octokit.rest.repos.getContent({
     owner,
     repo,
-    path
-  });
+    path,
+  })
 
   if (!Array.isArray(data)) {
-    // It's a file
-    if (data.type === "file" && data.content) {
+    if (data.type === "file" && data.content && shouldIndexPath(data.path)) {
       return [{
         path: data.path,
         content: Buffer.from(data.content, "base64").toString("utf-8"),
-      }];
+      }]
     }
-    return [];
+    return []
   }
 
-  let files: {path:string , content:string}[] = [];
+  let files: { path: string; content: string }[] = []
 
-  for(const item of data){
-    if(item.type === "file"){
-      const {data:fileData} = await octokit.rest.repos.getContent({
+  for (const item of data) {
+    if (item.type === "file" && shouldIndexPath(item.path)) {
+      const { data: fileData } = await octokit.rest.repos.getContent({
         owner,
         repo,
-        path:item.path
+        path: item.path,
       })
 
       if (!Array.isArray(fileData) && fileData.type === "file" && fileData.content) {
-        // Filter out non-code files if needed (images, etc.)
-        // For now, let's include everything that looks like text
-        if (!item.path.match(/\.(png|jpg|jpeg|gif|svg|ico|pdf|zip|tar|gz)$/i)) {
-          files.push({
-            path: item.path,
-            content: Buffer.from(fileData.content, "base64").toString("utf-8"),
-          });
-        }
+        files.push({
+          path: item.path,
+          content: Buffer.from(fileData.content, "base64").toString("utf-8"),
+        })
       }
-    }
-    else if (item.type === "dir") {
+    } else if (item.type === "dir") {
       const subFiles = await getRepoFileContents(token, owner, repo, item.path)
-      
       files = files.concat(subFiles)
     }
   }

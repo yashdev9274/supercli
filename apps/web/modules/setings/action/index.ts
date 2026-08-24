@@ -136,7 +136,7 @@ export async function getUserProfile() {
       });
   
       revalidatePath("/dashboard/settings", "page")
-      revalidatePath("/dashboard/repository", "page")
+      revalidatePath("/dashboard/providers", "page")
       return { success: true }
   
     } catch (error) {
@@ -173,7 +173,7 @@ export async function getUserProfile() {
     })
 
     revalidatePath("/dashboard/settings", "page")
-    revalidatePath("/dashboard/repository", "page")
+    revalidatePath("/dashboard/providers", "page")
     return { success: true , count: result.count}
   }
   catch(error){

@@ -97,23 +97,23 @@ const navigation: NavigationGroup[] = [
     items: [
       { 
         name: "Code Review Agent", 
-        href: "/code-review", 
+        href: "/dashboard", 
         icon: Monitor,
         children: [
-          { name: "Settings", href: "/settings" },
-          { name: "Logs", href: "/logs" },
+          { name: "Settings", href: "/dashboard/settings" },
+          { name: "Logs", href: "/dashboard/logs" },
 
-          { name: "Custom Context", href: "/context" },
+          { name: "Custom Context", href: "/dashboard/context" },
         ]
       },
-      { name: "Chat", href: "/chat", icon: MessageSquare },
+      { name: "Chat", href: "/dashboard/chat", icon: MessageSquare },
       { 
         name: "Connections", 
-        href: "/connections", 
+        href: "/dashboard/providers", 
         icon: Zap,
         children: [
-          { name: "Connect your repos", href: "/providers" },
-          { name: "Integrations", href: "/integrations" },
+          { name: "Connect your repos", href: "/dashboard/providers" },
+          { name: "Integrations", href: "/dashboard/integrations" },
         ]
       },
     ]
@@ -121,14 +121,14 @@ const navigation: NavigationGroup[] = [
   { 
     section: "BILLING & USAGE",
     items: [
-      { name: "Billing", href: "/billing", icon: CreditCard },
-      { name: "Refer a Friend", href: "/refer", icon: Gift },
+      { name: "Billing", href: "/dashboard/billing", icon: CreditCard },
+      { name: "Refer a Friend", href: "/dashboard/refer", icon: Gift },
     ]
   },
   { 
     section: "Platform",
     items: [
-      { name: "Settings", href: "/settings", icon: Settings },
+      { name: "Settings", href: "/dashboard/settings", icon: Settings },
       { name: "Documentation", href: "/docs", icon: FileText },
     ]
   }
@@ -298,9 +298,12 @@ export function Sidebar() {
                 )}
                 <div className="space-y-1">
                   {group.items.map((item) => {
-                    const isActive = pathname === item.href || (item.name === "Home" && pathname === "/");
-                    const hasChildren = item.children && item.children.length > 0;
-                    const isOpen = openMenus.includes(item.name) && !isCollapsed;
+                    const isActive =
+                      pathname === item.href ||
+                      (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`)) ||
+                      (item.name === "Home" && pathname === "/dashboard")
+                    const hasChildren = item.children && item.children.length > 0
+                    const isOpen = openMenus.includes(item.name) && !isCollapsed
 
                     return (
                       <div key={item.name} className="space-y-1">
