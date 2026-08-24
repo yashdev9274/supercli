@@ -91,49 +91,83 @@ export const getRepositories = async(page: number=1, per_page=10)=>{
 }
 
 
-export const createWebhook = async(owner:string, repo:string)=>{
+export const createWebhook = async (owner: string, repo: string) => {
   const token = await getGithubToken()
 
-  const octokit = new Octokit({auth:token})
+  const octokit = new Octokit({ auth: token })
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL?.replace(/\/$/, '')
+  const baseUrl = (
+    process.env.NEXT_PUBLIC_APP_BASE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.BETTER_AUTH_URL ||
+    ""
+  ).replace(/\/$/, "")
+
+  if (!baseUrl) {
+    throw new Error(
+      "NEXT_PUBLIC_APP_BASE_URL (or NEXT_PUBLIC_APP_URL) is required to create GitHub webhooks",
+    )
+  }
+
+  // Localhost webhooks never receive GitHub events — require a public URL.
+  if (/localhost|127\.0\.0\.1/i.test(baseUrl)) {
+    console.warn(
+      `[github] webhook base URL is local (${baseUrl}). GitHub cannot deliver events. Use a tunnel (ngrok/cloudflared) or deploy URL.`,
+    )
+  }
+
   const webhookUrl = `${baseUrl}/api/webhooks/github`
+  const secret = process.env.GITHUB_WEBHOOK_SECRET
 
-  const{data:hooks} = await octokit.rest.repos.listWebhooks({
+  const { data: hooks } = await octokit.rest.repos.listWebhooks({
     owner,
-    repo
+    repo,
   })
 
-  // check any existing webhook
-
-  const existingHook = hooks.find(hook => {
+  const existingHook = hooks.find((hook) => {
     const hookUrl = hook.config?.url
     if (!hookUrl) return false
-    // Normalize both URLs for comparison (remove trailing slashes)
-    const normalizedHookUrl = hookUrl.replace(/\/$/, '')
-    const normalizedWebhookUrl = webhookUrl.replace(/\/$/, '')
+    const normalizedHookUrl = hookUrl.replace(/\/$/, "")
+    const normalizedWebhookUrl = webhookUrl.replace(/\/$/, "")
     return normalizedHookUrl === normalizedWebhookUrl
   })
 
-  if(existingHook){
+  if (existingHook) {
+    // Ensure the hook is active and subscribed to PR events
+    try {
+      await octokit.rest.repos.updateWebhook({
+        owner,
+        repo,
+        hook_id: existingHook.id,
+        active: true,
+        events: ["pull_request"],
+        config: {
+          url: webhookUrl,
+          content_type: "json",
+          ...(secret ? { secret } : {}),
+          insecure_ssl: "0",
+        },
+      })
+    } catch (error) {
+      console.error("[github] failed to refresh existing webhook:", error)
+    }
     return existingHook
   }
 
-
-  // creating webhook
-
-  const {data} = await octokit.rest.repos.createWebhook({
+  const { data } = await octokit.rest.repos.createWebhook({
     owner,
     repo,
-    config:{
-      url:webhookUrl,
-      content_type:"json"
+    active: true,
+    config: {
+      url: webhookUrl,
+      content_type: "json",
+      ...(secret ? { secret } : {}),
+      insecure_ssl: "0",
     },
-    events:["pull_request"]
+    events: ["pull_request"],
   })
 
   return data
-
 }
 
 export const deleteWebhook = async (owner:string, repo:string)=>{
@@ -338,53 +372,148 @@ export async function getRepoFileContents(
   return files
 }
 
+const MAX_DIFF_CHARS = 120_000
+const SUPERCODE_REVIEW_MARKER = "<!-- supercode-ai-review -->"
+
 export async function getPullRequestDiff(
-  token:string,
-  owner:string,
-  repo:string,
-  prNumber:number
+  token: string,
+  owner: string,
+  repo: string,
+  prNumber: number,
 ) {
+  const octokit = new Octokit({ auth: token })
 
-  const octokit = new Octokit({auth:token})
-
-  const{data:pr} = await octokit.rest.pulls.get({
+  const { data: pr } = await octokit.rest.pulls.get({
     owner,
     repo,
-    pull_number:prNumber
+    pull_number: prNumber,
   })
 
-  const {data:diff} = await octokit.rest.pulls.get({
+  const { data: files } = await octokit.rest.pulls.listFiles({
     owner,
     repo,
-    pull_number:prNumber,
-    mediaType:{
-      format:"diff"
-    }
+    pull_number: prNumber,
+    per_page: 100,
   })
 
-  return{
-    diff: diff as unknown as string,
-    title: pr.title,
-    description: pr.body || ""
+  const { data: diff } = await octokit.rest.pulls.get({
+    owner,
+    repo,
+    pull_number: prNumber,
+    mediaType: {
+      format: "diff",
+    },
+  })
 
+  let diffText = diff as unknown as string
+  if (diffText.length > MAX_DIFF_CHARS) {
+    diffText =
+      diffText.slice(0, MAX_DIFF_CHARS) +
+      `\n\n...[diff truncated at ${MAX_DIFF_CHARS} chars]...`
   }
-  
+
+  return {
+    diff: diffText,
+    title: pr.title,
+    description: pr.body || "",
+    headSha: pr.head.sha,
+    baseSha: pr.base.sha,
+    author: pr.user?.login ?? "unknown",
+    changedFiles: files.map((f) => ({
+      filename: f.filename,
+      status: f.status,
+      additions: f.additions,
+      deletions: f.deletions,
+      patch: f.patch?.slice(0, 4000),
+    })),
+    additions: pr.additions,
+    deletions: pr.deletions,
+    draft: pr.draft ?? false,
+  }
 }
 
-export async function postReviewComment(
-  token:string,
-  owner:string,
-  repo:string,
-  prNumber:number,
-  review:string
-){
-  
-  const octokit = new Octokit({auth:token})
+function formatReviewBody(review: string): string {
+  return [
+    SUPERCODE_REVIEW_MARKER,
+    "## 🤖 Supercode AI Review",
+    "",
+    review.trim(),
+    "",
+    "---",
+    "*Automated review by [Supercode](https://supercli.com) · leave a 👍/👎 reaction to rate this review*",
+  ].join("\n")
+}
 
-  await octokit.rest.issues.createComment({
+/**
+ * Post (or update) the Supercode review on a PR:
+ * 1. Upsert a sticky issue comment (CodeRabbit-style summary)
+ * 2. Submit a PR review on the head commit so it shows in the Reviews tab
+ */
+export async function postReviewComment(
+  token: string,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  review: string,
+  options?: { headSha?: string; event?: "COMMENT" | "APPROVE" | "REQUEST_CHANGES" },
+) {
+  const octokit = new Octokit({ auth: token })
+  const body = formatReviewBody(review)
+
+  // 1) Sticky summary comment — update existing bot comment on re-runs
+  const { data: comments } = await octokit.rest.issues.listComments({
     owner,
     repo,
-    issue_number:prNumber,
-    body: `## 🤖 AI Code Review\n\n${review}\n\n---\n*Powered by Supercode*`,
+    issue_number: prNumber,
+    per_page: 100,
   })
+
+  const existing = comments.find((c) => c.body?.includes(SUPERCODE_REVIEW_MARKER))
+
+  if (existing) {
+    await octokit.rest.issues.updateComment({
+      owner,
+      repo,
+      comment_id: existing.id,
+      body,
+    })
+  } else {
+    await octokit.rest.issues.createComment({
+      owner,
+      repo,
+      issue_number: prNumber,
+      body,
+    })
+  }
+
+  // 2) Formal PR review attached to the head SHA (shows under "Reviews")
+  try {
+    let commitId = options?.headSha
+    if (!commitId) {
+      const { data: pr } = await octokit.rest.pulls.get({
+        owner,
+        repo,
+        pull_number: prNumber,
+      })
+      commitId = pr.head.sha
+    }
+
+    await octokit.rest.pulls.createReview({
+      owner,
+      repo,
+      pull_number: prNumber,
+      commit_id: commitId,
+      event: options?.event ?? "COMMENT",
+      body: [
+        SUPERCODE_REVIEW_MARKER,
+        "### Supercode review summary",
+        "",
+        // Keep the formal review body shorter — full write-up is in the sticky comment
+        review.trim().slice(0, 60_000),
+      ].join("\n"),
+    })
+  } catch (error) {
+    // Comment already posted; review submit can fail on permissions / already-reviewed
+    console.error("[github] createReview failed (comment still posted):", error)
+  }
 }
