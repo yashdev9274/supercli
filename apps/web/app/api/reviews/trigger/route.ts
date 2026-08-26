@@ -46,7 +46,10 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const result = await reviewPullRequest(owner, repo, prNumber)
+    const result = await reviewPullRequest(owner, repo, prNumber, {
+      userId: session.user.id,
+      source: "api_trigger",
+    })
     return NextResponse.json(result)
   } catch (error) {
     console.error("[api/reviews/trigger]", error)

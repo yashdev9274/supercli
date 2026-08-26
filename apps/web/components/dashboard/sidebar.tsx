@@ -16,7 +16,8 @@ import {
   ChevronRight,
   Plus,
   Check,
-  Settings
+  Settings,
+  GitPullRequest
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -100,9 +101,9 @@ const navigation: NavigationGroup[] = [
         href: "/dashboard", 
         icon: Monitor,
         children: [
-          { name: "Settings", href: "/dashboard/settings" },
+          { name: "PR Review", href: "/dashboard/pull-requests" },
           { name: "Logs", href: "/dashboard/logs" },
-
+          { name: "Settings", href: "/dashboard/settings" },
           { name: "Custom Context", href: "/dashboard/context" },
         ]
       },
