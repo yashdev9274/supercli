@@ -85,7 +85,7 @@ const LoginUI=()=> {
           <div className="bg-primary p-1.5 rounded-none">
             <Rocket className="w-5 h-5 text-primary-foreground" />
           </div>
-          <span className="text-xl font-bold tracking-tighter text-foreground uppercase">SuperCLI</span>
+          <span className="text-xl font-bold tracking-tighter text-foreground uppercase">Supecode Review</span>
         </div>
         <button className="p-2 hover:bg-accent rounded-none transition-colors border border-border">
           <Moon className="w-4 h-4 text-muted-foreground" />
@@ -135,7 +135,7 @@ const LoginUI=()=> {
         >
           <div className="text-left mb-10 border-l-4 border-primary pl-6">
             <h2 className="text-3xl font-bold text-primary mb-2 tracking-tighter uppercase">Authentication</h2>
-            <p className="text-muted-foreground text-sm">Select a provider to access SuperCLI terminal.</p>
+            <p className="text-muted-foreground text-sm">Select a provider to access Supercode Review.</p>
           </div>
 
           <div className="space-y-0.5">
@@ -154,7 +154,7 @@ const LoginUI=()=> {
 
           <div className="mt-8 text-left">
             <p className="text-sm text-muted-foreground">
-              NEW TO SUPERCLI?{" "}
+              NEW TO SUPERCODE REVIEW?{" "}
               <Link href="#" className="text-primary hover:underline underline-offset-4 font-bold">
                 SIGN UP
               </Link>
@@ -168,7 +168,7 @@ const LoginUI=()=> {
           <Link href="#" className="hover:text-primary transition-colors">Terms</Link>
           <Link href="#" className="hover:text-primary transition-colors">Privacy</Link>
         </div>
-        <span>&copy; 2024 SuperCLI Systems</span>
+        <span>&copy; 2026 Supercode AI</span>
       </footer>
 
       {/* Subtle bottom-left background graphic */}

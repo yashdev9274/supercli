@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import BetaCountdownBanner from "./beta-countdown-banner"
+import ProductsDropdown from "./products-dropdown"
 import { Button } from "../ui/button"
 
 const DOCS_URL =
@@ -138,6 +139,13 @@ const PixelLogo = () => (
   </svg>
 )
 
+const mobileProducts = [
+  { label: "Supercode Agent", description: "AI pair programmer that ships code with you", href: "/download" },
+  { label: "Supercode Review", description: "Automated code review on every pull request", href: "/code-review" },
+  { label: "Supercode Voice Agent", description: "Control your system with your voice", href: "/download" },
+  { label: "Cortex SDK", description: "Build custom AI tooling on top of Supercode", href: "https://github.com/yashdev9274/superCli", external: true },
+]
+
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false)
   const [bannerVisible, setBannerVisible] = useState(false)
@@ -205,6 +213,7 @@ const Navbar = () => {
         </div>
 
         <nav className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-8">
+          <ProductsDropdown />
           {navItems.map((item) => {
             const baseClasses = "relative text-[15px] font-mono text-white after:absolute after:bottom-[-3px] after:left-0 after:h-px after:w-0 after:bg-foreground after:transition-[width] after:duration-200 hover:text-foreground hover:after:w-full"
             
@@ -271,6 +280,67 @@ const Navbar = () => {
 
         <nav className="relative z-10 flex flex-col items-center justify-center h-full px-6">
           <div className="w-full max-w-sm space-y-1">
+            <div className={`transition-[opacity,transform] duration-[400ms] ease-[cubic-bezier(0.23,1,0.32,1)] ${
+              menuOpen ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+            }`} style={{ transitionDelay: menuOpen ? "0ms" : "0ms" }}>
+              <div className="px-5 py-2">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground/40">
+                  Products
+                </span>
+              </div>
+            </div>
+
+            {mobileProducts.map((item, i) => (
+              <div
+                key={item.label}
+                className={`transition-[opacity,transform] duration-[400ms] ease-[cubic-bezier(0.23,1,0.32,1)] ${
+                  menuOpen
+                    ? "opacity-100 translate-y-0"
+                    : "opacity-0 translate-y-4"
+                }`}
+                style={{
+                  transitionDelay: menuOpen ? `${(i + 1) * 60}ms` : "0ms",
+                }}
+              >
+                {item.external ? (
+                  <a
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-3 px-5 py-3 rounded-xl text-[15px] font-mono text-foreground/80 hover:text-foreground hover:bg-accent/30 transition-[background-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]"
+                  >
+                    <span className="text-primary/60 font-mono text-sm w-5">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <div>
+                      <div>{item.label}</div>
+                      <div className="text-[11px] text-muted-foreground/50 mt-0.5">{item.description}</div>
+                    </div>
+                    <span className="ml-auto text-muted-foreground/40 text-sm">↗</span>
+                  </a>
+                ) : (
+                  <Link
+                    href={item.href}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-3 px-5 py-3 rounded-xl text-[15px] font-mono text-foreground/80 hover:text-foreground hover:bg-accent/30 transition-[background-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]"
+                  >
+                    <span className="text-primary/60 font-mono text-sm w-5">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <div>
+                      <div>{item.label}</div>
+                      <div className="text-[11px] text-muted-foreground/50 mt-0.5">{item.description}</div>
+                    </div>
+                  </Link>
+                )}
+              </div>
+            ))}
+
+            <div className={`my-2 mx-5 h-px bg-white/[0.06] transition-opacity duration-300 ${
+              menuOpen ? "opacity-100" : "opacity-0"
+            }`} style={{ transitionDelay: menuOpen ? "300ms" : "0ms" }} />
+
             {navItems.map((item, i) => (
               <div
                 key={item.label}
@@ -280,7 +350,7 @@ const Navbar = () => {
                     : "opacity-0 translate-y-4"
                 }`}
                 style={{
-                  transitionDelay: menuOpen ? `${i * 60}ms` : "0ms",
+                  transitionDelay: menuOpen ? `${(mobileProducts.length + i + 1) * 60}ms` : "0ms",
                 }}
               >
                 {item.external ? (
