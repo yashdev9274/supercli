@@ -140,8 +140,15 @@ export type GeneratePrReviewResult = {
   review: string
 }
 
+function isRealUserId(userId: string | undefined | null): userId is string {
+  if (!userId) return false
+  // Guard against diagnostic / malformed event payloads (e.g. earlier probe sends).
+  if (userId === "probe" || userId === "unknown" || userId === "test") return false
+  return userId.length >= 8
+}
+
 async function findRepository(owner: string, repo: string, userId?: string) {
-  if (userId) {
+  if (isRealUserId(userId)) {
     const scoped = await prisma.repository.findFirst({
       where: { owner, name: repo, userId },
     })
@@ -150,6 +157,74 @@ async function findRepository(owner: string, repo: string, userId?: string) {
   return prisma.repository.findFirst({
     where: { owner, name: repo },
   })
+}
+
+/**
+ * Resolve a usable GitHub OAuth access token for PR fetch/comment.
+ * Prefer the connected repository owner's token — event.userId can be stale
+ * or invalid (Inngest retries of probe events, multi-user same-repo, etc.).
+ */
+async function resolveGithubAccessToken(input: {
+  owner: string
+  repo: string
+  userId?: string
+}): Promise<{ accessToken: string; userId: string }> {
+  const repository = await findRepository(input.owner, input.repo, input.userId)
+
+  const candidateUserIds = [
+    repository?.userId,
+    isRealUserId(input.userId) ? input.userId : undefined,
+  ].filter((id): id is string => Boolean(id))
+
+  // De-dupe while preserving order
+  const seen = new Set<string>()
+  for (const candidate of candidateUserIds) {
+    if (seen.has(candidate)) continue
+    seen.add(candidate)
+
+    const account = await prisma.account.findFirst({
+      where: {
+        userId: candidate,
+        providerId: "github",
+        accessToken: { not: null },
+      },
+      orderBy: { updatedAt: "desc" },
+    })
+
+    if (account?.accessToken) {
+      return { accessToken: account.accessToken, userId: candidate }
+    }
+  }
+
+  // Last resort: any user who connected this repo (same owner/name).
+  const anyConnected = await prisma.repository.findMany({
+    where: { owner: input.owner, name: input.repo },
+    select: { userId: true },
+    take: 10,
+  })
+
+  for (const row of anyConnected) {
+    if (seen.has(row.userId)) continue
+    seen.add(row.userId)
+
+    const account = await prisma.account.findFirst({
+      where: {
+        userId: row.userId,
+        providerId: "github",
+        accessToken: { not: null },
+      },
+      orderBy: { updatedAt: "desc" },
+    })
+
+    if (account?.accessToken) {
+      return { accessToken: account.accessToken, userId: row.userId }
+    }
+  }
+
+  throw new Error(
+    `No GitHub access token found for ${input.owner}/${input.repo}. ` +
+      `Reconnect the repository or re-authenticate with GitHub in Supercode.`,
+  )
 }
 
 export async function markReviewPending(input: GeneratePrReviewInput) {
@@ -215,24 +290,18 @@ export async function markReviewFailed(
 export async function runGeneratePrReview(
   input: GeneratePrReviewInput,
 ): Promise<GeneratePrReviewResult> {
-  const { owner, repo, prNumber, userId } = input
+  const { owner, repo, prNumber } = input
   const repoId = `${owner}/${repo}`
 
-  await markReviewPending(input)
+  // Resolve token first so we can bind the review to a real connected user
+  // even when the Inngest payload carries a bad/stale userId.
+  const { accessToken, userId } = await resolveGithubAccessToken(input)
+  const resolvedInput = { ...input, userId }
 
-  const account = await prisma.account.findFirst({
-    where: {
-      userId,
-      providerId: "github",
-    },
-  })
-
-  if (!account?.accessToken) {
-    throw new Error("No github access token found")
-  }
+  await markReviewPending(resolvedInput)
 
   const prData = await getPullRequestDiff(
-    account.accessToken,
+    accessToken,
     owner,
     repo,
     prNumber,
@@ -336,7 +405,7 @@ export async function runGeneratePrReview(
   let commentPosted = false
   try {
     await postReviewComment(
-      account.accessToken,
+      accessToken,
       owner,
       repo,
       prNumber,
