@@ -56,23 +56,38 @@ export const generateReview = inngest.createFunction(
       owner: string
       repo: string
       prNumber: number
-      userId: string
+      userId?: string
       source?: string
     }
 
+    // Drop diagnostic / malformed events (e.g. manual probe sends).
+    if (
+      !owner ||
+      !repo ||
+      !prNumber ||
+      source === "probe" ||
+      userId === "probe"
+    ) {
+      console.warn(
+        `[generate-review] skipping invalid event owner=${owner} repo=${repo} pr=${prNumber} userId=${userId} source=${source}`,
+      )
+      return { skipped: true, reason: "invalid_event" }
+    }
+
     console.log(
-      `[generate-review] start ${owner}/${repo}#${prNumber} source=${source ?? "unknown"}`,
+      `[generate-review] start ${owner}/${repo}#${prNumber} source=${source ?? "unknown"} userId=${userId ?? "(resolve)"}`,
     )
 
     // Single step so retries re-run the full pipeline cleanly.
     // Core logic lives in runGeneratePrReview (also used for local/in-process fallback).
-    // That pipeline saves the review and posts/updates the GitHub PR comment.
+    // That pipeline resolves the GitHub token from the connected repo owner.
     return await step.run("generate-and-save-review", async () => {
       const result = await runGeneratePrReview({
         owner,
         repo,
         prNumber,
-        userId,
+        // May be undefined/stale — runGeneratePrReview resolves via repository.userId
+        userId: userId ?? "",
       })
 
       console.log(
