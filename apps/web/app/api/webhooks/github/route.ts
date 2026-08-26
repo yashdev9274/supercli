@@ -2,6 +2,14 @@ import { reviewPullRequest } from "@/modules/ai/action"
 import { NextResponse, NextRequest } from "next/server"
 import crypto from "crypto"
 
+/** PR actions that should trigger an automatic AI review. */
+const REVIEW_ACTIONS = new Set([
+  "opened",
+  "reopened",
+  "synchronize",
+  "ready_for_review",
+])
+
 function verifyWebhookSignature(
   payload: string,
   signature: string | null,
@@ -54,8 +62,19 @@ export async function POST(req: NextRequest) {
     if (event === "pull_request") {
       const action = body.action as string
       const repoFullName = body.repository?.full_name as string | undefined
-      const prNumber = body.number as number | undefined
-      const draft = Boolean(body.pull_request?.draft)
+      const prNumber = (body.number ?? body.pull_request?.number) as
+        | number
+        | undefined
+      const pr = body.pull_request as
+        | {
+            draft?: boolean
+            title?: string
+            html_url?: string
+            user?: { login?: string }
+            head?: { sha?: string }
+          }
+        | undefined
+      const draft = Boolean(pr?.draft)
 
       if (!repoFullName || !prNumber) {
         console.error("[webhook/github] missing repository or PR number")
@@ -64,20 +83,23 @@ export async function POST(req: NextRequest) {
 
       const [owner, repoName] = repoFullName.split("/")
 
-      // Review on open / new commits / ready for review. Skip pure draft opens.
+      // Auto-queue AI review for new/updated non-draft PRs.
+      // Draft PRs wait until ready_for_review (or open as non-draft).
       const shouldReview =
-        action === "synchronize" ||
-        action === "reopened" ||
-        action === "ready_for_review" ||
-        (action === "opened" && !draft)
+        REVIEW_ACTIONS.has(action) &&
+        (action === "ready_for_review" || !draft)
 
       console.log(
-        `[webhook/github] pr=${repoFullName}#${prNumber} action=${action} draft=${draft} shouldReview=${shouldReview}`,
+        `[webhook/github] pr=${repoFullName}#${prNumber} action=${action} draft=${draft} shouldReview=${shouldReview} title=${pr?.title ?? ""}`,
       )
 
       if (shouldReview) {
         try {
-          const result = await reviewPullRequest(owner, repoName, prNumber)
+          const result = await reviewPullRequest(owner, repoName, prNumber, {
+            prTitle: pr?.title,
+            source: "github_webhook",
+            deliveryId: deliveryId ?? undefined,
+          })
           console.log(
             `[webhook/github] queued review for ${repoFullName}#${prNumber}:`,
             result,

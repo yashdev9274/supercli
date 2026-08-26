@@ -375,6 +375,44 @@ export async function getRepoFileContents(
 const MAX_DIFF_CHARS = 120_000
 const SUPERCODE_REVIEW_MARKER = "<!-- supercode-ai-review -->"
 
+/** List open (non-draft) pull requests for auto-review backfill. */
+export async function listOpenPullRequests(
+  token: string,
+  owner: string,
+  repo: string,
+  options?: { limit?: number },
+): Promise<
+  Array<{
+    number: number
+    title: string
+    htmlUrl: string
+    draft: boolean
+    author: string
+  }>
+> {
+  const octokit = new Octokit({ auth: token })
+  const limit = Math.min(Math.max(options?.limit ?? 20, 1), 50)
+
+  const { data } = await octokit.rest.pulls.list({
+    owner,
+    repo,
+    state: "open",
+    sort: "updated",
+    direction: "desc",
+    per_page: limit,
+  })
+
+  return data
+    .filter((pr) => !pr.draft)
+    .map((pr) => ({
+      number: pr.number,
+      title: pr.title,
+      htmlUrl: pr.html_url,
+      draft: Boolean(pr.draft),
+      author: pr.user?.login ?? "unknown",
+    }))
+}
+
 export async function getPullRequestDiff(
   token: string,
   owner: string,
@@ -460,7 +498,8 @@ export async function postReviewComment(
   const octokit = new Octokit({ auth: token })
   const body = formatReviewBody(review)
 
-  // 1) Sticky summary comment — update existing bot comment on re-runs
+  // 1) Sticky summary comment — update existing bot comment on re-runs.
+  // This is the primary user-visible delivery path for auto-reviews.
   const { data: comments } = await octokit.rest.issues.listComments({
     owner,
     repo,
@@ -477,13 +516,19 @@ export async function postReviewComment(
       comment_id: existing.id,
       body,
     })
+    console.log(
+      `[github] updated sticky review comment on ${owner}/${repo}#${prNumber} comment_id=${existing.id}`,
+    )
   } else {
-    await octokit.rest.issues.createComment({
+    const { data: created } = await octokit.rest.issues.createComment({
       owner,
       repo,
       issue_number: prNumber,
       body,
     })
+    console.log(
+      `[github] created sticky review comment on ${owner}/${repo}#${prNumber} comment_id=${created.id}`,
+    )
   }
 
   // 2) Formal PR review attached to the head SHA (shows under "Reviews")
@@ -513,7 +558,7 @@ export async function postReviewComment(
       ].join("\n"),
     })
   } catch (error) {
-    // Comment already posted; review submit can fail on permissions / already-reviewed
-    console.error("[github] createReview failed (comment still posted):", error)
+    // Sticky comment already posted; formal review can fail on permissions / already-reviewed
+    console.error("[github] createReview failed (sticky comment still posted):", error)
   }
 }

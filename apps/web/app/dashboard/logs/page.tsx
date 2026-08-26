@@ -71,12 +71,17 @@ export default async function LogsPage() {
               className="grid grid-cols-12 gap-4 border-b border-border px-5 py-4 last:border-b-0 hover:bg-muted/10"
             >
               <div className="col-span-4 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">
-                  #{review.prNumber} {review.prTitle}
-                </p>
-                <p className="text-[11px] text-muted-foreground/50 line-clamp-1 mt-0.5">
-                  {review.review.slice(0, 120)}
-                </p>
+                <Link
+                  href={`/dashboard/pull-requests/${review.id}`}
+                  className="group block"
+                >
+                  <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
+                    #{review.prNumber} {review.prTitle}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground/50 line-clamp-1 mt-0.5">
+                    {review.review.slice(0, 120)}
+                  </p>
+                </Link>
               </div>
               <div className="col-span-3 flex items-center">
                 <span className="text-xs text-muted-foreground/70 font-mono">
@@ -91,7 +96,13 @@ export default async function LogsPage() {
                   {review.updatedAt.toLocaleString()}
                 </span>
               </div>
-              <div className="col-span-1 flex items-center justify-end">
+              <div className="col-span-1 flex items-center justify-end gap-2">
+                <Link
+                  href={`/dashboard/pull-requests/${review.id}`}
+                  className="text-[11px] text-muted-foreground/50 hover:text-foreground"
+                >
+                  Review
+                </Link>
                 <Link
                   href={review.prUrl}
                   target="_blank"
