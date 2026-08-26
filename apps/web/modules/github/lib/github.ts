@@ -483,9 +483,8 @@ function formatReviewBody(review: string): string {
 }
 
 /**
- * Post (or update) the Supercode review on a PR:
- * 1. Upsert a sticky issue comment (CodeRabbit-style summary)
- * 2. Submit a PR review on the head commit so it shows in the Reviews tab
+ * Post (or update) a single sticky Supercode review comment on a PR.
+ * Re-runs update the same comment instead of creating duplicates.
  */
 export async function postReviewComment(
   token: string,
@@ -493,13 +492,12 @@ export async function postReviewComment(
   repo: string,
   prNumber: number,
   review: string,
-  options?: { headSha?: string; event?: "COMMENT" | "APPROVE" | "REQUEST_CHANGES" },
+  // Kept for call-site compatibility; unused (we only post one sticky comment).
+  _options?: { headSha?: string; event?: "COMMENT" | "APPROVE" | "REQUEST_CHANGES" },
 ) {
   const octokit = new Octokit({ auth: token })
   const body = formatReviewBody(review)
 
-  // 1) Sticky summary comment — update existing bot comment on re-runs.
-  // This is the primary user-visible delivery path for auto-reviews.
   const { data: comments } = await octokit.rest.issues.listComments({
     owner,
     repo,
@@ -519,46 +517,16 @@ export async function postReviewComment(
     console.log(
       `[github] updated sticky review comment on ${owner}/${repo}#${prNumber} comment_id=${existing.id}`,
     )
-  } else {
-    const { data: created } = await octokit.rest.issues.createComment({
-      owner,
-      repo,
-      issue_number: prNumber,
-      body,
-    })
-    console.log(
-      `[github] created sticky review comment on ${owner}/${repo}#${prNumber} comment_id=${created.id}`,
-    )
+    return
   }
 
-  // 2) Formal PR review attached to the head SHA (shows under "Reviews")
-  try {
-    let commitId = options?.headSha
-    if (!commitId) {
-      const { data: pr } = await octokit.rest.pulls.get({
-        owner,
-        repo,
-        pull_number: prNumber,
-      })
-      commitId = pr.head.sha
-    }
-
-    await octokit.rest.pulls.createReview({
-      owner,
-      repo,
-      pull_number: prNumber,
-      commit_id: commitId,
-      event: options?.event ?? "COMMENT",
-      body: [
-        SUPERCODE_REVIEW_MARKER,
-        "### Supercode review summary",
-        "",
-        // Keep the formal review body shorter — full write-up is in the sticky comment
-        review.trim().slice(0, 60_000),
-      ].join("\n"),
-    })
-  } catch (error) {
-    // Sticky comment already posted; formal review can fail on permissions / already-reviewed
-    console.error("[github] createReview failed (sticky comment still posted):", error)
-  }
+  const { data: created } = await octokit.rest.issues.createComment({
+    owner,
+    repo,
+    issue_number: prNumber,
+    body,
+  })
+  console.log(
+    `[github] created sticky review comment on ${owner}/${repo}#${prNumber} comment_id=${created.id}`,
+  )
 }

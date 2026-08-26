@@ -6,12 +6,35 @@ import {
   runGeneratePrReview,
 } from "@/modules/ai/lib/generate-pr-review"
 
-function hasInngestCredentials() {
-  return Boolean(
-    process.env.INNGEST_EVENT_KEY ||
-      process.env.INNGEST_SIGNING_KEY ||
-      process.env.INNGEST_DEV === "1",
+/**
+ * Only queue via Inngest when a worker will actually pick the event up.
+ *
+ * Pitfall we hit: setting INNGEST_EVENT_KEY locally makes `inngest.send`
+ * succeed against Inngest Cloud, but nothing runs the job unless the cloud
+ * app is synced to a public serve URL. Reviews stay `pending` forever.
+ *
+ * Safe cases:
+ * - INNGEST_DEV=1 → local `inngest-cli dev` processes events
+ * - Vercel/production with event key → cloud invokes /api/inngest
+ */
+function shouldQueueViaInngest() {
+  if (process.env.INNGEST_DEV === "1" || process.env.INNGEST_DEV === "true") {
+    return true
+  }
+
+  const hasEventKey = Boolean(process.env.INNGEST_EVENT_KEY)
+  if (!hasEventKey) return false
+
+  // Cloud worker path — only when we are actually on a deployed runtime.
+  if (process.env.VERCEL === "1" || process.env.NODE_ENV === "production") {
+    return true
+  }
+
+  // Local next dev + cloud keys only → would orphan events. Use after().
+  console.warn(
+    "[reviewPullRequest] INNGEST_EVENT_KEY is set but this is not production and INNGEST_DEV is not 1 — using in-process after() so reviews actually run. For local Inngest: run `npx inngest-cli@latest dev` and set INNGEST_DEV=1.",
   )
+  return false
 }
 
 export async function reviewPullRequest(
@@ -125,9 +148,8 @@ export async function reviewPullRequest(
       }
     }
 
-    // Prefer Inngest when configured (unless caller wants a blocking wait).
-    // This is the production path for GitHub webhook auto-reviews.
-    if (hasInngestCredentials() && !options?.wait) {
+    // Prefer Inngest only when a worker will process the event.
+    if (shouldQueueViaInngest() && !options?.wait) {
       try {
         await inngest.send({
           name: "pr.review.requested",
