@@ -22,6 +22,15 @@
 
 ---
 
+## Sponsored by Vercel
+
+<img src="https://github.com/user-attachments/assets/5bc3b368-d71a-48aa-b45f-67cbf49fe538" />
+
+---
+
+
+---
+
 ## Star History
 
 <a href="https://www.star-history.com/?repos=yashdev9274%2Fsupercli&type=date&legend=bottom-right">
