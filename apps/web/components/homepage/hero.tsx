@@ -42,11 +42,19 @@ const HeroSection = () => {
     <>
       <section className="min-h-screen flex flex-col justify-center items-center pt-[80px] md:pt-[110px] px-4">
         <div className="max-w-[900px] mx-auto w-full text-center">
-          {/* Version tag */}
+          {/* Sponsored by tag */}
           <div className="flex justify-center mb-4">
-            <div className="px-3 py-1 bg-primary/10 text-primary text-[12px] font-mono rounded-md">
-              v0.1.83-beta live
-            </div>
+            <a
+              href="https://github.com/yashdev9274/supercli"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary text-[12px] font-mono rounded-md hover:bg-primary/15 transition-colors"
+            >
+              <svg viewBox="0 0 115 100" height="10" width="11" aria-hidden="true" className="shrink-0">
+                <path fill="currentColor" fillRule="evenodd" d="m57.5 0 57.5 100H0z" clipRule="evenodd" />
+              </svg>
+              <span>sponsored by vercel</span>
+            </a>
           </div>
 
           {/* Computing badge */}
