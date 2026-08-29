@@ -468,6 +468,40 @@ export const deleteWebhook = async (owner: string, repo: string) => {
   }
 }
 
+const BINARY_EXTENSIONS =
+  /\.(png|jpe?g|gif|svg|ico|webp|pdf|zip|tar|gz|tgz|bz2|7z|rar|woff2?|ttf|eot|mp[34]|wav|mov|avi|mkv|webm|lock|bin|exe|dll|so|dylib|class|jar|wasm|parquet|pkl|npy|onnx|pt|safetensors)$/i
+
+const SKIP_PATH_SEGMENTS = [
+  "node_modules/",
+  ".git/",
+  "dist/",
+  "build/",
+  ".next/",
+  "coverage/",
+  "__pycache__/",
+  ".turbo/",
+  "vendor/",
+  ".venv/",
+  "venv/",
+]
+
+const MAX_FILE_BYTES = 200_000
+
+function shouldIndexPath(path: string): boolean {
+  if (BINARY_EXTENSIONS.test(path)) return false
+  if (path.endsWith(".min.js") || path.endsWith(".min.css")) return false
+  if (
+    path.endsWith("bun.lock") ||
+    path.endsWith("package-lock.json") ||
+    path.endsWith("yarn.lock") ||
+    path.endsWith("pnpm-lock.yaml")
+  ) {
+    return false
+  }
+  return !SKIP_PATH_SEGMENTS.some((segment) => path.includes(segment))
+}
+
+/** List indexable file paths via the Git Trees API (1 request). */
 export async function listRepoFilePaths(
   token: string,
   owner: string,
