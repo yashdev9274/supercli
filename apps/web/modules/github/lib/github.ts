@@ -1,35 +1,319 @@
-import {Octokit} from "octokit"
-import { auth } from "@/lib/auth";
-import prisma from "@/lib/db";
-import { headers } from "next/headers";
+import { Octokit } from "octokit"
+import { auth } from "@/lib/auth"
+import prisma from "@/lib/db"
+import { headers } from "next/headers"
 
-export const getGithubToken = async()=>{
-    const session = await auth.api.getSession({
-        headers: await headers()
-    })
+/** Refresh buffer — treat tokens expiring within 2 minutes as stale. */
+const TOKEN_EXPIRY_SKEW_MS = 2 * 60 * 1000
 
-    if(!session){
-        throw new Error("Unauthorized")
-    }
+/** In-process single-flight locks so parallel dashboard calls don't race GitHub refresh. */
+const refreshInFlight = new Map<string, Promise<string>>()
 
-    const account = await prisma.account.findFirst({
-        where:{
-            userId: session.user.id,
-            providerId: "github"
-        }
-    })
+export class GithubReauthRequiredError extends Error {
+  readonly code = "GITHUB_REAUTH_REQUIRED" as const
 
-    if(!account?.accessToken){
-        throw new Error("No github access token found")
-    }
-
-    return account.accessToken;
+  constructor(message = "GitHub authorization expired. Reconnect GitHub to continue.") {
+    super(message)
+    this.name = "GithubReauthRequiredError"
+  }
 }
 
-export async function fetchUserContribution(token: string, username: string){
-    const octokit = new Octokit({auth: token})
+export function isGithubReauthRequiredError(error: unknown): error is GithubReauthRequiredError {
+  return (
+    error instanceof GithubReauthRequiredError ||
+    (typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code?: string }).code === "GITHUB_REAUTH_REQUIRED")
+  )
+}
 
-    const query =`
+type GithubAccount = {
+  id: string
+  userId: string
+  accessToken: string | null
+  refreshToken: string | null
+  accessTokenExpiresAt: Date | null
+  refreshTokenExpiresAt: Date | null
+  updatedAt: Date
+}
+
+function isTokenExpired(expiresAt: Date | null | undefined): boolean {
+  if (!expiresAt) return false
+  return expiresAt.getTime() - Date.now() < TOKEN_EXPIRY_SKEW_MS
+}
+
+async function loadGithubAccount(userId: string): Promise<GithubAccount | null> {
+  return (await prisma.account.findFirst({
+    where: {
+      userId,
+      providerId: "github",
+    },
+    orderBy: { updatedAt: "desc" },
+  })) as GithubAccount | null
+}
+
+async function invalidateGithubTokens(accountId: string) {
+  try {
+    await prisma.account.update({
+      where: { id: accountId },
+      data: {
+        accessToken: null,
+        refreshToken: null,
+        accessTokenExpiresAt: null,
+        // Keep refreshTokenExpiresAt as a breadcrumb of last known auth window
+      },
+    })
+  } catch (error) {
+    console.warn("[github] failed to invalidate dead OAuth tokens:", error)
+  }
+}
+
+async function probeAccessToken(token: string): Promise<boolean> {
+  try {
+    const response = await fetch("https://api.github.com/user", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "User-Agent": "supercode",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      // Cheap auth check; don't hang the dashboard
+      signal: AbortSignal.timeout(8_000),
+    })
+    return response.ok
+  } catch {
+    return false
+  }
+}
+
+async function refreshGithubTokenWithOAuth(account: GithubAccount): Promise<string> {
+  if (!account.refreshToken) {
+    await invalidateGithubTokens(account.id)
+    throw new GithubReauthRequiredError(
+      "GitHub access token expired and no refresh token is available. Reconnect GitHub.",
+    )
+  }
+
+  const clientId = process.env.GITHUB_CLIENT_ID
+  const clientSecret = process.env.GITHUB_CLIENT_SECRET
+  if (!clientId || !clientSecret) {
+    throw new Error("GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET are required to refresh GitHub tokens")
+  }
+
+  const response = await fetch("https://github.com/login/oauth/access_token", {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: "refresh_token",
+      refresh_token: account.refreshToken,
+    }),
+  })
+
+  const payload = (await response.json()) as {
+    access_token?: string
+    refresh_token?: string
+    expires_in?: number
+    refresh_token_expires_in?: number
+    error?: string
+    error_description?: string
+  }
+
+  if (!response.ok || !payload.access_token) {
+    const detail = payload.error_description || payload.error || response.statusText
+    const permanent =
+      payload.error === "bad_refresh_token" ||
+      /incorrect or expired|invalid_grant|bad_verification_code/i.test(detail || "")
+
+    if (permanent) {
+      // Stop retry storms — token chain is dead until the user re-auths.
+      await invalidateGithubTokens(account.id)
+      throw new GithubReauthRequiredError(
+        `GitHub authorization expired (${detail}). Reconnect GitHub to continue.`,
+      )
+    }
+
+    throw new Error(`Failed to refresh GitHub access token (${detail}).`)
+  }
+
+  const accessTokenExpiresAt =
+    typeof payload.expires_in === "number"
+      ? new Date(Date.now() + payload.expires_in * 1000)
+      : null
+  const refreshTokenExpiresAt =
+    typeof payload.refresh_token_expires_in === "number"
+      ? new Date(Date.now() + payload.refresh_token_expires_in * 1000)
+      : account.refreshTokenExpiresAt
+
+  await prisma.account.update({
+    where: { id: account.id },
+    data: {
+      accessToken: payload.access_token,
+      // GitHub rotates refresh tokens — always store the new one when present.
+      ...(payload.refresh_token ? { refreshToken: payload.refresh_token } : {}),
+      accessTokenExpiresAt,
+      refreshTokenExpiresAt,
+    },
+  })
+
+  return payload.access_token
+}
+
+async function refreshGithubTokenSingleFlight(account: GithubAccount): Promise<string> {
+  const existing = refreshInFlight.get(account.id)
+  if (existing) return existing
+
+  const promise = (async () => {
+    // Another request may have already refreshed while we waited for the lock.
+    const latest = await loadGithubAccount(account.userId)
+    if (!latest) {
+      throw new GithubReauthRequiredError("No GitHub account linked. Reconnect GitHub.")
+    }
+
+    if (latest.accessToken && !isTokenExpired(latest.accessTokenExpiresAt)) {
+      return latest.accessToken
+    }
+
+    // Access token may still work briefly past expires_at; probe before refresh.
+    if (latest.accessToken && (await probeAccessToken(latest.accessToken))) {
+      return latest.accessToken
+    }
+
+    try {
+      const h = await headers()
+      const result = await auth.api.getAccessToken({
+        headers: h,
+        body: {
+          providerId: "github",
+          accountId: latest.id,
+          userId: latest.userId,
+        },
+      })
+      if (result?.accessToken) {
+        return result.accessToken
+      }
+    } catch {
+      // No request session / better-auth refresh failed — manual refresh below.
+    }
+
+    return refreshGithubTokenWithOAuth(latest)
+  })().finally(() => {
+    refreshInFlight.delete(account.id)
+  })
+
+  refreshInFlight.set(account.id, promise)
+  return promise
+}
+
+/**
+ * Resolve a usable GitHub OAuth token for a user.
+ * Refreshes expired tokens via GitHub's refresh_token grant when possible.
+ * Single-flights concurrent refreshes so rotated refresh tokens aren't burned.
+ * Works without a browser session (Inngest / webhooks).
+ */
+export async function getGithubTokenForUser(userId: string): Promise<string> {
+  const account = await loadGithubAccount(userId)
+
+  if (!account) {
+    throw new GithubReauthRequiredError("No GitHub account linked. Reconnect GitHub.")
+  }
+
+  if (!account.accessToken && !account.refreshToken) {
+    throw new GithubReauthRequiredError(
+      "GitHub authorization expired. Reconnect GitHub to continue.",
+    )
+  }
+
+  if (account.accessToken && !isTokenExpired(account.accessTokenExpiresAt)) {
+    return account.accessToken
+  }
+
+  // Expired (or missing expiry) — refresh with single-flight protection.
+  return refreshGithubTokenSingleFlight(account)
+}
+
+export const getGithubToken = async () => {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  })
+
+  if (!session) {
+    throw new Error("Unauthorized")
+  }
+
+  return getGithubTokenForUser(session.user.id)
+}
+
+/** Lightweight status for dashboard UI (no token material returned). */
+export async function getGithubAuthStatus(): Promise<{
+  connected: boolean
+  needsReauth: boolean
+  accessTokenExpiresAt: string | null
+}> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  })
+
+  if (!session?.user) {
+    return { connected: false, needsReauth: true, accessTokenExpiresAt: null }
+  }
+
+  const account = await loadGithubAccount(session.user.id)
+  if (!account) {
+    return { connected: false, needsReauth: true, accessTokenExpiresAt: null }
+  }
+
+  if (!account.accessToken && !account.refreshToken) {
+    return {
+      connected: true,
+      needsReauth: true,
+      accessTokenExpiresAt: account.accessTokenExpiresAt?.toISOString() ?? null,
+    }
+  }
+
+  if (account.accessToken && !isTokenExpired(account.accessTokenExpiresAt)) {
+    return {
+      connected: true,
+      needsReauth: false,
+      accessTokenExpiresAt: account.accessTokenExpiresAt?.toISOString() ?? null,
+    }
+  }
+
+  // Try a quiet refresh; if it fails permanently, needsReauth becomes true.
+  try {
+    await getGithubTokenForUser(session.user.id)
+    const refreshed = await loadGithubAccount(session.user.id)
+    return {
+      connected: true,
+      needsReauth: false,
+      accessTokenExpiresAt: refreshed?.accessTokenExpiresAt?.toISOString() ?? null,
+    }
+  } catch (error) {
+    if (isGithubReauthRequiredError(error)) {
+      return {
+        connected: true,
+        needsReauth: true,
+        accessTokenExpiresAt: account.accessTokenExpiresAt?.toISOString() ?? null,
+      }
+    }
+    // Transient failure — don't force reauth banner
+    return {
+      connected: true,
+      needsReauth: false,
+      accessTokenExpiresAt: account.accessTokenExpiresAt?.toISOString() ?? null,
+    }
+  }
+}
+
+export async function fetchUserContribution(token: string, username: string) {
+  const octokit = new Octokit({ auth: token })
+
+  const query = `
     query($username:String!){
       user(login: $username) {
         contributionsCollection {
@@ -48,48 +332,31 @@ export async function fetchUserContribution(token: string, username: string){
     }
     `
 
-    // interface contributindata{
-    //     user:{
-    //         contributionCollection:{
-    //             contributionCalendar:{
-    //                 totalContributions:number,
-    //                 weeks:{
-    //                     contributionCount:number,
-    //                     data:string | Date,
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
+  try {
+    const response: any = await octokit.graphql(query, {
+      username,
+    })
 
-    try {
-        const response: any = await octokit.graphql(query, {
-            username,
-        })
-
-        return response.user.contributionsCollection.contributionCalendar
-    } catch (error) {
-        console.error("Error in fetching contributions:", error)
-        return null
-    }
-
+    return response.user.contributionsCollection.contributionCalendar
+  } catch (error) {
+    console.error("Error in fetching contributions:", error)
+    return null
   }
-  
-export const getRepositories = async(page: number=1, per_page=10)=>{
+}
 
-  const token = await getGithubToken();
-  const octokit = new Octokit({auth:token})
+export const getRepositories = async (page: number = 1, per_page = 10) => {
+  const token = await getGithubToken()
+  const octokit = new Octokit({ auth: token })
 
-  const {data} = await octokit.rest.repos.listForAuthenticatedUser({
+  const { data } = await octokit.rest.repos.listForAuthenticatedUser({
     per_page,
     page,
     sort: "updated",
-    direction: "desc"
+    direction: "desc",
   })
 
   return data
 }
-
 
 export const createWebhook = async (owner: string, repo: string) => {
   const token = await getGithubToken()
@@ -170,69 +437,37 @@ export const createWebhook = async (owner: string, repo: string) => {
   return data
 }
 
-export const deleteWebhook = async (owner:string, repo:string)=>{
+export const deleteWebhook = async (owner: string, repo: string) => {
   const token = await getGithubToken()
 
-  const octokit = new Octokit({auth:token})
+  const octokit = new Octokit({ auth: token })
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL?.replace(/\/$/, '')
+  const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL?.replace(/\/$/, "")
   const webhookUrl = `${baseUrl}/api/webhooks/github`
 
   try {
-    
-    const{data: hooks} = await octokit.rest.repos.listWebhooks({
+    const { data: hooks } = await octokit.rest.repos.listWebhooks({
       owner,
-      repo
+      repo,
     })
 
-    const hookToDelete = hooks.find(hook => hook.config.url === webhookUrl)
+    const hookToDelete = hooks.find((hook) => hook.config.url === webhookUrl)
 
-    if(hookToDelete){
+    if (hookToDelete) {
       await octokit.rest.repos.deleteWebhook({
         owner,
         repo,
-        hook_id:hookToDelete.id
+        hook_id: hookToDelete.id,
       })
       return true
     }
     return false
-
   } catch (error) {
-   console.error("Error in deleting webhook:", error)
-   return false 
+    console.error("Error deleting webhook:", error)
+    throw error
   }
-
 }
 
-
-const BINARY_EXTENSIONS = /\.(png|jpe?g|gif|svg|ico|webp|pdf|zip|tar|gz|tgz|bz2|7z|rar|woff2?|ttf|eot|mp[34]|wav|mov|avi|mkv|webm|lock|bin|exe|dll|so|dylib|class|jar|wasm|parquet|pkl|npy|onnx|pt|safetensors)$/i
-
-const SKIP_PATH_SEGMENTS = [
-  "node_modules/",
-  ".git/",
-  "dist/",
-  "build/",
-  ".next/",
-  "coverage/",
-  "__pycache__/",
-  ".turbo/",
-  "vendor/",
-  ".venv/",
-  "venv/",
-]
-
-const MAX_FILE_BYTES = 200_000
-
-function shouldIndexPath(path: string): boolean {
-  if (BINARY_EXTENSIONS.test(path)) return false
-  if (path.endsWith(".min.js") || path.endsWith(".min.css")) return false
-  if (path.endsWith("bun.lock") || path.endsWith("package-lock.json") || path.endsWith("yarn.lock") || path.endsWith("pnpm-lock.yaml")) {
-    return false
-  }
-  return !SKIP_PATH_SEGMENTS.some((segment) => path.includes(segment))
-}
-
-/** List indexable file paths via the Git Trees API (1 request). */
 export async function listRepoFilePaths(
   token: string,
   owner: string,

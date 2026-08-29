@@ -3,7 +3,7 @@
 import { auth } from "@/lib/auth";
 import prisma from "@super/db";
 import { reviewPullRequest } from "@/modules/ai/action";
-import { fetchUserContribution, getGithubToken } from "@/modules/github/lib/github";
+import { fetchUserContribution, getGithubToken, getGithubAuthStatus, isGithubReauthRequiredError } from "@/modules/github/lib/github";
 import { headers } from "next/headers";
 import { Octokit } from "octokit";
 
@@ -46,7 +46,11 @@ export async function getDashboardStats() {
         }
 
     } catch (error) {
-        console.error("Error in fetching dashbaord stats: ", error);
+        if (!isGithubReauthRequiredError(error)) {
+            console.error("Error in fetching dashbaord stats: ", error);
+        } else {
+            console.warn("GitHub reauth required while fetching dashbaord stats");
+        }
         return{
             totalCommits:0,
             totalPRs:0,
@@ -166,7 +170,11 @@ export async function getMontlyActivity(){
     }));
           
     } catch (error) {
-        console.log("Error in fetching montly activity:", error)
+        if (!isGithubReauthRequiredError(error)) {
+            console.log("Error in fetching montly activity:", error)
+        } else {
+            console.warn("GitHub reauth required while fetching montly activity")
+        }
         return [];
         
     }
@@ -230,7 +238,19 @@ export async function getContributionStats(){
         }
 
     } catch (error) {
-        console.error("Error in fetching user contribution stats:", error);
+        if (!isGithubReauthRequiredError(error)) {
+            if (!isGithubReauthRequiredError(error)) {
+            if (!isGithubReauthRequiredError(error)) {
+            console.error("Error in fetching user contribution stats:", error);
+        } else {
+            console.warn("GitHub reauth required while fetching contribution stats");
+        }
+        } else {
+            console.warn("GitHub reauth required while fetching contribution stats");
+        }
+        } else {
+            console.warn("GitHub reauth required while fetching contribution stats");
+        }
         return null;
     }
 }
@@ -732,4 +752,9 @@ export async function queueReview(id: string): Promise<{ success: boolean; messa
         success: Boolean(result.success),
         message: result.message ?? "Review queued",
     }
+}
+
+
+export async function getGithubConnectionStatus() {
+  return getGithubAuthStatus()
 }

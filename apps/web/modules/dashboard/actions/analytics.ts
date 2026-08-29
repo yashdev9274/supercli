@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth"
 import prisma from "@super/db"
-import { fetchUserContribution, getGithubToken } from "@/modules/github/lib/github"
+import { fetchUserContribution, getGithubToken, isGithubReauthRequiredError } from "@/modules/github/lib/github"
 import { headers } from "next/headers"
 import { Octokit } from "octokit"
 
@@ -414,7 +414,11 @@ export async function getAnalyticsData(timeframe: Timeframe = "1m", repo: string
       timeframe,
     }
   } catch (error) {
-    console.error("Error fetching analytics data:", error)
+    if (!isGithubReauthRequiredError(error)) {
+      console.error("Error fetching analytics data:", error)
+    } else {
+      console.warn("GitHub reauth required while fetching analytics data")
+    }
 
     const dates = generateDailyDates(30)
     const empty: DailyMetric[] = dates.map((date) => ({ date, value: 0 }))
@@ -429,7 +433,9 @@ export async function getAnalyticsData(timeframe: Timeframe = "1m", repo: string
       anomalies: [],
       synthesis: {
         period: labelForTimeframe(timeframe),
-        summary: "No data available yet. Connect your GitHub repositories to see analytics.",
+        summary: isGithubReauthRequiredError(error)
+          ? "GitHub authorization expired. Reconnect GitHub to load analytics."
+          : "No data available yet. Connect your GitHub repositories to see analytics.",
         highlights: [],
         metrics: [],
       },
