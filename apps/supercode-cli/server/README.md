@@ -18,6 +18,28 @@ supercode login
 supercode init
 ```
 
+## Standalone binaries
+
+The CLI can be compiled into standalone executables with Bun. The binaries do
+not require Bun or Node.js to be installed on the target machine.
+
+From `apps/supercode-cli/server`:
+
+```bash
+# Build all supported macOS and Linux targets
+bun run build:binary
+
+# Build only Linux targets
+bun run build:binary:linux
+
+# Build only macOS targets
+bun run build:binary:macos
+```
+
+Artifacts are written to `dist/` as `supercode-<platform>-<architecture>`.
+The npm build remains available through `bun run build` and produces
+`dist/main.js`.
+
 ### Login
 
 Runs a device authorization flow — opens your browser to authenticate via GitHub. The session token is stored locally.
