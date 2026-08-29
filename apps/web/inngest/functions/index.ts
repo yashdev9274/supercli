@@ -1,6 +1,6 @@
-import prisma from "@super/db"
 import { inngest } from "../client"
 import {
+  getGithubTokenForUser,
   getRepoFileContentsByPaths,
   listRepoFilePaths,
 } from "@/modules/github/lib/github"
@@ -34,18 +34,8 @@ export const indexRepo = inngest.createFunction(
     const paths = await step.run("list-file-paths", async () => {
       console.log("[DEBUG] Listing file paths for", owner, repo)
 
-      const account = await prisma.account.findFirst({
-        where: {
-          userId,
-          providerId: "github",
-        },
-      })
-
-      if (!account?.accessToken) {
-        throw new Error("No github access token found")
-      }
-
-      const filePaths = await listRepoFilePaths(account.accessToken, owner, repo)
+      const accessToken = await getGithubTokenForUser(userId)
+      const filePaths = await listRepoFilePaths(accessToken, owner, repo)
       console.log("[DEBUG] Indexable file paths:", filePaths.length)
       return filePaths
     })
@@ -68,19 +58,9 @@ export const indexRepo = inngest.createFunction(
             `[DEBUG] Indexing batch ${batchIndex + 1}/${batchCount} (${batchPaths.length} files)`,
           )
 
-          const account = await prisma.account.findFirst({
-            where: {
-              userId,
-              providerId: "github",
-            },
-          })
-
-          if (!account?.accessToken) {
-            throw new Error("No github access token found")
-          }
-
+          const accessToken = await getGithubTokenForUser(userId)
           const files = await getRepoFileContentsByPaths(
-            account.accessToken,
+            accessToken,
             owner,
             repo,
             batchPaths,

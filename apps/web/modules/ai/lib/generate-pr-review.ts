@@ -169,6 +169,7 @@ async function resolveGithubAccessToken(input: {
   repo: string
   userId?: string
 }): Promise<{ accessToken: string; userId: string }> {
+  const { getGithubTokenForUser } = await import("@/modules/github/lib/github")
   const repository = await findRepository(input.owner, input.repo, input.userId)
 
   const candidateUserIds = [
@@ -178,21 +179,19 @@ async function resolveGithubAccessToken(input: {
 
   // De-dupe while preserving order
   const seen = new Set<string>()
+  const errors: string[] = []
+
   for (const candidate of candidateUserIds) {
     if (seen.has(candidate)) continue
     seen.add(candidate)
 
-    const account = await prisma.account.findFirst({
-      where: {
-        userId: candidate,
-        providerId: "github",
-        accessToken: { not: null },
-      },
-      orderBy: { updatedAt: "desc" },
-    })
-
-    if (account?.accessToken) {
-      return { accessToken: account.accessToken, userId: candidate }
+    try {
+      const accessToken = await getGithubTokenForUser(candidate)
+      return { accessToken, userId: candidate }
+    } catch (error) {
+      errors.push(
+        `${candidate}: ${error instanceof Error ? error.message : String(error)}`,
+      )
     }
   }
 
@@ -207,23 +206,20 @@ async function resolveGithubAccessToken(input: {
     if (seen.has(row.userId)) continue
     seen.add(row.userId)
 
-    const account = await prisma.account.findFirst({
-      where: {
-        userId: row.userId,
-        providerId: "github",
-        accessToken: { not: null },
-      },
-      orderBy: { updatedAt: "desc" },
-    })
-
-    if (account?.accessToken) {
-      return { accessToken: account.accessToken, userId: row.userId }
+    try {
+      const accessToken = await getGithubTokenForUser(row.userId)
+      return { accessToken, userId: row.userId }
+    } catch (error) {
+      errors.push(
+        `${row.userId}: ${error instanceof Error ? error.message : String(error)}`,
+      )
     }
   }
 
   throw new Error(
     `No GitHub access token found for ${input.owner}/${input.repo}. ` +
-      `Reconnect the repository or re-authenticate with GitHub in Supercode.`,
+      `Reconnect the repository or re-authenticate with GitHub in Supercode.` +
+      (errors.length ? ` Attempts: ${errors.join(" | ")}` : ""),
   )
 }
 

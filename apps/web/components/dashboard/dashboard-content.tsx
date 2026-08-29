@@ -38,6 +38,7 @@ import { AvgTimeToMergeCard } from "./analytics/avg-time-to-merge-card";
 import { TopContributorsCard } from "./analytics/top-contributors-card";
 import { AddressedRateCard } from "./analytics/addressed-rate-card";
 import { CommentRatingsCard } from "./analytics/comment-ratings-card";
+import { GithubReauthBanner } from "./components/github-reauth-banner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -150,6 +151,7 @@ export function DashboardContent() {
   })
   return (
     <div className="flex flex-1 flex-col bg-background p-4 md:p-8 pt-8">
+      <GithubReauthBanner />
       {/* Header Row */}
       <div className="mb-12 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-col gap-2">
