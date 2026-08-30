@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.46",
+    "@composio/core": "^0.13.1",
     "@hookform/resolvers": "^5.2.2",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",

@@ -1,9 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -17,54 +14,146 @@ model Test {
   name String
 }
 
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users         User[]
+  integrations  Integration[]
+  repositories  Repository[]
+  conversations Conversation[]
+
+  @@map("organization")
+}
+
 model User {
-  id            String    @id
-  name          String
-  email         String
-  emailVerified Boolean   @default(false)
-  image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  sessions      Session[]
-  accounts      Account[]
-  respositories Repository[]
+  id             String        @id
+  name           String
+  email          String
+  emailVerified  Boolean       @default(false)
+  image          String?
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  sessions       Session[]
+  accounts       Account[]
+  respositories  Repository[]
+
   @@unique([email])
+  @@index([organizationId])
   @@map("user")
 }
 
 model Repository {
-  id         String   @id @default(cuid())
-  githubId   BigInt   @unique
-  name       String
-  owner      String
-  fullName   String
-  url        String
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String        @id @default(cuid())
+  githubId       BigInt        @unique
+  name           String
+  owner          String
+  fullName       String
+  url            String
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   reviews        Review[]
-  
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([userId])
+  @@index([organizationId])
   @@map("repository")
 }
 
 model Review {
-  id            String      @id @default(cuid())
-  repositoryId  String
-  repository    Repository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  prNumber      Int
-  prTitle       String
-  prUrl         String
-  review        String      @db.Text
-  status        String      @default("completed") // completed, failed, pending
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id           String         @id @default(cuid())
+  repositoryId String
+  repository   Repository     @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  prNumber     Int
+  prTitle      String
+  prUrl        String
+  review       String         @db.Text
+  status       String         @default("completed") // completed, failed, pending
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  conversations Conversation[]
 
   @@unique([repositoryId, prNumber])
   @@index([repositoryId])
   @@map("review")
+}
+
+model Integration {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  provider String // "slack" | "linear"
+
+  // Composio connection (tokens live in Composio; we store the account handle)
+  composioConnectedAccountId String?
+  composioEntityId           String? // typically organizationId
+
+  // Display / preference fields (no secrets)
+  slackTeamId    String?
+  slackTeamName  String?
+  slackChannelId String?
+  linearTeamId   String?
+  linearTeamName String?
+
+  isActive  Boolean  @default(true)
+  config    Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, provider])
+  @@index([organizationId])
+  @@index([composioConnectedAccountId])
+  @@map("integration")
+}
+
+model Conversation {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  provider   String // "slack" | "linear"
+  externalId String // Slack thread_ts or Linear issue/comment ID
+  channelId  String?
+  userId     String? // external user id who started the conversation
+
+  reviewId String?
+  review   Review? @relation(fields: [reviewId], references: [id], onDelete: SetNull)
+
+  messages Message[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, provider, externalId])
+  @@index([organizationId])
+  @@index([reviewId])
+  @@map("conversation")
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  role       String // "user" | "assistant" | "system"
+  content    String  @db.Text
+  externalId String?
+  metadata   Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId])
+  @@map("message")
 }
 
 model Session {
