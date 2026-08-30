@@ -1,6 +1,7 @@
 'use client'
 
 import { Sidebar } from '@/components/dashboard/sidebar'
+import { DashboardHeader } from '@/components/dashboard/dashboard-header'
 import VisualEditsMessenger from "../visual-edits/VisualEditsMessenger";
 import ErrorReporter from "@/components/ErrorReporter";
 import Script from 'next/script'
@@ -14,6 +15,7 @@ const DashboardLayout = (
           <div className="flex h-screen overflow-hidden">
             <Sidebar />
             <div className="flex flex-1 flex-col overflow-hidden">
+              <DashboardHeader />
               <main className="flex-1 overflow-y-auto overflow-x-hidden">
                 {children}
               </main>

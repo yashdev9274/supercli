@@ -7,17 +7,13 @@ import {
   Zap, 
   CreditCard, 
   Gift, 
-  Code2, 
   FileText, 
   Monitor,
   Menu,
   X,
   ChevronLeft,
   ChevronRight,
-  Plus,
-  Check,
   Settings,
-  GitPullRequest
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -25,29 +21,8 @@ import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { useMounted } from "@/hooks/use-mounted";
 import { motion, AnimatePresence } from "framer-motion";
-// import { useOrganizations } from "@/hooks/use-organizations";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
 import { LucideIcon } from "lucide-react";
+import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 
 const PixelLogo = () => {
   return (
@@ -140,10 +115,6 @@ export function Sidebar() {
   const [openMenus, setOpenMenus] = useState<string[]>(["Code Review Agent", "Connections"]);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-//   const { organizations, currentOrg, createOrg, selectOrg, loading } = useOrganizations();
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [newOrgName, setNewOrgName] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
   const mounted = useMounted();
 
   
@@ -200,84 +171,17 @@ export function Sidebar() {
           isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-          <div className="flex h-14 items-center justify-between px-4 border-b border-sidebar-border">
-            {!isCollapsed && mounted && (
-              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-2 rounded-none px-2 py-1 text-sm hover:bg-sidebar-accent/50 transition-colors">
-                      <span className="font-bold tracking-tight text-foreground">
-                        Select Organization
-                      </span>
-                      <ChevronDown className="h-4 w-4 opacity-50" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-56 rounded-none">
-                    <DropdownMenuLabel className="text-[10px] font-bold tracking-wider text-foreground/75 uppercase">Organizations</DropdownMenuLabel>
-                      <DropdownMenuItem 
-                        className="flex items-center justify-between gap-2 text-xs cursor-pointer rounded-none"
-                      >
-                        <span className="font-bold text-primary">
-                          SuperCode
-                        </span>
-                        <Check className="h-3 w-3 text-primary" />
-                      </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DialogTrigger asChild>
-                      <DropdownMenuItem className="flex items-center gap-2 text-xs cursor-pointer rounded-none text-foreground/80 hover:text-foreground">
-                        <Plus className="h-3 w-3" />
-                        <span>Create Organization</span>
-                      </DropdownMenuItem>
-                    </DialogTrigger>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <DialogContent className="sm:max-w-[425px] rounded-none">
-                  <form>
-                    <DialogHeader>
-                      <DialogTitle>Create Organization</DialogTitle>
-                      <DialogDescription>
-                        Enter a name for your new organization.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="name">Organization Name</Label>
-                        <Input
-                          id="name"
-                          value={newOrgName}
-                          onChange={(e) => setNewOrgName(e.target.value)}
-                          placeholder="Acme Corp"
-                          className="rounded-none"
-                          autoFocus
-                        />
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        onClick={() => setIsCreateDialogOpen(false)}
-                        className="rounded-none"
-                      >
-                        Cancel
-                      </Button>
-                      <Button 
-                        type="submit" 
-                        disabled={isCreating || !newOrgName.trim()}
-                        className="rounded-none"
-                      >
-                        {isCreating ? "Creating..." : "Create"}
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </DialogContent>
-              </Dialog>
-            )}
-            {isCollapsed && (
-               <div className="mx-auto flex items-center justify-center w-full">
-                 <PixelLogo />
-               </div>
+<div className="flex h-14 items-center justify-between gap-2 px-3 border-b border-sidebar-border">
+            {mounted ? (
+              <div className={cn("min-w-0", isCollapsed ? "w-full" : "flex-1")}>
+                <OrgSwitcher collapsed={isCollapsed} />
+              </div>
+            ) : isCollapsed ? (
+              <div className="mx-auto flex w-full items-center justify-center">
+                <PixelLogo />
+              </div>
+            ) : (
+              <div className="h-7 w-32 animate-pulse rounded-md bg-muted/30" />
             )}
 
           <button 
