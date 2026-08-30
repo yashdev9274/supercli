@@ -8,7 +8,10 @@ import { toast } from "sonner"
 import {
   disconnectIntegration,
   getIntegrationStatuses,
+  listLinearTeams,
+  updateLinearTeam,
   updateSlackChannel,
+  type LinearTeamOption,
 } from "@/modules/integrations/actions"
 import type {
   IntegrationProvider,
@@ -137,6 +140,13 @@ export function IntegrationsPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [channelDialogOpen, setChannelDialogOpen] = useState(false)
   const [channelDraft, setChannelDraft] = useState("")
+  const [linearDialogOpen, setLinearDialogOpen] = useState(false)
+  const [linearTeams, setLinearTeams] = useState<LinearTeamOption[]>([])
+  const [linearTeamDraft, setLinearTeamDraft] = useState("")
+  const [linearTeamsLoading, setLinearTeamsLoading] = useState(false)
+  const [linearTeamsError, setLinearTeamsError] = useState<string | null>(null)
+  const [promptLinearTeamAfterConnect, setPromptLinearTeamAfterConnect] =
+    useState(false)
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["integration-statuses"],
@@ -145,6 +155,32 @@ export function IntegrationsPage() {
     refetchOnWindowFocus: false,
   })
 
+  const openLinearTeamDialog = async (opts?: { preferredTeamId?: string | null }) => {
+    setLinearDialogOpen(true)
+    setLinearTeamsLoading(true)
+    setLinearTeamsError(null)
+    try {
+      const result = await listLinearTeams()
+      if (!result.success) {
+        setLinearTeams([])
+        setLinearTeamsError(result.error || "Failed to load Linear teams")
+        return
+      }
+      setLinearTeams(result.teams)
+      const preferred =
+        opts?.preferredTeamId ||
+        result.selectedTeamId ||
+        result.teams[0]?.id ||
+        ""
+      setLinearTeamDraft(preferred)
+    } catch {
+      setLinearTeams([])
+      setLinearTeamsError("Failed to load Linear teams")
+    } finally {
+      setLinearTeamsLoading(false)
+    }
+  }
+
   useEffect(() => {
     const connected = searchParams.get("connected")
     const error = searchParams.get("integration_error")
@@ -152,9 +188,12 @@ export function IntegrationsPage() {
       toast.success(
         connected === "slack"
           ? "Slack connected via Composio"
-          : "Linear connected via Composio",
+          : "Linear connected via Composio — choose a workspace",
       )
       queryClient.invalidateQueries({ queryKey: ["integration-statuses"] })
+      if (connected === "linear") {
+        setPromptLinearTeamAfterConnect(true)
+      }
       const url = new URL(window.location.href)
       url.searchParams.delete("connected")
       url.searchParams.delete("integration_error")
@@ -167,6 +206,15 @@ export function IntegrationsPage() {
       window.history.replaceState({}, "", url.pathname + url.search)
     }
   }, [searchParams, queryClient])
+
+  // After Linear OAuth, open workspace picker once statuses are fresh.
+  useEffect(() => {
+    if (!promptLinearTeamAfterConnect || isLoading || !data?.linear?.connected) {
+      return
+    }
+    setPromptLinearTeamAfterConnect(false)
+    void openLinearTeamDialog({ preferredTeamId: data.linear.teamId })
+  }, [promptLinearTeamAfterConnect, isLoading, data])
 
   const disconnectMutation = useMutation({
     mutationFn: async (provider: IntegrationProvider) =>
@@ -196,6 +244,21 @@ export function IntegrationsPage() {
       }
     },
     onError: () => toast.error("Failed to update channel"),
+  })
+
+  const linearTeamMutation = useMutation({
+    mutationFn: async (payload: { teamId: string; teamName: string | null }) =>
+      updateLinearTeam(payload.teamId, payload.teamName),
+    onSuccess: (result) => {
+      if (result?.success) {
+        queryClient.invalidateQueries({ queryKey: ["integration-statuses"] })
+        toast.success("Linear workspace saved — reviews will use supercodeAI here")
+        setLinearDialogOpen(false)
+      } else {
+        toast.error(result?.error || "Failed to save Linear workspace")
+      }
+    },
+    onError: () => toast.error("Failed to save Linear workspace"),
   })
 
   const composioConfigured = data?.composioConfigured ?? false
@@ -403,12 +466,18 @@ export function IntegrationsPage() {
                     </div>
                   </div>
 
-                  {connected ? (
+{connected ? (
                     <div className="mt-4 rounded-lg border border-border bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
                       {status?.teamName ? (
                         <p>
                           Workspace:{" "}
                           <span className="text-foreground">{status.teamName}</span>
+                        </p>
+                      ) : app.id === "linear" ? (
+                        <p className="text-amber-700 dark:text-amber-300">
+                          Connected — choose a Linear workspace so reviews create
+                          the shared <span className="font-medium">supercodeAI</span>{" "}
+                          project.
                         </p>
                       ) : (
                         <p>Connected account active via Composio</p>
@@ -442,7 +511,7 @@ export function IntegrationsPage() {
                   </ul>
 
                   <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-border pt-4">
-                    {connected ? (
+{connected ? (
                       <>
                         {app.id === "slack" ? (
                           <Button
@@ -455,6 +524,20 @@ export function IntegrationsPage() {
                             }}
                           >
                             Configure channel
+                          </Button>
+                        ) : null}
+                        {app.id === "linear" ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 rounded-lg text-xs"
+                            onClick={() =>
+                              void openLinearTeamDialog({
+                                preferredTeamId: status?.teamId,
+                              })
+                            }
+                          >
+                            {status?.teamId ? "Change workspace" : "Choose workspace"}
                           </Button>
                         ) : null}
                         <Button
@@ -523,7 +606,7 @@ export function IntegrationsPage() {
         ) : null}
       </motion.div>
 
-      <Dialog open={channelDialogOpen} onOpenChange={setChannelDialogOpen}>
+<Dialog open={channelDialogOpen} onOpenChange={setChannelDialogOpen}>
         <DialogContent className="sm:max-w-[425px] rounded-xl">
           <DialogHeader>
             <DialogTitle>Slack notification channel</DialogTitle>
@@ -558,6 +641,78 @@ export function IntegrationsPage() {
               }
             >
               {channelMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={linearDialogOpen} onOpenChange={setLinearDialogOpen}>
+        <DialogContent className="sm:max-w-[425px] rounded-xl">
+          <DialogHeader>
+            <DialogTitle>Linear workspace</DialogTitle>
+            <DialogDescription>
+              Choose the Linear team where Supercode creates the shared{" "}
+              <span className="font-medium text-foreground">supercodeAI</span>{" "}
+              project and posts PR review issues.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 py-2">
+            <Label htmlFor="linear-team">Team / workspace</Label>
+            {linearTeamsLoading ? (
+              <div className="flex h-10 items-center gap-2 rounded-lg border border-border bg-muted/20 px-3 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Loading teams…
+              </div>
+            ) : linearTeamsError ? (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                {linearTeamsError}
+              </div>
+            ) : linearTeams.length === 0 ? (
+              <div className="rounded-lg border border-border bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
+                No Linear teams found for this account.
+              </div>
+            ) : (
+              <select
+                id="linear-team"
+                value={linearTeamDraft}
+                onChange={(e) => setLinearTeamDraft(e.target.value)}
+                className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/20"
+              >
+                {linearTeams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name || team.id}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              className="rounded-lg"
+              onClick={() => setLinearDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="rounded-lg"
+              disabled={
+                linearTeamMutation.isPending ||
+                linearTeamsLoading ||
+                !linearTeamDraft.trim() ||
+                Boolean(linearTeamsError)
+              }
+              onClick={() => {
+                const team =
+                  linearTeams.find((t) => t.id === linearTeamDraft) || null
+                if (!team) return
+                linearTeamMutation.mutate({
+                  teamId: team.id,
+                  teamName: team.name,
+                })
+              }}
+            >
+              {linearTeamMutation.isPending ? "Saving..." : "Save workspace"}
             </Button>
           </DialogFooter>
         </DialogContent>

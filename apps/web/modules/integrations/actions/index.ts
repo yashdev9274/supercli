@@ -13,8 +13,12 @@ import {
   deleteComposioConnectedAccount,
   isComposioConfigured,
 } from "../lib/composio"
+import { getLinearTeamsForConnectedAccount } from "../lib/linear"
 import type { IntegrationProvider, IntegrationStatus } from "./schema"
-import { integrationProviderSchema } from "./schema"
+import {
+  integrationProviderSchema,
+  updateLinearConfigSchema,
+} from "./schema"
 
 async function requireSessionUserId(): Promise<string> {
   const session = await auth.api.getSession({
@@ -264,5 +268,142 @@ export async function updateSlackChannel(channelId: string | null) {
   } catch (error) {
     console.error("updateSlackChannel failed:", error)
     return { success: false as const, error: "Failed to update Slack channel" }
+  }
+}
+
+export type LinearTeamOption = {
+  id: string
+  name: string | null
+}
+
+/**
+ * List Linear teams (workspaces) for the connected org account.
+ * Used after first connect so the user can choose where supercodeAI lives.
+ */
+export async function listLinearTeams(): Promise<{
+  success: true
+  teams: LinearTeamOption[]
+  selectedTeamId: string | null
+} | {
+  success: false
+  error: string
+}> {
+  try {
+    const userId = await requireSessionUserId()
+    const organizationId = await getOrganizationIdForUser(userId)
+    if (!organizationId) {
+      return { success: false, error: "No organization found" }
+    }
+    if (!isComposioConfigured()) {
+      return { success: false, error: "COMPOSIO_API_KEY is not configured" }
+    }
+
+    const existing = await prisma.integration.findUnique({
+      where: {
+        organizationId_provider: {
+          organizationId,
+          provider: "linear",
+        },
+      },
+    })
+
+    if (!existing?.isActive || !existing.composioConnectedAccountId) {
+      return { success: false, error: "Linear is not connected" }
+    }
+
+    const entityId =
+      existing.composioEntityId || composioEntityIdForOrg(organizationId)
+    const teams = await getLinearTeamsForConnectedAccount({
+      entityId,
+      connectedAccountId: existing.composioConnectedAccountId,
+    })
+
+    return {
+      success: true,
+      teams,
+      selectedTeamId: existing.linearTeamId ?? null,
+    }
+  } catch (error) {
+    console.error("listLinearTeams failed:", error)
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to list Linear teams",
+    }
+  }
+}
+
+export async function updateLinearTeam(
+  teamId: string | null,
+  teamName?: string | null,
+) {
+  try {
+    const parsed = updateLinearConfigSchema.safeParse({
+      teamId,
+      teamName: teamName ?? null,
+    })
+    if (!parsed.success) {
+      return { success: false as const, error: "Invalid team selection" }
+    }
+
+    const userId = await requireSessionUserId()
+    const organizationId = await getOrganizationIdForUser(userId)
+    if (!organizationId) {
+      return { success: false as const, error: "No organization found" }
+    }
+
+    const existing = await prisma.integration.findUnique({
+      where: {
+        organizationId_provider: {
+          organizationId,
+          provider: "linear",
+        },
+      },
+    })
+
+    if (!existing?.isActive || !existing.composioConnectedAccountId) {
+      return { success: false as const, error: "Linear is not connected" }
+    }
+
+    const nextTeamId = parsed.data.teamId ?? null
+    const nextTeamName = parsed.data.teamName ?? null
+
+// Keep supercodeAiProjectId only if team unchanged; otherwise clear so
+    // notify recreates/finds project under the newly selected team.
+    const prevConfig =
+      existing.config &&
+      typeof existing.config === "object" &&
+      !Array.isArray(existing.config)
+        ? { ...(existing.config as Record<string, unknown>) }
+        : ({} as Record<string, unknown>)
+    const teamChanged =
+      Boolean(nextTeamId) && nextTeamId !== existing.linearTeamId
+    const nextConfig: Record<string, unknown> = { ...prevConfig }
+
+    if (nextTeamId) {
+      nextConfig.supercodeAiTeamId = nextTeamId
+    }
+    if (teamChanged) {
+      delete nextConfig.supercodeAiProjectId
+    }
+
+await prisma.integration.update({
+      where: { id: existing.id },
+      data: {
+        linearTeamId: nextTeamId,
+        linearTeamName: nextTeamName,
+        // Prisma Json input rejects plain Record<string, unknown>
+        config: nextConfig as object,
+      },
+    })
+
+    revalidatePath("/dashboard/integrations", "page")
+    revalidatePath("/dashboard/settings", "page")
+    return { success: true as const }
+  } catch (error) {
+    console.error("updateLinearTeam failed:", error)
+    return { success: false as const, error: "Failed to update Linear team" }
   }
 }

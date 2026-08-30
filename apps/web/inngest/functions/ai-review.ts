@@ -91,7 +91,7 @@ export const generateReview = inngest.createFunction(
       })
 
       console.log(
-        `[generate-review] done ${owner}/${repo}#${prNumber} files=${result.files} commentPosted=${result.commentPosted}`,
+        `[generate-review] done ${owner}/${repo}#${prNumber} files=${result.files} commentPosted=${result.commentPosted} linearNotified=${Boolean(result.linearNotified)} linearIssue=${result.linearIssueId ?? result.linearSkippedReason ?? "-"}`,
       )
 
       return {
@@ -101,6 +101,9 @@ export const generateReview = inngest.createFunction(
         prNumber: result.prNumber,
         files: result.files,
         commentPosted: result.commentPosted,
+        linearNotified: result.linearNotified ?? false,
+        linearIssueId: result.linearIssueId ?? null,
+        linearSkippedReason: result.linearSkippedReason ?? null,
       }
     })
   },
