@@ -138,6 +138,9 @@ export type GeneratePrReviewResult = {
   files: number
   commentPosted: boolean
   review: string
+  linearNotified?: boolean
+  linearIssueId?: string | null
+  linearSkippedReason?: string | null
 }
 
 function isRealUserId(userId: string | undefined | null): userId is string {
@@ -366,12 +369,14 @@ export async function runGeneratePrReview(
   }
 
   const review = text
+  const prUrl = `https://github.com/${owner}/${repo}/pull/${prNumber}`
 
   const repository = await findRepository(owner, repo, userId)
+  let reviewId: string | null = null
   if (!repository) {
     console.warn(`[generate-pr-review] repository ${repoId} missing when saving`)
   } else {
-    await prisma.review.upsert({
+    const saved = await prisma.review.upsert({
       where: {
         repositoryId_prNumber: {
           repositoryId: repository.id,
@@ -380,7 +385,7 @@ export async function runGeneratePrReview(
       },
       update: {
         prTitle: prData.title,
-        prUrl: `https://github.com/${owner}/${repo}/pull/${prNumber}`,
+        prUrl,
         review,
         status: "completed",
       },
@@ -388,11 +393,13 @@ export async function runGeneratePrReview(
         repositoryId: repository.id,
         prNumber,
         prTitle: prData.title,
-        prUrl: `https://github.com/${owner}/${repo}/pull/${prNumber}`,
+        prUrl,
         review,
         status: "completed",
       },
+      select: { id: true },
     })
+    reviewId = saved.id
   }
 
   // Persist completed review first so the dashboard is correct even if GitHub
@@ -416,6 +423,45 @@ export async function runGeneratePrReview(
     )
   }
 
+  // Push review into connected Linear workspace (Supercode AI project).
+  // Best-effort — never fail the review job if Linear/Composio is down.
+  let linearNotified = false
+  let linearIssueId: string | null = null
+  let linearSkippedReason: string | null = null
+  try {
+    const { notifyLinearOfCompletedReview } = await import(
+      "@/modules/integrations/lib/linear"
+    )
+    const linearResult = await notifyLinearOfCompletedReview({
+      userId,
+      owner,
+      repo,
+      prNumber,
+      prTitle: prData.title,
+      prUrl,
+      prDescription: prData.description || "",
+      reviewMarkdown: review,
+      reviewId,
+    })
+    if (linearResult.skipped) {
+      linearSkippedReason = linearResult.reason ?? "skipped"
+      console.log(
+        `[generate-pr-review] linear notify skipped for ${repoId}#${prNumber}: ${linearSkippedReason}`,
+      )
+    } else {
+      linearNotified = true
+      linearIssueId = linearResult.issueId ?? null
+      console.log(
+        `[generate-pr-review] linear notify ok for ${repoId}#${prNumber} issue=${linearIssueId ?? "?"} updated=${Boolean(linearResult.updated)} project=${linearResult.projectId ?? "?"}`,
+      )
+    }
+  } catch (error) {
+    console.error(
+      `[generate-pr-review] linear notify failed for ${repoId}#${prNumber} (review still saved):`,
+      error,
+    )
+  }
+
   return {
     success: true,
     owner,
@@ -424,5 +470,8 @@ export async function runGeneratePrReview(
     files: prData.changedFiles.length,
     commentPosted,
     review,
+    linearNotified,
+    linearIssueId,
+    linearSkippedReason,
   }
 }
