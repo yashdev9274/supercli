@@ -231,6 +231,15 @@ export async function listLinearTeamsViaComposio(params: {
   })
 }
 
+/** Parsed team list for UI / workspace picker. */
+export async function getLinearTeamsForConnectedAccount(params: {
+  entityId: string
+  connectedAccountId: string
+}): Promise<Array<{ id: string; name: string | null }>> {
+  const listed = await listLinearTeamsViaComposio(params)
+  return extractTeams(listed)
+}
+
 export async function listLinearProjectsViaComposio(params: {
   entityId: string
   connectedAccountId: string
@@ -567,7 +576,7 @@ export async function notifyLinearOfCompletedReview(
     },
   })
 
-  if (!integration?.isActive || !integration.composioConnectedAccountId) {
+if (!integration?.isActive || !integration.composioConnectedAccountId) {
     return { skipped: true, reason: "linear_not_connected" }
   }
 
@@ -576,10 +585,18 @@ export async function notifyLinearOfCompletedReview(
   const connectedAccountId = integration.composioConnectedAccountId
   const cached = readLinearConfig(integration.config)
 
+  // Require an explicitly chosen workspace so we never create supercodeAI
+  // under a random first team from LINEAR_GET_ALL_LINEAR_TEAMS.
+  const preferredTeamId =
+    integration.linearTeamId || cached.supercodeAiTeamId || null
+  if (!preferredTeamId) {
+    return { skipped: true, reason: "linear_team_not_selected" }
+  }
+
   const { teamId, teamName } = await resolveTeamId({
     entityId,
     connectedAccountId,
-    preferredTeamId: cached.supercodeAiTeamId || integration.linearTeamId,
+    preferredTeamId,
     preferredTeamName: integration.linearTeamName,
   })
 

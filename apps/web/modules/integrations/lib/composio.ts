@@ -7,6 +7,37 @@ export const COMPOSIO_TOOLKIT: Record<IntegrationProvider, string> = {
   linear: "linear",
 }
 
+/**
+ * Composio requires an explicit toolkit version on tools.execute (TS-SDK::TOOL_VERSION_REQUIRED).
+ * Prefer COMPOSIO_TOOLKIT_VERSION_<SLUG>, then COMPOSIO_TOOLKIT_VERSION, then "latest".
+ */
+export function resolveComposioToolkitVersion(toolkitSlug: string): string {
+  const slug = toolkitSlug.trim().toLowerCase()
+  const envKey = `COMPOSIO_TOOLKIT_VERSION_${slug.replace(/[^a-z0-9]+/g, "_").toUpperCase()}`
+  return (
+    process.env[envKey]?.trim() ||
+    process.env.COMPOSIO_TOOLKIT_VERSION?.trim() ||
+    "latest"
+  )
+}
+
+function toolkitVersionsFromEnv(): Record<string, string> {
+  const versions: Record<string, string> = {}
+  for (const slug of Object.values(COMPOSIO_TOOLKIT)) {
+    versions[slug] = resolveComposioToolkitVersion(slug)
+  }
+  return versions
+}
+
+function toolkitSlugFromToolSlug(toolSlug: string): string | null {
+  const upper = toolSlug.trim().toUpperCase()
+  for (const slug of Object.values(COMPOSIO_TOOLKIT)) {
+    if (upper.startsWith(`${slug.toUpperCase()}_`)) return slug
+  }
+  const head = toolSlug.split("_")[0]?.toLowerCase()
+  return head || null
+}
+
 let composioSingleton: Composio | null = null
 
 export function isComposioConfigured(): boolean {
@@ -19,7 +50,11 @@ export function getComposio(): Composio {
     throw new Error("COMPOSIO_API_KEY is not configured")
   }
   if (!composioSingleton) {
-    composioSingleton = new Composio({ apiKey })
+    composioSingleton = new Composio({
+      apiKey,
+      // SDK-level defaults; execute still passes version explicitly for safety.
+      toolkitVersions: toolkitVersionsFromEnv(),
+    })
   }
   return composioSingleton
 }
@@ -414,17 +449,28 @@ export async function deleteComposioConnectedAccount(
 
 /**
  * Execute a Composio tool for a connected account (Phase 2+ notifications).
+ * Always passes toolkit `version` to satisfy TS-SDK::TOOL_VERSION_REQUIRED.
  */
 export async function executeComposioTool(params: {
   toolSlug: string
   userId: string // composio entity id
   arguments: Record<string, unknown>
   connectedAccountId?: string
+  /** Override toolkit version; defaults from env / "latest". */
+  version?: string
 }) {
   const composio = getComposio()
+  const toolkitSlug = toolkitSlugFromToolSlug(params.toolSlug)
+  const version =
+    params.version?.trim() ||
+    (toolkitSlug
+      ? resolveComposioToolkitVersion(toolkitSlug)
+      : process.env.COMPOSIO_TOOLKIT_VERSION?.trim() || "latest")
+
   return composio.tools.execute(params.toolSlug, {
     userId: params.userId,
     arguments: params.arguments,
+    version,
     ...(params.connectedAccountId
       ? { connectedAccountId: params.connectedAccountId }
       : {}),
