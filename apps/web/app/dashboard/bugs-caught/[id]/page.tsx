@@ -1,7 +1,7 @@
 import prisma from "@super/db"
 import { requireAuth } from "@/modules/components/utils/auth-utils"
 import { notFound } from "next/navigation"
-import { ArrowLeft, ExternalLink, FileCode2 } from "lucide-react"
+import { ArrowLeft, ExternalLink } from "lucide-react"
 import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -119,19 +119,18 @@ export default async function BugDetailPage({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <SeverityBadge severity={finding.severity} />
-                    <span className="text-sm font-medium text-foreground underline decoration-muted-foreground/25 underline-offset-2">
+                    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm text-foreground">
                       {finding.title}
-                    </span>
+                    </code>
                     {finding.filePath ? (
                       <span className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground/45">
                         <span aria-hidden>—</span>
-                        <FileCode2 className="size-3 opacity-70" />
                         <span className="truncate">{finding.filePath}</span>
                       </span>
                     ) : null}
                   </div>
                   {finding.description ? (
-                    <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground/70">
+                    <p className="mt-2 max-w-3xl text-sm leading-relaxed text-white">
                       {finding.description}
                     </p>
                   ) : null}
