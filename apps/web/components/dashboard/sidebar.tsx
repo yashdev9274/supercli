@@ -23,6 +23,7 @@ import { useMounted } from "@/hooks/use-mounted";
 import { motion, AnimatePresence } from "framer-motion";
 import { LucideIcon } from "lucide-react";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
+import { LockKeyhole } from "@/components/animate-ui/icons/lock-keyhole";
 
 const PixelLogo = () => {
   return (
@@ -47,12 +48,14 @@ const PixelLogo = () => {
 type NavigationChild = {
   name: string;
   href: string;
+  locked?: boolean;
 };
 
 type NavigationItem = {
   name: string;
   href: string;
   icon: LucideIcon;
+  locked?: boolean;
   children?: NavigationChild[];
 };
 
@@ -77,12 +80,12 @@ const navigation: NavigationGroup[] = [
         icon: Monitor,
         children: [
           { name: "PR Review", href: "/dashboard/pull-requests" },
-          { name: "Logs", href: "/dashboard/logs" },
-          { name: "Settings", href: "/dashboard/settings" },
-          { name: "Custom Context", href: "/dashboard/context" },
+          { name: "Logs", href: "/dashboard/logs", locked: true },
+          { name: "Bugs Caught", href: "/dashboard/bugs-caught" },
+          { name: "Custom Context", href: "/dashboard/context", locked: true },
         ]
       },
-      { name: "Chat", href: "/dashboard/chat", icon: MessageSquare },
+      { name: "Chat", href: "/dashboard/chat", icon: MessageSquare, locked: true },
       { 
         name: "Connections", 
         href: "/dashboard/providers", 
@@ -233,34 +236,44 @@ export function Sidebar() {
                           </button>
                         ) : (
                           <Link
-                            href={item.href}
+                            href={item.locked ? "#" : item.href}
+                            onClick={item.locked ? (e) => e.preventDefault() : undefined}
                             className={cn(
                               "flex items-center gap-3 rounded-none px-3 py-2 text-xs font-medium transition-colors",
                               isActive 
                                 ? "bg-primary text-primary-foreground" 
                                 : "text-foreground/75 hover:text-foreground hover:bg-orange-500",
-                              isCollapsed && "justify-center px-0"
+                              isCollapsed && "justify-center px-0",
+                              item.locked && "opacity-60 cursor-not-allowed"
                             )}
                           >
                             <item.icon className="h-4 w-4 shrink-0" />
-                            {!isCollapsed && item.name}
+                            {!isCollapsed && (
+                              <>
+                                <span>{item.name}</span>
+                                {item.locked && <LockKeyhole className="h-3 w-3 text-muted-foreground" />}
+                              </>
+                            )}
                           </Link>
                         )}
                         
                         {hasChildren && isOpen && !isCollapsed && (
                           <div className="ml-9 space-y-1 border-l border-sidebar-border pl-2">
-                            {item.children?.map((child: { name: string; href: string }) => (
+                            {item.children?.map((child) => (
                               <Link
                                 key={child.name}
-                                href={child.href}
+                                href={child.locked ? "#" : child.href}
+                                onClick={child.locked ? (e) => e.preventDefault() : undefined}
                                 className={cn(
-                                  "block rounded-none px-3 py-2 text-xs transition-colors",
+                                  "flex items-center gap-2 rounded-none px-3 py-2 text-xs transition-colors",
                                   pathname === child.href 
                                     ? "text-foreground font-medium" 
-                                    : "text-foreground/65 hover:text-foreground hover:bg-orange-500"
+                                    : "text-foreground/65 hover:text-foreground hover:bg-orange-500",
+                                  child.locked && "opacity-60 cursor-not-allowed"
                                 )}
                               >
-                                {child.name}
+                                <span>{child.name}</span>
+                                {child.locked && <LockKeyhole className="h-3 w-3 text-muted-foreground" />}
                               </Link>
                             ))}
                           </div>
