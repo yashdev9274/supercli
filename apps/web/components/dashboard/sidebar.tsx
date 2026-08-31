@@ -100,15 +100,15 @@ const navigation: NavigationGroup[] = [
   { 
     section: "BILLING & USAGE",
     items: [
-      { name: "Billing", href: "/dashboard/billing", icon: CreditCard },
-      { name: "Refer a Friend", href: "/dashboard/refer", icon: Gift },
+      { name: "Billing", href: "/pricing", icon: CreditCard },
+      { name: "Refer a Friend", href: "/dashboard/", icon: Gift },
     ]
   },
   { 
     section: "Platform",
     items: [
       { name: "Settings", href: "/dashboard/settings", icon: Settings },
-      { name: "Documentation", href: "/docs", icon: FileText },
+      { name: "Documentation", href: "/dashboard", icon: FileText },
     ]
   }
 ];
