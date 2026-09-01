@@ -141,6 +141,9 @@ export type GeneratePrReviewResult = {
   linearNotified?: boolean
   linearIssueId?: string | null
   linearSkippedReason?: string | null
+  emailNotified?: boolean
+  emailId?: string | null
+  emailSkippedReason?: string | null
 }
 
 function isRealUserId(userId: string | undefined | null): userId is string {
@@ -462,6 +465,46 @@ export async function runGeneratePrReview(
     )
   }
 
+  // Email the connected Supercode user a review summary (Resend).
+  // Best-effort — never fail the review job if email delivery fails.
+  let emailNotified = false
+  let emailId: string | null = null
+  let emailSkippedReason: string | null = null
+  try {
+    const { notifyUserOfCompletedReview } = await import(
+      "@/modules/email/pr-review-email"
+    )
+    const emailResult = await notifyUserOfCompletedReview({
+      userId,
+      owner,
+      repo,
+      prNumber,
+      prTitle: prData.title,
+      prUrl,
+      prAuthor: prData.author,
+      prDescription: prData.description || "",
+      reviewMarkdown: review,
+      reviewId,
+    })
+    if (emailResult.skipped) {
+      emailSkippedReason = emailResult.reason
+      console.log(
+        `[generate-pr-review] email notify skipped for ${repoId}#${prNumber}: ${emailSkippedReason}`,
+      )
+    } else {
+      emailNotified = true
+      emailId = emailResult.emailId
+      console.log(
+        `[generate-pr-review] email notify ok for ${repoId}#${prNumber} id=${emailId ?? "?"}`,
+      )
+    }
+  } catch (error) {
+    console.error(
+      `[generate-pr-review] email notify failed for ${repoId}#${prNumber} (review still saved):`,
+      error,
+    )
+  }
+
   return {
     success: true,
     owner,
@@ -473,5 +516,8 @@ export async function runGeneratePrReview(
     linearNotified,
     linearIssueId,
     linearSkippedReason,
+    emailNotified,
+    emailId,
+    emailSkippedReason,
   }
 }
