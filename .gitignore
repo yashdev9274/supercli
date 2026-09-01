@@ -105,3 +105,5 @@ supercode-openmodel/research/
 supercode-openmodel/qwen-training/
 supercode-openmodel/.venv
 /cmd
+
+cortex-sdk.md
