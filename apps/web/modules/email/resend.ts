@@ -1,11 +1,28 @@
 import { Resend } from "resend"
 
 let client: Resend | null = null
+let clientKey: string | null = null
+
+/** Strip accidental quotes / whitespace from env values. */
+function cleanEnv(value: string | undefined | null): string {
+  let v = (value ?? "").trim()
+  if (
+    (v.startsWith("'") && v.endsWith("'")) ||
+    (v.startsWith('"') && v.endsWith('"'))
+  ) {
+    v = v.slice(1, -1).trim()
+  }
+  return v
+}
 
 export function getResend(): Resend | null {
-  const key = process.env.RESEND_API_KEY?.trim()
+  const key = cleanEnv(process.env.RESEND_API_KEY)
   if (!key) return null
-  if (!client) client = new Resend(key)
+  // Recreate client if the key changed (e.g. after env reload in dev).
+  if (!client || clientKey !== key) {
+    client = new Resend(key)
+    clientKey = key
+  }
   return client
 }
 

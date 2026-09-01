@@ -279,7 +279,8 @@ export async function notifyUserOfCompletedReview(
     REPO: clip(repoFullName, 200),
     PR_SUMMARY: clip(prSummary, 480),
     FINDINGS_HTML: clip(findingsHtml, 1900),
-    FINDINGS_COUNT: findingsCount,
+    // Template defines FINDINGS_COUNT as string — keep type aligned.
+    FINDINGS_COUNT: String(findingsCount),
     GITHUB_URL: clip(input.prUrl, 500),
     DASHBOARD_URL: clip(dashboardUrl, 500),
     APP_URL: clip(appUrl, 200),
@@ -290,6 +291,13 @@ export async function notifyUserOfCompletedReview(
   const idempotencyKey = input.reviewId
     ? `pr-review/${input.reviewId}`
     : `pr-review/${repoFullName}/${prNumber}`
+
+  // Resend tags: ASCII letters/numbers/underscores/dashes only (no `/`).
+  const tagSafeRepo = repoFullName.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 256)
+  const tags = [
+    { name: "category", value: "pr_review" },
+    { name: "repo", value: tagSafeRepo },
+  ]
 
   const templateId = process.env.RESEND_PR_REVIEW_TEMPLATE_ID?.trim()
 
@@ -303,23 +311,23 @@ export async function notifyUserOfCompletedReview(
           id: templateId,
           variables,
         },
-        tags: [
-          { name: "category", value: "pr_review" },
-          { name: "repo", value: repoFullName.slice(0, 256) },
-        ],
+        tags,
       },
       { idempotencyKey },
     )
 
-    if (error) {
-      console.error("[pr-review-email] template send failed:", error)
-      return { skipped: true, reason: error.message || "resend_error" }
+    if (!error) {
+      return { skipped: false, emailId: data?.id ?? null }
     }
 
-    return { skipped: false, emailId: data?.id ?? null }
+    // Template may be draft/unpublished or variables mismatch — fall back to HTML.
+    console.error(
+      "[pr-review-email] template send failed, falling back to html:",
+      error,
+    )
   }
 
-  // Fallback: inline HTML (works without a published Resend template)
+  // Inline HTML (works without a published Resend template)
   const html = buildInlineHtml({
     userName: variables.USER_NAME,
     prAuthor: variables.PR_AUTHOR,
@@ -340,12 +348,12 @@ export async function notifyUserOfCompletedReview(
       to: [user.email],
       subject,
       html,
-      tags: [
-        { name: "category", value: "pr_review" },
-        { name: "repo", value: repoFullName.slice(0, 256) },
-      ],
+      tags,
     },
-    { idempotencyKey },
+    {
+      // Distinct key so a failed template attempt does not block HTML retry.
+      idempotencyKey: `${idempotencyKey}/html`,
+    },
   )
 
   if (error) {
