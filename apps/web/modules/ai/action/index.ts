@@ -148,8 +148,30 @@ export async function reviewPullRequest(
       }
     }
 
-    // Prefer Inngest only when a worker will process the event.
-    if (shouldQueueViaInngest() && !options?.wait) {
+    // Dashboard / manual: always run in-process via after().
+    // Inngest cloud can accept events while no worker runs them (mis-synced app,
+    // missing serve URL, debounce stall) — that left reviews as pending forever
+    // with "Waiting for AI review worker…". Webhooks still prefer Inngest.
+    const preferInProcess =
+      options?.wait === true ||
+      payload.source === "dashboard" ||
+      payload.source === "manual"
+
+    if (options?.wait) {
+      await runGeneratePrReview(payload)
+      console.log(
+        `[reviewPullRequest] completed blocking in-process review for ${owner}/${repo}#${prNumber}`,
+      )
+      return {
+        success: true,
+        message: "Review completed",
+        mode: "blocking" as const,
+      }
+    }
+
+    // Prefer Inngest only for background sources (webhook/backfill) when a worker
+    // will actually process the event.
+    if (!preferInProcess && shouldQueueViaInngest()) {
       try {
         await inngest.send({
           name: "pr.review.requested",
@@ -177,19 +199,7 @@ export async function reviewPullRequest(
       }
     }
 
-    if (options?.wait) {
-      await runGeneratePrReview(payload)
-      console.log(
-        `[reviewPullRequest] completed blocking in-process review for ${owner}/${repo}#${prNumber}`,
-      )
-      return {
-        success: true,
-        message: "Review completed",
-        mode: "blocking" as const,
-      }
-    }
-
-    // Local / no Inngest: finish after the response so the dashboard can poll.
+    // Finish after the response so the dashboard can poll status → completed/failed.
     after(() => {
       void runInProcess()
     })
