@@ -233,11 +233,6 @@ export async function streamOpenAICompatibleChat(
           /* skip malformed */
         }
       }
-
-      // Stream can end with [DONE]/EOF without finish_reason tool_calls.
-      if (sawToolCalls && Object.keys(pendingToolCalls).length > 0) {
-        flushPending()
-      }
     }
   } catch (err: any) {
     if (err?.name !== "AbortError") {
