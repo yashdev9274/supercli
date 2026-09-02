@@ -61,6 +61,7 @@ export const generateReview = inngest.createFunction(
     }
 
     // Drop diagnostic / malformed events (e.g. manual probe sends).
+    // Persist failed so the dashboard is not stuck on "pending" forever.
     if (
       !owner ||
       !repo ||
@@ -71,6 +72,19 @@ export const generateReview = inngest.createFunction(
       console.warn(
         `[generate-review] skipping invalid event owner=${owner} repo=${repo} pr=${prNumber} userId=${userId} source=${source}`,
       )
+      if (owner && repo && prNumber && userId && userId !== "probe") {
+        try {
+          await markReviewFailed(
+            { owner, repo, prNumber, userId },
+            "Invalid review event payload",
+          )
+        } catch (dbError) {
+          console.error(
+            "[generate-review] failed to mark invalid event as failed:",
+            dbError,
+          )
+        }
+      }
       return { skipped: true, reason: "invalid_event" }
     }
 

@@ -715,9 +715,14 @@ function OverviewBody({
       <div className="mt-10 overflow-hidden rounded-xl border border-border bg-card/30">
         <div className="flex items-center justify-between gap-3 border-b border-border bg-muted/15 px-4 py-2.5">
           <div className="flex items-center gap-2">
-            <Sparkles className="h-3.5 w-3.5 text-primary" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/supercode-logo.png"
+              alt=""
+              className="h-4 w-4 shrink-0 rounded-sm object-cover"
+            />
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-              AI Code Review
+              Supercode Review
             </span>
           </div>
           {!completed && (
