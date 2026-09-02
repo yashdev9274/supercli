@@ -275,10 +275,26 @@ export type ReviewItem = {
 export type ReviewDetail = ReviewItem & {
     review: string
     author?: string
+    authorName?: string
+    authorAvatar?: string
     body?: string
     additions?: number
     deletions?: number
     changedFiles?: number
+    baseRef?: string
+    headRef?: string
+}
+
+export type PrDiffFile = {
+    filename: string
+    previousFilename?: string
+    status: string
+    additions: number
+    deletions: number
+    changes: number
+    patch?: string
+    blobUrl?: string
+    rawUrl?: string
 }
 
 /** Encode a stable detail-page id for PRs that may not have a DB review yet.
@@ -543,6 +559,8 @@ export async function getReview(id: string): Promise<ReviewDetail | null> {
             html_url: string
             body: string | null
             userLogin?: string
+            userName?: string
+            userAvatar?: string
             state: string
             merged_at: string | null
             updated_at: string
@@ -550,6 +568,8 @@ export async function getReview(id: string): Promise<ReviewDetail | null> {
             additions?: number
             deletions?: number
             changed_files?: number
+            baseRef?: string
+            headRef?: string
         }
 
         async function fetchPrMeta(
@@ -570,6 +590,8 @@ export async function getReview(id: string): Promise<ReviewDetail | null> {
                     html_url: pr.html_url,
                     body: pr.body,
                     userLogin: pr.user?.login,
+                    userName: pr.user?.name ?? undefined,
+                    userAvatar: pr.user?.avatar_url ?? undefined,
                     state: pr.state,
                     merged_at: pr.merged_at,
                     updated_at: pr.updated_at,
@@ -577,6 +599,8 @@ export async function getReview(id: string): Promise<ReviewDetail | null> {
                     additions: pr.additions,
                     deletions: pr.deletions,
                     changed_files: pr.changed_files,
+                    baseRef: pr.base?.ref,
+                    headRef: pr.head?.ref,
                 }
             } catch (error) {
                 console.error("Error fetching PR metadata:", error)
@@ -603,10 +627,14 @@ export async function getReview(id: string): Promise<ReviewDetail | null> {
                 summary: extractSummary(byId.review),
                 prState,
                 author: prMeta?.userLogin,
+                authorName: prMeta?.userName,
+                authorAvatar: prMeta?.userAvatar,
                 body: prMeta?.body ?? undefined,
                 additions: prMeta?.additions,
                 deletions: prMeta?.deletions,
                 changedFiles: prMeta?.changed_files,
+                baseRef: prMeta?.baseRef,
+                headRef: prMeta?.headRef,
                 prTitle: prMeta?.title || byId.prTitle,
                 prUrl: prMeta?.html_url || byId.prUrl,
             }
@@ -672,10 +700,14 @@ export async function getReview(id: string): Promise<ReviewDetail | null> {
                     : undefined,
             prState,
             author: prMeta?.userLogin,
+            authorName: prMeta?.userName,
+            authorAvatar: prMeta?.userAvatar,
             body: prMeta?.body ?? undefined,
             additions: prMeta?.additions,
             deletions: prMeta?.deletions,
             changedFiles: prMeta?.changed_files,
+            baseRef: prMeta?.baseRef,
+            headRef: prMeta?.headRef,
             repository: {
                 name: repository.name,
                 fullName: repository.fullName,
@@ -685,6 +717,97 @@ export async function getReview(id: string): Promise<ReviewDetail | null> {
     } catch (error) {
         console.error("Error fetching review:", error)
         return null
+    }
+}
+
+/** Resolve owner/repo/prNumber from a detail id (DB uuid or encoded path id). */
+async function resolvePrIdentity(
+    id: string,
+    userId: string,
+): Promise<{ owner: string; repo: string; prNumber: number; fullName: string } | null> {
+    const byId = await prisma.review.findFirst({
+        where: {
+            id,
+            repository: { userId },
+        },
+        include: {
+            repository: { select: { owner: true, name: true, fullName: true } },
+        },
+    })
+    if (byId) {
+        return {
+            owner: byId.repository.owner,
+            repo: byId.repository.name,
+            prNumber: byId.prNumber,
+            fullName: byId.repository.fullName,
+        }
+    }
+
+    const parsed = parsePrDetailId(id)
+    if (!parsed) return null
+
+    const repository = await prisma.repository.findFirst({
+        where: {
+            userId,
+            fullName: parsed.fullName,
+        },
+        select: { owner: true, name: true, fullName: true },
+    })
+    if (!repository) return null
+
+    return {
+        owner: repository.owner,
+        repo: repository.name,
+        prNumber: parsed.prNumber,
+        fullName: repository.fullName,
+    }
+}
+
+/** List changed files + patches for the Diff tab. */
+export async function getPrDiffFiles(id: string): Promise<PrDiffFile[]> {
+    try {
+        const session = await auth.api.getSession({
+            headers: await headers(),
+        })
+        if (!session?.user) throw new Error("Unauthorized")
+
+        const identity = await resolvePrIdentity(id, session.user.id)
+        if (!identity) return []
+
+        const token = await getGithubToken()
+        const octokit = new Octokit({ auth: token })
+
+        const files: PrDiffFile[] = []
+        let page = 1
+        while (page <= 5) {
+            const { data } = await octokit.rest.pulls.listFiles({
+                owner: identity.owner,
+                repo: identity.repo,
+                pull_number: identity.prNumber,
+                per_page: 100,
+                page,
+            })
+            if (data.length === 0) break
+            for (const f of data) {
+                files.push({
+                    filename: f.filename,
+                    previousFilename: f.previous_filename ?? undefined,
+                    status: f.status,
+                    additions: f.additions,
+                    deletions: f.deletions,
+                    changes: f.changes,
+                    patch: f.patch ?? undefined,
+                    blobUrl: f.blob_url,
+                    rawUrl: f.raw_url,
+                })
+            }
+            if (data.length < 100) break
+            page += 1
+        }
+        return files
+    } catch (error) {
+        console.error("Error fetching PR diff files:", error)
+        return []
     }
 }
 
