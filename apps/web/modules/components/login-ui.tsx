@@ -29,7 +29,7 @@ interface AuthButtonProps {
         title={disabled ? "Coming soon" : undefined}
         className="w-full group relative flex items-center justify-between p-4 bg-card border border-border hover:border-primary hover:bg-accent transition-all rounded-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:bg-card"
       >
-        <div className="absolute inset-y-0 left-0 w-1 bg-primary scale-y-0 group-hover:scale-y-100 transition-transform origin-top" />
+        <div className={`absolute inset-y-0 left-0 w-1 bg-primary scale-y-0 transition-transform origin-top ${disabled ? "" : "group-hover:scale-y-100"}`} />
         <div className="flex items-center gap-4">
           {Icon && <Icon className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />}
           {children || (name && (
@@ -161,8 +161,8 @@ const LoginUI=()=> {
 
       <footer className="absolute bottom-8 left-0 w-full px-8 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] text-muted-foreground uppercase tracking-[0.2em]">
         <div className="flex gap-4">
-          <span className="hover:text-primary transition-colors">Terms</span>
-          <span className="hover:text-primary transition-colors">Privacy</span>
+          <span className="cursor-default">Terms</span>
+          <span className="cursor-default">Privacy</span>
         </div>
         <span>&copy; 2026 Supercode AI</span>
       </footer>

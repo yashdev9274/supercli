@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 
 import {useQuery} from "@tanstack/react-query"
-import { getDashboardStats, getMontlyActivity } from "@/modules/dashboard/actions";
+import { getDashboardStats, getMonthlyActivity } from "@/modules/dashboard/actions";
 
 
 
@@ -32,7 +32,7 @@ function PRsCard() {
 
   const {data: monthlyAcivity, isLoading: isLoadingActivity }=useQuery({
     queryKey: ["monthly-stats"],
-    queryFn: async()=> await getMontlyActivity(),
+    queryFn: async()=> await getMonthlyActivity(),
     refetchOnWindowFocus: false
   })
 
