@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useSyncExternalStore } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Search, GitPullRequest, CheckCircle2, SkipForward, AlertTriangle, ChevronDown, FolderGit2, Check, ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -42,24 +42,15 @@ const rowVariants: Variants = {
   },
 }
 
-// Module-scope clock so relative timestamps can be rendered without calling
-// Date.now() during render.
-let latestNow = Date.now()
-const nowListeners = new Set<() => void>()
-setInterval(() => {
-  latestNow = Date.now()
-  for (const listener of nowListeners) listener()
-}, 30_000)
-
-function subscribeNow(listener: () => void): () => void {
-  nowListeners.add(listener)
-  return () => {
-    nowListeners.delete(listener)
-  }
-}
-
+// Relative timestamps tick every 30s; the interval lives inside the hook so
+// no module-scope timer leaks into SSR or build workers.
 function useNow(): number {
-  return useSyncExternalStore(subscribeNow, () => latestNow)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000)
+    return () => clearInterval(id)
+  }, [])
+  return now
 }
 
 function ReviewStatusBadge({ status }: { status: ReviewStatus }) {
