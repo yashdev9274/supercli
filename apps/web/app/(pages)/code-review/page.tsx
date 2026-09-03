@@ -6,7 +6,7 @@ import Link from "next/link"
 import Image from "next/image"
 import {
   Zap, Shield, GitPullRequest, Bot, Eye,
-  MessageSquare, Layers, TrendingUp, Lock, ArrowRight, ChevronDown,
+  MessageSquare, Layers, TrendingUp, Lock, ArrowRight, ChevronDown, Play, X,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -180,9 +180,12 @@ const severityConfig: Record<string, { label: string; color: string }> = {
   },
 }
 
+const DEMO_YOUTUBE_ID = "MYLX-yUBlxA"
+
 export default function CodeReviewPage() {
   const prefersReduced = useReducedMotion()
   const [openFaq, setOpenFaq] = useState<number | null>(null)
+  const [isDemoOpen, setIsDemoOpen] = useState(false)
 
   const heroInitial = prefersReduced ? false : { opacity: 0, transform: "translateY(16px)" }
   const heroAnimate = { opacity: 1, transform: "translateY(0px)" }
@@ -246,13 +249,105 @@ export default function CodeReviewPage() {
             </div>
           </motion.div>
 
-          {/* Review Mockup */}
+          {/* Demo Video */}
           <motion.div
             initial={prefersReduced ? false : { opacity: 0, transform: "translateY(16px)" }}
             animate={{ opacity: 1, transform: "translateY(0px)" }}
             transition={{ duration: 0.6, ease: curve, delay: 0.2 }}
             className="mt-20 mx-auto max-w-4xl"
           >
+            <button
+              type="button"
+              onClick={() => setIsDemoOpen(true)}
+              className="group relative w-full overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-950 shadow-2xl shadow-neutral-200/50 dark:shadow-none text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950"
+              aria-label="Play Supercode Review demo video"
+            >
+              <div className="relative aspect-video w-full">
+                <Image
+                  src={`https://img.youtube.com/vi/${DEMO_YOUTUBE_ID}/maxresdefault.jpg`}
+                  alt="Supercode Review product demo"
+                  fill
+                  className="object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+                  sizes="(max-width: 896px) 100vw, 896px"
+                  priority
+                />
+                <div className="absolute inset-0 bg-black/25 transition-colors duration-300 group-hover:bg-black/35" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/95 text-neutral-900 shadow-lg transition-transform duration-300 group-hover:scale-105 dark:bg-white">
+                    <Play className="h-7 w-7 fill-current ml-0.5" />
+                  </div>
+                </div>
+              </div>
+            </button>
+          </motion.div>
+        </div>
+      </section>
+
+      {isDemoOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Supercode Review demo video"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/50 backdrop-blur-md"
+            aria-label="Close video"
+            onClick={() => setIsDemoOpen(false)}
+          />
+          <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-xl border border-white/10 bg-black shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setIsDemoOpen(false)}
+              className="absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm transition-colors hover:bg-black/80"
+              aria-label="Close video"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <div className="relative aspect-video w-full">
+              <iframe
+                src={`https://www.youtube.com/embed/${DEMO_YOUTUBE_ID}?autoplay=1&rel=0`}
+                title="Supercode Review demo"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+                className="absolute inset-0 h-full w-full"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Product Showcase */}
+      <section className="border-b border-neutral-100 dark:border-neutral-900">
+        <div className="mx-auto max-w-6xl px-6 py-16 lg:py-20">
+          <motion.div
+            initial={heroInitial}
+            whileInView={heroAnimate}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={heroTransition}
+            className="max-w-2xl mb-12"
+          >
+            <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-3 py-1 text-xs text-neutral-600 dark:text-neutral-400 mb-6">
+              Insights
+            </div>
+            <h2 className="text-3xl font-medium tracking-tight sm:text-4xl">
+              Open Sourced AI code reviews.
+            </h2>
+            <p className="mt-4 text-neutral-600 dark:text-neutral-400 leading-relaxed">
+              We pioneered AI code reviews and have best-in-class context. Our
+              automated reviews are the central validation layer for AI code.
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={prefersReduced ? false : { opacity: 0, transform: "translateY(16px)" }}
+            whileInView={{ opacity: 1, transform: "translateY(0px)" }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.6, ease: curve }}
+            className="grid gap-8 lg:grid-cols-[1fr_340px] items-start"
+          >
+            {/* Left: Review Mockup */}
             <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shadow-2xl shadow-neutral-200/50 dark:shadow-none overflow-hidden">
               {/* PR Header */}
               <div className="flex items-center gap-3 border-b border-neutral-100 dark:border-neutral-800 px-5 py-3">
@@ -328,75 +423,31 @@ export default function CodeReviewPage() {
                 </span>
               </div>
             </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Product Showcase */}
-      <section className="border-b border-neutral-100 dark:border-neutral-900">
-        <div className="mx-auto max-w-6xl px-6 py-16 lg:py-20">
-          <motion.div
-            initial={heroInitial}
-            whileInView={heroAnimate}
-            viewport={{ once: true, margin: "-100px" }}
-            transition={heroTransition}
-            className="max-w-2xl mb-12"
-          >
-            <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-3 py-1 text-xs text-neutral-600 dark:text-neutral-400 mb-6">
-              Insights
-            </div>
-            <h2 className="text-3xl font-medium tracking-tight sm:text-4xl">
-              Open Sourced AI code reviews.
-            </h2>
-            <p className="mt-4 text-neutral-600 dark:text-neutral-400 leading-relaxed">
-              We pioneered AI code reviews and have best-in-class context. Our
-              automated reviews are the central validation layer for AI code.
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={prefersReduced ? false : { opacity: 0, transform: "translateY(16px)" }}
-            whileInView={{ opacity: 1, transform: "translateY(0px)" }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.6, ease: curve }}
-            className="grid gap-8 lg:grid-cols-[1fr_340px] items-start"
-          >
-            {/* Left: Dashboard Image */}
-            <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-950 dark:bg-neutral-950 shadow-2xl shadow-neutral-200/50 dark:shadow-none overflow-hidden">
-              <Image
-                src="/dashboard-img.png"
-                alt="Supercode dashboard showing repositories, commits, PRs, and activity calendar"
-                width={1200}
-                height={800}
-                className="w-full h-auto"
-                priority
-              />
-            </div>
 
             {/* Right: Features List */}
             <div className="space-y-5">
               <div>
-                  <div className="font-medium text-neutral-900 dark:text-white">Code Analysis</div>
-                  <div className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-                    Understands your entire codebase, patterns, and conventions.
-                  </div>
+                <div className="font-medium text-neutral-900 dark:text-white">Code Analysis</div>
+                <div className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+                  Understands your entire codebase, patterns, and conventions.
                 </div>
-                <div>
-                  <div className="font-medium text-neutral-900 dark:text-white">Inline Comments</div>
-                  <div className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-                    Actionable suggestions directly on the lines that matter.
-                  </div>
+              </div>
+              <div>
+                <div className="font-medium text-neutral-900 dark:text-white">Inline Comments</div>
+                <div className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+                  Actionable suggestions directly on the lines that matter.
                 </div>
-                <div>
-                  <div className="font-medium text-neutral-900 dark:text-white">Security Detection</div>
-                  <div className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-                    Catches vulnerabilities before they reach production.
-                  </div>
+              </div>
+              <div>
+                <div className="font-medium text-neutral-900 dark:text-white">Security Detection</div>
+                <div className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+                  Catches vulnerabilities before they reach production.
                 </div>
-                <div>
-                  <div className="font-medium text-neutral-900 dark:text-white">Learning System</div>
-                  <div className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-                    Gets smarter with every review, adapting to your team's style.
+              </div>
+              <div>
+                <div className="font-medium text-neutral-900 dark:text-white">Learning System</div>
+                <div className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+                  Gets smarter with every review, adapting to your team's style.
                 </div>
               </div>
             </div>
