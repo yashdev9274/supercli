@@ -7,9 +7,8 @@ import {
   MessageSquare, 
   Trophy, 
   ChevronDown, 
-  Box, 
-  User, 
   Calendar,
+  Box,
   AlertCircle,
   ListChecks,
   TrendingUp,
@@ -22,7 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import {useQuery} from "@tanstack/react-query"
-import { getDashboardStats, getMontlyActivity } from "@/modules/dashboard/actions";
+import { getMontlyActivity } from "@/modules/dashboard/actions";
 import { getAnalyticsData, getConnectedRepos, type ContributorMetric, type Timeframe } from "@/modules/dashboard/actions/analytics";
 import RepoMetricCard from "./metric-cards/total-repositories";
 import { MetricsCard } from "./metric-cards/metrics-card";
@@ -133,12 +132,6 @@ export function DashboardContent() {
   const filteredRepos = repos?.filter((r) =>
     r.fullName.toLowerCase().includes(repoSearch.toLowerCase())
   ) ?? []
-
-  const {data:stats, isLoading} = useQuery({
-    queryKey:["dashboard-stats"],
-    queryFn: async()=>await getDashboardStats(),
-    refetchOnWindowFocus:false
-  })
 
   const {data: monthlyActivity, isLoading: isLoadingActivity }=useQuery({
     queryKey: ["monthly-stats"],
@@ -358,7 +351,7 @@ export function DashboardContent() {
       <div className="flex flex-col gap-10">
         <div className="flex items-center justify-between border-b border-border pb-5">
           <div className="flex flex-col gap-1">
-            <h2 className="text-xl font-medium text-foreground">Acitvity Caldendar</h2>
+            <h2 className="text-xl font-medium text-foreground">Activity Calendar</h2>
             <p className="text-[10px] text-foreground/70 uppercase tracking-[0.2em] font-bold">Automated Analysis</p>
           </div>
           {/* <button className="text-[11px] font-medium text-muted-foreground/40 hover:text-foreground transition-all">Details →</button> */}
