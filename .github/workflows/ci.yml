@@ -16,11 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Bun (bun-v1.2.21)
-        run: |
-          curl -fsSL -o bun.zip https://github.com/oven-sh/bun/releases/download/bun-v1.2.21/bun-linux-x64.zip
-          unzip -q bun.zip
-          echo "$PWD/bun-linux-x64" >> "$GITHUB_PATH"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.21
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
 
@@ -29,11 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Bun (bun-v1.2.21)
-        run: |
-          curl -fsSL -o bun.zip https://github.com/oven-sh/bun/releases/download/bun-v1.2.21/bun-linux-x64.zip
-          unzip -q bun.zip
-          echo "$PWD/bun-linux-x64" >> "$GITHUB_PATH"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.21
       - run: bun install --frozen-lockfile
       - run: bun run lint
 
@@ -42,11 +38,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Bun (bun-v1.2.21)
-        run: |
-          curl -fsSL -o bun.zip https://github.com/oven-sh/bun/releases/download/bun-v1.2.21/bun-linux-x64.zip
-          unzip -q bun.zip
-          echo "$PWD/bun-linux-x64" >> "$GITHUB_PATH"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.21
       - run: bun install --frozen-lockfile
       - run: bun run db:generate
         env:
