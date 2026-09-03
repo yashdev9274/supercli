@@ -96,7 +96,10 @@ describe("extractDeltaContent / extractDeltaReasoning", () => {
 })
 
 describe("streamOpenAICompatibleChat — content and events", () => {
-  it("stops processing a read batch at [DONE] but continues reading the stream", async () => {
+  it("stops line processing in the current read batch at [DONE] but keeps reading the stream", async () => {
+    // [DONE] only cuts off the current read() batch's remaining lines. The
+    // next read() starts a fresh buffer, and trailing bytes are drained at
+    // EOF, so events that arrive in later chunks ARE processed.
     const batch = "data: [DONE]\n\n" + sse({ choices: [{ delta: { content: "after done" } }] })
     const { result, events } = await runStream([
       sse({ choices: [{ delta: { content: "Hel" } }] }),

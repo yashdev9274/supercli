@@ -55,9 +55,10 @@ export function ProfileForm() {
     refetchOnWindowFocus: false,
   })
 
-  const [profileVersion, setProfileVersion] = useState(profile)
-  if (profile && profile !== profileVersion) {
-    setProfileVersion(profile)
+  const profileId = profile?.id ?? null
+  const [syncedProfileId, setSyncedProfileId] = useState(profileId)
+  if (profile && profileId !== null && profileId !== syncedProfileId) {
+    setSyncedProfileId(profileId)
     setName(profile.name || "")
     setEmail(profile.email || "")
   }

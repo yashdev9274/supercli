@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { Search, GitPullRequest, CheckCircle2, SkipForward, AlertTriangle, ChevronDown, FolderGit2, Check, ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -42,15 +42,19 @@ const rowVariants: Variants = {
   },
 }
 
-// Relative timestamps tick every 30s; the interval lives inside the hook so
-// no module-scope timer leaks into SSR or build workers.
+// Relative timestamps tick every 30s. The interval lives in the subscribe
+// callback, so no module-scope timer leaks into SSR or build workers, and the
+// server snapshot is 0 so server and client render the same initial value at
+// hydration (no mismatch).
 function useNow(): number {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 30_000)
-    return () => clearInterval(id)
-  }, [])
-  return now
+  return useSyncExternalStore(
+    (onStoreChange) => {
+      const id = setInterval(onStoreChange, 30_000)
+      return () => clearInterval(id)
+    },
+    () => Date.now(),
+    () => 0,
+  )
 }
 
 function ReviewStatusBadge({ status }: { status: ReviewStatus }) {
@@ -164,6 +168,7 @@ export default function PullRequestsPage() {
   const now = useNow()
 
   const timeAgo = (date: Date, now: number) => {
+    if (now === 0) return "…"
     const diff = now - new Date(date).getTime()
     const days = Math.floor(diff / 86400000)
     if (days === 0) return "today"

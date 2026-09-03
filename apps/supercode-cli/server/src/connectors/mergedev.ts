@@ -76,6 +76,8 @@ export class MergeConnectorManager {
         "Merge Agent Handler is not configured. Set MERGE_AH_API_KEY, MERGE_TOOL_PACK_ID, and MERGE_REGISTERED_USER_ID.",
       )
     }
+    // Status is optimistic: the actual MCP endpoint health is verified later
+    // by McpManager.reconnectServer, which throws when the server can't start.
     return {
       connectionId: `mergedev_${Date.now()}`,
       provider: "mergedev",

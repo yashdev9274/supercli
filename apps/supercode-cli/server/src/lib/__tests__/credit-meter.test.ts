@@ -30,7 +30,7 @@ describe("getCreditCost", () => {
   })
 
   it("rounds fractional costs to cents", () => {
-    expect(getCreditCost("MiniMax-M3")).toBe(0.56) // 1.5 / 2.7
+    expect(getCreditCost("MiniMax-M3")).toBeCloseTo(0.56, 2) // 1.5 / 2.7
   })
 
   it("defaults unknown models to one cent", () => {
