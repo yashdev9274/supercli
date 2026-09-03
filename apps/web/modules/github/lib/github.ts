@@ -358,17 +358,30 @@ export const getRepositories = async (page: number = 1, per_page = 10) => {
   return data
 }
 
-export const createWebhook = async (owner: string, repo: string) => {
-  const token = await getGithubToken()
+/**
+ * Public origin GitHub should POST webhooks to.
+ *
+ * Order:
+ * 1. NEXT_PUBLIC_APP_BASE_URL — intentional override (prod domain or tunnel)
+ * 2. NEXT_PUBLIC_APP_URL
+ * 3. BETTER_AUTH_URL (only if not localhost)
+ *
+ * Do NOT point this at a host that 307/308-redirects (e.g. old Vercel alias).
+ * Prefer the canonical non-redirecting deploy host.
+ */
+export function getGithubWebhookBaseUrl(): string {
+  const candidates = [
+    process.env.NEXT_PUBLIC_APP_BASE_URL,
+    process.env.NEXT_PUBLIC_APP_URL,
+    process.env.BETTER_AUTH_URL,
+  ]
+    .map((v) => (v ?? "").trim().replace(/\/$/, ""))
+    .filter(Boolean)
 
-  const octokit = new Octokit({ auth: token })
-
-  const baseUrl = (
-    process.env.NEXT_PUBLIC_APP_BASE_URL ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.BETTER_AUTH_URL ||
-    ""
-  ).replace(/\/$/, "")
+  const publicCandidate = candidates.find(
+    (url) => !/localhost|127\.0\.0\.1/i.test(url),
+  )
+  const baseUrl = publicCandidate || candidates[0] || ""
 
   if (!baseUrl) {
     throw new Error(
@@ -376,13 +389,28 @@ export const createWebhook = async (owner: string, repo: string) => {
     )
   }
 
-  // Localhost webhooks never receive GitHub events — require a public URL.
   if (/localhost|127\.0\.0\.1/i.test(baseUrl)) {
     console.warn(
-      `[github] webhook base URL is local (${baseUrl}). GitHub cannot deliver events. Use a tunnel (ngrok/cloudflared) or deploy URL.`,
+      `[github] webhook base URL is local (${baseUrl}). GitHub cannot deliver events. Use a tunnel (ngrok/cloudflared) or your production URL.`,
     )
   }
 
+  // Known alias that 307s to supercodeai.vercel.app — Inngest/GitHub can break on redirects.
+  if (/^https:\/\/supercli\.vercel\.app$/i.test(baseUrl)) {
+    console.warn(
+      `[github] webhook base URL ${baseUrl} redirects to https://supercodeai.vercel.app — use the canonical host instead`,
+    )
+  }
+
+  return baseUrl
+}
+
+export const createWebhook = async (owner: string, repo: string) => {
+  const token = await getGithubToken()
+
+  const octokit = new Octokit({ auth: token })
+
+  const baseUrl = getGithubWebhookBaseUrl()
   const webhookUrl = `${baseUrl}/api/webhooks/github`
   const secret = process.env.GITHUB_WEBHOOK_SECRET
 
@@ -442,7 +470,7 @@ export const deleteWebhook = async (owner: string, repo: string) => {
 
   const octokit = new Octokit({ auth: token })
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL?.replace(/\/$/, "")
+  const baseUrl = getGithubWebhookBaseUrl()
   const webhookUrl = `${baseUrl}/api/webhooks/github`
 
   try {

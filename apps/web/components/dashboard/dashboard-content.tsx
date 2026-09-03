@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { 
   Clock, 
   Smile, 
@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import {useQuery} from "@tanstack/react-query"
 import { getDashboardStats, getMontlyActivity } from "@/modules/dashboard/actions";
-import { getAnalyticsData, getConnectedRepos, type Timeframe, type RepoOption } from "@/modules/dashboard/actions/analytics";
+import { getAnalyticsData, getConnectedRepos, type ContributorMetric, type Timeframe } from "@/modules/dashboard/actions/analytics";
 import RepoMetricCard from "./metric-cards/total-repositories";
 import { MetricsCard } from "./metric-cards/metrics-card";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
@@ -120,7 +120,9 @@ const TIMEFRAME_OPTIONS: { value: Timeframe; label: string }[] = [
 export function DashboardContent() {
   const [timeframe, setTimeframe] = useState<Timeframe>("1m")
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null)
+  const [selectedAuthor, setSelectedAuthor] = useState<string | null>(null)
   const [repoSearch, setRepoSearch] = useState("")
+  const [authorSearch, setAuthorSearch] = useState("")
 
   const {data: repos} = useQuery({
     queryKey: ["user-repos"],
@@ -145,10 +147,53 @@ export function DashboardContent() {
   })
 
   const {data: analyticsData, isLoading: isLoadingAnalytics} = useQuery({
-    queryKey: ["analytics-data", timeframe, selectedRepo],
-    queryFn: async()=> await getAnalyticsData(timeframe, selectedRepo),
+    queryKey: ["analytics-data", timeframe, selectedRepo, selectedAuthor],
+    queryFn: async()=> await getAnalyticsData(timeframe, selectedRepo, selectedAuthor),
     refetchOnWindowFocus: false
   })
+
+  // Keep a stable author catalog so filtering by author doesn't empty the dropdown.
+  const [authorOptions, setAuthorOptions] = useState<ContributorMetric[]>([])
+
+  useEffect(() => {
+    const contributors = analyticsData?.topContributors
+    if (!contributors?.length) return
+
+    // Prefer the unfiltered contributor set; when an author is selected the
+    // analytics response only includes that author, so preserve prior options.
+    if (!selectedAuthor) {
+      setAuthorOptions(contributors)
+      return
+    }
+
+    setAuthorOptions((prev) => {
+      const byLogin = new Map(prev.map((a) => [a.login, a]))
+      for (const c of contributors) byLogin.set(c.login, c)
+      if (!byLogin.has(selectedAuthor)) {
+        byLogin.set(selectedAuthor, {
+          login: selectedAuthor,
+          avatarUrl: "",
+          prs: 0,
+        })
+      }
+      return Array.from(byLogin.values()).sort((a, b) => b.prs - a.prs)
+    })
+  }, [analyticsData?.topContributors, selectedAuthor])
+
+  const filteredAuthors = authorOptions.filter((a) =>
+    a.login.toLowerCase().includes(authorSearch.toLowerCase()),
+  )
+
+  const selectRepo = (fullName: string | null) => {
+    setSelectedRepo(fullName)
+    setRepoSearch("")
+  }
+
+  const selectAuthor = (login: string | null) => {
+    setSelectedAuthor(login)
+    setAuthorSearch("")
+  }
+
   return (
     <div className="flex flex-1 flex-col bg-background p-4 md:p-8 pt-8">
       <GithubReauthBanner />
@@ -161,17 +206,109 @@ export function DashboardContent() {
         
           <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center border border-border bg-muted/30 p-1">
-            <button className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-foreground/80 hover:bg-muted/50 hover:text-foreground transition-colors">
-              <Box className="h-3.5 w-3.5 opacity-80" />
-              Repositories
-              <ChevronDown className="h-3 w-3 opacity-30" />
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex max-w-[220px] items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-foreground/80 hover:bg-muted/50 hover:text-foreground transition-colors outline-none">
+                  <Box className="h-3.5 w-3.5 shrink-0 opacity-80" />
+                  <span className="truncate">{selectedRepo ?? "Repositories"}</span>
+                  <ChevronDown className="h-3 w-3 shrink-0 opacity-30" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-[240px] p-1">
+                <div className="px-2 py-1.5">
+                  <div className="flex items-center gap-2 border border-border bg-muted/30 px-2 py-1.5 text-[11px]">
+                    <Search className="h-3 w-3 opacity-50" />
+                    <input
+                      value={repoSearch}
+                      onChange={(e) => setRepoSearch(e.target.value)}
+                      placeholder="Search repositories..."
+                      className="w-full bg-transparent outline-none placeholder:text-muted-foreground/50"
+                    />
+                  </div>
+                </div>
+                <DropdownMenuItem
+                  onClick={() => selectRepo(null)}
+                  className="flex items-center justify-between gap-2 text-[11px]"
+                >
+                  All Repositories
+                  {selectedRepo === null && <Check className="h-3 w-3 opacity-60" />}
+                </DropdownMenuItem>
+                {filteredRepos.map((repo) => (
+                  <DropdownMenuItem
+                    key={repo.fullName}
+                    onClick={() => selectRepo(repo.fullName)}
+                    className="flex items-center justify-between gap-2 text-[11px]"
+                  >
+                    <span className="truncate">{repo.fullName}</span>
+                    {selectedRepo === repo.fullName && (
+                      <Check className="h-3 w-3 shrink-0 opacity-60" />
+                    )}
+                  </DropdownMenuItem>
+                ))}
+                {filteredRepos.length === 0 && (
+                  <div className="px-3 py-4 text-center text-[11px] text-muted-foreground/50">
+                    No repositories found
+                  </div>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
             <div className="h-4 w-[1px] bg-border mx-1" />
-            <button className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-foreground/80 hover:bg-muted/50 hover:text-foreground transition-colors">
-              <User className="h-3.5 w-3.5 opacity-80" />
-              Authors
-              <ChevronDown className="h-3 w-3 opacity-30" />
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex max-w-[180px] items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-foreground/80 hover:bg-muted/50 hover:text-foreground transition-colors outline-none">
+                  <User className="h-3.5 w-3.5 shrink-0 opacity-80" />
+                  <span className="truncate">{selectedAuthor ?? "Authors"}</span>
+                  <ChevronDown className="h-3 w-3 shrink-0 opacity-30" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-[220px] p-1">
+                <div className="px-2 py-1.5">
+                  <div className="flex items-center gap-2 border border-border bg-muted/30 px-2 py-1.5 text-[11px]">
+                    <Search className="h-3 w-3 opacity-50" />
+                    <input
+                      value={authorSearch}
+                      onChange={(e) => setAuthorSearch(e.target.value)}
+                      placeholder="Search authors..."
+                      className="w-full bg-transparent outline-none placeholder:text-muted-foreground/50"
+                    />
+                  </div>
+                </div>
+                <DropdownMenuItem
+                  onClick={() => selectAuthor(null)}
+                  className="flex items-center justify-between gap-2 text-[11px]"
+                >
+                  All Authors
+                  {selectedAuthor === null && <Check className="h-3 w-3 opacity-60" />}
+                </DropdownMenuItem>
+                {filteredAuthors.map((author) => (
+                  <DropdownMenuItem
+                    key={author.login}
+                    onClick={() => selectAuthor(author.login)}
+                    className="flex items-center justify-between gap-2 text-[11px]"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      {author.avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={author.avatarUrl}
+                          alt=""
+                          className="h-4 w-4 shrink-0 rounded-full"
+                        />
+                      ) : null}
+                      <span className="truncate">{author.login}</span>
+                    </span>
+                    {selectedAuthor === author.login && (
+                      <Check className="h-3 w-3 shrink-0 opacity-60" />
+                    )}
+                  </DropdownMenuItem>
+                ))}
+                {filteredAuthors.length === 0 && (
+                  <div className="px-3 py-4 text-center text-[11px] text-muted-foreground/50">
+                    {isLoadingAnalytics ? "Loading authors…" : "No authors found"}
+                  </div>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           
           <DropdownMenu>
@@ -318,8 +455,8 @@ export function DashboardContent() {
                     />
                   </div>
                 </div>
-                <DropdownMenuItem
-                  onClick={() => { setSelectedRepo(null); setRepoSearch(""); }}
+<DropdownMenuItem
+                  onClick={() => selectRepo(null)}
                   className="flex items-center justify-between gap-2 text-[11px]"
                 >
                   All Repositories
@@ -328,7 +465,7 @@ export function DashboardContent() {
                 {filteredRepos.map((repo) => (
                   <DropdownMenuItem
                     key={repo.fullName}
-                    onClick={() => { setSelectedRepo(repo.fullName); setRepoSearch(""); }}
+                    onClick={() => selectRepo(repo.fullName)}
                     className="flex items-center justify-between gap-2 text-[11px]"
                   >
                     <span className="flex items-center gap-2 truncate">
