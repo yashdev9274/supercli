@@ -21,7 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import {useQuery} from "@tanstack/react-query"
-import { getMontlyActivity } from "@/modules/dashboard/actions";
+import { getMonthlyActivity } from "@/modules/dashboard/actions";
 import { getAnalyticsData, getConnectedRepos, type ContributorMetric, type Timeframe } from "@/modules/dashboard/actions/analytics";
 import RepoMetricCard from "./metric-cards/total-repositories";
 import { MetricsCard } from "./metric-cards/metrics-card";
@@ -135,7 +135,7 @@ export function DashboardContent() {
 
   const {data: monthlyActivity, isLoading: isLoadingActivity }=useQuery({
     queryKey: ["monthly-stats"],
-    queryFn: async()=> await getMontlyActivity(),
+    queryFn: async()=> await getMonthlyActivity(),
     refetchOnWindowFocus: false
   })
 

@@ -68,7 +68,7 @@ export async function getDashboardStats() {
     }
 }
 
-export async function getMontlyActivity(){
+export async function getMonthlyActivity(){
     try {
         const session = await auth.api.getSession({
             headers: await headers(),
@@ -127,7 +127,7 @@ export async function getMontlyActivity(){
 
           const sixMonthsAgo = new Date();
           sixMonthsAgo.setMonth(sixMonthsAgo.getMonth()-6)
-          sixMonthsAgo.setHours(0, 0, 0, 0)
+          sixMonthsAgo.setUTCHours(0, 0, 0, 0)
 
           // Count real reviews from the database instead of fabricated samples.
           const reviewRows = await prisma.review.findMany({

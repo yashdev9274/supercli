@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import Link from "next/link"
 import { authClient } from "@/lib/auth-client"
 import { Spinner } from "@/components/ui/spinner"
 import { Button } from "@/components/ui/button"
@@ -395,10 +396,10 @@ function StudioPage() {
               <RefreshCw className="size-3.5" />
             </Button>
             <Button variant="ghost" size="sm" asChild>
-              <a href="/">
+              <Link href="/">
                 <ArrowUpRight className="size-3.5" />
                 Dashboard
-              </a>
+              </Link>
             </Button>
           </div>
         </div>
@@ -722,11 +723,11 @@ function StudioPage() {
               {/* UPI note (INR only) */}
               {confirmingPlan.currency === "INR" ? (
                 <p className="text-[11px] text-zinc-500 leading-relaxed">
-                  UPI auto-pay can't approve this charge on its own. After you click Pay now, you'll be redirected to enter your UPI PIN to authorise it.
+                  UPI auto-pay can&apos;t approve this charge on its own. After you click Pay now, you&apos;ll be redirected to enter your UPI PIN to authorise it.
                 </p>
               ) : (
                 <p className="text-[11px] text-zinc-500 leading-relaxed">
-                  You'll be redirected to complete payment securely.
+                  You&apos;ll be redirected to complete payment securely.
                 </p>
               )}
             </div>
