@@ -115,8 +115,8 @@ export async function getMonthlyActivity(){
             monthlyData[monthKey] = { commits: 0, prs: 0, reviews: 0 };
           }
           
-          calendar.weeks.forEach((week: any) => {
-            week.contributionDays.forEach((day: any) => {
+          calendar.weeks.forEach((week) => {
+            week.contributionDays.forEach((day) => {
               const date = new Date(day.date);
               const monthKey = monthNames[date.getMonth()];
               if (monthlyData[monthKey]) {
@@ -152,7 +152,7 @@ export async function getMonthlyActivity(){
             per_page:100
         })
 
-    prs.items.forEach((pr: any)=>{
+    prs.items.forEach((pr)=>{
         const date = new Date(pr.created_at)
         const monthKey = monthNames[date.getMonth()]
         if(monthlyData[monthKey]){
@@ -200,8 +200,8 @@ export async function getContributionStats(){
 
         // First flatten raw contributions so we can compute levels relative to the max count.
         const rawContributions: { date: string; count: number }[] =
-            calendar.weeks.flatMap((week: any) =>
-                week.contributionDays.map((day: any) => ({
+            calendar.weeks.flatMap((week) =>
+                week.contributionDays.map((day) => ({
                     date: day.date,
                     count: day.contributionCount,
                 }))

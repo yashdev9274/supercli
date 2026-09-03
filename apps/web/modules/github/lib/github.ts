@@ -333,7 +333,22 @@ export async function fetchUserContribution(token: string, username: string) {
     `
 
   try {
-    const response: any = await octokit.graphql(query, {
+    const response = await octokit.graphql<{
+      user: {
+        contributionsCollection: {
+          contributionCalendar: {
+            totalContributions: number
+            weeks: Array<{
+              contributionDays: Array<{
+                contributionCount: number
+                date: string
+                color?: string
+              }>
+            }>
+          }
+        }
+      }
+    }>(query, {
       username,
     })
 

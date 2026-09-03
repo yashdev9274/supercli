@@ -23,29 +23,23 @@ function isExpired(target: number): boolean {
   return Date.now() >= target
 }
 
+// Product Hunt launch target; evaluated once at module load so the banner
+// state initializes without a setState-in-effect.
+const LAUNCH_TARGET = new Date("2026-07-10T00:00:00").getTime()
+const INITIAL_EXPIRED = isExpired(LAUNCH_TARGET)
+const INITIAL_TIME = getTimeRemaining(LAUNCH_TARGET)
+
 export default function BetaCountdownBanner({
   onVisibilityChange,
 }: {
   onVisibilityChange?: (visible: boolean) => void
 }) {
-  const [visible, setVisible] = useState(false)
-  const [targetTime, setTargetTime] = useState<number | null>(null)
-  const [time, setTime] = useState<Time>({ total: 48 * 60 * 60 * 1000, hours: 48, minutes: 0, seconds: 0 })
-  const [expired, setExpired] = useState(false)
-
-  useEffect(() => {
-    // July 10, 2026 — Product Hunt launch
-    const target = new Date("2026-07-10T00:00:00").getTime()
-
-    if (isExpired(target)) {
-      setExpired(true)
-      return
-    }
-
-    setTargetTime(target)
-    setTime(getTimeRemaining(target))
-    setVisible(true)
-  }, [])
+  const [visible, setVisible] = useState(!INITIAL_EXPIRED)
+  const [targetTime, setTargetTime] = useState<number | null>(
+    INITIAL_EXPIRED ? null : LAUNCH_TARGET
+  )
+  const [time, setTime] = useState<Time>(INITIAL_TIME)
+  const [expired, setExpired] = useState(INITIAL_EXPIRED)
 
   useEffect(() => {
     if (!targetTime || expired) return

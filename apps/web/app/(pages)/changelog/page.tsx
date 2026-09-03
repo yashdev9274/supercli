@@ -526,7 +526,7 @@ export default function ChangelogPage() {
               <div>
                 <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
                 <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
-                  <li>- New <strong>"supercode" cloud model provider</strong> with enhanced API integration for chat and task generation.</li>
+                  <li>- New <strong>&quot;supercode&quot; cloud model provider</strong> with enhanced API integration for chat and task generation.</li>
                   <li>- New user interaction tools: <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">question</code> (ask user during agent runs) and <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">todowrite</code> (inline task tracking).</li>
                   <li>- Permission management extended to cover question/todo tool usage.</li>
                 </ul>
@@ -637,7 +637,7 @@ export default function ChangelogPage() {
               <div>
                 <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
                 <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
-                  <li>- "supercode" added as a cloud model provider in the provider interface.</li>
+                  <li>- &quot;supercode&quot; added as a cloud model provider in the provider interface.</li>
                   <li>- Default provider for chat and agent functions switched to <strong>supercode</strong>.</li>
                   <li>- Model selection refactored to clearly distinguish between cloud and BYOK models.</li>
                   <li>- Better error handling for API key configuration in <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">createProvider</code>.</li>
@@ -948,8 +948,8 @@ export default function ChangelogPage() {
               <div>
                 <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Web App</h3>
                 <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
-                  <li>- Redesigned /launch page for Product Hunt launch (July 10, 2026) with beta features, "coming next" roadmap, and inline install commands.</li>
-                  <li>- New changelog section on /launch page showcasing what's new since beta.</li>
+                  <li>- Redesigned /launch page for Product Hunt launch (July 10, 2026) with beta features, &quot;coming next&quot; roadmap, and inline install commands.</li>
+                  <li>- New changelog section on /launch page showcasing what&apos;s new since beta.</li>
                   <li>- Partnerships section with polished get-started terminal on homepage.</li>
                   <li>- Web research stats page (<code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/stats</code>) with GitHub Stars counter.</li>
                   <li>- Beta countdown banner and launch celebration UI.</li>
@@ -962,7 +962,7 @@ export default function ChangelogPage() {
                   <li>- Added Firecrawl web research tools: <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/search</code>, <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/scrape</code>, <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/map</code> slash commands.</li>
                   <li>- Exa search/fetch as alternative web search provider.</li>
                   <li>- Tools proxy through Render server when local API key is missing.</li>
-                  <li>- Fixed "not configured" error — loads .env before env var check.</li>
+                  <li>- Fixed &quot;not configured&quot; error — loads .env before env var check.</li>
                   <li>- Removed legacy web_search tool set; unified under Firecrawl.</li>
                 </ul>
               </div>
@@ -1088,7 +1088,7 @@ export default function ChangelogPage() {
                   <li>- New <strong>permission module</strong> — Ruleset types, wildcard matching, and <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">mergePermissions</code> for granular tool access control.</li>
                   <li>- <strong>GLM 5.2</strong> added to ConcentrateAI provider.</li>
                   <li>- New <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/context-window</code> slash command — shows token usage breakdown per message with context percentage. 240-line implementation with detailed rendering.</li>
-                  <li>- Narrowed <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">CliConfig.mode</code> type to <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">"chat" | "agent"</code>.</li>
+                  <li>- Narrowed <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">CliConfig.mode</code> type to <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">&quot;chat&quot; | &quot;agent&quot;</code>.</li>
                 </ul>
               </div>
 
@@ -1154,7 +1154,7 @@ export default function ChangelogPage() {
                   <li>- New <strong>ConcentrateAI</strong> provider — OpenAI-compatible AI gateway with models: DeepSeek V4 Flash, Kimi K2.6, GLM 5.1, and MiniMax M2.7.</li>
                   <li>- ConcentrateAI set as <strong>default provider</strong> for chat, agent, and tools modes (replaces Google Gemini).</li>
                   <li>- New <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">ConcentrateService</code> with streaming, tool calling, <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">maxSteps: 25</code> tool loop, and abort signal support.</li>
-                  <li>- Model browser redesigned: unified interface across all providers with cost multipliers, current-model indicators, and "Set as default" persistence via config file.</li>
+                  <li>- Model browser redesigned: unified interface across all providers with cost multipliers, current-model indicators, and &quot;Set as default&quot; persistence via config file.</li>
                   <li>- Context window tracking added for ConcentrateAI models.</li>
                   <li>- Server-side endpoints for ConcentrateAI: streaming chat and object generation.</li>
                 </ul>
@@ -1220,7 +1220,7 @@ export default function ChangelogPage() {
               <div>
                 <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Homepage</h3>
                 <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
-                  <li>- Launch page enhanced with beta features list, "coming next" roadmap, and install command section.</li>
+                  <li>- Launch page enhanced with beta features list, &quot;coming next&quot; roadmap, and install command section.</li>
                   <li>- Post-launch CTA updated to link to Quickstart guide with <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">npm install -g supercode-cli@latest</code> hint.</li>
                 </ul>
               </div>
@@ -1250,7 +1250,7 @@ export default function ChangelogPage() {
                 <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
                   <li>- <strong>Public beta launch</strong> 🚀 — supercode is now live and available for everyone to install.</li>
                   <li>- Beta countdown page with animated banner and launch celebration UI.</li>
-                  <li>- Launch page redesigned with beta features list, "coming next" roadmap, and inline install command.</li>
+                  <li>- Launch page redesigned with beta features list, &quot;coming next&quot; roadmap, and inline install command.</li>
                   <li>- Post-launch CTA links to Quickstart guide for first-time users.</li>
                 </ul>
               </div>
@@ -1259,7 +1259,7 @@ export default function ChangelogPage() {
                 <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Docs</h3>
                 <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
                   <li>- New <strong>Quickstart</strong> guide — step-by-step install/login/first-prompt walkthrough at <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/docs/quickstart</code>.</li>
-                  <li>- Docs site redesign: typography overhaul, section-grouped sidebar (Getting Started / Terminal), prev/next page pagination, scroll-aware "On this page" TOC with active highlights.</li>
+                  <li>- Docs site redesign: typography overhaul, section-grouped sidebar (Getting Started / Terminal), prev/next page pagination, scroll-aware &quot;On this page&quot; TOC with active highlights.</li>
                   <li>- Polished terminal blocks with macOS-style title bar and copy feedback animation.</li>
                   <li>- New header with pixel logo, Docs / Home / GitHub nav links, and improved footer with prev/next navigation.</li>
                 </ul>
@@ -1366,10 +1366,10 @@ export default function ChangelogPage() {
               <div>
                 <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">CLI / TUI</h3>
                 <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
-                  <li>- Phosphor CRT terminal theme — green phosphor on black, amber accent for cursor/badges, green glow highlights. New <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">pixelWordmark()</code> renders "SUPERCODE" as ASCII pixel art.</li>
+                  <li>- Phosphor CRT terminal theme — green phosphor on black, amber accent for cursor/badges, green glow highlights. New <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">pixelWordmark()</code> renders &quot;SUPERCODE&quot; as ASCII pixel art.</li>
                   <li>- Main screen redesigned with <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">sectionHeader</code>, <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">cardStack</code>, <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">rowCard</code>, <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">keyValue</code>, <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">statusBar</code> utilities — centered pixel wordmark, system HUD panel, command card stack, and a footer status bar.</li>
                   <li>- Chat startup overhauled: pixel wordmark header, status bar with mode/model info, <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/model</code> / <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/help</code> / <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">Tab</code> quick-start hint row.</li>
-                  <li>- Framed "goodbye" message on exit instead of a single line.</li>
+                  <li>- Framed &quot;goodbye&quot; message on exit instead of a single line.</li>
                   <li>- Animated thinking spinner with live tool call and reasoning updates (existing, refined).</li>
                   <li>- 1,048 insertions across 7 files — the TUI is now the primary surface identity.</li>
                 </ul>
@@ -1378,7 +1378,7 @@ export default function ChangelogPage() {
               <div>
                 <h3 className="text-[17px] text-white font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Docs</h3>
                 <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
-                  <li>- README rewritten with new branding ("AI-Powered SWE Agent"), updated app/package table, Terminal Stack architecture section, and new badges (Next.js 16, License).</li>
+                  <li>- README rewritten with new branding (&quot;AI-Powered SWE Agent&quot;), updated app/package table, Terminal Stack architecture section, and new badges (Next.js 16, License).</li>
                   <li>- CONTRIBUTING rewritten from scratch: Bun-first setup, both database setup steps (dashboard + terminal CLI), expanded project tree, full command reference, code style guidelines, CLI pattern doc, DB migration workflows.</li>
                   <li>- Config documentation updated with production URL guidance for OAuth setup — thanks <a href="https://github.com/aviisharma238" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">@aviisharma238</a>!</li>
                 </ul>
@@ -1409,7 +1409,7 @@ export default function ChangelogPage() {
                 <ul className="space-y-3 text-[14px] leading-relaxed text-foreground/85">
                   <li>- Agent mode rewritten from rigid <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">generateApplication()</code> to tool-calling loop (<code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">ToolLoopAgent</code>) — model calls <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">write_file</code> and <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">run_command</code> tools directly for iterative building and error recovery.</li>
                   <li>- New <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">/model</code> slash command — switch AI provider/model mid-session (Gemini, OpenRouter, NVIDIA NIM).</li>
-                  <li>- Persistent stdin handler — prevents "terminal state may be corrupted" crashes.</li>
+                  <li>- Persistent stdin handler — prevents &quot;terminal state may be corrupted&quot; crashes.</li>
                   <li>- Stream cancellation via Escape key with partial response preservation.</li>
                   <li>- Global <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">unhandledRejection</code> and <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">uncaughtException</code> handlers for crash resilience.</li>
                 </ul>
@@ -1462,7 +1462,7 @@ export default function ChangelogPage() {
                   <li>- New OpenRouter models: MiniMax M3, GLM 5.1, and Kimi K2.6 (free).</li>
                   <li>- Session token tracking with context window percentage display (<code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">136.4K (68%)</code>) in chat footer.</li>
                   <li>- <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">maxOutputTokens</code> cap (8192) for paid OpenRouter models to prevent 402 errors.</li>
-                  <li>- Render cold start error message improved — "server was inactive" instead of "cannot reach server".</li>
+                  <li>- Render cold start error message improved — &quot;server was inactive&quot; instead of &quot;cannot reach server&quot;.</li>
                   <li>- Human-readable token formatting (<code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">5.2K</code>, <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">136.4K</code>, <code className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[13px] font-mono">1.0M</code>).</li>
                 </ul>
               </div>
