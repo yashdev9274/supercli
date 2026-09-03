@@ -282,15 +282,20 @@ function generateSynthesis(
   }
 }
 
-export async function getAnalyticsData(timeframe: Timeframe = "1m", repo: string | null = null): Promise<AnalyticsData> {
+export async function getAnalyticsData(
+  timeframe: Timeframe = "1m",
+  repo: string | null = null,
+  author: string | null = null,
+): Promise<AnalyticsData> {
   try {
     const { octokit, user, token } = await getOctokitAndUser()
     const days = daysForTimeframe(timeframe)
     const dates = generateDailyDates(days)
 
     const repoFilter = repo ? ` repo:${repo}` : ""
+    const authorFilter = author ? ` author:${author}` : ""
     const { data: allPRs } = await octokit.rest.search.issuesAndPullRequests({
-      q: `type:pr created:>=${dates[0]}${repoFilter}`,
+      q: `type:pr created:>=${dates[0]}${repoFilter}${authorFilter}`,
       per_page: 100,
       sort: "created",
       order: "desc",
