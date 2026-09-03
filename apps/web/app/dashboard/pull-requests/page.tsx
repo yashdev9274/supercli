@@ -128,7 +128,6 @@ export default function PullRequestsPage() {
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null)
   const [repoSearch, setRepoSearch] = useState("")
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [sortBy, setSortBy] = useState<"last_updated" | "score">("last_updated")
 
   const { data: repos, isLoading: isLoadingRepos } = useQuery({
     queryKey: ["user-repos"],
@@ -320,11 +319,10 @@ export default function PullRequestsPage() {
               Pull request
             </span>
           </div>
-          <div className="col-span-3 flex items-center gap-1 cursor-pointer select-none" onClick={() => setSortBy(sortBy === "last_updated" ? "score" : "last_updated")}>
+          <div className="col-span-3 flex items-center">
             <span className="text-[10px] font-bold tracking-wider text-muted-foreground/40 uppercase">
               Last Updated
             </span>
-            <ChevronDown className="h-3 w-3 text-muted-foreground/40" />
           </div>
           <div className="col-span-2 flex items-center">
             <span className="text-[10px] font-bold tracking-wider text-muted-foreground/40 uppercase">

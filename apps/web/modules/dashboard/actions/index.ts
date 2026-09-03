@@ -38,7 +38,7 @@ export async function getDashboardStats() {
 
         const totalPRs = prs.total_count
 
-        const toatalReviews = await prisma.review.count({
+        const totalReviews = await prisma.review.count({
             where: {
                 repository: { userId: session.user.id },
                 status: "completed",
@@ -48,7 +48,7 @@ export async function getDashboardStats() {
         return{
             totalCommits,
             totalPRs,
-            toatalReviews,
+            totalReviews,
             totalRepos
         }
 
@@ -61,7 +61,7 @@ export async function getDashboardStats() {
         return{
             totalCommits:0,
             totalPRs:0,
-            toatalReviews : 0, 
+            totalReviews: 0, 
             totalRepos :0,
         }
         
@@ -127,29 +127,18 @@ export async function getMontlyActivity(){
 
           const sixMonthsAgo = new Date();
           sixMonthsAgo.setMonth(sixMonthsAgo.getMonth()-6)
-          
+          sixMonthsAgo.setHours(0, 0, 0, 0)
 
-          const generateSampleReviews = () => {
-            const sampleReviews = [];
-            const now = new Date();
-          
-            // Generate random reviews over the past 6 months
-            for (let i = 0; i < 45; i++) {
-              const randomDaysAgo = Math.floor(Math.random() * 180); // Random day in last 6 months
-              const reviewDate = new Date(now);
-              reviewDate.setDate(reviewDate.getDate() - randomDaysAgo);
-          
-              sampleReviews.push({
-                createdAt: reviewDate,
-              });
-            }
-          
-            return sampleReviews;
-          }
+          // Count real reviews from the database instead of fabricated samples.
+          const reviewRows = await prisma.review.findMany({
+            where: {
+              repository: { userId: session.user.id },
+              createdAt: { gte: sixMonthsAgo },
+            },
+            select: { createdAt: true },
+          })
 
-    const reviews = generateSampleReviews()
-
-    reviews.forEach((review)=>{
+    reviewRows.forEach((review)=>{
         const monthKey = monthNames[review.createdAt.getMonth()];
         if(monthlyData[monthKey]){
             monthlyData[monthKey].reviews+=1

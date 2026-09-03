@@ -6,7 +6,6 @@ import {
   MessageSquare, 
   Zap, 
   CreditCard, 
-  Gift, 
   FileText, 
   Monitor,
   Menu,
@@ -24,6 +23,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { LucideIcon } from "lucide-react";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { LockKeyhole } from "@/components/animate-ui/icons/lock-keyhole";
+
+const DOCS_URL =
+  process.env.NEXT_PUBLIC_DOCS_URL || "http://localhost:3001/docs/intro"
 
 const PixelLogo = () => {
   return (
@@ -80,7 +82,7 @@ const navigation: NavigationGroup[] = [
         icon: Monitor,
         children: [
           { name: "PR Review", href: "/dashboard/pull-requests" },
-          { name: "Logs", href: "/dashboard/logs", locked: true },
+          { name: "Logs", href: "/dashboard/logs" },
           { name: "Bugs Caught", href: "/dashboard/bugs-caught" },
           { name: "Custom Context", href: "/dashboard/context", locked: true },
         ]
@@ -101,14 +103,13 @@ const navigation: NavigationGroup[] = [
     section: "BILLING & USAGE",
     items: [
       { name: "Billing", href: "/pricing", icon: CreditCard },
-      { name: "Refer a Friend", href: "/dashboard/", icon: Gift },
     ]
   },
   { 
     section: "Platform",
     items: [
       { name: "Settings", href: "/dashboard/settings", icon: Settings },
-      { name: "Documentation", href: "/dashboard", icon: FileText },
+      { name: "Documentation", href: DOCS_URL, icon: FileText },
     ]
   }
 ];
