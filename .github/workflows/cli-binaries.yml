@@ -1,0 +1,36 @@
+name: CLI binaries
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "supercode-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - bun-linux-x64
+          - bun-linux-arm64
+          - bun-darwin-x64
+          - bun-darwin-arm64
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.21
+      - run: bun install --frozen-lockfile
+      - run: bun run build:binary -- --target=${{ matrix.target }}
+        working-directory: apps/supercode-cli/server
+      - uses: actions/upload-artifact@v4
+        with:
+          name: supercode-${{ matrix.target }}
+          path: apps/supercode-cli/server/dist/supercode-*
