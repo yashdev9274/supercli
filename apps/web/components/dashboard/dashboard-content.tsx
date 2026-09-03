@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { 
   Clock, 
   Smile, 
@@ -17,6 +17,7 @@ import {
   Check,
   FolderGit2,
   Search,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -146,32 +147,32 @@ export function DashboardContent() {
   })
 
   // Keep a stable author catalog so filtering by author doesn't empty the dropdown.
-  const [authorOptions, setAuthorOptions] = useState<ContributorMetric[]>([])
+  const contributors = analyticsData?.topContributors
+  const [authorOptions, setAuthorOptions] = useState<ContributorMetric[]>(contributors ?? [])
+  const [prevContributors, setPrevContributors] = useState(contributors)
+  const [prevSelectedAuthor, setPrevSelectedAuthor] = useState(selectedAuthor)
 
-  useEffect(() => {
-    const contributors = analyticsData?.topContributors
-    if (!contributors?.length) return
-
-    // Prefer the unfiltered contributor set; when an author is selected the
-    // analytics response only includes that author, so preserve prior options.
-    if (!selectedAuthor) {
+  if (contributors !== prevContributors || selectedAuthor !== prevSelectedAuthor) {
+    setPrevContributors(contributors)
+    setPrevSelectedAuthor(selectedAuthor)
+    if (contributors?.length && !selectedAuthor) {
       setAuthorOptions(contributors)
-      return
+    } else if (contributors?.length && selectedAuthor) {
+      const author = selectedAuthor
+      setAuthorOptions((prev) => {
+        const byLogin = new Map(prev.map((a) => [a.login, a]))
+        for (const c of contributors) byLogin.set(c.login, c)
+        if (!byLogin.has(author)) {
+          byLogin.set(author, {
+            login: author,
+            avatarUrl: "",
+            prs: 0,
+          })
+        }
+        return Array.from(byLogin.values()).sort((a, b) => b.prs - a.prs)
+      })
     }
-
-    setAuthorOptions((prev) => {
-      const byLogin = new Map(prev.map((a) => [a.login, a]))
-      for (const c of contributors) byLogin.set(c.login, c)
-      if (!byLogin.has(selectedAuthor)) {
-        byLogin.set(selectedAuthor, {
-          login: selectedAuthor,
-          avatarUrl: "",
-          prs: 0,
-        })
-      }
-      return Array.from(byLogin.values()).sort((a, b) => b.prs - a.prs)
-    })
-  }, [analyticsData?.topContributors, selectedAuthor])
+  }
 
   const filteredAuthors = authorOptions.filter((a) =>
     a.login.toLowerCase().includes(authorSearch.toLowerCase()),
