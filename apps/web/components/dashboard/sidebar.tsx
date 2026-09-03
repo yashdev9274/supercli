@@ -23,9 +23,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { LucideIcon } from "lucide-react";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { LockKeyhole } from "@/components/animate-ui/icons/lock-keyhole";
-
-const DOCS_URL =
-  process.env.NEXT_PUBLIC_DOCS_URL || "http://localhost:3001/docs/intro"
+import { DOCS_URL } from "@/lib/constants";
 
 const PixelLogo = () => {
   return (

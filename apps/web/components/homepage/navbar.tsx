@@ -4,10 +4,9 @@ import Link from "next/link";
 import { Button } from "../ui/button";
 import { usePathname } from "next/navigation";
 import ProductsDropdown from "./products-dropdown";
+import { DOCS_URL } from "@/lib/constants";
 import { useEffect, useState } from "react";
 
-const DOCS_URL =
-  process.env.NEXT_PUBLIC_DOCS_URL || "http://localhost:3001/docs/intro";
 
 function GithubStars() {
   const [stars, setStars] = useState<number | null>(null);
