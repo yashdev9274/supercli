@@ -10,8 +10,6 @@ const CONFIG_DIR = join(TEST_HOME, ".config", "supercode")
 type AggregateFn = (args: unknown) => Promise<unknown>
 const aggregateMock = mockApi<AggregateFn>(async () => ({ _sum: { totalTokens: 0 } }))
 
-import os from "node:os"
-
 ;(mock as any).module("node:os", () => ({
   ...(os as Record<string, unknown>),
   default: { ...os, homedir: () => TEST_HOME },
@@ -93,7 +91,7 @@ describe("daily token budget", () => {
 
   it("blocks requests that reach the daily budget", async () => {
     aggregateMock.mockResolvedValueOnce({ _sum: { totalTokens: 1_200_000 } })
-    expect(checkDailyTokenBudget("u1")).rejects.toThrow(/daily limit/)
+    await expect(checkDailyTokenBudget("u1")).rejects.toThrow(/daily limit/)
   })
 
   it("allows usage under the budget and reports remaining", async () => {
