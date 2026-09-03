@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, mock } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"
 import { join } from "node:path"
+import os from "node:os"
 import { mock as mockApi } from "bun:test"
 
 const TEST_HOME = mkdtempSync("/tmp/supercode-token-budget-test-")
@@ -9,8 +10,11 @@ const CONFIG_DIR = join(TEST_HOME, ".config", "supercode")
 type AggregateFn = (args: unknown) => Promise<unknown>
 const aggregateMock = mockApi<AggregateFn>(async () => ({ _sum: { totalTokens: 0 } }))
 
+import os from "node:os"
+
 ;(mock as any).module("node:os", () => ({
-  default: { homedir: () => TEST_HOME },
+  ...(os as Record<string, unknown>),
+  default: { ...os, homedir: () => TEST_HOME },
   homedir: () => TEST_HOME,
 }))
 

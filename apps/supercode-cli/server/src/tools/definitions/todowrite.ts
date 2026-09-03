@@ -34,7 +34,7 @@ function renderTodoList(todos: TodoItem[]): string {
   let inProgressIdx = -1
 
   for (let i = 0; i < todos.length; i++) {
-    const t = todos[i]
+    const t = todos[i]!
     if (t.status === "in_progress") inProgressIdx = i
 
     const statusIcon =
@@ -59,7 +59,7 @@ function renderTodoList(todos: TodoItem[]): string {
   const completed = todos.filter((t) => t.status === "completed").length
   const total = todos.length
   const summary = chalk.hex(theme.greenDim)(
-    `  ${completed}/${total} · ${inProgressIdx >= 0 ? `active: ${todos[inProgressIdx].content}` : "none in progress"}`,
+    `  ${completed}/${total} · ${inProgressIdx >= 0 ? `active: ${todos[inProgressIdx]!.content}` : "none in progress"}`,
   )
 
   return [...rows, "", summary].join("\n")

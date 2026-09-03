@@ -120,7 +120,13 @@ export function Sidebar() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const mounted = useMounted();
 
-  
+  // Keep the mobile drawer closed on navigation: adjust state during render
+  // instead of inside an effect.
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    setIsMobileOpen(false);
+  }
 
   const toggleMenu = (name: string) => {
     if (isCollapsed) {
@@ -132,10 +138,6 @@ export function Sidebar() {
       prev.includes(name) ? prev.filter(i => i !== name) : [...prev, name]
     );
   };
-
-  useEffect(() => {
-    setIsMobileOpen(false);
-  }, [pathname]);
 
   return (
     <>

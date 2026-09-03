@@ -73,7 +73,7 @@ const ProvidersSection = () => {
         <div className="flex items-end justify-between mb-12">
           <div>
             <h2 className="text-[13px] font-mono uppercase tracking-[0.15em] text-primary mb-4">
-              // providers
+              {"// providers"}
             </h2>
             <h3 className="text-[28px] md:text-[36px] text-[#A1A1AA] font-semibold tracking-tight leading-[1.15]">
               bring your own model.

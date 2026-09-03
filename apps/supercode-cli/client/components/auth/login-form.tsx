@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '../ui/card'
 import { authClient } from '@/lib/auth-client'
@@ -83,9 +84,9 @@ const LoginForm = () => {
               ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}
             `}
           >
-            <a href="/" className="group flex justify-center w-full pl-15">
+            <Link href="/" className="group flex justify-center w-full pl-15">
               <PixelLogo />
-            </a>
+            </Link>
             <p className="text-zinc-400 text-sm md:text-base max-w-sm leading-relaxed text-center">
               AI-powered coding assistant. Build faster with intelligent automation.
             </p>

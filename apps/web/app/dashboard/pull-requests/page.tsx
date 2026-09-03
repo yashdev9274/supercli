@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { Search, GitPullRequest, CheckCircle2, SkipForward, AlertTriangle, ChevronDown, FolderGit2, Check, ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -40,6 +40,26 @@ const rowVariants: Variants = {
     y: -4,
     transition: { duration: 0.15, ease: easeOut },
   },
+}
+
+// Module-scope clock so relative timestamps can be rendered without calling
+// Date.now() during render.
+let latestNow = Date.now()
+const nowListeners = new Set<() => void>()
+setInterval(() => {
+  latestNow = Date.now()
+  for (const listener of nowListeners) listener()
+}, 30_000)
+
+function subscribeNow(listener: () => void): () => void {
+  nowListeners.add(listener)
+  return () => {
+    nowListeners.delete(listener)
+  }
+}
+
+function useNow(): number {
+  return useSyncExternalStore(subscribeNow, () => latestNow)
 }
 
 function ReviewStatusBadge({ status }: { status: ReviewStatus }) {
@@ -150,8 +170,10 @@ export default function PullRequestsPage() {
     r.fullName.toLowerCase().includes(repoSearch.toLowerCase())
   ) ?? []
 
-  const timeAgo = (date: Date) => {
-    const diff = Date.now() - new Date(date).getTime()
+  const now = useNow()
+
+  const timeAgo = (date: Date, now: number) => {
+    const diff = now - new Date(date).getTime()
     const days = Math.floor(diff / 86400000)
     if (days === 0) return "today"
     if (days === 1) return "1 day ago"
@@ -168,7 +190,7 @@ export default function PullRequestsPage() {
     repoFullName: r.repository.fullName,
     number: r.prNumber,
     prUrl: r.prUrl,
-    timeAgo: timeAgo(r.updatedAt ?? r.createdAt),
+    timeAgo: timeAgo(r.updatedAt ?? r.createdAt, now),
     reviewStatus: (r.status || "unreviewed") as ReviewStatus,
     summary: r.summary,
     prState: r.prState,

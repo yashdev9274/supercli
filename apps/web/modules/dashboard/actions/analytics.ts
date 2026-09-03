@@ -28,6 +28,21 @@ export interface Anomaly {
   date: string
 }
 
+interface SearchPr {
+  created_at: string
+  merged_at?: string | null
+  title: string
+  state: string
+  number: number
+  repository_url: string
+  labels?: Array<{ name?: string }>
+  user?: { login?: string; avatar_url?: string } | null
+}
+
+interface ReactionItem {
+  content: string
+}
+
 export interface SynthesisReport {
   period: string
   summary: string
@@ -298,7 +313,7 @@ export async function getAnalyticsData(timeframe: Timeframe = "1m", repo: string
 
     const prsReviewed: DailyMetric[] = dates.map((date) => ({
       date,
-      value: allPRs.items.filter((pr: any) => {
+      value: allPRs.items.filter((pr: SearchPr) => {
         const created = new Date(pr.created_at).toISOString().split("T")[0]
         return created === date
       }).length,
@@ -306,11 +321,11 @@ export async function getAnalyticsData(timeframe: Timeframe = "1m", repo: string
 
     const bugsCaught: DailyMetric[] = dates.map((date) => ({
       date,
-      value: allPRs.items.filter((pr: any) => {
+      value: allPRs.items.filter((pr: SearchPr) => {
         const created = new Date(pr.created_at).toISOString().split("T")[0]
         const isBug =
           pr.labels?.some(
-            (l: any) =>
+            (l: { name?: string }) =>
               l.name?.toLowerCase().includes("bug") ||
               l.name?.toLowerCase().includes("issue") ||
               l.name?.toLowerCase().includes("fix")
@@ -322,7 +337,7 @@ export async function getAnalyticsData(timeframe: Timeframe = "1m", repo: string
     }))
 
     const avgTimeToMerge: DailyMetric[] = dates.map((date) => {
-      const dayPRs = allPRs.items.filter((pr: any) => {
+      const dayPRs = allPRs.items.filter((pr: SearchPr) => {
         const created = new Date(pr.created_at).toISOString().split("T")[0]
         return created === date && pr.merged_at
       })
@@ -330,9 +345,9 @@ export async function getAnalyticsData(timeframe: Timeframe = "1m", repo: string
       if (dayPRs.length === 0) return { date, value: 0 }
 
       const avgHours =
-        dayPRs.reduce((sum: number, pr: any) => {
+        dayPRs.reduce((sum: number, pr: SearchPr) => {
           const created = new Date(pr.created_at).getTime()
-          const merged = new Date(pr.merged_at).getTime()
+          const merged = new Date(pr.merged_at ?? "").getTime()
           return sum + (merged - created) / (1000 * 60 * 60)
         }, 0) / dayPRs.length
 
@@ -340,7 +355,7 @@ export async function getAnalyticsData(timeframe: Timeframe = "1m", repo: string
     })
 
     const contributorMap: Record<string, { login: string; avatarUrl: string; prs: number }> = {}
-    allPRs.items.forEach((pr: any) => {
+    allPRs.items.forEach((pr: SearchPr) => {
       const login = pr.user?.login || "unknown"
       const avatarUrl = pr.user?.avatar_url || ""
       if (!contributorMap[login]) {
@@ -354,13 +369,13 @@ export async function getAnalyticsData(timeframe: Timeframe = "1m", repo: string
       .slice(0, 10)
 
     const addressedRate: DailyMetric[] = dates.map((date) => {
-      const dayPRs = allPRs.items.filter((pr: any) => {
+      const dayPRs = allPRs.items.filter((pr: SearchPr) => {
         const created = new Date(pr.created_at).toISOString().split("T")[0]
         return created === date
       })
       if (dayPRs.length === 0) return { date, value: 0 }
       const addressed = dayPRs.filter(
-        (pr: any) => pr.state === "closed" || pr.merged_at
+        (pr: SearchPr) => pr.state === "closed" || pr.merged_at
       ).length
       return { date, value: Math.round((addressed / dayPRs.length) * 100) }
     })
@@ -375,10 +390,10 @@ export async function getAnalyticsData(timeframe: Timeframe = "1m", repo: string
           issue_number: pr.number,
         })
         totalUpvotes += reactions.filter(
-          (r: any) => r.content === "+1" || r.content === "heart"
+          (r: ReactionItem) => r.content === "+1" || r.content === "heart"
         ).length
         totalDownvotes += reactions.filter(
-          (r: any) => r.content === "-1"
+          (r: ReactionItem) => r.content === "-1"
         ).length
       } catch {
         // reactions API may not be available for all repos

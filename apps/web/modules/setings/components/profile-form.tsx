@@ -1,7 +1,7 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { getUserProfile, updateUserProfile } from "../action"
@@ -55,12 +55,12 @@ export function ProfileForm() {
     refetchOnWindowFocus: false,
   })
 
-  useEffect(() => {
-    if (profile) {
-      setName(profile.name || "")
-      setEmail(profile.email || "")
-    }
-  }, [profile])
+  const [profileVersion, setProfileVersion] = useState(profile)
+  if (profile && profile !== profileVersion) {
+    setProfileVersion(profile)
+    setName(profile.name || "")
+    setEmail(profile.email || "")
+  }
 
   const dirty = useMemo(() => {
     if (!profile) return false
