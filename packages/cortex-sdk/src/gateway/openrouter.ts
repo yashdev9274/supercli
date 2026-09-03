@@ -1,5 +1,5 @@
 import type { JSONValue, LanguageModelV2, LanguageModelV2CallOptions, LanguageModelV2Content, LanguageModelV2FilePart, LanguageModelV2FinishReason, LanguageModelV2FunctionTool, LanguageModelV2Message, LanguageModelV2Prompt, LanguageModelV2ReasoningPart, LanguageModelV2StreamPart, LanguageModelV2TextPart, LanguageModelV2ToolCallPart, LanguageModelV2ToolChoice, LanguageModelV2ToolResultPart, LanguageModelV2Usage } from "@ai-sdk/provider"
-import type { LanguageModel } from "ai"
+import type { GatewayModel } from "./base"
 import { ModelUnavailableError } from "../core/errors"
 import { BaseGatewayProvider, type GatewayProviderOptions, type ModelInfo } from "./base"
 
@@ -39,7 +39,7 @@ export class OpenRouterProvider extends BaseGatewayProvider {
     this.allowFallbacks = options.allowFallbacks ?? true
   }
 
-  protected buildModel(modelName: string): LanguageModel {
+  protected buildModel(modelName: string): GatewayModel {
     return new OpenRouterLanguageModel(this, modelName)
   }
 

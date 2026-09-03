@@ -16,12 +16,12 @@ describe("PermissionManager.setPromptFunction", () => {
     permissionManager.setPromptFunction(async (req) => {
       promptCalled = true
       expect(req.toolName).toBe("run_command")
-      expect(req.resource).toBe("echo hi")
+      expect(req.resource).toBe("npm install")
       return "once"
     })
 
     const ok = await permissionManager.check("run_command", {
-      command: "echo hi",
+      command: "npm install",
     })
     expect(ok).toBe(true)
     expect(promptCalled).toBe(true)
@@ -59,7 +59,7 @@ describe("PermissionManager.setPromptFunction", () => {
     // the manager logs a warning and denies immediately. No rule was
     // persisted from the first reject.
     const second = await permissionManager.check("run_command", {
-      command: "ls",
+      command: "mkdir -p .probe",
     })
     expect(second).toBe(false)
   })
@@ -82,7 +82,7 @@ describe("PermissionManager.setPromptFunction", () => {
       return "once"
     })
 
-    await permissionManager.check("run_command", { command: "ls" })
+    await permissionManager.check("run_command", { command: "npm install" })
     expect(receivedDangerous).toBe(false)
   })
 

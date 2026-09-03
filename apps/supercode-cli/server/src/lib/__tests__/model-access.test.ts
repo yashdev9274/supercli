@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, mock } from "bun:test"
 
 const findManyMock = mock(async () => [] as Array<{ slug: string; minTier: string }>)
 
-mock.module("../prisma", () => ({
+;(mock as any).module("../prisma", () => ({
   default: {
     model: {
       findMany: findManyMock,

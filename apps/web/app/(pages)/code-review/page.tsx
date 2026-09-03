@@ -396,7 +396,7 @@ export default function CodeReviewPage() {
                 <div>
                   <div className="font-medium text-neutral-900 dark:text-white">Learning System</div>
                   <div className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-                    Gets smarter with every review, adapting to your team's style.
+                    Gets smarter with every review, adapting to your team&apos;s style.
                 </div>
               </div>
             </div>

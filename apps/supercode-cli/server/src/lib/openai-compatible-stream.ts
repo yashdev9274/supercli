@@ -125,7 +125,6 @@ export async function streamOpenAICompatibleChat(
   let outputTokens = 0
   let fullContent = ""
   let reasoningContent = ""
-  let sawToolCalls = false
   let emittedToolCalls = false
   let pendingToolCalls: Record<number, { id: string; name: string; args: string }> = {}
   const embedded = parseStreamedContent({
@@ -137,7 +136,6 @@ export async function streamOpenAICompatibleChat(
     const key = `${name}:${JSON.stringify(args)}`
     if (emittedKeys.has(key)) return
     emittedKeys.add(key)
-    sawToolCalls = true
     emittedToolCalls = true
     res.write(
       JSON.stringify({
@@ -207,7 +205,6 @@ export async function streamOpenAICompatibleChat(
           }
 
           if (delta?.tool_calls) {
-            sawToolCalls = true
             for (const tc of delta.tool_calls) {
               const index = tc.index ?? 0
               if (!pendingToolCalls[index]) {
@@ -221,7 +218,6 @@ export async function streamOpenAICompatibleChat(
 
           const finishReason = data.choices?.[0]?.finish_reason
           if (finishReason === "tool_calls") {
-            sawToolCalls = true
             flushPending()
           }
 
@@ -232,11 +228,6 @@ export async function streamOpenAICompatibleChat(
         } catch {
           /* skip malformed */
         }
-      }
-
-      // Stream can end with [DONE]/EOF without finish_reason tool_calls.
-      if (sawToolCalls && Object.keys(pendingToolCalls).length > 0) {
-        flushPending()
       }
     }
   } catch (err: any) {

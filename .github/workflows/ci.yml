@@ -20,6 +20,11 @@ jobs:
         with:
           bun-version: 1.2.21
       - run: bun install --frozen-lockfile
+      - name: Generate Prisma clients
+        run: bun run db:generate
+        env:
+          DATABASE_URL: postgresql://localhost:5432/supercode
+        continue-on-error: true
       - run: bun run typecheck
 
   lint:
@@ -42,7 +47,8 @@ jobs:
         with:
           bun-version: 1.2.21
       - run: bun install --frozen-lockfile
-      - run: bun run db:generate
+      - name: Generate Prisma clients
+        run: bun run db:generate
         env:
           DATABASE_URL: postgresql://localhost:5432/supercode
         continue-on-error: true

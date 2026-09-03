@@ -58,6 +58,21 @@ function mergeProps<T extends HTMLElement>(
   return merged;
 }
 
+// A motion component per child element type, created once at module scope so
+// render never constructs components. The element type is only known at render
+// time and framer-motion has no non-creating API for it, so the one creation
+// site is intentionally excluded from the purity rule.
+const motionComponentCache = new Map<React.ElementType, React.ElementType>();
+
+function getMotionComponent(type: React.ElementType): React.ElementType {
+  let cached = motionComponentCache.get(type);
+  if (!cached) {
+    cached = motion.create(type);
+    motionComponentCache.set(type, cached);
+  }
+  return cached;
+}
+
 function Slot<T extends HTMLElement = HTMLElement>({
   children,
   ref,
@@ -68,13 +83,9 @@ function Slot<T extends HTMLElement = HTMLElement>({
     children.type !== null &&
     isMotionComponent(children.type);
 
-  const Base = React.useMemo(
-    () =>
-      isAlreadyMotion
-        ? (children.type as React.ElementType)
-        : motion.create(children.type as React.ElementType),
-    [isAlreadyMotion, children.type],
-  );
+  const Base = isAlreadyMotion
+    ? (children.type as React.ElementType)
+    : getMotionComponent(children.type as React.ElementType);
 
   if (!React.isValidElement(children)) return null;
 
@@ -83,6 +94,7 @@ function Slot<T extends HTMLElement = HTMLElement>({
   const mergedProps = mergeProps(childProps, props);
 
   return (
+    // eslint-disable-next-line react-hooks/static-components -- Base wraps a runtime-resolved child type (motion Slot)
     <Base {...mergedProps} ref={mergeRefs(childRef as React.Ref<T>, ref)} />
   );
 }

@@ -1,5 +1,5 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
-import type { LanguageModel } from "ai"
+import type { GatewayModel } from "./base"
 import { BaseGatewayProvider, type GatewayProviderOptions, type ModelInfo } from "./base"
 
 const DEFAULT_BASE_URL = "https://api-gateway.merge.dev/v1/openai"
@@ -27,7 +27,7 @@ export class MergeDevProvider extends BaseGatewayProvider {
     })
   }
 
-  protected buildModel(modelName: string): LanguageModel {
+  protected buildModel(modelName: string): GatewayModel {
     return this.sdk.chatModel(modelName)
   }
 

@@ -1,4 +1,5 @@
 import type { McpServerConfig } from "src/mcp/mcp-manager.ts"
+import type { ConnectorEntry, ConnectorSession } from "./types.ts"
 
 /**
  * Merge Agent Handler auto-connector.
@@ -45,6 +46,10 @@ export class MergeConnectorManager {
     return null
   }
 
+  setConfig(config: MergeAhConfig): void {
+    this.config = config
+  }
+
   getMcpConfig(): McpServerConfig | null {
     if (!this.config) {
       this.loadConfigFromEnv()
@@ -57,6 +62,49 @@ export class MergeConnectorManager {
         Authorization: `Bearer ${this.config.agentHandlerApiKey}`,
       },
     }
+  }
+
+  get setupInstructions(): string[] {
+    return []
+  }
+
+  async connect(_provider: string): Promise<ConnectorSession> {
+    if (!this.config) this.loadConfigFromEnv()
+    const mcpConfig = this.getMcpConfig()
+    if (!mcpConfig) {
+      throw new Error(
+        "Merge Agent Handler is not configured. Set MERGE_AH_API_KEY, MERGE_TOOL_PACK_ID, and MERGE_REGISTERED_USER_ID.",
+      )
+    }
+    // Status is optimistic: the actual MCP endpoint health is verified later
+    // by McpManager.reconnectServer, which throws when the server can't start.
+    return {
+      connectionId: `mergedev_${Date.now()}`,
+      provider: "mergedev",
+      name: "Merge Agent Handler",
+      startTime: new Date(),
+      status: "connected",
+      endpointUrl: mcpConfig.url ?? "",
+    }
+  }
+
+  disconnect(): void {
+    // Session lifecycle is owned by the MCP server; nothing to tear down here.
+  }
+
+  getConnectorList(): ConnectorEntry[] {
+    const configured = this.getMcpConfig() !== null
+    return [
+      {
+        slug: "mergedev",
+        name: "Merge Agent Handler",
+        description: "Exa + Firecrawl tool packs served by the Merge Agent Handler",
+        provider: "mergedev",
+        status: configured ? "connected" : "disconnected",
+        category: "search",
+        detail: configured ? "Configured" : "Not configured",
+      },
+    ]
   }
 }
 
