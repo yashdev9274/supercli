@@ -38,7 +38,19 @@ export async function connectorsCommand(
 ): Promise<
   { type: "message"; message: string } | { type: "help" }
 > {
-  const merged = mergeConnectorManager.getConnectorList()
+  const merged: ConnectorEntry[] = mergeConnectorManager.isConfigured
+    ? [
+        {
+          slug: "mergedev",
+          name: "Merge Agent Handler",
+          provider: "mergedev",
+          status: "connected",
+          category: "research",
+          description: "Exa + Firecrawl connectors via ah.merge.dev",
+          detail: "Configured via env",
+        },
+      ]
+    : []
   const allEntries = [
     ...merged,
     ...BUILTIN_CONNECTORS.filter(
@@ -60,11 +72,7 @@ export async function connectorsCommand(
       process.env.MERGE_REGISTERED_USER_ID
 
     if (ahKey && toolPackId && registeredUserId) {
-      mergeConnectorManager.setConfig({
-        agentHandlerApiKey: ahKey,
-        toolPackId,
-        registeredUserId,
-      })
+      mergeConnectorManager.loadConfigFromEnv()
     }
 
     if (!mergeConnectorManager.isConfigured || !mergeConnectorManager.getMcpConfig()) {
@@ -106,15 +114,13 @@ export async function connectorsCommand(
       })
       if (isCancel(envUser)) return { type: "help" }
 
-      mergeConnectorManager.setConfig({
-        agentHandlerApiKey: envKey as string,
-        toolPackId: envPack as string,
-        registeredUserId: envUser as string,
-      })
+      process.env.MERGE_AH_API_KEY = envKey as string
+      process.env.MERGE_TOOL_PACK_ID = envPack as string
+      process.env.MERGE_REGISTERED_USER_ID = envUser as string
+      mergeConnectorManager.loadConfigFromEnv()
     }
 
     try {
-      const session = await mergeConnectorManager.connect("mergedev")
       const mcpConfig = mergeConnectorManager.getMcpConfig()
 
       if (mcpConfig) {
@@ -139,19 +145,12 @@ export async function connectorsCommand(
       process.stdout.write(
         ` ${chalk.red("✗")} Connection failed: ${err.message}\r\n`,
       )
-      if (mergeConnectorManager.setupInstructions.length > 0) {
-        process.stdout.write(`\r\n Setup steps:\r\n`)
-        for (const step of mergeConnectorManager.setupInstructions) {
-          process.stdout.write(`  ${step}\r\n`)
-        }
-      }
     }
 
     return { type: "help" }
   }
 
   if (args === "disconnect") {
-    mergeConnectorManager.disconnect()
     const mgr = getMcpManager()
     await mgr.stopServer("mergedev")
 

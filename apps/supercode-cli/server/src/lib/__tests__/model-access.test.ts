@@ -2,13 +2,20 @@ import { beforeEach, describe, expect, it, mock } from "bun:test"
 
 const findManyMock = mock(async () => [] as Array<{ slug: string; minTier: string }>)
 
-mock.module("../prisma", () => ({
-  default: {
-    model: {
-      findMany: findManyMock,
+// bun:test's mock.module isn't exposed in the installed type definitions.
+const bunMock = mock as unknown as {
+  module: (path: string, factory: () => unknown) => void
+}
+bunMock.module(
+  "../prisma",
+  () => ({
+    default: {
+      model: {
+        findMany: findManyMock,
+      },
     },
-  },
-}))
+  }),
+)
 
 const { isModelAllowedForTier, invalidateModelCache, getUpgradeSuggestion } =
   await import("../model-access")

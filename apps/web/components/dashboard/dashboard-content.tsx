@@ -1,15 +1,14 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { 
   Clock, 
   Smile, 
   MessageSquare, 
   Trophy, 
   ChevronDown, 
-  Box, 
-  User, 
   Calendar,
+  Box,
   AlertCircle,
   ListChecks,
   TrendingUp,
@@ -18,11 +17,12 @@ import {
   Check,
   FolderGit2,
   Search,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import {useQuery} from "@tanstack/react-query"
-import { getDashboardStats, getMontlyActivity } from "@/modules/dashboard/actions";
+import { getMonthlyActivity } from "@/modules/dashboard/actions";
 import { getAnalyticsData, getConnectedRepos, type ContributorMetric, type Timeframe } from "@/modules/dashboard/actions/analytics";
 import RepoMetricCard from "./metric-cards/total-repositories";
 import { MetricsCard } from "./metric-cards/metrics-card";
@@ -134,15 +134,9 @@ export function DashboardContent() {
     r.fullName.toLowerCase().includes(repoSearch.toLowerCase())
   ) ?? []
 
-  const {data:stats, isLoading} = useQuery({
-    queryKey:["dashboard-stats"],
-    queryFn: async()=>await getDashboardStats(),
-    refetchOnWindowFocus:false
-  })
-
   const {data: monthlyActivity, isLoading: isLoadingActivity }=useQuery({
     queryKey: ["monthly-stats"],
-    queryFn: async()=> await getMontlyActivity(),
+    queryFn: async()=> await getMonthlyActivity(),
     refetchOnWindowFocus: false
   })
 
@@ -153,32 +147,32 @@ export function DashboardContent() {
   })
 
   // Keep a stable author catalog so filtering by author doesn't empty the dropdown.
-  const [authorOptions, setAuthorOptions] = useState<ContributorMetric[]>([])
+  const contributors = analyticsData?.topContributors
+  const [authorOptions, setAuthorOptions] = useState<ContributorMetric[]>(contributors ?? [])
+  const [prevContributors, setPrevContributors] = useState(contributors)
+  const [prevSelectedAuthor, setPrevSelectedAuthor] = useState(selectedAuthor)
 
-  useEffect(() => {
-    const contributors = analyticsData?.topContributors
-    if (!contributors?.length) return
-
-    // Prefer the unfiltered contributor set; when an author is selected the
-    // analytics response only includes that author, so preserve prior options.
-    if (!selectedAuthor) {
+  if (contributors !== prevContributors || selectedAuthor !== prevSelectedAuthor) {
+    setPrevContributors(contributors)
+    setPrevSelectedAuthor(selectedAuthor)
+    if (contributors?.length && !selectedAuthor) {
       setAuthorOptions(contributors)
-      return
+    } else if (contributors?.length && selectedAuthor) {
+      const author = selectedAuthor
+      setAuthorOptions((prev) => {
+        const byLogin = new Map(prev.map((a) => [a.login, a]))
+        for (const c of contributors) byLogin.set(c.login, c)
+        if (!byLogin.has(author)) {
+          byLogin.set(author, {
+            login: author,
+            avatarUrl: "",
+            prs: 0,
+          })
+        }
+        return Array.from(byLogin.values()).sort((a, b) => b.prs - a.prs)
+      })
     }
-
-    setAuthorOptions((prev) => {
-      const byLogin = new Map(prev.map((a) => [a.login, a]))
-      for (const c of contributors) byLogin.set(c.login, c)
-      if (!byLogin.has(selectedAuthor)) {
-        byLogin.set(selectedAuthor, {
-          login: selectedAuthor,
-          avatarUrl: "",
-          prs: 0,
-        })
-      }
-      return Array.from(byLogin.values()).sort((a, b) => b.prs - a.prs)
-    })
-  }, [analyticsData?.topContributors, selectedAuthor])
+  }
 
   const filteredAuthors = authorOptions.filter((a) =>
     a.login.toLowerCase().includes(authorSearch.toLowerCase()),
@@ -358,7 +352,7 @@ export function DashboardContent() {
       <div className="flex flex-col gap-10">
         <div className="flex items-center justify-between border-b border-border pb-5">
           <div className="flex flex-col gap-1">
-            <h2 className="text-xl font-medium text-foreground">Acitvity Caldendar</h2>
+            <h2 className="text-xl font-medium text-foreground">Activity Calendar</h2>
             <p className="text-[10px] text-foreground/70 uppercase tracking-[0.2em] font-bold">Automated Analysis</p>
           </div>
           {/* <button className="text-[11px] font-medium text-muted-foreground/40 hover:text-foreground transition-all">Details →</button> */}

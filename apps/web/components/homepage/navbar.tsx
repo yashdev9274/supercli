@@ -6,9 +6,7 @@ import { usePathname } from "next/navigation"
 import BetaCountdownBanner from "./beta-countdown-banner"
 import ProductsDropdown from "./products-dropdown"
 import { Button } from "../ui/button"
-
-const DOCS_URL =
-  process.env.NEXT_PUBLIC_DOCS_URL || "http://localhost:3001/docs/intro"
+import { DOCS_URL } from "@/lib/constants"
 
 function GithubStars() {
   const [stars, setStars] = useState<number | null>(null)

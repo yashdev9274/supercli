@@ -19,7 +19,6 @@ import {
   MessageCircle,
   MoreHorizontal,
   Plus,
-  Search,
   SlidersHorizontal,
   Sparkles,
   Star,
@@ -938,13 +937,6 @@ export function PrWorkspace({
                 </button>
               ))}
             </div>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/10 px-2.5 py-1 text-[12px] text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground active:scale-[0.97]"
-            >
-              <Search className="h-3.5 w-3.5" />
-              Preview
-            </button>
           </div>
 
           <div className="flex min-h-0 flex-1">

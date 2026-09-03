@@ -6,10 +6,8 @@ import {
   Github,
   ExternalLink,
   Search,
-  Filter,
   RefreshCw,
   Loader2,
-  Plus,
   Trash2,
   Link2,
   AlertCircle,
@@ -170,16 +168,6 @@ export default function ProvidersPage() {
                 className="h-9 w-64 rounded-lg border border-border bg-muted/20 pl-9 pr-4 text-xs text-foreground placeholder:text-muted-foreground/40 focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
               />
             </div>
-
-            <button className="flex h-9 items-center gap-2 rounded-lg border border-border bg-muted/20 px-3 text-xs text-muted-foreground/60 hover:bg-muted/40 hover:text-foreground transition-all">
-              <Filter className="h-3.5 w-3.5" />
-              Filter
-            </button>
-
-            <button className="flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-all">
-              <Plus className="h-3.5 w-3.5" />
-              Add Repo
-            </button>
           </div>
         </div>
 

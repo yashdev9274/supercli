@@ -38,7 +38,7 @@ export async function getDashboardStats() {
 
         const totalPRs = prs.total_count
 
-        const toatalReviews = await prisma.review.count({
+        const totalReviews = await prisma.review.count({
             where: {
                 repository: { userId: session.user.id },
                 status: "completed",
@@ -48,7 +48,7 @@ export async function getDashboardStats() {
         return{
             totalCommits,
             totalPRs,
-            toatalReviews,
+            totalReviews,
             totalRepos
         }
 
@@ -61,14 +61,14 @@ export async function getDashboardStats() {
         return{
             totalCommits:0,
             totalPRs:0,
-            toatalReviews : 0, 
+            totalReviews: 0, 
             totalRepos :0,
         }
         
     }
 }
 
-export async function getMontlyActivity(){
+export async function getMonthlyActivity(){
     try {
         const session = await auth.api.getSession({
             headers: await headers(),
@@ -115,8 +115,8 @@ export async function getMontlyActivity(){
             monthlyData[monthKey] = { commits: 0, prs: 0, reviews: 0 };
           }
           
-          calendar.weeks.forEach((week: any) => {
-            week.contributionDays.forEach((day: any) => {
+          calendar.weeks.forEach((week) => {
+            week.contributionDays.forEach((day) => {
               const date = new Date(day.date);
               const monthKey = monthNames[date.getMonth()];
               if (monthlyData[monthKey]) {
@@ -127,29 +127,18 @@ export async function getMontlyActivity(){
 
           const sixMonthsAgo = new Date();
           sixMonthsAgo.setMonth(sixMonthsAgo.getMonth()-6)
-          
+          sixMonthsAgo.setUTCHours(0, 0, 0, 0)
 
-          const generateSampleReviews = () => {
-            const sampleReviews = [];
-            const now = new Date();
-          
-            // Generate random reviews over the past 6 months
-            for (let i = 0; i < 45; i++) {
-              const randomDaysAgo = Math.floor(Math.random() * 180); // Random day in last 6 months
-              const reviewDate = new Date(now);
-              reviewDate.setDate(reviewDate.getDate() - randomDaysAgo);
-          
-              sampleReviews.push({
-                createdAt: reviewDate,
-              });
-            }
-          
-            return sampleReviews;
-          }
+          // Count real reviews from the database instead of fabricated samples.
+          const reviewRows = await prisma.review.findMany({
+            where: {
+              repository: { userId: session.user.id },
+              createdAt: { gte: sixMonthsAgo },
+            },
+            select: { createdAt: true },
+          })
 
-    const reviews = generateSampleReviews()
-
-    reviews.forEach((review)=>{
+    reviewRows.forEach((review)=>{
         const monthKey = monthNames[review.createdAt.getMonth()];
         if(monthlyData[monthKey]){
             monthlyData[monthKey].reviews+=1
@@ -163,7 +152,7 @@ export async function getMontlyActivity(){
             per_page:100
         })
 
-    prs.items.forEach((pr: any)=>{
+    prs.items.forEach((pr)=>{
         const date = new Date(pr.created_at)
         const monthKey = monthNames[date.getMonth()]
         if(monthlyData[monthKey]){
@@ -211,8 +200,8 @@ export async function getContributionStats(){
 
         // First flatten raw contributions so we can compute levels relative to the max count.
         const rawContributions: { date: string; count: number }[] =
-            calendar.weeks.flatMap((week: any) =>
-                week.contributionDays.map((day: any) => ({
+            calendar.weeks.flatMap((week) =>
+                week.contributionDays.map((day) => ({
                     date: day.date,
                     count: day.contributionCount,
                 }))

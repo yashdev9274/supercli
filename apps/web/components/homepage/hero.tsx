@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Copy, Check } from 'lucide-react';
+import { DOCS_URL } from '@/lib/constants';
 
 const badgeTexts = ['Computing...', 'Building...', 'Deploying...', 'Shipping...', 'Creating...'];
 
@@ -14,8 +15,6 @@ const installCommands: Record<InstallMethod, { command: string; highlight: strin
   npx: { command: 'npx supercode-cli', highlight: 'supercode-cli' },
   brew: { command: 'brew install supercode', highlight: 'supercode' },
 };
-
-const DOCS_URL = process.env.NEXT_PUBLIC_DOCS_URL || 'http://localhost:3001/docs/intro';
 
 const HeroSection = () => {
   const [copied, setCopied] = useState(false);
