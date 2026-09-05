@@ -1,6 +1,9 @@
 import fs from "fs/promises"
 import path from "path"
 import os from "os"
+import { randomUUID } from "node:crypto"
+import { constants } from "node:fs"
+import { lock } from "proper-lockfile"
 import { version } from "../../package.json"
 import type { ModelProvider } from "src/cli/ai/provider"
 
@@ -36,6 +39,7 @@ export interface McpServerConfig {
   env?: Record<string, string>
   cwd?: string
   url?: string
+  headers?: Record<string, string>
 }
 
 export interface McpCredentials {
@@ -129,9 +133,9 @@ export async function saveProviderApiKey(provider: ModelProvider, apiKey: string
   if (envVar) process.env[envVar] = apiKey
 }
 
-export async function getCliConfig(): Promise<CliConfig | null> {
+export async function getCliConfig(configFile = CONFIG_FILE): Promise<CliConfig | null> {
   try {
-    const data = await fs.readFile(CONFIG_FILE, "utf-8")
+    const data = await fs.readFile(configFile, "utf-8")
     const config = JSON.parse(data) as CliConfig
     if (config.version === version) return config
     return null
@@ -140,18 +144,110 @@ export async function getCliConfig(): Promise<CliConfig | null> {
   }
 }
 
-export async function saveCliConfig(updates: Partial<CliConfig>): Promise<CliConfig> {
+export type CliConfigUpdater = (config: CliConfig) => Partial<CliConfig> | null
+
+async function resolveConfigFile(configFile: string): Promise<string> {
+  const parent = path.dirname(configFile)
+  const root = path.parse(parent).root
+  let directory = root || await fs.realpath(".")
+  // Bun normalizes '..' before following symlinks, so resolve parents in order.
+  for (const part of parent.slice(root.length).split(path.sep)) {
+    if (!part || part === ".") continue
+    directory = part === ".." ? path.dirname(directory) : await fs.realpath(path.join(directory, part))
+  }
+  const file = path.join(directory, path.basename(configFile))
   try {
-    await fs.mkdir(CONFIG_DIR, { recursive: true })
-    let existing: Record<string, unknown> = {}
+    return await fs.realpath(file)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+  }
+
+  // Follow even a dangling dotfile symlink so atomic replacement never removes it.
+  let target: string
+  try {
+    target = await fs.readlink(file)
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === "ENOENT" || code === "EINVAL") return file
+    throw error
+  }
+  return resolveConfigFile(path.isAbsolute(target) ? target : `${directory}${path.sep}${target}`)
+}
+
+/**
+ * Apply an update to the latest persisted config while holding the shared writer
+ * lock. Return null to leave the file untouched. Unlike getCliConfig, updates
+ * preserve settings from older versions; read and write failures reject.
+ */
+export async function updateCliConfig(
+  update: CliConfigUpdater,
+  configFile = CONFIG_FILE,
+): Promise<void> {
+  await fs.mkdir(path.dirname(configFile), { recursive: true })
+  configFile = await resolveConfigFile(configFile)
+  let lockError: Error | undefined
+  const release = await lock(configFile, {
+    realpath: false,
+    retries: { retries: 20, minTimeout: 50, maxTimeout: 1000 },
+    onCompromised: (error) => { lockError = error },
+  })
+  const temporaryFile = `${configFile}.${randomUUID()}.tmp`
+  try {
+    let existing: Partial<CliConfig> = {}
     try {
-      const data = await fs.readFile(CONFIG_FILE, "utf-8")
+      const data = await fs.readFile(configFile, "utf-8")
       existing = JSON.parse(data)
-    } catch {}
-    const config = { ...DEFAULTS, ...existing, ...updates, version }
-    await fs.writeFile(CONFIG_FILE, JSON.stringify(config, null, 2), "utf-8")
-    return config as CliConfig
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+    }
+    if (!existing || typeof existing !== "object" || Array.isArray(existing)) {
+      throw new Error("CLI config must be a JSON object")
+    }
+    if (lockError) throw lockError
+    const current = { ...DEFAULTS, ...existing, version }
+    const updates = update(current)
+    if (updates === null) return
+
+    let mode: number | undefined
+    try {
+      mode = (await fs.stat(configFile)).mode & 0o777
+      await fs.access(configFile, constants.W_OK)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+    }
+
+    const config = { ...current, ...updates, version }
+    await fs.writeFile(temporaryFile, JSON.stringify(config, null, 2), {
+      encoding: "utf-8",
+      mode: 0o600,
+      flag: "wx",
+    })
+    if (mode !== undefined) await fs.chmod(temporaryFile, mode)
+    // Never publish a stale snapshot after a refresh reports that the lock was lost.
+    if (lockError) throw lockError
+    await fs.rename(temporaryFile, configFile)
+  } finally {
+    // Cleanup must not hide a write failure or report a completed rename as failed.
+    await fs.unlink(temporaryFile).catch(() => {})
+    await release().catch(() => {})
+  }
+}
+
+export async function saveCliConfig(
+  updates: Partial<CliConfig>,
+  configFile = CONFIG_FILE,
+): Promise<CliConfig> {
+  const fallback = { ...DEFAULTS, ...updates, version }
+  let saved = fallback
+  try {
+    await updateCliConfig((current) => {
+      saved = { ...current, ...updates, version }
+      return updates
+    }, configFile)
+    return saved
   } catch {
-    return { ...DEFAULTS, ...updates, version }
+    // Preserve best-effort saves for existing callers, including background saves.
+    // Call updateCliConfig when success must mean the update reached disk.
+    return fallback
   }
 }

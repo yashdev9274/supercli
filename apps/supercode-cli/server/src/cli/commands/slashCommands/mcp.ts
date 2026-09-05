@@ -1,6 +1,11 @@
 import * as readline from "node:readline"
 import { select, text, isCancel } from "@clack/prompts"
 import chalk from "chalk"
+
+import { getCliConfig, saveCliConfig, updateCliConfig, type CliConfigUpdater, type McpServerConfig as _McpServerConfig } from "src/lib/cli-config"
+import { composioSessionManager, type AppEntry } from "src/mcp/composio"
+import { theme, heavyDivider } from "src/cli/utils/tui"
+
 let _mgr: any = null
 async function mcpManager(): Promise<any> {
   if (!_mgr) {
@@ -10,17 +15,50 @@ async function mcpManager(): Promise<any> {
   return _mgr
 }
 
-interface _McpServerConfig {
-  command?: string
-  args?: string[]
-  env?: Record<string, string>
-  cwd?: string
-  url?: string
-  headers?: Record<string, string>
+export const PARALLEL_MCP_PRESET = {
+  name: "parallel",
+  config: { url: "https://search.parallel.ai/mcp" },
+} as const
+
+export type ParallelPresetDependencies = {
+  updateConfig: (update: CliConfigUpdater) => Promise<void>
+  reconnect: (name: string, config: _McpServerConfig) => Promise<void>
 }
-import { getCliConfig, saveCliConfig } from "src/lib/cli-config"
-import { composioSessionManager, type AppEntry } from "src/mcp/composio"
-import { theme, heavyDivider } from "src/cli/utils/tui"
+
+export async function configureParallelMcp(
+  dependencies?: Partial<ParallelPresetDependencies>,
+): Promise<"configured" | "already-configured" | "connection-deferred"> {
+  let shouldConnect = false
+  await (dependencies?.updateConfig ?? updateCliConfig)((config) => {
+    if (Object.prototype.hasOwnProperty.call(config.mcpCredentials ?? {}, PARALLEL_MCP_PRESET.name)) return null
+    const servers = config.mcpServers ?? {}
+    if (Object.prototype.hasOwnProperty.call(servers, PARALLEL_MCP_PRESET.name)) {
+      const existing = servers[PARALLEL_MCP_PRESET.name]
+      // Retry our unmodified preset without rewriting it or touching custom servers.
+      shouldConnect = Boolean(existing
+        && existing.url === PARALLEL_MCP_PRESET.config.url
+        && Object.keys(existing).length === 1)
+      return null
+    }
+    shouldConnect = true
+    return {
+      mcpServers: { ...servers, [PARALLEL_MCP_PRESET.name]: PARALLEL_MCP_PRESET.config },
+    }
+  })
+
+  if (!shouldConnect) return "already-configured"
+
+  const reconnect = dependencies?.reconnect ?? (async (name, server) => {
+    const mgr = await mcpManager()
+    if (!mgr.connectedServers.includes(name)) await mgr.reconnectServer(name, server)
+  })
+  try {
+    await reconnect(PARALLEL_MCP_PRESET.name, PARALLEL_MCP_PRESET.config)
+    return "configured"
+  } catch {
+    return "connection-deferred"
+  }
+}
 
 interface ListEntry {
   id: string
@@ -305,12 +343,9 @@ async function connectFlow(): Promise<void> {
         if (!composioSessionManager.isConnected) {
           const mgr = await mcpManager()
           const info = await composioSessionManager.createSession("supercode-cli")
-          const config = await getCliConfig()
-          const existing = (config as Record<string, any>) ?? {}
           await saveCliConfig({
-            ...existing as any,
             composioSessionId: info.sessionId,
-          } as any)
+          })
           await mgr.reconnectServer("composio", { url: info.url, headers: info.headers })
         }
       } catch {}
@@ -339,12 +374,9 @@ async function connectFlow(): Promise<void> {
     // Try server-side session first (no local API key needed)
     try {
       const info = await composioSessionManager.createSessionFromServer()
-      const config = await getCliConfig()
-      const existing = (config as Record<string, any>) ?? {}
       await saveCliConfig({
-        ...existing as any,
         composioSessionId: info.sessionId,
-      } as any)
+      })
       await mgr.reconnectServer("composio", { url: info.url, headers: info.headers })
       const tools = await mgr.getTools("composio")
       console.log(`\n ${chalk.hex(theme.green)("◆")} composio connected — ${Object.keys(tools).length} tools`)
@@ -412,13 +444,9 @@ async function connectFlow(): Promise<void> {
     if ((cwd as string).trim()) server.cwd = cwd.trim()
   }
 
-  const config = await getCliConfig()
-  const existing = ((config as Record<string, any>) ?? {})
-  const servers = { ...((existing.mcpServers ?? {}) as Record<string, _McpServerConfig>), [name]: server }
-  await saveCliConfig({
-    ...existing as any,
-    mcpServers: servers,
-  } as any)
+  await updateCliConfig((config) => ({
+    mcpServers: { ...config.mcpServers, [name]: server },
+  }))
 
   const mgr = await mcpManager()
   try {
@@ -499,22 +527,20 @@ async function showDetail(entry: ListEntry): Promise<void> {
   }
 
   if (key === "r") {
-    const config = await getCliConfig()
-    const existing = ((config as Record<string, any>) ?? {})
-
     if (entry.name === "composio") {
       const mgr = await mcpManager()
       await mgr.stopServer("composio")
       composioSessionManager.resetSession()
       await saveCliConfig({
-        ...existing as any,
         composioApiKey: undefined,
         composioSessionId: undefined,
-      } as any)
+      })
     } else {
-      const servers = { ...((existing.mcpServers ?? {}) as Record<string, _McpServerConfig>) }
-      delete servers[entry.name]
-      await saveCliConfig({ ...existing as any, mcpServers: servers } as any)
+      await updateCliConfig((config) => {
+        const servers = { ...config.mcpServers }
+        delete servers[entry.name]
+        return { mcpServers: servers }
+      })
       const mgr = await mcpManager()
       await mgr.stopServer(entry.name)
     }
@@ -680,12 +706,9 @@ async function oauthConnectAppFlow(slug: string): Promise<void> {
       // Re-create the session so it picks up the new connected account
       await composioSessionManager.resetSession()
       const info = await composioSessionManager.createSession("supercode-cli")
-      const config = await getCliConfig()
-      const existing = (config as Record<string, any>) ?? {}
       await saveCliConfig({
-        ...existing as any,
         composioSessionId: info.sessionId,
-      } as any)
+      })
       await mgr.reconnectServer("composio", { url: info.url, headers: info.headers })
       const tools = await mgr.getTools("composio")
       console.log(` ${chalk.hex(theme.green)("◆")} composio refreshed — ${Object.keys(tools).length} tools`)
@@ -720,6 +743,23 @@ export async function mcpCommand(args: string): Promise<{ type: "help" }> {
 
   if (trimmed === "add") {
     await connectFlow()
+    return { type: "help" }
+  }
+
+  if (trimmed === "parallel") {
+    try {
+      const result = await configureParallelMcp()
+      if (result === "already-configured") {
+        process.stdout.write(`\r\n ${chalk.hex(theme.amber)("◆")} parallel already has custom settings; existing settings were left unchanged. Use /mcp to manage connections\r\n`)
+      } else if (result === "connection-deferred") {
+        process.stdout.write(`\r\n ${chalk.hex(theme.amber)("◆")} parallel configuration saved; connection deferred. Run /mcp parallel to retry\r\n`)
+      } else {
+        process.stdout.write(`\r\n ${chalk.hex(theme.green)("◆")} parallel configured and connected\r\n`)
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      process.stdout.write(`\r\n ${chalk.hex(theme.red)("◆")} parallel configuration could not be saved; connection was not attempted (${message})\r\n`)
+    }
     return { type: "help" }
   }
 
@@ -809,13 +849,11 @@ async function removeMcp(): Promise<void> {
   if (isCancel(name)) return
   const srvName = name as string
 
-  const existing = { ...servers }
-  delete existing[srvName]
-
-  await saveCliConfig({
-    ...raw as any,
-    mcpServers: existing,
-  } as any)
+  await updateCliConfig((config) => {
+    const existing = { ...config.mcpServers }
+    delete existing[srvName]
+    return { mcpServers: existing }
+  })
 
   const mgr = await mcpManager()
   await mgr.stopServer(srvName)
@@ -890,6 +928,7 @@ function showMcpHelp(): void {
   process.stdout.write(`${divider}\r\n`)
   process.stdout.write(` ${green("/mcp")}${muted("                          ")}interactive connection manager\r\n`)
   process.stdout.write(` ${green("/mcp add")}${muted("                       ")}add & connect a new server\r\n`)
+  process.stdout.write(` ${green("/mcp parallel")}${muted("                  ")}add & connect Parallel Search\r\n`)
   process.stdout.write(` ${green("/mcp list")}${muted("                      ")}list configured servers\r\n`)
   process.stdout.write(` ${green("/mcp connect")}${muted("                   ")}connect a configured server\r\n`)
   process.stdout.write(` ${green("/mcp disconnect")}${muted("                ")}disconnect a server\r\n`)

@@ -1,6 +1,6 @@
 import { Command } from "commander"
 import { getMcpManager, type McpServerConfig } from "src/mcp/mcp-manager"
-import { getCliConfig, saveCliConfig } from "src/lib/cli-config"
+import { getCliConfig, updateCliConfig } from "src/lib/cli-config"
 import { theme, errorBox } from "src/cli/utils/tui"
 import chalk from "chalk"
 import { createThinking } from "src/cli/utils/tui"
@@ -17,28 +17,36 @@ export const mcpServer = new Command("mcp-server")
   .action(async (action?: string, name?: string, options?: Record<string, string>) => {
     const opts = options ?? {}
 
-    if (!action || action === "list") {
-      await listServers()
-      return
-    }
+    try {
+      if (!action || action === "list") {
+        await listServers()
+        return
+      }
 
-    switch (action) {
-      case "add":
-        await addServer(name, opts)
-        break
-      case "remove":
-        await removeServer(name)
-        break
-      case "start":
-        await startServer(name)
-        break
-      case "stop":
-        await stopServer(name)
-        break
-      default:
-        console.log()
-        console.log(errorBox(`Unknown action "${action}". Use add | remove | list | start | stop`))
-        console.log()
+      switch (action) {
+        case "add":
+          await addServer(name, opts)
+          break
+        case "remove":
+          await removeServer(name)
+          break
+        case "start":
+          await startServer(name)
+          break
+        case "stop":
+          await stopServer(name)
+          break
+        default:
+          console.log()
+          console.log(errorBox(`Unknown action "${action}". Use add | remove | list | start | stop`))
+          console.log()
+      }
+    } catch (error) {
+      process.exitCode = 1
+      const message = error instanceof Error ? error.message : String(error)
+      console.log()
+      console.log(errorBox(`MCP command failed: ${message}`))
+      console.log()
     }
   })
 
@@ -93,16 +101,6 @@ async function addServer(
     return
   }
 
-  const config = await getCliConfig()
-  const existing = (config as Record<string, any>)?.mcpServers ?? {}
-
-  if (existing[name]) {
-    console.log()
-    console.log(errorBox(`Server "${name}" already exists. Remove it first with: supercode mcp-server remove ${name}`))
-    console.log()
-    return
-  }
-
   const env: Record<string, string> = {}
   if (opts.env) {
     for (const pair of opts.env.split(",")) {
@@ -126,10 +124,20 @@ async function addServer(
         cwd: opts.cwd || undefined,
       }
 
-  await saveCliConfig({
-    ...config as any,
-    mcpServers: { ...existing, [name]: server },
-  } as any)
+  let added = false
+  await updateCliConfig((config) => {
+    const existing = config.mcpServers ?? {}
+    if (existing[name]) return null
+    added = true
+    return { mcpServers: { ...existing, [name]: server } }
+  })
+
+  if (!added) {
+    console.log()
+    console.log(errorBox(`Server "${name}" already exists. Remove it first with: supercode mcp-server remove ${name}`))
+    console.log()
+    return
+  }
 
   const thinking = createThinking("connecting")
   try {
@@ -159,21 +167,21 @@ async function removeServer(name: string | undefined): Promise<void> {
     return
   }
 
-  const config = await getCliConfig()
-  const existing = { ...((config as Record<string, any>)?.mcpServers ?? {}) }
+  let removed = false
+  await updateCliConfig((config) => {
+    const existing = { ...config.mcpServers }
+    if (!existing[name]) return null
+    delete existing[name]
+    removed = true
+    return { mcpServers: existing }
+  })
 
-  if (!existing[name]) {
+  if (!removed) {
     console.log()
     console.log(errorBox(`Server "${name}" not found in config`))
     console.log()
     return
   }
-
-  delete existing[name]
-  await saveCliConfig({
-    ...config as any,
-    mcpServers: existing,
-  } as any)
 
   const mgr = getMcpManager()
   await mgr.stopServer(name)
