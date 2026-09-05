@@ -12,6 +12,15 @@
       "outputs": [
         "dist/**",
         ".next/**"
+      ],
+      "env": [
+        "DATABASE_URL",
+        "HOST",
+        "INTEGRATION_CLIENT_ID",
+        "INTEGRATION_CLIENT_SECRET",
+        "MARKETPLACE_PRODUCT_SLUG",
+        "PORT",
+        "SUPERCODE_APP_URL"
       ]
     },
     "lint": {
@@ -29,5 +38,14 @@
         "^typecheck"
       ]
     }
-  }
+  },
+  "globalEnv": [
+    "DATABASE_URL",
+    "HOST",
+    "INTEGRATION_CLIENT_ID",
+    "INTEGRATION_CLIENT_SECRET",
+    "MARKETPLACE_PRODUCT_SLUG",
+    "PORT",
+    "SUPERCODE_APP_URL"
+  ]
 }

@@ -2,12 +2,138 @@ import prisma from "@super/db"
 import { getPullRequestDiff, postReviewComment } from "@/modules/github/lib/github"
 import { retrieveContext } from "@/modules/pinecone/rag"
 import { generateText } from "ai"
-import { gateway } from "@/lib/gateway"
+import {
+  chatModel,
+  gatewayProviderChain,
+  type GatewayProviderName,
+} from "@/lib/gateway"
 
 /** Soft caps so huge PRs stay within gateway/model limits. */
 const MAX_DIFF_CHARS = 120_000
 const MAX_CONTEXT_CHARS = 24_000
 const MAX_DESCRIPTION_CHARS = 8_000
+
+/**
+ * Primary path is Vercel AI Gateway; Merge remains as a fallback provider.
+ * Env model lists are tried in order. Merge free tier still blocks many
+ * frontier models (`free_tier_model_not_allowed`) — prefer Vercel there.
+ *
+ * REVIEW_MODEL / AI_GATEWAY_MODEL / MERGE_GATEWAY_MODEL accept comma lists.
+ */
+const DEFAULT_REVIEW_MODELS = [
+  "anthropic/claude-sonnet-4.5",
+  "openai/gpt-4.1-mini",
+  "google/gemini-2.5-flash",
+  // Merge free-tier safe last resort if only Merge is configured
+  "google/gemini-2.5-flash-lite",
+  "default_routing",
+] as const
+
+function parseModelList(raw: string | undefined): string[] {
+  if (!raw?.trim()) return []
+  return raw
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean)
+}
+
+function resolveReviewModels(): string[] {
+  const fromEnv = [
+    ...parseModelList(process.env.REVIEW_MODEL),
+    ...parseModelList(process.env.AI_GATEWAY_MODEL),
+    ...parseModelList(process.env.MERGE_GATEWAY_MODEL),
+  ]
+  const seen = new Set<string>()
+  const ordered: string[] = []
+  for (const model of [...fromEnv, ...DEFAULT_REVIEW_MODELS]) {
+    if (seen.has(model)) continue
+    seen.add(model)
+    ordered.push(model)
+  }
+  return ordered
+}
+
+function isRetryableGatewayModelError(error: unknown): boolean {
+  const message =
+    error instanceof Error ? error.message : typeof error === "string" ? error : ""
+  const lower = message.toLowerCase()
+  return (
+    lower.includes("free_tier_model_not_allowed") ||
+    lower.includes("free_tier_daily_limit") ||
+    lower.includes("blocked_by_policy") ||
+    lower.includes("model_not_allowed") ||
+    lower.includes("payment method") ||
+    lower.includes("rate_limit") ||
+    lower.includes("too many requests") ||
+    // Some SDKs wrap HTTP status only
+    /\b403\b/.test(message) ||
+    /\b429\b/.test(message)
+  )
+}
+
+async function generateReviewText(prompt: string): Promise<string> {
+  const providers = gatewayProviderChain()
+  const models = resolveReviewModels()
+  const errors: string[] = []
+  let attempt = 0
+
+  for (const provider of providers) {
+    for (const modelId of models) {
+      attempt += 1
+      const label = `${provider}:${modelId}`
+      try {
+        const result = await generateText({
+          model: chatModel(modelId, provider as GatewayProviderName),
+          prompt,
+          maxOutputTokens: 8192,
+        })
+        if (attempt > 1) {
+          console.warn(
+            `[generate-pr-review] used fallback ${label} after earlier failures`,
+          )
+        } else {
+          console.log(`[generate-pr-review] model ${label}`)
+        }
+        return result.text
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Unknown gateway error"
+        errors.push(`${label}: ${message}`)
+
+        const isLast =
+          provider === providers[providers.length - 1] &&
+          modelId === models[models.length - 1]
+
+        if (!isLast && isRetryableGatewayModelError(error)) {
+          console.warn(
+            `[generate-pr-review] ${label} rejected; trying next:`,
+            message,
+          )
+          continue
+        }
+
+        if (!isLast) {
+          // Non-policy errors: still try next provider/model once (network blips).
+          console.warn(
+            `[generate-pr-review] ${label} failed; trying next:`,
+            message,
+          )
+          continue
+        }
+
+        console.error("[generate-pr-review] generateText failed:", error)
+        throw new Error(
+          `AI gateway error: ${message}` +
+            (errors.length > 1 ? ` (tried: ${errors.join(" | ")})` : ""),
+        )
+      }
+    }
+  }
+
+  throw new Error(
+    `AI gateway error: all review models failed (${errors.join(" | ")})`,
+  )
+}
 
 function truncate(text: string, max: number, label: string) {
   if (text.length <= max) return text
@@ -349,23 +475,7 @@ export async function runGeneratePrReview(
     diff: prData.diff,
   })
 
-  let text: string
-  try {
-    const result = await generateText({
-      // Use chat completions path via Merge AI SDK shim (see lib/gateway.ts).
-      // Default gateway(modelId) hits /responses with OpenAI Responses shape;
-      // chat() is more portable across gateways.
-      model: gateway.chat("anthropic/claude-sonnet-4-6"),
-      prompt,
-      maxOutputTokens: 8192,
-    })
-    text = result.text
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unknown gateway error"
-    console.error("[generate-pr-review] generateText failed:", error)
-    throw new Error(`AI gateway error: ${message}`)
-  }
+  const text = await generateReviewText(prompt)
 
   if (!text?.trim()) {
     throw new Error("Model returned empty review")
