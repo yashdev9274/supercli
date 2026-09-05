@@ -21,10 +21,11 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users         User[]
-  integrations  Integration[]
-  repositories  Repository[]
-  conversations Conversation[]
+  users               User[]
+  integrations        Integration[]
+  repositories        Repository[]
+  conversations       Conversation[]
+  vercelInstallations VercelInstallation[]
 
   @@map("organization")
 }
@@ -202,4 +203,49 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+/// Vercel Marketplace native integration installation (Partner API).
+model VercelInstallation {
+  id              String  @id // Vercel installation id, e.g. icfg_...
+  vercelAccountId String
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  accessToken     String? @db.Text
+  tokenType       String?
+  billingPlanId   String  @default("free")
+  notification    Json?
+  rawPayload      Json?
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  resources VercelResource[]
+
+  @@index([organizationId])
+  @@index([vercelAccountId])
+  @@map("vercel_installation")
+}
+
+/// Provisioned Supercode Review resource under a Vercel installation.
+model VercelResource {
+  id             String @id @default(cuid())
+  installationId String
+  installation   VercelInstallation @relation(fields: [installationId], references: [id], onDelete: Cascade)
+
+  productId     String  @default("supercode-review")
+  name          String
+  status        String  @default("ready") // ready | pending | suspended | reseeding | error | uninstalled
+  billingPlanId String  @default("free")
+  metadata      Json?
+  notification  Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([installationId])
+  @@index([productId])
+  @@map("vercel_resource")
 }
