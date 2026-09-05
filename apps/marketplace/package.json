@@ -1,0 +1,30 @@
+{
+  "name": "marketplace",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3010",
+    "build": "bun run db:generate && next build --webpack",
+    "postinstall": "bun run db:generate || true",
+    "start": "next start --port 3010",
+    "lint": "echo 'marketplace lint pending'",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "bun run --cwd ../../packages/db db:generate"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "@super/db": "workspace:*",
+    "jose": "^5.9.6",
+    "next": "16.1.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "zod": "^4.3.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^5"
+  }
+}
