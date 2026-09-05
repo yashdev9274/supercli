@@ -9,18 +9,9 @@ import { updateResourceRequestSchema } from "@/lib/vercel/schemas"
 
 export const dynamic = "force-dynamic"
 
-async function resolveParams(
-  params: Promise<Record<string, string>> | Record<string, string>,
-) {
-  return params instanceof Promise ? await params : params
-}
-
 export const GET = withAuth(async (claims, _request, context) => {
-  const params = await resolveParams(context.params)
-  const resource = await getResource(
-    claims.installation_id,
-    params.resourceId!,
-  )
+  const { resourceId } = await context.params
+  const resource = await getResource(claims.installation_id, resourceId)
 
   if (!resource) {
     return Response.json(
@@ -33,7 +24,7 @@ export const GET = withAuth(async (claims, _request, context) => {
 })
 
 export const PATCH = withAuth(async (claims, request, context) => {
-  const params = await resolveParams(context.params)
+  const { resourceId } = await context.params
   const requestBody = await readRequestBodyWithSchema(
     request,
     updateResourceRequestSchema,
@@ -46,7 +37,7 @@ export const PATCH = withAuth(async (claims, request, context) => {
   try {
     const updated = await updateResource(
       claims.installation_id,
-      params.resourceId!,
+      resourceId,
       requestBody.data,
     )
     return Response.json(updated, { status: 200 })
@@ -59,7 +50,7 @@ export const PATCH = withAuth(async (claims, request, context) => {
 })
 
 export const DELETE = withAuth(async (claims, _request, context) => {
-  const params = await resolveParams(context.params)
-  await deleteResource(claims.installation_id, params.resourceId!)
+  const { resourceId } = await context.params
+  await deleteResource(claims.installation_id, resourceId)
   return new Response(null, { status: 204 })
 })

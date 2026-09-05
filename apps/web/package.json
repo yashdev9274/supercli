@@ -12,6 +12,7 @@
     "db:generate": "prisma generate --schema ../../packages/db/prisma/schema.prisma"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.49",
     "@ai-sdk/openai": "^4.0.46",
     "@composio/core": "^0.13.1",
     "@hookform/resolvers": "^5.2.2",

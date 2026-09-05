@@ -24,15 +24,18 @@ export type OidcClaims = {
   type?: string
 }
 
-type RouteContext = { params: Promise<Record<string, string>> | Record<string, string> }
+/** Next.js 16 App Router route context — params is always a Promise. */
+export type AppRouteHandlerContext = {
+  params: Promise<Record<string, string>>
+}
 
 export function withAuth(
   callback: (
     claims: OidcClaims,
     req: NextRequest,
-    context: RouteContext,
+    context: AppRouteHandlerContext,
   ) => Promise<Response>,
-): (req: NextRequest, context: RouteContext) => Promise<Response> {
+): (req: NextRequest, context: AppRouteHandlerContext) => Promise<Response> {
   return async (req, context) => {
     try {
       const token = getAuthorizationToken(req)

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 import { pineconeIndex } from "@/lib/pinecone/pinecone"
-import { gateway } from "@/lib/gateway"
+import { embeddingModel } from "@/lib/gateway"
 import { embed } from "ai"
 
 // Pinecone metadata values must stay under ~40KB; keep content snippets small.
@@ -21,7 +21,7 @@ function vectorId(repoId: string, path: string): string {
 
 export async function generateEmbedding(text: string): Promise<number[]> {
   const { embedding } = await embed({
-    model: gateway.embeddingModel("openai/text-embedding-3-small"),
+    model: embeddingModel("openai/text-embedding-3-small"),
     value: text,
   })
   return embedding as number[]
