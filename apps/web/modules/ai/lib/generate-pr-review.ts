@@ -5,6 +5,7 @@ import { generateText } from "ai"
 import {
   chatModel,
   gatewayProviderChain,
+  providerSupportsModel,
   type GatewayProviderName,
 } from "@/lib/gateway"
 
@@ -14,17 +15,28 @@ const MAX_CONTEXT_CHARS = 24_000
 const MAX_DESCRIPTION_CHARS = 8_000
 
 /**
- * Primary path is Vercel AI Gateway; Merge remains as a fallback provider.
- * Env model lists are tried in order. Merge free tier still blocks many
- * frontier models (`free_tier_model_not_allowed`) — prefer Vercel there.
+ * Routing order (see lib/gateway.ts):
+ * Vercel AI Gateway → Merge → direct OPENAI/ANTHROPIC/GOOGLE keys.
+ *
+ * Prefer free-tier-friendly Vercel models first, then quality models that
+ * work on direct keys when gateways are rate-limited.
  *
  * REVIEW_MODEL / AI_GATEWAY_MODEL / MERGE_GATEWAY_MODEL accept comma lists.
  */
 const DEFAULT_REVIEW_MODELS = [
-  "anthropic/claude-sonnet-4.5",
-  "openai/gpt-4.1-mini",
+  // Vercel free-tier models that currently accept traffic (verified live).
+  // Flagship Claude/GPT/Gemini often 403/429 on free credits.
+  "openai/gpt-5.4-nano",
+  "openai/gpt-oss-120b",
+  "google/gemma-4-31b-it",
+  "openai/gpt-5.4-mini",
   "google/gemini-2.5-flash",
-  // Merge free-tier safe last resort if only Merge is configured
+  "openai/gpt-4.1-mini",
+  "openai/gpt-4o-mini",
+  // Direct-key quality targets (OPENAI/ANTHROPIC) when gateways are capped
+  "anthropic/claude-sonnet-4.5",
+  "openai/gpt-4.1",
+  // Merge-only last resorts
   "google/gemini-2.5-flash-lite",
   "default_routing",
 ] as const
@@ -53,39 +65,67 @@ function resolveReviewModels(): string[] {
   return ordered
 }
 
-function isRetryableGatewayModelError(error: unknown): boolean {
-  const message =
-    error instanceof Error ? error.message : typeof error === "string" ? error : ""
-  const lower = message.toLowerCase()
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === "string") return error
+  return "Unknown gateway error"
+}
+
+function isQuotaOrPolicyError(error: unknown): boolean {
+  const lower = errorMessage(error).toLowerCase()
   return (
     lower.includes("free_tier_model_not_allowed") ||
     lower.includes("free_tier_daily_limit") ||
+    lower.includes("free tier") ||
     lower.includes("blocked_by_policy") ||
     lower.includes("model_not_allowed") ||
+    lower.includes("restrictedmodelserror") ||
+    lower.includes("do not have access to this model") ||
     lower.includes("payment method") ||
+    lower.includes("upgrade to paid") ||
     lower.includes("rate_limit") ||
+    lower.includes("rate limit") ||
     lower.includes("too many requests") ||
-    // Some SDKs wrap HTTP status only
-    /\b403\b/.test(message) ||
-    /\b429\b/.test(message)
+    lower.includes("gatewayratelimiterror") ||
+    lower.includes("quota") ||
+    /\b403\b/.test(lower) ||
+    /\b429\b/.test(lower)
+  )
+}
+
+function isNotFoundModelError(error: unknown): boolean {
+  const lower = errorMessage(error).toLowerCase()
+  return (
+    lower.includes("not found") ||
+    lower.includes("does not exist") ||
+    lower.includes("invalid model") ||
+    lower.includes("model_not_found")
   )
 }
 
 async function generateReviewText(prompt: string): Promise<string> {
-  const providers = gatewayProviderChain()
   const models = resolveReviewModels()
   const errors: string[] = []
   let attempt = 0
 
-  for (const provider of providers) {
-    for (const modelId of models) {
+  // Skip remaining models on a provider once its free-tier daily/global cap is hit.
+  const providerExhausted = new Set<GatewayProviderName>()
+
+  for (const modelId of models) {
+    const providers = gatewayProviderChain(modelId).filter(
+      (p) => !providerExhausted.has(p) && providerSupportsModel(p, modelId),
+    )
+
+    for (const provider of providers) {
       attempt += 1
       const label = `${provider}:${modelId}`
       try {
         const result = await generateText({
-          model: chatModel(modelId, provider as GatewayProviderName),
+          model: chatModel(modelId, provider),
           prompt,
           maxOutputTokens: 8192,
+          // Don't burn free-tier quotas with SDK internal retries on 429/403.
+          maxRetries: 0,
         })
         if (attempt > 1) {
           console.warn(
@@ -96,40 +136,46 @@ async function generateReviewText(prompt: string): Promise<string> {
         }
         return result.text
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown gateway error"
+        const message = errorMessage(error)
         errors.push(`${label}: ${message}`)
 
-        const isLast =
-          provider === providers[providers.length - 1] &&
-          modelId === models[models.length - 1]
+        if (isQuotaOrPolicyError(error)) {
+          // Merge daily 15-req cap / Vercel free-tier rate limit: leave this provider.
+          if (
+            message.toLowerCase().includes("free_tier_daily_limit") ||
+            message.toLowerCase().includes("15 requests per day") ||
+            message.toLowerCase().includes("requests per day")
+          ) {
+            providerExhausted.add(provider)
+            console.warn(
+              `[generate-pr-review] ${provider} daily/free cap hit; skipping provider`,
+            )
+          } else {
+            console.warn(
+              `[generate-pr-review] ${label} policy/rate-limited; trying next:`,
+              message,
+            )
+          }
+          continue
+        }
 
-        if (!isLast && isRetryableGatewayModelError(error)) {
+        if (isNotFoundModelError(error)) {
           console.warn(
-            `[generate-pr-review] ${label} rejected; trying next:`,
+            `[generate-pr-review] ${label} model missing; trying next:`,
             message,
           )
           continue
         }
 
-        if (!isLast) {
-          // Non-policy errors: still try next provider/model once (network blips).
-          console.warn(
-            `[generate-pr-review] ${label} failed; trying next:`,
-            message,
-          )
-          continue
-        }
-
-        console.error("[generate-pr-review] generateText failed:", error)
-        throw new Error(
-          `AI gateway error: ${message}` +
-            (errors.length > 1 ? ` (tried: ${errors.join(" | ")})` : ""),
+        console.warn(
+          `[generate-pr-review] ${label} failed; trying next:`,
+          message,
         )
       }
     }
   }
 
+  console.error("[generate-pr-review] all models/providers failed:", errors)
   throw new Error(
     `AI gateway error: all review models failed (${errors.join(" | ")})`,
   )
