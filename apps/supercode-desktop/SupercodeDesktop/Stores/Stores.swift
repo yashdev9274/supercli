@@ -514,11 +514,26 @@ NotificationCenter.default.addObserver(
         filteredConversations.filter { $0.folder == "Personal" }
     }
 
-    func reset() {
+func reset() {
         conversations = []
         activeConversationId = nil
         messages = []
         saveLocalCache()
+    }
+
+    /// Clear the active chat transcript (CLI `/clear` equivalent).
+    /// Keeps the conversation list; wipes in-memory messages and agent run state.
+    func clearActiveSession() {
+        messages = []
+        errorMessage = nil
+        AgentRunStore.shared.reset()
+    }
+
+    /// Start fresh: clear transcript + create a new conversation.
+    func clearSessionAndStartNew() async {
+        clearActiveSession()
+        activeConversationId = nil
+        await createConversation(mode: mode.rawValue)
     }
 
     func refreshList() async {
