@@ -1,0 +1,67 @@
+name: SupercodeDesktop
+options:
+  bundleIdPrefix: ai.supercode
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    PRODUCT_NAME: Supercode
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_HARDENED_RUNTIME: true
+    COMBINE_HIDPI_IMAGES: true
+targets:
+  SupercodeDesktop:
+    type: application
+    platform: macOS
+    sources:
+      - path: SupercodeDesktop
+        excludes:
+          - "**/.DS_Store"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.supercode.desktop
+        INFOPLIST_FILE: SupercodeDesktop/Info.plist
+        CODE_SIGN_ENTITLEMENTS: SupercodeDesktop/SupercodeDesktop.entitlements
+        GENERATE_INFOPLIST_FILE: false
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/../Frameworks"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited)"
+        OTHER_LDFLAGS: []
+    info:
+      path: SupercodeDesktop/Info.plist
+      properties:
+        CFBundleName: Supercode
+        CFBundleDisplayName: Supercode
+        CFBundleIdentifier: ai.supercode.desktop
+        CFBundleVersion: "1"
+        CFBundleShortVersionString: "0.1.0"
+        CFBundlePackageType: APPL
+        CFBundleExecutable: Supercode
+        LSMinimumSystemVersion: "14.0"
+        LSApplicationCategoryType: public.app-category.developer-tools
+        NSHumanReadableCopyright: "Copyright © Supercode. All rights reserved."
+        NSPrincipalClass: NSApplication
+        CFBundleURLTypes:
+          - CFBundleURLName: ai.supercode.desktop
+            CFBundleTypeRole: Editor
+            CFBundleURLSchemes:
+              - supercode
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+schemes:
+  SupercodeDesktop:
+    build:
+      targets:
+        SupercodeDesktop: all
+    run:
+      config: Debug
+    archive:
+      config: Release
