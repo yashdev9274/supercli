@@ -326,6 +326,32 @@ app.post("/api/user/paid-tier-interest", async (req, res) => {
   }
 })
 
+app.get("/api/conversations", async (req, res) => {
+  try {
+    const user = await getUserFromBearer(req)
+    if (!user) {
+      res.status(401).json({ error: "Unauthorized" })
+      return
+    }
+    const conversations = await prisma.conversation.findMany({
+      where: { userId: user.id },
+      orderBy: { updatedAt: "desc" },
+      take: 100,
+      select: {
+        id: true,
+        title: true,
+        mode: true,
+        updatedAt: true,
+        createdAt: true,
+      },
+    })
+    res.json(conversations)
+  } catch (error) {
+    console.error("[conversations/list] Error:", error)
+    res.status(500).json({ error: "Failed to list conversations" })
+  }
+})
+
 app.post("/api/conversations", async (req, res) => {
   try {
     const user = await getUserFromBearer(req)
