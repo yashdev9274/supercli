@@ -19,6 +19,65 @@ enum LocalToolRuntime {
         "DerivedData", ".cache", "xcuserdata",
     ]
 
+/// Map common aliases / provider-mangled names onto catalog tools.
+    /// Server used to teach models tools named "0"/"1" when desktop sent an
+    /// OpenAI tool array — keep a soft fallback for any leftover history.
+    private static func canonicalizeName(_ raw: String) -> String {
+        let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch name {
+        case "read", "Read", "read_file_tool", "filesystem_read":
+            return "read_file"
+        case "search", "grep", "Glob", "glob", "list_dir", "explore":
+            return "search_files"
+        case "write", "Write", "create_file":
+            return "write_file"
+        case "edit", "Edit", "str_replace", "apply_patch":
+            return "edit_file"
+        case "bash", "shell", "Shell", "run", "terminal":
+            return "run_command"
+        case "fetch", "http_get", "browse":
+            return "url_fetch"
+        case "search_web", "websearch":
+            return "web_search"
+        case "todo", "todo_write", "update_todo":
+            return "todowrite"
+        default:
+            return name
+        }
+    }
+
+    /// Coerce alternate arg keys models sometimes emit (file_path vs path).
+    private static func normalizeArgs(_ name: String, _ args: [String: Any]) -> [String: Any] {
+        var out = args
+        func adopt(_ canonical: String, aliases: [String]) {
+            if out[canonical] != nil { return }
+            for a in aliases {
+                if let v = out[a] {
+                    out[canonical] = v
+                    return
+                }
+            }
+        }
+        switch name {
+        case "read_file", "write_file", "edit_file":
+            adopt("path", aliases: ["file_path", "filePath", "filepath", "file", "target"])
+            adopt("content", aliases: ["text", "body", "data"])
+            adopt("oldText", aliases: ["old_string", "old_str", "search"])
+            adopt("newText", aliases: ["new_string", "new_str", "replace"])
+        case "search_files":
+            adopt("pattern", aliases: ["query", "q", "regex", "search"])
+        case "run_command":
+            adopt("command", aliases: ["cmd", "shell", "code"])
+        case "url_fetch":
+            adopt("url", aliases: ["uri", "href", "link"])
+        case "web_search":
+            adopt("query", aliases: ["q", "search", "prompt"])
+        default:
+            break
+        }
+        return out
+    }
+
     @MainActor
     static func execute(
         name: String,
@@ -26,6 +85,9 @@ enum LocalToolRuntime {
         workspaceRoot: String?,
         mode: AgentMode
     ) async -> ToolExecutionResult {
+        let name = canonicalizeName(name)
+        let args = normalizeArgs(name, args)
+
         // Mode hard-blocks
         if (mode == .plan || mode == .chat) && ToolCatalog.requiresPermission(name) {
             return failJSON(cancelled: true, reason: "Tool '\(name)' is not allowed in \(mode.rawValue) mode")

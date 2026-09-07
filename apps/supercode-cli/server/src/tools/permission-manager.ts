@@ -3,7 +3,7 @@ import * as readline from "readline"
 import boxen from "boxen"
 import { theme } from "src/cli/utils/tui.ts"
 import type { RulesetArray } from "src/permission"
-import { agentService } from "src/agent"
+import { agentService } from "src/agents/service.ts"
 
 // ---- Types ----
 //
@@ -469,7 +469,7 @@ export class PermissionManager {
       const childRules = agentService.get(resolvedAgent)?.info.permission
       const parentRules = agentService.get(resolvedParent)?.info.permission
       if (childRules || parentRules) {
-        const { mergeParentChildPermissions } = await import("src/agent/subagent-permissions")
+        const { mergeParentChildPermissions } = await import("src/agents/lib/subagent-permissions.ts")
         agentRuleset = mergeParentChildPermissions(childRules, parentRules)
       }
     } else if (resolvedAgent) {

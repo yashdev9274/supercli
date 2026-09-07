@@ -58,3 +58,14 @@ export function loadEnvOnce() {
     if (loadEnvFile(path)) break
   }
 }
+
+/** Resolve the cloud/API base URL after env is loaded (never freeze at import time). */
+export function getSupercodeServerUrl(): string {
+  loadEnvOnce()
+  const raw = (process.env.SUPERCODE_SERVER_URL || "").trim()
+  if (raw) return raw.replace(/\/+$/, "")
+  return "https://supercode-8w7e.onrender.com"
+}
+
+// Load as soon as anything imports this module so later readers see env vars.
+loadEnvOnce()

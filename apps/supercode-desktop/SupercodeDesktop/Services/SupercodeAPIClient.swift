@@ -91,10 +91,10 @@ actor SupercodeAPIClient {
     }
 
     private var baseURL: URL {
-        let raw = KeychainStore.get(.serverURL)
+        let stored = KeychainStore.get(.serverURL)
             ?? UserDefaults.standard.string(forKey: "serverURL")
-            ?? "https://supercode-8w7e.onrender.com"
-        return URL(string: raw.trimmingCharacters(in: CharacterSet(charactersIn: "/")))!
+        let raw = ServerConfig.resolvedURL(stored: stored)
+        return URL(string: ServerConfig.normalize(raw))!
     }
 
     private var clientID: String {

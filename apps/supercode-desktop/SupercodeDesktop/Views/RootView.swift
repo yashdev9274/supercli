@@ -42,9 +42,15 @@ struct DesktopShellView: View {
             VStack(spacing: 0) {
                 TitleBarView()
                 Divider().overlay(DesktopTheme.border)
-                HStack(spacing: 0) {
-                    ChatPaneView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+HStack(spacing: 0) {
+                    Group {
+                        if workspace.mainPane == .file {
+                            FileViewerPane()
+                        } else {
+                            ChatPaneView()
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     if agentRun.isInspectorVisible {
                         Divider().overlay(DesktopTheme.border)
                         RightSidebarView()
@@ -120,7 +126,48 @@ struct TitleBarView: View {
                 .foregroundStyle(DesktopTheme.textSecondary)
             }
 
-            Spacer()
+Spacer()
+
+            if workspace.mainPane == .file {
+                Button {
+                    workspace.showChatPane()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text("Chat")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundStyle(DesktopTheme.textSecondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(DesktopTheme.panelElevated))
+                    .overlay(Capsule().stroke(DesktopTheme.border, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .help("Back to chat")
+            }
+
+            Button {
+                Task { await ConversationStore.shared.clearSessionAndStartNew() }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text("New Chat")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .foregroundStyle(DesktopTheme.textPrimary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule()
+                        .fill(DesktopTheme.panelElevated)
+                        .overlay(Capsule().stroke(DesktopTheme.borderStrong, lineWidth: 1))
+                )
+            }
+            .buttonStyle(.plain)
+            .help("Start a new conversation")
 
             Text(agentRun.status.label)
                 .font(DesktopTheme.monoTiny)

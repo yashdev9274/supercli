@@ -10,9 +10,10 @@ import { theme } from "src/cli/utils/tui"
 // Lifecycle:
 //   1. `start(agentName, modelName)` — mount the row.
 //   2. `setPhase("thinking" | "tool" | "streaming" | "idle")` — update phase.
-//   3. `setCurrentTool(name, args?)` — show what tool is running right now.
-//   4. `setStepCount(n)` — refresh step counter.
-//   5. `stop()` — unmount.
+//   3. `setStatus(detail)` — override thinking label with concrete progress.
+//   4. `setCurrentTool(name, args?)` — show what tool is running right now.
+//   5. `setStepCount(n)` — refresh step counter.
+//   6. `stop()` — unmount.
 //
 // Renders in place via the same `\x1b7 / \r\x1b[2K / \x1b8` pattern used by
 // PersistentStatusBar — reserves no row, just overwrites the current cursor row.
@@ -43,6 +44,10 @@ export class StepStatusRow {
   private modelName = ""
   private connectionType = ""
   private phase: StepPhase = "idle"
+  // Free-form status detail (e.g. "loading tools", "waiting for first token").
+  // When set during the thinking phase, replaces the generic "Thinking" label
+  // so long cloud waits show real progress instead of a silent spinner.
+  private statusDetail = ""
   private currentToolName = ""
   private currentToolArgs: unknown = undefined
   private stepCount = 0
@@ -61,6 +66,7 @@ export class StepStatusRow {
     this.modelName = modelName
     this.connectionType = connectionType
     this.phase = "thinking"
+    this.statusDetail = ""
     this.currentToolName = ""
     this.currentToolArgs = undefined
     this.stepCount = 0
@@ -96,6 +102,27 @@ export class StepStatusRow {
       this.startMs = Date.now()
       this.currentToolName = ""
       this.currentToolArgs = undefined
+      // Keep statusDetail unless an explicit setStatus clears/replaces it —
+      // step finish often returns to "thinking" while still waiting on the
+      // next model token.
+    }
+    if (phase === "tool" || phase === "streaming") {
+      this.statusDetail = ""
+    }
+    this.render()
+  }
+
+  /**
+   * Override the thinking-phase label with a concrete progress string
+   * ("loading tools", "sending via cloud · waiting for first token", …).
+   * Clears automatically when a tool or stream starts.
+   */
+  setStatus(detail: string) {
+    this.statusDetail = detail.trim()
+    if (this.statusDetail) {
+      this.phase = "thinking"
+      this.currentToolName = ""
+      this.currentToolArgs = undefined
     }
     this.render()
   }
@@ -113,6 +140,7 @@ export class StepStatusRow {
     this.currentToolName = name
     this.currentToolArgs = args
     this.phase = "tool"
+    this.statusDetail = ""
     this.toolStartMs = Date.now()
     this.render()
   }
@@ -124,6 +152,7 @@ export class StepStatusRow {
 
   setStreaming() {
     this.phase = "streaming"
+    this.statusDetail = ""
     this.render()
   }
 
@@ -243,6 +272,9 @@ export class StepStatusRow {
   }
 
   private phaseLabel(): string {
+    if (this.phase === "thinking" && this.statusDetail) {
+      return this.statusDetail
+    }
     switch (this.phase) {
       case "thinking":
         return "Thinking"

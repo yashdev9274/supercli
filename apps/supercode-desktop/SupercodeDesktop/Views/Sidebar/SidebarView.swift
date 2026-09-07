@@ -12,18 +12,21 @@ struct SidebarView: View {
             Color.clear.frame(height: 42)
 
             VStack(alignment: .leading, spacing: 6) {
-                navRow(title: "Home", systemImage: "house", selected: conversations.activeConversationId == nil) {
+navRow(title: "Home", systemImage: "house", selected: conversations.activeConversationId == nil && conversations.messages.isEmpty) {
                     conversations.activeConversationId = nil
-                    conversations.messages = []
+                    conversations.clearActiveSession()
                 }
 
-                Button {
-                    Task { await conversations.createConversation(mode: conversations.mode.rawValue) }
+Button {
+                    Task {
+                        WorkspaceStore.shared.showChatPane()
+                        await conversations.createConversation(mode: conversations.mode.rawValue)
+                    }
                 } label: {
                     HStack(spacing: 8) {
-                        Image(systemName: "plus")
+                        Image(systemName: "square.and.pencil")
                             .font(.system(size: 11, weight: .bold))
-                        Text("Create")
+                        Text("New Chat")
                             .font(.system(size: 12, weight: .semibold))
                         Spacer()
                     }
@@ -40,6 +43,33 @@ struct SidebarView: View {
                     )
                 }
                 .buttonStyle(.plain)
+
+                Button {
+                    conversations.clearActiveSession()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("Clear session")
+                            .font(.system(size: 12, weight: .medium))
+                        Spacer()
+                    }
+                    .foregroundStyle(DesktopTheme.textSecondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(DesktopTheme.background)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(DesktopTheme.border, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .help("Clear the current chat transcript (keeps the project in the list)")
+                .disabled(conversations.messages.isEmpty)
+                .opacity(conversations.messages.isEmpty ? 0.45 : 1)
 
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass")
@@ -276,8 +306,20 @@ struct AccountMenuView: View {
                 isPresented = false
             }
 
-            menuButton(title: "Open Workspace…", systemImage: "folder") {
+menuButton(title: "Open Workspace…", systemImage: "folder") {
                 workspace.pickWorkspace()
+                isPresented = false
+            }
+
+            menuButton(title: "Clear session", systemImage: "trash") {
+                ConversationStore.shared.clearActiveSession()
+                isPresented = false
+            }
+
+            menuButton(title: "New session", systemImage: "arrow.counterclockwise") {
+                Task {
+                    await ConversationStore.shared.clearSessionAndStartNew()
+                }
                 isPresented = false
             }
 

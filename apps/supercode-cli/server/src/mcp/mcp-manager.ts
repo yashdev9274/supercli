@@ -166,46 +166,59 @@ export class McpManager {
     if (!state) return {}
 
     const { client } = state
+    const timeoutMs = Number(process.env.SUPERCODE_MCP_TOOLS_TIMEOUT_MS) || 5_000
 
-    if (state.config.url) {
-      // @ai-sdk/mcp client — use .tools() which returns Record<string, Tool>
+    const load = async (): Promise<McpToolSet> => {
+      if (state.config.url) {
+        // @ai-sdk/mcp client — use .tools() which returns Record<string, Tool>
+        try {
+          return await client.tools()
+        } catch {
+          return {}
+        }
+      }
+
+      // Raw MCP SDK client — use listTools() then convert
       try {
-        return await client.tools()
+        const result = await client.listTools()
+        const toolSet: McpToolSet = {}
+
+        for (const t of result.tools) {
+          const schema = (t.inputSchema ?? {
+            type: "object",
+            properties: {},
+          }) as Record<string, unknown>
+          const zodSchema = jsonSchemaToZod(schema)
+          toolSet[`mcp_${name}_${t.name}`] = {
+            description: t.description ?? `MCP tool: ${name}/${t.name}`,
+            inputSchema: zodSchema,
+            execute: async (args: Record<string, unknown>) => {
+              const callResult = await client.callTool({
+                name: t.name,
+                arguments: args,
+              })
+              const textParts: string[] = []
+              for (const content of callResult.content) {
+                if (content.type === "text") {
+                  textParts.push(content.text)
+                }
+              }
+              return textParts.join("\n") || JSON.stringify(callResult)
+            },
+          }
+        }
+        return toolSet
       } catch {
         return {}
       }
     }
 
-    // Raw MCP SDK client — use listTools() then convert
+    // Bound per-server list so a hung MCP process cannot stall the chat turn.
     try {
-      const result = await client.listTools()
-      const toolSet: McpToolSet = {}
-
-      for (const t of result.tools) {
-        const schema = (t.inputSchema ?? {
-          type: "object",
-          properties: {},
-        }) as Record<string, unknown>
-        const zodSchema = jsonSchemaToZod(schema)
-        toolSet[`mcp_${name}_${t.name}`] = {
-          description: t.description ?? `MCP tool: ${name}/${t.name}`,
-          inputSchema: zodSchema,
-          execute: async (args: Record<string, unknown>) => {
-            const callResult = await client.callTool({
-              name: t.name,
-              arguments: args,
-            })
-            const textParts: string[] = []
-            for (const content of callResult.content) {
-              if (content.type === "text") {
-                textParts.push(content.text)
-              }
-            }
-            return textParts.join("\n") || JSON.stringify(callResult)
-          },
-        }
-      }
-      return toolSet
+      return await Promise.race([
+        load(),
+        new Promise<McpToolSet>((resolve) => setTimeout(() => resolve({}), timeoutMs)),
+      ])
     } catch {
       return {}
     }
@@ -215,15 +228,24 @@ export class McpManager {
     if (!this.started) return {}
 
     const names = Array.from(this.servers.keys())
-    const results = await Promise.all(
-      names.map((n) => this.getTools(n)),
-    )
-
-    const merged: McpToolSet = {}
-    for (const ts of results) {
-      Object.assign(merged, ts)
+    const overallMs = Number(process.env.SUPERCODE_MCP_ALL_TOOLS_TIMEOUT_MS) || 8_000
+    const work = async (): Promise<McpToolSet> => {
+      const results = await Promise.all(names.map((n) => this.getTools(n)))
+      const merged: McpToolSet = {}
+      for (const ts of results) {
+        Object.assign(merged, ts)
+      }
+      return merged
     }
-    return merged
+
+    try {
+      return await Promise.race([
+        work(),
+        new Promise<McpToolSet>((resolve) => setTimeout(() => resolve({}), overallMs)),
+      ])
+    } catch {
+      return {}
+    }
   }
 
   async stop(): Promise<void> {

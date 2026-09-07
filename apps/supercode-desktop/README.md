@@ -33,7 +33,12 @@ xcodebuild -scheme SupercodeDesktop -configuration Debug build
 1. **Device login** (browser) — primary path, same Better Auth device flow as the CLI.
 2. **Import CLI token** — uses `~/.better-auth/token.json` if you already ran `supercode login`.
 
-Configure server URL on the sign-in screen or in Settings (default: production Render URL; local often `http://localhost:3004`).
+Server URL defaults by build configuration:
+
+- **Debug** (local Xcode runs): `http://localhost:3004` — start the CLI server with `bun run dev` in `apps/supercode-cli/server`.
+- **Release** (packaged / production desktop): `https://supercode-terminal.vercel.app`
+
+Override anytime on the sign-in screen or in Settings (Local / Production presets).
 
 ## Deep links
 

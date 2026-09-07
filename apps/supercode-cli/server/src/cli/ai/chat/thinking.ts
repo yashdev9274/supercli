@@ -388,9 +388,11 @@ export class ThinkingDisplay {
     this.currentToolArgs = undefined
     this.toolCount = 0
     this.headerEmitted = false
+    this.statusOverride = ""
   }
 
   start(label: string) {
+    this.statusOverride = label
     this.currentLabel = label
     if (this.running) return
     this.running = true
@@ -421,6 +423,19 @@ export class ThinkingDisplay {
     if (this.running) this.refreshLabel()
   }
 
+  /**
+   * Override the live status label (e.g. "loading tools", "sending request").
+   * Elapsed time is still appended by refreshLabel while the spinner runs.
+   */
+  setStatus(label: string) {
+    this.currentPhase = "reasoning"
+    this.statusOverride = label
+    this.currentLabel = label
+    if (this.running) this.renderSpinner()
+  }
+
+  private statusOverride = ""
+
   private refreshLabel() {
     if (!this.running) return
     const elapsed = Date.now() - this.thoughtStartTime
@@ -430,6 +445,8 @@ export class ThinkingDisplay {
       : ""
     if (this.currentPhase === "tool") {
       this.currentLabel = `${stepStr}${this.currentToolName} · ${time}`
+    } else if (this.statusOverride) {
+      this.currentLabel = `${stepStr}${this.statusOverride} · ${time}`
     } else {
       this.currentLabel = `${stepStr}Waiting for model · ${time}`
     }
@@ -507,6 +524,7 @@ export class ThinkingDisplay {
 
     // Update the spinner label so the user sees which tool is running,
     // without leaking the full tool-call line into the output scroll.
+    this.statusOverride = ""
     this.currentToolName = toolName
     this.currentToolArgs = args
     this.currentPhase = "tool"
@@ -515,14 +533,23 @@ export class ThinkingDisplay {
     }
   }
 
-  showReasoning(content: string) {
+showReasoning(content: string) {
     const summary = reasoningSummary(content)
     const title = summary.title || "thinking"
     // Only restart the spinner if we haven't already emitted the header.
     // After emitHeader() (i.e. after first tool call or first text chunk),
     // the spinner stays off — otherwise it would re-anchor on a new row
     // every reasoning delta and scroll the terminal.
+    //
+    // On TTY, StepStatusRow owns the live status bar — do not start the
+    // ThinkingDisplay spinner here or it will overwrite the status row and
+    // look like a stuck "Thinking" wait with no phase labels.
     if (this.headerEmitted) {
+      return
+    }
+    if (process.stdout.isTTY) {
+      this.statusOverride = `think: ${title}`
+      this.currentLabel = `think: ${title}`
       return
     }
     if (!this.running) {

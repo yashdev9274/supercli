@@ -1,13 +1,12 @@
 import { getStoredToken } from "src/lib/token"
-import { zodToJsonSchema } from "zod-to-json-schema"
 import type { ModelMessage, FinishReason, LanguageModelUsage } from "ai"
 import { isEmptyToolResult, isDeniedToolResult, summarizeToolResult } from "./tool-result"
 import { appendProxyUsage } from "src/lib/token-budget"
 import { parseStreamedContent, KNOWN_TOOL_NAMES } from "src/lib/embedded-tool-calls"
 import prisma from "src/lib/prisma"
 import { stripOrphanToolCalls } from "./sanitize-messages"
-
-const BASE_URL = process.env.SUPERCODE_SERVER_URL || "https://supercode-8w7e.onrender.com"
+import { serializeToolsForHttp } from "./tools-util"
+import { getSupercodeServerUrl } from "src/lib/load-env"
 
 const MAX_STEPS = 8
 
@@ -15,10 +14,15 @@ async function getUserIdFromToken(): Promise<string | null> {
   const token = await getStoredToken()
   if (!token?.access_token) return null
   try {
-    const session = await prisma.session.findUnique({
+    // Bound DB lookup — never stall the turn waiting on Prisma/Neon.
+    const lookup = prisma.session.findUnique({
       where: { token: token.access_token as string },
       select: { userId: true },
     })
+    const session = await Promise.race([
+      lookup,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
+    ])
     return session?.userId ?? null
   } catch {
     return null
@@ -55,26 +59,8 @@ export class ServerProxyService {
    * call tools with the right parameters.
    */
   private serializeTools(tools: any): any {
-    if (!tools || typeof tools !== "object") return tools
-    const out: Record<string, { description: string; parameters: object }> = {}
-    for (const [name, fn] of Object.entries(tools)) {
-      const def = fn as any
-      const schema = def.inputSchema ?? def.parameters
-      let parameters: object = { type: "object", properties: {} }
-      if (schema) {
-        if (typeof schema === "object" && "_def" in schema) {
-          const json = zodToJsonSchema(schema, { $refStrategy: "none" }) as any
-          if (json && typeof json === "object" && "$schema" in json) {
-            delete json.$schema
-          }
-          parameters = json ?? parameters
-        } else {
-          parameters = schema
-        }
-      }
-      out[name] = { description: def.description || "", parameters }
-    }
-    return out
+    // Shared helper converts AI SDK 6 `inputSchema` (Zod) → JSON Schema.
+    return serializeToolsForHttp(tools) ?? tools
   }
 
   private async request(
@@ -98,11 +84,25 @@ export class ServerProxyService {
 
     // Safety timeout: even though the server now bounds the upstream work,
     // don't let a stalled server hang the turn forever on the client side.
+    // Separate first-token timeout so a silent stream fails well before the
+    // 80s "model may be overloaded" UI wall (default 45s).
     const controller = new AbortController()
     const timeoutMs = Number(process.env.SUPERCODE_REQUEST_TIMEOUT_MS) || 120_000
+    const firstTokenMs = Number(process.env.SUPERCODE_FIRST_TOKEN_TIMEOUT_MS) || 45_000
+    let sawActivity = false
     const timeoutId = setTimeout(() => {
       if (!signal?.aborted) controller.abort(new Error("Request timed out"))
     }, timeoutMs)
+    const firstTokenId = setTimeout(() => {
+      if (!sawActivity && !signal?.aborted && !controller.signal.aborted) {
+        controller.abort(
+          new Error(
+            `No response from model within ${Math.round(firstTokenMs / 1000)}s. ` +
+              "The provider may be overloaded — try again or run /model to switch.",
+          ),
+        )
+      }
+    }, firstTokenMs)
     const onAbort = () => controller.abort()
     if (signal) {
       if (signal.aborted) controller.abort()
@@ -110,11 +110,13 @@ export class ServerProxyService {
     }
     const cleanup = () => {
       clearTimeout(timeoutId)
+      clearTimeout(firstTokenId)
       if (signal) signal.removeEventListener("abort", onAbort)
     }
 
-    try {
-      const res = await fetch(`${BASE_URL}/api/ai/chat`, {
+try {
+      const serverUrl = getSupercodeServerUrl()
+      const res = await fetch(`${serverUrl}/api/ai/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -149,6 +151,14 @@ export class ServerProxyService {
         }
         cleanup()
         throw new Error(text || "AI proxy request failed")
+      }
+
+      // Headers arrived — count as activity so first-token timer doesn't fire
+      // while the body is still empty (server may still be waiting on upstream).
+      // Prefer explicit NDJSON status/reasoning/text events below for UI labels.
+      if (!sawActivity) {
+        sawActivity = true
+        clearTimeout(firstTokenId)
       }
 
       const reader = res.body?.getReader()
@@ -186,6 +196,24 @@ export class ServerProxyService {
         onToolCall?.({ toolName: name, args })
       }
 
+      // Soft body-stall watchdog: if headers came back but no model activity
+      // (text/reasoning/tool) arrives for firstTokenMs, abort with a clear error.
+let sawModelActivity = false
+      let bodyStallId: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+        if (!sawModelActivity && !signal?.aborted && !controller.signal.aborted) {
+          controller.abort(
+            new Error(
+              `No model output within ${Math.round(firstTokenMs / 1000)}s after connecting. ` +
+                "The provider may be overloaded — try again or run /model to switch.",
+            ),
+          )
+        }
+      }, firstTokenMs)
+      const clearBodyStall = () => {
+        if (bodyStallId) clearTimeout(bodyStallId)
+        bodyStallId = null
+      }
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -200,10 +228,40 @@ export class ServerProxyService {
           try {
             const event = JSON.parse(trimmed)
             switch (event.type) {
+case "status": {
+                // Server progress heartbeats (connecting / plan-gate / upstream).
+                // Reset body-stall timer so long gate/upstream waits don't abort
+                // while the server is still making progress, and surface via
+                // onReasoning so the TUI status row can show real phases.
+                const msg =
+                  typeof event.message === "string"
+                    ? event.message
+                    : typeof event.phase === "string"
+                      ? event.phase
+                      : "cloud working"
+                clearBodyStall()
+                // re-arm stall from this heartbeat
+                bodyStallId = setTimeout(() => {
+                  if (!sawModelActivity && !signal?.aborted && !controller.signal.aborted) {
+                    controller.abort(
+                      new Error(
+                        `No model output within ${Math.round(firstTokenMs / 1000)}s after last server status. ` +
+                          "The provider may be overloaded — try again or run /model to switch.",
+                      ),
+                    )
+                  }
+                }, firstTokenMs)
+                onReasoning?.(`[status] ${msg}`)
+                break
+              }
               case "text": {
                 // Route through the embedded parser so MiniMax junk never
                 // reaches the TUI, and any inline tool descriptors become
                 // real tool-call events.
+                if (!sawModelActivity) {
+                  sawModelActivity = true
+                  clearBodyStall()
+                }
                 const blk = embedded.push(typeof event.content === "string" ? event.content : "")
                 if (blk.text) {
                   fullResponse += blk.text
@@ -215,9 +273,17 @@ export class ServerProxyService {
                 break
               }
               case "reasoning":
+                if (!sawModelActivity) {
+                  sawModelActivity = true
+                  clearBodyStall()
+                }
                 onReasoning?.(event.content)
                 break
               case "tool-call":
+                if (!sawModelActivity) {
+                  sawModelActivity = true
+                  clearBodyStall()
+                }
                 toolCalls.push({
                   toolName: event.toolName,
                   args: event.args,
@@ -239,6 +305,7 @@ export class ServerProxyService {
           } catch { /* skip malformed */ }
         }
       }
+      clearBodyStall()
 
       // Flush any trailing prose / completed descriptors held by the parser.
       const flushed = embedded.flush()
@@ -256,8 +323,12 @@ export class ServerProxyService {
       cleanup()
       if (serverError) throw new Error(serverError)
       return { content: fullResponse, finishReason, usage, toolCalls }
-    } catch (err) {
+    } catch (err: any) {
       cleanup()
+      // Prefer abort reason when fetch throws a generic AbortError with no message.
+      const reason = (controller.signal as any).reason
+      if (reason instanceof Error && reason.message) throw reason
+      if (typeof reason === "string" && reason) throw new Error(reason)
       throw err
     }
   }
@@ -302,7 +373,9 @@ export class ServerProxyService {
     const seenStepResults: Array<{ toolName: string; result: string }> = []
     const deniedCounts = new Map<string, number>()
     const toolCallHistory: Array<{ toolName: string; argsKey: string }> = []
-    const userId = await getUserIdFromToken()
+// Never block the first request on Prisma — resolve userId in parallel and
+    // only need it for post-turn usage accounting.
+    const userIdPromise = getUserIdFromToken()
 
     // Convert tools to JSON-schema definitions ONCE (while the Zod schemas
     // are still intact) so the server can hand valid parameter schemas to
@@ -558,6 +631,7 @@ export class ServerProxyService {
       }
     }
 
+const userId = await userIdPromise.catch(() => null)
     if (userId && (usage.totalTokens ?? 0) > 0) {
       appendProxyUsage({
         provider: this.providerName,
@@ -592,7 +666,7 @@ export class ServerProxyService {
       throw new Error("Not authenticated. Please login first.")
     }
 
-    const res = await fetch(`${BASE_URL}/api/ai/generate-object`, {
+const res = await fetch(`${getSupercodeServerUrl()}/api/ai/generate-object`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
