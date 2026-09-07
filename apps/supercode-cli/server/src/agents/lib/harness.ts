@@ -15,6 +15,10 @@ import {
   stripControlTokens,
   extractEmbeddedToolCalls,
 } from "src/lib/embedded-tool-calls.ts"
+import {
+  createThinkSplitter,
+  finalizeAnswerVsProcess,
+} from "src/runtime/stream/split-think-content.ts"
 
 const DEFAULT_SUBAGENT_BUDGET = 6
 const DEFAULT_PRIMARY_BUDGET = 50
@@ -55,6 +59,8 @@ export async function runAgent(
   const filesRead = new Set<string>()
   const filesChanged = new Set<string>()
   let fullText = ""
+  let fullReasoning = ""
+  const thinkSplit = createThinkSplitter()
   let fullToolCalls: Array<{ toolName: string; args?: unknown }> = []
   let inputTokens = 0
   let outputTokens = 0
@@ -68,6 +74,26 @@ export async function runAgent(
   const messages = buildMessages(opts)
 
   await emitHook({ type: "turn_start", agent: agent.info.name })
+  opts.onStatus?.("running")
+
+  const pushTextDelta = (raw: string) => {
+    if (!raw) return
+    const parts = thinkSplit.push(raw)
+    if (parts.reasoning) {
+      fullReasoning += parts.reasoning
+      opts.onReasoning?.(parts.reasoning)
+    }
+    if (parts.text) {
+      fullText += parts.text
+      opts.onChunk?.(parts.text)
+    }
+  }
+
+  const pushReasoningDelta = (raw: string) => {
+    if (!raw) return
+    fullReasoning += raw
+    opts.onReasoning?.(raw)
+  }
 
   try {
     const result = streamText({
@@ -78,9 +104,19 @@ export async function runAgent(
       stopWhen: stepCountIs(budget),
       abortSignal: opts.signal,
       onChunk: async ({ chunk }) => {
-        if (chunk.type === "text-delta") {
-          fullText += chunk.text
-          opts.onChunk?.(chunk.text)
+        const c = chunk as { type: string; text?: string; delta?: string }
+        if (c.type === "text-delta" && typeof c.text === "string") {
+          pushTextDelta(c.text)
+          return
+        }
+        // AI SDK reasoning channel variants
+        if (
+          (c.type === "reasoning" ||
+            c.type === "reasoning-delta" ||
+            c.type === "reasoning-part") &&
+          typeof (c.text ?? c.delta) === "string"
+        ) {
+          pushReasoningDelta((c.text ?? c.delta) as string)
         }
       },
       prepareStep: async () => {
@@ -178,6 +214,7 @@ export async function runAgent(
                   ? ""
                   : JSON.stringify(out)
             seenStepResults.push({ toolName: name, result: text })
+            opts.onToolResult?.({ toolName: name, result: out })
             await emitHook({
               type: "tool_end",
               agent: agent.info.name,
@@ -224,6 +261,16 @@ export async function runAgent(
 
     await result.consumeStream()
 
+    const flushed = thinkSplit.flush()
+    if (flushed.reasoning) {
+      fullReasoning += flushed.reasoning
+      opts.onReasoning?.(flushed.reasoning)
+    }
+    if (flushed.text) {
+      fullText += flushed.text
+      opts.onChunk?.(flushed.text)
+    }
+
     const usage = await result.usage
     inputTokens = usage?.inputTokens ?? 0
     outputTokens = usage?.outputTokens ?? 0
@@ -243,8 +290,18 @@ export async function runAgent(
       }
     }
 
+    // End-of-turn gate: untagged CoT / process scratch never lands in Result.
+    const final = finalizeAnswerVsProcess(fullText, fullReasoning)
+    if (final.reasoning && final.reasoning !== fullReasoning) {
+      const extra = final.reasoning.slice(fullReasoning.length).trim()
+      if (extra) opts.onReasoning?.(extra)
+    }
+    fullText = final.text
+    fullReasoning = final.reasoning || fullReasoning
+
     const out: GenerateResult = {
       text: fullText,
+      reasoning: fullReasoning || undefined,
       toolCalls: fullToolCalls,
       finishReason: typeof finishReason === "string" ? finishReason : undefined,
       tokens: { input: inputTokens, output: outputTokens },
@@ -256,10 +313,19 @@ export async function runAgent(
       agent: agent.info.name,
       text: out.text,
     })
+    opts.onStatus?.("finished")
     return out
   } catch (error: any) {
+    const flushed = thinkSplit.flush()
+    if (flushed.reasoning) fullReasoning += flushed.reasoning
+    if (flushed.text) fullText += flushed.text
+    const final = finalizeAnswerVsProcess(fullText, fullReasoning)
+    fullText = final.text
+    fullReasoning = final.reasoning || fullReasoning
+
     const out: GenerateResult = {
       text: fullText,
+      reasoning: fullReasoning || undefined,
       toolCalls: fullToolCalls,
       finishReason: "error",
       tokens: { input: inputTokens, output: outputTokens },

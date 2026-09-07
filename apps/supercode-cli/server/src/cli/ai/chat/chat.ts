@@ -1,8 +1,13 @@
+/**
+ * Chalk TUI chat loop — main interactive session.
+ *
+ * Pure helpers live in ./lib/*; this file owns stdin/stream coordination
+ * and the public entrypoints startChat / initConversation / clearSkill.
+ */
 import chalk from "chalk"
 import * as readline from "readline"
-import { getStoredToken } from "src/lib/token.ts"
+import type { ModelMessage } from "ai"
 import {
-  getCurrentUser,
   getOrCreateConversation,
   getMessages,
   addMessage,
@@ -10,35 +15,13 @@ import {
   updateConversationTitle,
   formatMessagesForAI,
 } from "src/lib/api-client.ts"
-import type { ModelMessage } from "ai"
 import { createProvider, type ModelProvider, type AIProvider } from "src/cli/ai/provider.ts"
 import { checkPlanGate } from "src/lib/plan-gate"
 import { createThinkSplitter, finalizeAnswerVsProcess } from "src/lib/split-think-content"
-
-/** Rough token estimate of the conversation context (chars / 4). */
-function estimateContextTokens(messages: ModelMessage[]): number {
-  try {
-    return Math.ceil(JSON.stringify(messages).length / 4)
-  } catch {
-    return 0
-  }
-}
-
-/** Loads the conversation transcript and estimates its token count. */
-async function loadContextTokens(conversationId: string): Promise<number> {
-  try {
-    const msgs = await getMessages(conversationId)
-    return estimateContextTokens(msgs as unknown as ModelMessage[])
-  } catch {
-    return 0
-  }
-}
 import {
   permissionManager,
-  setCurrentAgent,
   type PermissionPromptReply,
 } from "src/tools/permission-manager.ts"
-import { agentService, loadPrompt } from "src/agents/index.ts"
 export type { ModelProvider } from "src/cli/ai/provider.ts"
 import {
   theme,
@@ -60,26 +43,10 @@ import { StepStatusRow } from "./step-status-row.ts"
 import { MarkdownStream } from "src/cli/utils/markdown-stream.ts"
 import { getContextWindow } from "src/cli/ai/context-windows.ts"
 import type { WorkspaceInfo } from "src/cli/workspace/scanner.ts"
-import { buildSystemPrompt } from "src/cli/workspace/context.ts"
-import { tools } from "src/agents/tools/registry.ts"
 import { setDelegateRuntime } from "src/agents/tools/delegate.ts"
-import { getMcpManager } from "src/mcp/mcp-manager"
 import { CitationTracker } from "src/lib/citation-tracker.ts"
-import { loadEnvOnce } from "src/lib/load-env"
 import { renderWorkspaceBanner } from "src/cli/workspace/format.ts"
 import { handleSlashCommand, isSlashCommand, COMMANDS } from "src/cli/commands/slashCommands/index.ts"
-import {
-  renderWriteSnapshot,
-  renderEditSnapshot,
-  renderCommandSnapshot,
-  renderReadSnapshot,
-  renderSearchSnapshot,
-  renderGlobSnapshot,
-  renderWebSearchSnapshot,
-  formatBytes,
-  diffLines,
-  countDiff,
-} from "src/cli/utils/tool-snapshot.ts"
 import { renderContextBreakdown } from "src/cli/commands/slashCommands/context-window.ts"
 import { saveCliConfig } from "src/lib/cli-config"
 import {
@@ -96,59 +63,35 @@ import {
   resolveFileReferences,
 } from "src/lib/file-search.ts"
 
+// Modular chat helpers
+import {
+  getUserFromToken,
+  setCurrentChatUser,
+  getCurrentChatUser,
+  isYashDewasthale,
+  getUserPlanTier,
+  estimateContextTokens,
+  loadContextTokens,
+  agentForMode,
+  applyModePermissions,
+  modeColors,
+  modeDisplay,
+  MODES,
+  captureToolSnapshot,
+  assembleStreamSystemPrompt,
+  buildToolsForTurn,
+} from "./lib/index.ts"
 
-async function getUserFromToken() {
-  const token = await getStoredToken()
-  if (!token?.access_token) {
-    console.log(chalk.hex(theme.red)("Not authenticated. Please login first."))
-    process.exit(1)
-  }
-
-  const thinking = createThinking("authenticating")
-  const result = await getCurrentUser()
-  if (!result.ok) {
-    thinking.fail("Session expired or server unreachable")
-    throw new Error("Authentication failed. Run supercode login to re-authenticate.")
-  }
-
-  thinking.succeed(`Welcome, ${result.user.name}`)
-  return result.user
-}
-
-// Store the current user for feature gating
-let currentUser: { id: string; name: string | null; email: string } | null = null
-
-// Check if the current user is Yash Dewasthale (for feature gating)
-function isYashDewasthale(): boolean {
-  if (!currentUser) return false
-  const name = currentUser.name?.toLowerCase() ?? ""
-  const email = currentUser.email?.toLowerCase() ?? ""
-  return (
-    name.includes("yash") && name.includes("dewasthale") ||
-    email === "yashdev.yvd@gmail.com" ||
-    email === "yash@supercode.ai"
-  )
-}
-
-// Get user's plan tier for display
-async function getUserPlanTier(): Promise<string> {
-  if (!currentUser) return ""
-  try {
-    const prisma = (await import("src/lib/prisma")).default
-    const subscription = await prisma.subscription.findFirst({
-      where: {
-        userId: currentUser.id,
-        status: { in: ["active", "trialing"] },
-      },
-      include: { plan: true },
-      orderBy: { createdAt: "desc" },
-    })
-    if (!subscription?.plan) return ""
-    return subscription.plan.tier
-  } catch {
-    return ""
-  }
-}
+// Skill state (shared with system-prompt assembler) — re-exported for public API
+import {
+  loadedSkillName,
+  clearSkill,
+  getLoadedSkillContent,
+  setLoadedSkill,
+  consumeSkillJustLoaded,
+  isSkillJustLoaded,
+} from "./lib/skill-state.ts"
+export { loadedSkillName, clearSkill, setLoadedSkill } from "./lib/skill-state.ts"
 
 export async function initConversation(userId: string, conversationId: string | null = null, mode = "chat") {
   const thinking = createThinking("loading conversation")
@@ -167,158 +110,6 @@ export async function initConversation(userId: string, conversationId: string | 
   }
 
   return conversation
-}
-
-/**
- * Render a code/diff/stdout snapshot under the tool row for file-changing
- * tools. Mirrors OpenCode's behavior (https://github.com/anomalyco/opencode):
- *   • write_file → code block of new contents
- *   • edit_file  → unified diff of the change
- *   • run_command→ fenced stdout/stderr with exit code
- *
- * For edit_file we rebuild the diff from the args (oldText/newText) — we don't
- * need to read the file again because the args already contain the exact
- * substring that was replaced.
- *
- * Tolerant: skips rendering on any parse failure so a malformed result can
- * never break the live chat scrollback.
- *
- * Returns captured snapshot lines (with RAIL prefix) or empty array.
- */
-function captureToolSnapshot(toolName: string, args: unknown, resultRaw: string): string[] {
-  try {
-    if (toolName === "write_file") {
-      const a = (args ?? {}) as { path?: string; content?: string }
-      if (typeof a.path === "string" && typeof a.content === "string") {
-        const meta = `${formatBytes(a.content.length)} · written`
-        return renderWriteSnapshot(a.path, a.content, meta)
-      }
-      return []
-    }
-
-    if (toolName === "edit_file") {
-      const a = (args ?? {}) as { path?: string; oldText?: string; newText?: string }
-      if (typeof a.path === "string" && typeof a.oldText === "string" && typeof a.newText === "string") {
-        const diff = diffLines(a.oldText, a.newText)
-        const { adds, dels } = countDiff(diff)
-        const meta = `${formatBytes(a.newText.length)} · +${adds} / −${dels}`
-        return renderEditSnapshot(a.path, a.oldText, a.newText, meta)
-      }
-      return []
-    }
-
-    if (toolName === "run_command") {
-      const a = (args ?? {}) as { command?: string }
-      const parsed = (() => {
-        try {
-          return JSON.parse(resultRaw)
-        } catch {
-          return null
-        }
-      })()
-      if (parsed && typeof parsed === "object") {
-        const result = (parsed as any).success === true && (parsed as any).data && typeof (parsed as any).data === "object"
-          ? (parsed as any).data
-          : parsed
-        const stdout = typeof (result as any).stdout === "string" ? (result as any).stdout : ""
-        const stderr = typeof (result as any).stderr === "string" ? (result as any).stderr : ""
-        const exitCode = typeof (result as any).exitCode === "number" ? (result as any).exitCode : 0
-        return renderCommandSnapshot(a.command ?? "", stdout, stderr, exitCode)
-      }
-      return []
-    }
-
-    if (toolName === "read_file") {
-      const a = (args ?? {}) as { path?: string }
-      if (typeof a.path === "string" && resultRaw.trim()) {
-        // read_file returns the file content directly as a string
-        return renderReadSnapshot(a.path, resultRaw)
-      }
-      return []
-    }
-
-    if (toolName === "search_files") {
-      const a = (args ?? {}) as { pattern?: string }
-      try {
-        const parsed = JSON.parse(resultRaw)
-        if (Array.isArray(parsed)) {
-          return renderSearchSnapshot(
-            a.pattern ?? "",
-            parsed.map((r: any) => ({
-              file: typeof r.file === "string" ? r.file : String(r.file ?? ""),
-              line: typeof r.line === "number" ? r.line : 0,
-              content: typeof r.content === "string" ? r.content : String(r.content ?? ""),
-            })),
-            parsed.length,
-          )
-        }
-      } catch { /* best-effort */ }
-      return []
-    }
-
-    if (toolName === "glob") {
-      const a = (args ?? {}) as { pattern?: string }
-      try {
-        const parsed = JSON.parse(resultRaw)
-        if (Array.isArray(parsed)) {
-          return renderGlobSnapshot(a.pattern ?? "", parsed.map(String))
-        }
-      } catch { /* best-effort */ }
-      return []
-    }
-
-    if (toolName === "web_search") {
-      const a = (args ?? {}) as { query?: string }
-      try {
-        const parsed = JSON.parse(resultRaw)
-        const results = Array.isArray(parsed) ? parsed : (parsed as any)?.results ?? []
-        if (Array.isArray(results)) {
-          return renderWebSearchSnapshot(
-            a.query ?? "",
-            results.map((r: any) => ({
-              title: typeof r.title === "string" ? r.title : String(r.title ?? ""),
-              url: typeof r.url === "string" ? r.url : undefined,
-            })),
-          )
-        }
-      } catch { /* best-effort */ }
-      return []
-    }
-
-    if (toolName === "firecrawl_search" || toolName === "firecrawl_scrape" || toolName === "firecrawl_map") {
-      const a = (args ?? {}) as { query?: string; url?: string }
-      try {
-        const parsed = JSON.parse(resultRaw)
-        const results = Array.isArray(parsed) ? parsed : (parsed as any)?.data ?? (parsed as any)?.results ?? []
-        if (Array.isArray(results)) {
-          return renderWebSearchSnapshot(
-            a.query ?? a.url ?? "",
-            results.map((r: any) => ({
-              title: typeof r.title === "string" ? r.title : typeof r.url === "string" ? r.url : String(r ?? ""),
-              url: typeof r.url === "string" ? r.url : undefined,
-            })),
-          )
-        }
-      } catch { /* best-effort */ }
-      return []
-    }
-
-    if (toolName === "url_fetch") {
-      const a = (args ?? {}) as { url?: string }
-      try {
-        const parsed = JSON.parse(resultRaw)
-        return renderReadSnapshot(
-          a.url ?? "",
-          typeof parsed === "string" ? parsed : (parsed as any)?.content ?? (parsed as any)?.markdown ?? JSON.stringify(parsed),
-        )
-      } catch {
-        return renderReadSnapshot(a.url ?? "", resultRaw)
-      }
-    }
-  } catch {
-    // Snapshot is best-effort. Never let a render bug break the chat loop.
-  }
-  return []
 }
 
 async function streamAIResponse(
@@ -341,55 +132,17 @@ async function streamAIResponse(
 
   if (workspaceInfo) {
     process.env.SUPERCODE_WORKSPACE_ROOT = workspaceInfo.workspaceRoot
-    const hasTools = mode === "agent" || mode === "chat" || mode === "plan"
-    const basePrompt = buildSystemPrompt(workspaceInfo, hasTools)
-
-    // Resolve the agent that matches the current mode (Phase 2):
-    // - "agent"  → build agent
-    // - "plan"   → plan agent
-    // - "chat"   → no agent prompt (chat has its own tail note)
-    const agentForMode =
-      mode === "agent"
-        ? agentService.get("build")
-        : mode === "plan"
-          ? agentService.get("plan")
-          : undefined
-
-    let agentPrompt: string | undefined
-    if (agentForMode?.info.prompt) {
-      agentPrompt = await loadPrompt(agentForMode.info.prompt)
-    }
-
-    let promptContent = basePrompt
-    if (agentPrompt) {
-      promptContent += `\n\n## ${agentForMode!.info.name} agent\n\n${agentPrompt}\n`
-    }
-
-    if (mode === "chat") {
-      promptContent += `\n\n## Chat Mode Note\n\nYou are in chat mode. You have access to read,\nsearch, and web tools (read_file, search_files, url_fetch, firecrawl, exa, etc.).\nRead-only shell commands (git status/log/diff, ls, cat, pwd, find, grep) and\nread-only git commands are auto-allowed without prompting.\n\nTools that modify state — write_file, edit_file, git push, git commit, git reset,\nnpm install, rm, mkdir, and any other write/delete command — require explicit\nper-user approval. If the user's task genuinely needs many such operations\nwithout interruptions, call the \`switch_to_agent_mode\` tool ONCE with a clear\nreason; the system will ask for user approval. Do NOT attempt write/exec tools\nin the same response where you call switch_to_agent_mode.\n\n## Tool Use (Mandatory)\n\nWhen the user's request is an action on their repo or workspace — review staged\nchanges, show diff, run a command, read a file, find something, check status,\nfix a file, etc. — you MUST invoke the appropriate tool (run_command,\nread_file, search_files, etc.) BEFORE you respond. Do not just describe what\nyou would do. Do not answer conversationally when the user asked you to do\nsomething. If your first response contains only reasoning or text and no tool\ncall, the system will count the turn as incomplete and the user will not see\nany action taken. Call the tool first, then summarize the result.`
-    }
-
-    if (mode === "plan") {
-      promptContent += `\n\n## Plan Mode Note\n\nYou are in plan mode. You MUST NOT write files, run commands, or execute code. Produce a structured plan and stop. The user will review with /plan execute.`
-    }
-
-    // Applied to all modes — keep internal process out of the final answer body.
-    // Progress/reasoning belongs in the thinking stream; the final answer is Result.
-    promptContent += `\n\n## Progress Display & Final Answer\n\nSeparate your work into two surfaces:\n\n1. **Thinking / process** (reasoning stream + tool narration): short first-person progress about what you are checking, learning, or changing. Keep this concise. Do not dump long private chain-of-thought. Before tools, state the next practical step when useful.\n2. **Result** (final answer body): the polished user-facing answer only — clear headings, lists, tables, and code fences when helpful. Do not restate tool logs, spinner status, or intermediate scratch reasoning in the Result. Put the complete answer in Result after tools finish; avoid mixing process narration into the final markdown.\n\n**Hard rule:** Never put tool-planning monologue in Result (examples of FORBIDDEN Result text: "User wants web search…", "Need provide query…", "Use web_search twice…", "Must supply parameters properly in invokes…", "I'll run several web searches in one block…"). Those belong only in Thinking. If you have nothing user-facing yet because tools are still running or failed, leave Result empty rather than narrating your plan. After tools return, Result must answer the user query with findings — not how you planned the tools.`
-
-    if (extraContext) {
-      promptContent += `\n\n## Referenced Files\n\nFiles marked with @ in the user message have been read and included below. Do not re-read them with tools.\n\n${extraContext}\n`
-    }
-
-    if (loadedSkillContent) {
-      promptContent += `\n\n## Loaded Skill: ${loadedSkillName || "unknown"}\n\n${loadedSkillContent}\n`
-    }
-
+    const promptContent = await assembleStreamSystemPrompt({
+      workspaceInfo,
+      mode,
+      extraContext,
+    })
     aiMessages = [
       { role: "system", content: promptContent },
       ...aiMessages,
     ]
   }
+
 
   let fullResponse = ""
   let fullReasoning = ""
@@ -463,88 +216,10 @@ async function streamAIResponse(
   let modeSwitchRequest: { requested: boolean; reason?: string } = { requested: false }
 
   if (workspaceInfo) {
-    setTurnStatus("loading tools")
-    toolsToUse = { ...tools }
-    // Merge MCP tools from any connected servers (bounded — see mcp-manager timeouts)
-    const mcpManager = getMcpManager()
-    if (mcpManager.isStarted) {
-      setTurnStatus("loading mcp tools")
-      const mcpTools = await mcpManager.getAllTools()
-      if (mcpTools && Object.keys(mcpTools).length > 0) {
-        Object.assign(toolsToUse, mcpTools)
-      }
-    }
-    // Ensure .env vars are loaded (Bun only auto-loads .env from CWD, which
-    // may not be the server directory when launched from elsewhere).
-    loadEnvOnce()
-
-    // Determine what tools MergeDev provides. When connected, its Exa/Firecrawl
-    // MCP tools already overwrote our built-in ones via Object.assign above.
-    // Only delete our local Exa/Firecrawl tools if neither MergeDev nor local
-    // API keys can serve them — avoids the AI calling dead tools.
-    const isMergeDevConnected = mcpManager.connectedServers.includes("mergedev")
-    const mergedevTools = isMergeDevConnected
-      ? await mcpManager.getTools("mergedev")
-      : {}
-    const mcpProvided = new Set(Object.keys(mergedevTools))
-
-    delete (toolsToUse as Record<string, unknown>).web_search
-
-    // Determine whether Exa search is available (via local key or MergeDev)
-    const hasExaSearch = !!process.env.EXA_API_KEY || mcpProvided.has("exa_search")
-
-    // Determine whether Firecrawl search is available (via local key or MergeDev)
-    const hasFirecrawlSearch = !!process.env.FIRECRAWL_API_KEY || mcpProvided.has("firecrawl_search")
-
-    // Exa is preferred for web search. When Exa is available, remove
-    // firecrawl_search to avoid redundancy — keep firecrawl_scrape and
-    // firecrawl_map for URL scraping and site mapping (different use cases).
-    if (hasExaSearch && hasFirecrawlSearch) {
-      delete (toolsToUse as Record<string, unknown>).firecrawl_search
-    }
-
-    if (!hasFirecrawlSearch) {
-      delete (toolsToUse as Record<string, unknown>).firecrawl_search
-      delete (toolsToUse as Record<string, unknown>).firecrawl_scrape
-      delete (toolsToUse as Record<string, unknown>).firecrawl_map
-    }
-
-    if (!hasExaSearch) {
-      delete (toolsToUse as Record<string, unknown>).exa_search
-      delete (toolsToUse as Record<string, unknown>).exa_fetch
-    }
-
-    // Build a prompt hint block for tool preference guidance
-    const preferenceHints: string[] = []
-
-    if (hasExaSearch) {
-      preferenceHints.push(
-        "For general web search, use `exa_search` — it is preferred. " +
-        "Use `firecrawl_scrape` when the user asks for deep websearch or webscraping (extracting full page content, " +
-        "following links, or fetching structured data from a page). " +
-        "Use `firecrawl_map` to discover URLs on a site." +
-        (isMergeDevConnected ? " These tools are routed through MergeDev's connectors." : "")
-      )
-    } else if (hasFirecrawlSearch) {
-      preferenceHints.push(
-        "For web search, use `firecrawl_search`. For scraping a specific URL use `firecrawl_scrape`, " +
-        "and for discovering URLs on a site use `firecrawl_map`." +
-        (isMergeDevConnected ? " These tools are routed through MergeDev's connectors." : "")
-      )
-    }
-
-    if (Object.keys(toolsToUse).some((k) => k.startsWith("mcp_composio_"))) {
-      preferenceHints.push(
-        "Composio-connected MCP tools are available (prefixed with mcp_composio_). " +
-        "These provide direct access to services like GitHub, Linear, Slack, etc. " +
-        "When a user's request can be satisfied using these MCP tools, prefer them over running commands " +
-        "via run_command or other built-in tools. For example, use mcp_composio_github_* tools for GitHub " +
-        "operations instead of running gh CLI commands."
-      )
-    }
-
-    if (preferenceHints.length > 0 && aiMessages[0]) {
-      aiMessages[0].content += `\n\n## Tool Preference\n\n${preferenceHints.join("\n\n")}`
+    const built = await buildToolsForTurn(setTurnStatus)
+    toolsToUse = built.tools
+    if (built.preferenceHints.length > 0 && aiMessages[0]) {
+      aiMessages[0].content += `\n\n## Tool Preference\n\n${built.preferenceHints.join("\n\n")}`
     }
 
     // Wire the subagent runtime so the `delegate` tool can spawn focused subtasks.
@@ -589,7 +264,7 @@ async function streamAIResponse(
     })
   }
 
-  pendingModeSwitch: { requested: false }
+  // modeSwitchRequest tracks switch_to_agent_mode tool results for this turn
 
   function emitHeader() {
     if (hasOutputHeader) return
@@ -1078,43 +753,6 @@ interface Conversation {
   updatedAt: Date
 }
 
-const modes = ["chat", "plan", "agent"]
-const modeColors: Record<string, string> = {
-  chat: theme.green,
-  plan: theme.greenDim,
-  agent: theme.amber,
-}
-const modeDisplay: Record<string, string> = {
-  chat: "chat",
-  plan: "plan",
-  agent: "agent",
-}
-
-/**
- * Map a chat-loop mode to its agent name (or undefined for chat).
- * Drives `setCurrentAgent` so the permission manager scopes its
- * ruleset correctly when the chat loop is the top-level caller.
- */
-function agentForMode(mode: string): string | undefined {
-  if (mode === "agent") return "build"
-  if (mode === "plan") return "plan"
-  return undefined
-}
-
-/**
- * Apply both pieces of permission state for a given mode:
- *   - sessionLevel: "allow" for agent mode, null otherwise
- *   - currentAgent: "build" for agent mode, "plan" for plan mode,
- *     undefined for chat mode (so DEFAULT rules apply)
- *
- * Call this whenever the mode changes (Tab, /plan, /plan execute, etc.).
- */
-function applyModePermissions(mode: string): void {
-  permissionManager.setSessionLevel(mode === "agent" ? "allow" : null)
-  setCurrentAgent(agentForMode(mode))
-}
-
-// Persistent stdin state
 let streamAbort: AbortController | null = null
 // The currently-streaming ThoughtChain (or null between turns). Exposed at
 // module scope so the stdin keypress handler can hit Ctrl+T without
@@ -1135,22 +773,6 @@ let voiceJustCaptured = false
 // the reply back once the assistant turn finishes. Consumed at most once.
 let voiceAutoSubmitted = false
 
-// Loaded skill context — injected as a system message so the AI uses it
-// without pasting the full text into the user's input.
-export let loadedSkillName: string | undefined
-let loadedSkillContent: string | undefined
-let skillJustLoaded = false
-
-export function clearSkill() {
-  loadedSkillName = undefined
-  loadedSkillContent = undefined
-  skillJustLoaded = false
-}
-
-// When true, prints the legacy ─ toolName · model · N.Ns · esc interrupt
-// debug lines on top of the new per-step UI. Used by /verbose for power users
-// debugging supercode's TUI itself. Default off because the new live
-// Thought blocks + StepStatusRow already convey the same info in context.
 let verboseMode = false
 
 // Emit one legacy debug line per tool call when verbose mode is on. Reuses
@@ -1401,10 +1023,10 @@ function stdinKeypress(_str: string, key: any) {
   // No input handler active
   if (!stdinResolve) return
 
-  // Tab to cycle modes
+  // Tab to cycle MODES
   if (key.name === "tab") {
-    const idx = modes.indexOf(stdinMode)
-    stdinMode = modes[(idx + 1) % modes.length]!
+    const idx = MODES.indexOf(stdinMode)
+    stdinMode = MODES[(idx + 1) % MODES.length]!
     applyModePermissions(stdinMode)
     if (activeFooter) activeFooter.setMode(stdinMode)
     renderInput()
@@ -2012,12 +1634,12 @@ function stripToolCallXml(chunk: string): string {
 }
 
 async function chatInput(currentMode: string): Promise<{ input: string; mode: string }> {
-  stdinMode = modes.includes(currentMode) ? currentMode : "chat"
+  stdinMode = MODES.includes(currentMode) ? currentMode : "chat"
   applyModePermissions(stdinMode)
   // If voice capture or skill load just populated stdinInput, preserve it.
   // Otherwise reset to empty as usual.
-  if (skillJustLoaded) {
-    skillJustLoaded = false
+  if (isSkillJustLoaded()) {
+    consumeSkillJustLoaded()
     // keep stdinInput as-is, just re-render
   } else if (!voiceJustCaptured) {
     stdinInput = ""
@@ -2313,8 +1935,7 @@ export async function chatLoop(
           }
         } else if (result?.type === "skills") {
           if (result.skillName && result.message) {
-            loadedSkillName = result.skillName
-            loadedSkillContent = result.message
+            setLoadedSkill(result.skillName, result.message)
 
             if (result.trigger) {
               // /{name} directly — send trigger message to AI
@@ -2346,7 +1967,6 @@ export async function chatLoop(
                 `\r\n ${chalk.hex(theme.green)("◆")} ${chalk.hex(theme.greenGlow).bold(result.skillName)} ${chalk.hex(theme.muted)("loaded — type your message and press Enter")}\r\n\n`,
               )
               stdinInput = `/${result.skillName} `
-              skillJustLoaded = true
             }
           }
         } else if (result?.type === "verbose") {
@@ -2414,8 +2034,7 @@ export async function chatLoop(
           process.stdout.write(`\r\n ${chalk.hex(theme.red)("◆")} unknown slash command: ${trimmed.split(" ")[0]}\r\n\n`)
         } else if (result?.type === "message" && result.message) {
           if (result.skillContent) {
-            loadedSkillName = result.skillName || ""
-            loadedSkillContent = result.skillContent
+            setLoadedSkill(result.skillName || "", result.skillContent)
             const taggedMsg = `[${result.skillName}]\n\n${result.message}`
             userMessage(taggedMsg)
             messageCount++
@@ -2456,7 +2075,7 @@ export async function chatLoop(
       // Strip @ refs from AI message — file content is already in system prompt
       const cleanInput = unquoted.replace(/@\S+/g, (m) => m.slice(1))
 
-      if (loadedSkillContent) {
+      if (getLoadedSkillContent()) {
         // Skill instructions are injected as system context for this turn.
         // Keep the transcript and persisted user message focused on the user's request.
         const taggedMsg = `[${loadedSkillName}]\n\n${cleanInput}`
@@ -2670,7 +2289,7 @@ export async function startChat(
     console.log()
 
     const user = await getUserFromToken()
-    currentUser = user
+    setCurrentChatUser(user)
     const conversation = await initConversation(user.id, conversationId, initialMode)
 
     await chatLoop(aiProvider, conversation, workspaceInfo)

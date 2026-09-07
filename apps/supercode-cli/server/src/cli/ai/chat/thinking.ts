@@ -1,3 +1,7 @@
+/**
+ * Thinking / ThoughtChain / TurnTracker display for chalk chat.
+ * Public API: ThinkingDisplay, ThoughtChain, TurnTracker, toolLabel, extractToolArg, renderReasoningBlock.
+ */
 import chalk from "chalk"
 import { stripAnsi, theme } from "src/cli/utils/tui"
 

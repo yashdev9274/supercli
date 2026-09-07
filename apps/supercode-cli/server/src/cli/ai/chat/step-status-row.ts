@@ -1,3 +1,6 @@
+/**
+ * Live per-turn status row (phase · tool · model) for chalk chat streaming.
+ */
 import chalk from "chalk"
 import { theme } from "src/cli/utils/tui"
 

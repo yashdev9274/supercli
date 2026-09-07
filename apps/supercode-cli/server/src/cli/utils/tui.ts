@@ -3,6 +3,8 @@ import * as readline from "readline"
 import boxen from "boxen"
 import yoctoSpinner from "yocto-spinner"
 import { highlightLine } from "./code-highlighter"
+import { theme } from "./theme/index.ts"
+export { theme }
 
 //
 // ─── PHOSPHOR TERMINAL THEME ──────────────────────────────────────────────────
@@ -11,29 +13,7 @@ import { highlightLine } from "./code-highlighter"
 // only warm accent (cursor + RECOMMENDED badge), with ASCII box-drawing,
 // pixel/bitmap wordmark, and hard-edged rectangular cards.
 //
-export const theme = {
-  // Phosphor greens (primary palette)
-  green: "#00ff88",        // bright phosphor — selected, headers, borders
-  greenDim: "#1a4a36",     // dim phosphor — borders, pending
-  greenDeep: "#0a2a1c",    // deep — subtle fills
-  greenGlow: "#7fffb4",    // glow — accents, soft highlights
-  greenMute: "#3a6e54",    // muted — labels, secondary text
 
-  // Warm accents (used sparingly)
-  amber: "#ffb84d",        // RECOMMENDED badge, cursor caret
-  amberDim: "#7a5520",
-  red: "#ff4458",          // errors only
-  redMute: "#7a2a35",      // muted errors
-  redDim: "#5a1a25",       // very dim red borders
-
-  // Greys (sparingly — terminal stays green)
-  white: "#e6edf3",        // primary text
-  muted: "#7a8a82",        // muted labels
-  dim: "#3a4a42",          // very dim — dividers, hints
-
-  // Pure
-  black: "#000000",
-} as const
 
 function hexToRgb(hex: string) {
   const h = hex.replace("#", "")
