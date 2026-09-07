@@ -3,6 +3,8 @@
 
 generator client {
   provider = "prisma-client-js"
+  // Stable monorepo path — avoids bun multi-copy @prisma/client hash mismatch on Vercel
+  output   = "../src/generated"
 }
 
 datasource db {

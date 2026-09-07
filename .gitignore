@@ -46,7 +46,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-/packages/db/src/generated/prisma
+/packages/db/src/generated
 /packages/db-terminal/src/generated
 /packages/superdesign-db/prisma/client
 **/node_modules

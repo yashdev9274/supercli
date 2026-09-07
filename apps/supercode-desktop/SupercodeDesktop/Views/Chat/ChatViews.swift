@@ -151,11 +151,12 @@ private var statusLabel: String {
             Image("Logo")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 120, height: 68)
+                .frame(width: 220, height: 124)
+                .shadow(color: DesktopTheme.accent.opacity(0.22), radius: 18, y: 4)
                 .accessibilityLabel("Supercode logo")
 
             Text("Supercode Agent")
-                .font(.system(size: 20, weight: .semibold))
+                .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(DesktopTheme.textPrimary)
 
             Text(workspace.path == nil
@@ -239,41 +240,109 @@ struct MessageBubble: View {
 
     @ViewBuilder
     private var assistantBody: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             if message.parts.isEmpty {
                 if message.content.isEmpty {
                     streamingPlaceholder
                 } else {
-                    markdownText(message.content)
+                    resultSection(message.content)
                 }
             } else {
-                ForEach(message.parts) { part in
-                    switch part {
-                    case .text(_, let content):
-                        if content.isEmpty {
-                            EmptyView()
-                        } else {
-                            markdownText(content)
-                        }
-                    case .reasoning(_, let content):
-                        DisclosureGroup {
-                            Text(content)
-                                .font(DesktopTheme.monoSmall)
-                                .foregroundStyle(DesktopTheme.textMuted)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        } label: {
-                            Label("Thinking", systemImage: "brain.head.profile")
-                                .font(DesktopTheme.monoTiny)
-                                .foregroundStyle(DesktopTheme.textMuted)
-                        }
-                    case .toolCall(let tool):
-                        ToolCallCard(tool: tool)
+                let reasoningParts = message.parts.compactMap { part -> String? in
+                    if case .reasoning(_, let c) = part, !c.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        return c
                     }
+                    return nil
+                }
+                let toolParts = message.parts.compactMap { part -> ToolCallPart? in
+                    if case .toolCall(let t) = part { return t }
+                    return nil
+                }
+                let textParts = message.parts.compactMap { part -> String? in
+                    if case .text(_, let c) = part, !c.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        return c
+                    }
+                    return nil
+                }
+
+                // Process surface — thinking + tools under one disclosure
+                if !reasoningParts.isEmpty || !toolParts.isEmpty {
+                    DisclosureGroup {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(Array(reasoningParts.enumerated()), id: \.offset) { _, content in
+                                Text(content)
+                                    .font(DesktopTheme.monoSmall)
+                                    .foregroundStyle(DesktopTheme.textMuted)
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            ForEach(toolParts) { tool in
+                                ToolCallCard(tool: tool)
+                            }
+                        }
+                        .padding(.top, 4)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "brain.head.profile")
+                                .font(.system(size: 11, weight: .semibold))
+                            Text(thinkingLabel(reasoningCount: reasoningParts.count, toolCount: toolParts.count))
+                                .font(DesktopTheme.monoTiny)
+                        }
+                        .foregroundStyle(DesktopTheme.textMuted)
+                    }
+                }
+
+                // Result surface — final answer only
+                if textParts.isEmpty && reasoningParts.isEmpty && toolParts.isEmpty {
+                    streamingPlaceholder
+                } else if !textParts.isEmpty {
+                    resultSection(textParts.joined(separator: "\n\n"))
+                } else if message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                            && reasoningParts.isEmpty {
+                    // Fallback legacy content field
+                    resultSection(message.content)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func thinkingLabel(reasoningCount: Int, toolCount: Int) -> String {
+        var bits: [String] = ["Thinking"]
+        if toolCount > 0 {
+            bits.append("\(toolCount) tool\(toolCount == 1 ? "" : "s")")
+        }
+        if reasoningCount > 1 {
+            bits.append("\(reasoningCount) notes")
+        }
+        return bits.joined(separator: " · ")
+    }
+
+    @ViewBuilder
+    private func resultSection(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "text.alignleft")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(DesktopTheme.success)
+                Text("Result")
+                    .font(DesktopTheme.monoTiny)
+                    .foregroundStyle(DesktopTheme.success)
+                Rectangle()
+                    .fill(DesktopTheme.border)
+                    .frame(height: 1)
+            }
+            MarkdownResultView(text: text)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(DesktopTheme.panelElevated.opacity(0.55))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(DesktopTheme.border, lineWidth: 1)
+                )
+        )
     }
 
     private func messageActions(isUser: Bool) -> some View {
@@ -324,31 +393,327 @@ if isUser && isLastUser && (agentRun.status == .idle || agentRun.status == .erro
         .padding(.vertical, 4)
     }
 
-    @ViewBuilder
-    private func markdownText(_ text: String) -> some View {
+}
+
+/// Block-aware markdown renderer for assistant Result content.
+/// Uses full markdown syntax (headings, lists, code, tables) instead of
+/// inline-only parsing so desktop matches the CLI Result surface.
+struct MarkdownResultView: View {
+    let text: String
+
+    var body: some View {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
             EmptyView()
-        } else if let attributed = try? AttributedString(
-            markdown: text,
-            options: AttributedString.MarkdownParsingOptions(
-                interpretedSyntax: .inlineOnlyPreservingWhitespace
-            )
-        ) {
-            Text(attributed)
-                .font(.system(size: 13.5))
-                .foregroundStyle(DesktopTheme.textPrimary)
-                .lineSpacing(3)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
         } else {
-            Text(text)
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(Array(Self.splitBlocks(trimmed).enumerated()), id: \.offset) { _, block in
+                    blockView(block)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private func blockView(_ block: MarkdownBlock) -> some View {
+        switch block {
+        case .heading(let level, let content):
+            Text(inlineAttributed(content))
+                .font(headingFont(level))
+                .foregroundStyle(DesktopTheme.textPrimary)
+                .textSelection(.enabled)
+                .padding(.top, level <= 2 ? 4 : 2)
+        case .paragraph(let content):
+            Text(inlineAttributed(content))
+                .font(.system(size: 13.5))
+                .foregroundStyle(DesktopTheme.textPrimary)
+                .lineSpacing(3.5)
+                .textSelection(.enabled)
+        case .list(let ordered, let items):
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Array(items.enumerated()), id: \.offset) { idx, item in
+                    HStack(alignment: .top, spacing: 8) {
+                        Text(ordered ? "\(idx + 1)." : "•")
+                            .font(DesktopTheme.monoSmall)
+                            .foregroundStyle(DesktopTheme.accent)
+                            .frame(width: 16, alignment: .trailing)
+                        Text(inlineAttributed(item))
+                            .font(.system(size: 13.5))
+                            .foregroundStyle(DesktopTheme.textPrimary)
+                            .lineSpacing(2)
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+        case .code(let lang, let code):
+            VStack(alignment: .leading, spacing: 0) {
+                if let lang, !lang.isEmpty {
+                    Text(lang)
+                        .font(DesktopTheme.monoTiny)
+                        .foregroundStyle(DesktopTheme.textMuted)
+                        .padding(.horizontal, 10)
+                        .padding(.top, 8)
+                        .padding(.bottom, 4)
+                }
+                Text(code)
+                    .font(DesktopTheme.monoSmall)
+                    .foregroundStyle(DesktopTheme.textPrimary)
+                    .textSelection(.enabled)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(DesktopTheme.background)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(DesktopTheme.border, lineWidth: 1)
+                    )
+            )
+        case .blockquote(let content):
+            HStack(alignment: .top, spacing: 10) {
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(DesktopTheme.accent.opacity(0.7))
+                    .frame(width: 3)
+                Text(inlineAttributed(content))
+                    .font(.system(size: 13, weight: .regular).italic())
+                    .foregroundStyle(DesktopTheme.textSecondary)
+                    .textSelection(.enabled)
+            }
+            .padding(.vertical, 2)
+        case .table(let headers, let rows):
+            MarkdownTableView(headers: headers, rows: rows)
+        case .hr:
+            Rectangle()
+                .fill(DesktopTheme.border)
+                .frame(height: 1)
+                .padding(.vertical, 4)
+        case .raw(let content):
+            Text(content)
                 .font(.system(size: 13.5))
                 .foregroundStyle(DesktopTheme.textPrimary)
                 .lineSpacing(3)
                 .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private func headingFont(_ level: Int) -> Font {
+        switch level {
+        case 1: return .system(size: 18, weight: .bold)
+        case 2: return .system(size: 16, weight: .semibold)
+        case 3: return .system(size: 14.5, weight: .semibold)
+        default: return .system(size: 13.5, weight: .semibold)
+        }
+    }
+
+    private func inlineAttributed(_ markdown: String) -> AttributedString {
+        let options = AttributedString.MarkdownParsingOptions(
+            interpretedSyntax: .inlineOnlyPreservingWhitespace
+        )
+        if let attributed = try? AttributedString(markdown: markdown, options: options) {
+            return attributed
+        }
+        return AttributedString(markdown)
+    }
+
+    private enum MarkdownBlock {
+        case heading(level: Int, content: String)
+        case paragraph(String)
+        case list(ordered: Bool, items: [String])
+        case code(lang: String?, code: String)
+        case blockquote(String)
+        case table(headers: [String], rows: [[String]])
+        case hr
+        case raw(String)
+    }
+
+    private static func splitBlocks(_ source: String) -> [MarkdownBlock] {
+        var blocks: [MarkdownBlock] = []
+        let lines = source.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n")
+        var i = 0
+        while i < lines.count {
+            let line = lines[i]
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            if trimmed.isEmpty {
+                i += 1
+                continue
+            }
+
+            // Fenced code
+            if trimmed.hasPrefix("```") {
+                let lang = String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+                var codeLines: [String] = []
+                i += 1
+                while i < lines.count && !lines[i].trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+                    codeLines.append(lines[i])
+                    i += 1
+                }
+                if i < lines.count { i += 1 } // consume closing fence
+                blocks.append(.code(lang: lang.isEmpty ? nil : lang, code: codeLines.joined(separator: "\n")))
+                continue
+            }
+
+            // Heading
+            if let heading = parseHeading(trimmed) {
+                blocks.append(.heading(level: heading.0, content: heading.1))
+                i += 1
+                continue
+            }
+
+            // HR
+            if trimmed == "---" || trimmed == "***" || trimmed == "___" {
+                blocks.append(.hr)
+                i += 1
+                continue
+            }
+
+            // Table (header + separator)
+            if i + 1 < lines.count, isTableSeparator(lines[i + 1]), trimmed.contains("|") {
+                let headers = splitTableRow(trimmed)
+                i += 2
+                var rows: [[String]] = []
+                while i < lines.count {
+                    let rowTrim = lines[i].trimmingCharacters(in: .whitespaces)
+                    if rowTrim.isEmpty || !rowTrim.contains("|") { break }
+                    rows.append(splitTableRow(rowTrim))
+                    i += 1
+                }
+                blocks.append(.table(headers: headers, rows: rows))
+                continue
+            }
+
+            // Blockquote
+            if trimmed.hasPrefix(">") {
+                var quote: [String] = []
+                while i < lines.count {
+                    let q = lines[i].trimmingCharacters(in: .whitespaces)
+                    if !q.hasPrefix(">") { break }
+                    quote.append(String(q.drop(while: { $0 == ">" || $0 == " " })))
+                    i += 1
+                }
+                blocks.append(.blockquote(quote.joined(separator: " ")))
+                continue
+            }
+
+            // Lists
+            if isListItem(trimmed) {
+                let ordered = trimmed.range(of: #"^\d+\."#, options: .regularExpression) != nil
+                var items: [String] = []
+                while i < lines.count {
+                    let itemLine = lines[i].trimmingCharacters(in: .whitespaces)
+                    if !isListItem(itemLine) { break }
+                    items.append(stripListMarker(itemLine))
+                    i += 1
+                }
+                blocks.append(.list(ordered: ordered, items: items))
+                continue
+            }
+
+            // Paragraph — gather until blank / structural
+            var para: [String] = [trimmed]
+            i += 1
+            while i < lines.count {
+                let next = lines[i]
+                let nt = next.trimmingCharacters(in: .whitespaces)
+                if nt.isEmpty { break }
+                if nt.hasPrefix("```") || parseHeading(nt) != nil || nt.hasPrefix(">") || isListItem(nt) || nt == "---" {
+                    break
+                }
+                if i + 1 < lines.count, isTableSeparator(lines[i + 1]), nt.contains("|") {
+                    break
+                }
+                para.append(nt)
+                i += 1
+            }
+            blocks.append(.paragraph(para.joined(separator: " ")))
+        }
+        return blocks.isEmpty ? [.raw(source)] : blocks
+    }
+
+    private static func parseHeading(_ line: String) -> (Int, String)? {
+        guard line.hasPrefix("#") else { return nil }
+        var level = 0
+        for ch in line {
+            if ch == "#" { level += 1 } else { break }
+        }
+        guard level >= 1 && level <= 6 else { return nil }
+        let rest = line.dropFirst(level).trimmingCharacters(in: .whitespaces)
+        guard !rest.isEmpty else { return nil }
+        // Require space after hashes for ATX headings when more content follows
+        return (level, rest)
+    }
+
+    private static func isListItem(_ line: String) -> Bool {
+        line.range(of: #"^([-*+]|\d+\.)\s+"#, options: .regularExpression) != nil
+    }
+
+    private static func stripListMarker(_ line: String) -> String {
+        if let range = line.range(of: #"^([-*+]|\d+\.)\s+"#, options: .regularExpression) {
+            return String(line[range.upperBound...])
+        }
+        return line
+    }
+
+    private static func isTableSeparator(_ line: String) -> Bool {
+        let t = line.trimmingCharacters(in: .whitespaces)
+        guard t.contains("-") && t.contains("|") else { return false }
+        return t.range(of: #"^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$"#, options: .regularExpression) != nil
+    }
+
+    private static func splitTableRow(_ line: String) -> [String] {
+        var s = line.trimmingCharacters(in: .whitespaces)
+        if s.hasPrefix("|") { s.removeFirst() }
+        if s.hasSuffix("|") { s.removeLast() }
+        return s.split(separator: "|", omittingEmptySubsequences: false).map {
+            $0.trimmingCharacters(in: .whitespaces)
+        }
+    }
+}
+
+struct MarkdownTableView: View {
+    let headers: [String]
+    let rows: [[String]]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 0) {
+                ForEach(Array(headers.enumerated()), id: \.offset) { _, h in
+                    Text(h)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(DesktopTheme.textPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                }
+            }
+            .background(DesktopTheme.panel)
+
+            Rectangle().fill(DesktopTheme.border).frame(height: 1)
+
+            ForEach(Array(rows.enumerated()), id: \.offset) { idx, row in
+                HStack(spacing: 0) {
+                    ForEach(Array(headers.indices), id: \.self) { col in
+                        let cell = col < row.count ? row[col] : ""
+                        Text(cell)
+                            .font(.system(size: 12))
+                            .foregroundStyle(DesktopTheme.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(8)
+                    }
+                }
+                .background(idx % 2 == 0 ? DesktopTheme.background.opacity(0.35) : Color.clear)
+
+                if idx < rows.count - 1 {
+                    Rectangle().fill(DesktopTheme.border.opacity(0.6)).frame(height: 1)
+                }
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(DesktopTheme.border, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 
@@ -1325,14 +1690,15 @@ struct AuthView: View {
                     Image("Logo")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 140, height: 78)
+                        .frame(width: 260, height: 146)
+                        .shadow(color: DesktopTheme.accent.opacity(0.28), radius: 22, y: 6)
 
                     Text("SUPERCODE")
                         .font(DesktopTheme.monoTiny)
                         .tracking(3)
                         .foregroundStyle(DesktopTheme.accent)
                     Text("Desktop Coding Agent")
-                        .font(.system(size: 28, weight: .semibold))
+                        .font(.system(size: 30, weight: .semibold))
                         .foregroundStyle(DesktopTheme.textPrimary)
                     Text("Independent of Jarvis. Sign in with your Supercode account to start.")
                         .font(.system(size: 13))

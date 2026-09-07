@@ -250,6 +250,31 @@ function getModelMaxTokens(model: string): number {
 // turn indefinitely (the "worked for 60s+ then nothing" symptom).
 const UPSTREAM_TIMEOUT_MS = Number(process.env.SUPERCODE_UPSTREAM_TIMEOUT_MS) || 120_000
 
+// Client aborts after ~45s without status/model events. While we await
+// Concentrate (headers only after the provider starts streaming), keep
+// sending NDJSON status heartbeats so the CLI body-stall timer resets.
+const UPSTREAM_HEARTBEAT_MS = Number(process.env.SUPERCODE_UPSTREAM_HEARTBEAT_MS) || 12_000
+
+async function awaitWithStatusHeartbeats<T>(
+  work: Promise<T>,
+  writeStatus: (phase: string, message?: string) => void,
+  phase: string,
+  label: string,
+  intervalMs = UPSTREAM_HEARTBEAT_MS,
+): Promise<T> {
+  let ticks = 0
+  const id = setInterval(() => {
+    ticks += 1
+    const secs = Math.round((ticks * intervalMs) / 1000)
+    writeStatus(phase, `${label} · ${secs}s`)
+  }, intervalMs)
+  try {
+    return await work
+  } finally {
+    clearInterval(id)
+  }
+}
+
 // Models allowed through the server proxy without a user-provided API key
 const CLOUD_ALLOWED_MODELS = new Set([
   "deepseek-v4-flash",
@@ -739,7 +764,7 @@ res.status(200)
           return
         }
         const reader = response.body?.getReader()
-        endChatStreamError(res, "No response body"); return
+        if (!reader) { endChatStreamError(res, "No response body"); return }
         const streamed = await streamOpenAICompatibleChat({ res, reader, knownTools: knownToolsFromRequest(tools) })
         const inputTokens = streamed.usage.inputTokens
         const outputTokens = streamed.usage.outputTokens
@@ -870,7 +895,7 @@ res.status(200)
           return
         }
         const reader = response.body?.getReader()
-        endChatStreamError(res, "No response body"); return
+        if (!reader) { endChatStreamError(res, "No response body"); return }
         const streamed = await streamOpenAICompatibleChat({ res, reader, knownTools: knownToolsFromRequest(tools) })
         const inputTokens = streamed.usage.inputTokens
         const outputTokens = streamed.usage.outputTokens
@@ -922,7 +947,7 @@ res.status(200)
           return
         }
         const reader = response.body?.getReader()
-        endChatStreamError(res, "No response body"); return
+        if (!reader) { endChatStreamError(res, "No response body"); return }
         const streamed = await streamOpenAICompatibleChat({ res, reader, knownTools: knownToolsFromRequest(tools) })
         const inputTokens = streamed.usage.inputTokens
         const outputTokens = streamed.usage.outputTokens
@@ -975,7 +1000,7 @@ res.status(200)
           return
         }
         const reader = response.body?.getReader()
-        endChatStreamError(res, "No response body"); return
+        if (!reader) { endChatStreamError(res, "No response body"); return }
         const streamed = await streamOpenAICompatibleChat({ res, reader, knownTools: knownToolsFromRequest(tools) })
         const inputTokens = streamed.usage.inputTokens
         const outputTokens = streamed.usage.outputTokens
@@ -1024,12 +1049,17 @@ const caStart = Date.now()
           bodyObj.tools = toolsToOpenAIFunctions(tools)
         }
         writeStatus("upstream", `calling concentrate · ${modelName}`)
-        const response = await fetch("https://api.concentrate.ai/v1/chat/completions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify(bodyObj),
-          signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-        })
+        const response = await awaitWithStatusHeartbeats(
+          fetch("https://api.concentrate.ai/v1/chat/completions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify(bodyObj),
+            signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+          }),
+          writeStatus,
+          "upstream",
+          `waiting on concentrate · ${modelName}`,
+        )
         if (!response.ok) {
           const errText = await response.text().catch(() => "unknown error")
           res.write(JSON.stringify({
@@ -1084,12 +1114,18 @@ if (!reader) { endChatStreamError(res, "No response body"); return }
           if (system && nonSystemMessages.length > 0) {
             fbBody.messages = [{ role: "system", content: system }, ...fbBody.messages]
           }
-          const fbRes = await fetch("https://api.concentrate.ai/v1/chat/completions", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify(fbBody),
-            signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-          })
+          writeStatus("fallback", "retrying non-stream · concentrate")
+          const fbRes = await awaitWithStatusHeartbeats(
+            fetch("https://api.concentrate.ai/v1/chat/completions", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify(fbBody),
+              signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+            }),
+            writeStatus,
+            "fallback",
+            `waiting on concentrate fallback · ${modelName}`,
+          )
           if (fbRes.ok) {
             const fbData: any = await fbRes.json()
             const fbMsg = fbData?.choices?.[0]?.message ?? {}
@@ -1157,19 +1193,26 @@ if (!reader) { endChatStreamError(res, "No response body"); return }
         if (tools) {
           bodyObj.tools = toolsToOpenAIFunctions(tools)
         }
-        const response = await fetch("https://api.concentrate.ai/v1/chat/completions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify(bodyObj),
-          signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-        })
+        writeStatus("upstream", `calling supercode cloud · ${modelName}`)
+        const response = await awaitWithStatusHeartbeats(
+          fetch("https://api.concentrate.ai/v1/chat/completions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify(bodyObj),
+            signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+          }),
+          writeStatus,
+          "upstream",
+          `waiting on supercode cloud · ${modelName}`,
+        )
         if (!response.ok) {
           const errText = await response.text().catch(() => "unknown error")
           endChatStreamError(res, `Supercode Cloud API ${response.status}: ${errText}`);
           return
         }
-const reader = response.body?.getReader()
-        endChatStreamError(res, "No response body"); return
+        writeStatus("streaming", "model stream open")
+        const reader = response.body?.getReader()
+        if (!reader) { endChatStreamError(res, "No response body"); return }
         // suppressEmptyError: non-stream retry below owns the empty message.
         let streamed = await streamOpenAICompatibleChat({
           res,
@@ -1210,12 +1253,18 @@ const reader = response.body?.getReader()
           if (system && nonSystemMessages.length > 0) {
             fbBody.messages = [{ role: "system", content: system }, ...fbBody.messages]
           }
-          const fbRes = await fetch("https://api.concentrate.ai/v1/chat/completions", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify(fbBody),
-            signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-          })
+          writeStatus("fallback", "retrying non-stream · supercode cloud")
+          const fbRes = await awaitWithStatusHeartbeats(
+            fetch("https://api.concentrate.ai/v1/chat/completions", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify(fbBody),
+              signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+            }),
+            writeStatus,
+            "fallback",
+            `waiting on supercode cloud fallback · ${modelName}`,
+          )
           if (fbRes.ok) {
             const fbData: any = await fbRes.json()
             const fbMsg = fbData?.choices?.[0]?.message ?? {}

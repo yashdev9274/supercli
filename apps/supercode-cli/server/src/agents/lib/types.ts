@@ -27,8 +27,13 @@ export interface GenerateOptions {
   prompt?: string
   system?: string
   onStepFinish?: (step: unknown) => void
+  /** Visible answer text delta (after think-split). */
   onChunk?: (chunk: string) => void
+  /** Private process / reasoning delta (tags + channel). */
+  onReasoning?: (chunk: string) => void
+  onStatus?: (message: string) => void
   onToolCall?: (params: { toolName: string; args?: unknown }) => void
+  onToolResult?: (params: { toolName: string; result?: unknown }) => void
   signal?: AbortSignal
   budget?: number
   parentAgent?: string
@@ -36,6 +41,8 @@ export interface GenerateOptions {
 
 export interface GenerateResult {
   text: string
+  /** Accumulated private reasoning / CoT for this turn. */
+  reasoning?: string
   toolCalls?: Array<{ toolName: string; args?: unknown }>
   finishReason?: string
   tokens?: { input: number; output: number }

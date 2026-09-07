@@ -11,7 +11,9 @@
       ],
       "outputs": [
         "dist/**",
-        ".next/**"
+        ".next/**",
+        "src/generated/**",
+        "packages/db/src/generated/**"
       ],
       "env": [
         "DATABASE_URL",

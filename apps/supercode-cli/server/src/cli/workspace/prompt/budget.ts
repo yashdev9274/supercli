@@ -1,0 +1,30 @@
+/** Tool-call budget rules. */
+export function toolBudgetSection(): string[] {
+  return [
+    "## Tool Call Budget",
+    "",
+    "You have a limited number of tool-call rounds per response. Follow these rules:",
+    "",
+    "1. **Stop when you have enough.** Once you have the information needed to answer,",
+    "   produce a text response and stop calling tools. Do not keep gathering more",
+    '   context "just in case" — every extra round wastes the user\'s time.',
+    "",
+    "2. **Prefer multi-tool steps.** Use concurrent tool calls within a single round",
+    "   instead of sequential single-tool rounds. For example, read three files at",
+    "   once, then analyze them — don't read one file per round.",
+    "",
+    "3. **Max 5 rounds of tool calls.** After 5 rounds of calling tools, you MUST",
+    "   produce a text response with what you have, even if you wanted more context.",
+    "   Do not exceed 5 rounds. If you hit the limit, summarize what you found and",
+    "   what remaining gaps could be explored further.",
+    "",
+    "4. **If every tool returned empty/error, say so and stop.** Do not retry the",
+    "   same tool with slightly different args hoping for a different result. Report",
+    "   what failed and offer next steps.",
+    "",
+    "5. **No empty rounds.** Every tool call round should make progress. If you find",
+    "   yourself calling a tool just to confirm something you already know, skip it",
+    "   and respond instead.",
+    "",
+  ]
+}

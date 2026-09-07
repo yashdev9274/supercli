@@ -1,28 +1,41 @@
+/**
+ * Dedicated agent-mode chat loop (build agent).
+ * Shares Result/Thinking gate via runUnifiedTurn when available.
+ */
 import prisma from "../../../lib/prisma"
 import chalk from "chalk"
 import { text, confirm, isCancel } from "@clack/prompts"
-import { createThinking, theme, userMessage, streamFooter, streamHeader } from "src/cli/utils/tui"
+import { createThinking, theme, userMessage, streamFooter } from "src/cli/utils/tui"
 import { MarkdownStream } from "src/cli/utils/markdown-stream"
 import { getStoredToken } from "src/lib/token"
 import { ChatService } from "src/service/chat-service"
 import { createProvider, type ModelProvider } from "src/cli/ai/provider"
+import { runUnifiedTurn, agentIdForMode } from "src/cli/runtime/turn-runner"
 import { type WorkspaceInfo } from "src/cli/workspace/scanner"
-import { agentService, loadPrompt, runTurn, getAgent } from "src/agents"
+import { agentService } from "src/agents"
 import { buildSystemPrompt } from "src/cli/workspace/context"
 import { ThinkingDisplay, ThoughtChain } from "src/cli/ai/chat/thinking"
 import { tools } from "src/agents"
 import { getMcpManager } from "src/mcp/mcp-manager"
 
-let _chatService: ChatService
+type Conversation = {
+  id: string
+  title: string | null
+  mode: string
+  userId: string
+  createdAt: Date
+  updatedAt: Date
+}
 
-function getChatService() {
+let _chatService: ChatService | undefined
+
+function getChatService(): ChatService {
   if (!_chatService) _chatService = new ChatService()
   return _chatService
 }
 
 async function getUserFromToken() {
   const token = await getStoredToken()
-
   if (!token?.access_token) {
     console.log(chalk.hex(theme.red)("Not authenticated. Please login first."))
     process.exit(1)
@@ -66,13 +79,86 @@ async function initAgentConversation(userId: string, conversationId: string | nu
   return conversation
 }
 
-interface Conversation {
-  id: string
-  title: string | null
-  mode: string
-  userId: string
-  createdAt: Date
-  updatedAt: Date
+async function saveMessage(conversationId: string, role: string, content: string) {
+  return getChatService().addMessage(conversationId, role, content)
+}
+
+async function resolveTools(): Promise<Record<string, unknown>> {
+  const toolsToUse: Record<string, unknown> = { ...tools }
+  const mcpManager = getMcpManager()
+  if (mcpManager.isStarted) {
+    const mcpTools = await mcpManager.getAllTools()
+    if (mcpTools && Object.keys(mcpTools).length > 0) {
+      Object.assign(toolsToUse, mcpTools)
+    }
+  }
+  return toolsToUse
+}
+
+async function runAgentTurn(opts: {
+  model: import("ai").LanguageModel
+  userInput: string
+  system?: string
+  toolsToUse: Record<string, unknown>
+  thinking: ThinkingDisplay
+  chain: ThoughtChain
+}): Promise<string> {
+  const { model, userInput, system, toolsToUse, thinking, chain } = opts
+  const seenToolCalls = new Set<string>()
+  let accumulatedText = ""
+
+  const onTool = (toolName: string, args: unknown) => {
+    const label = `${toolName}(${JSON.stringify(args ?? {})})`
+    if (seenToolCalls.has(label)) return
+    seenToolCalls.add(label)
+    chain.begin()
+    chain.addTool(toolName, JSON.stringify(args ?? {}))
+    chain.finish()
+    thinking.showToolCall(toolName, args)
+  }
+
+  const providerName = (process.env.SUPERCODE_AGENT_PROVIDER as string) || undefined
+  try {
+    const unified = await runUnifiedTurn({
+      provider: (providerName as any) || "supercode",
+      modelId: process.env.SUPERCODE_AGENT_MODEL || (model as any)?.modelId || "deepseek-v4-flash",
+      agent: agentIdForMode("agent"),
+      tools: toolsToUse as any,
+      messages: [{ role: "user", content: userInput }],
+      system,
+      onEvent: (ev) => {
+        if (ev.type === "text" && ev.delta) {
+          accumulatedText += ev.delta
+        } else if (ev.type === "reasoning" && ev.delta) {
+          if (!chain.thoughts.length || !(chain as any).isOpen) chain.begin()
+          chain.append?.(ev.delta)
+        } else if (ev.type === "tool_start") {
+          onTool(ev.toolName, ev.args)
+        }
+      },
+    })
+    return unified.text || accumulatedText
+  } catch {
+    // Fallback: direct build agent.generate when unified path lacks LanguageModel id
+    const buildAgent = agentService.get("build")
+    if (!buildAgent?.generate) throw new Error("build agent not available")
+
+    const result = await buildAgent.generate({
+      model,
+      tools: toolsToUse,
+      system,
+      prompt: userInput,
+      onStepFinish: async ({ text, toolCalls }: any) => {
+        if (text) accumulatedText += text
+        if (toolCalls?.length) {
+          for (const tc of toolCalls) {
+            onTool(tc.toolName, (tc as any).input)
+          }
+        }
+      },
+    })
+    return result.text || accumulatedText
+  }
 }
 
 async function agentLoop(
@@ -87,7 +173,7 @@ async function agentLoop(
   const agentSystemPrompt = workspaceInfo ? buildSystemPrompt(workspaceInfo, true) : undefined
 
   console.log(` ${chalk.hex(theme.amber)("◆")} ${chalk.hex(theme.muted)("Describe an application to generate")}`)
-  console.log(` ${chalk.hex(theme.muted)('•')} Type "exit" to end`)
+  console.log(` ${chalk.hex(theme.muted)("•")} Type "exit" to end`)
   console.log()
 
   while (true) {
@@ -95,12 +181,8 @@ async function agentLoop(
       message: chalk.hex(theme.amber)("what would you like to build?"),
       placeholder: "Describe your application...",
       validate(value: string | undefined) {
-        if (!value || value.trim().length === 0) {
-          return "Description cannot be empty"
-        }
-        if (value.trim().length < 10) {
-          return "Please provide more details (at least 10 characters)"
-        }
+        if (!value || value.trim().length === 0) return "Description cannot be empty"
+        if (value.trim().length < 10) return "Please provide more details (at least 10 characters)"
       },
     })
 
@@ -122,62 +204,24 @@ async function agentLoop(
     const startTime = Date.now()
 
     try {
-      const buildAgent = agentService.get("build")
-      if (!buildAgent?.generate) {
-        throw new Error("build agent not available")
-      }
-
-      // Collapsed-thought pattern (matches chat mode + opencode TUI):
-      // accumulate tool calls + reasoning into a ThoughtChain during
-      // streaming, render the whole chain as a single "▼ Thought" toggle
-      // BEFORE the final markdown output.
       const thinking = new ThinkingDisplay()
       thinking.start("thinking")
       const chain = new ThoughtChain()
-      const seenToolCalls = new Set<string>()
-      let accumulatedText = ""
+      const toolsToUse = await resolveTools()
 
-      let toolsToUse: Record<string, unknown> = { ...tools }
-      const mcpManager = getMcpManager()
-      if (mcpManager.isStarted) {
-        const mcpTools = await mcpManager.getAllTools()
-        if (mcpTools && Object.keys(mcpTools).length > 0) {
-          Object.assign(toolsToUse, mcpTools)
-        }
-      }
-
-      const result = await buildAgent.generate({
-        model,
-        tools: toolsToUse,
-        system: agentSystemPrompt,
-        prompt: userInput,
-        onStepFinish: async ({ stepNumber, text, toolCalls, finishReason }: any) => {
-          // Track raw step text for the final answer output, but don't
-          // feed it into the thought chain — that would leak BTS reasoning
-          // into the visible toggle block.
-          if (text) {
-            accumulatedText += text
-          }
-          // Track tool calls. The AI SDK sometimes emits the same call
-          // across consecutive steps — dedupe so we don't double-count.
-          if (toolCalls?.length) {
-            for (const tc of toolCalls) {
-              const label = `${tc.toolName}(${JSON.stringify((tc as any).input)})`
-              if (seenToolCalls.has(label)) continue
-              seenToolCalls.add(label)
-              chain.begin()
-              chain.addTool(tc.toolName, JSON.stringify((tc as any).input ?? {}))
-              chain.finish()
-              thinking.showToolCall(tc.toolName, (tc as any).input)
-            }
-          }
-        },
-      })
+      const resultText =
+        (await runAgentTurn({
+          model,
+          userInput,
+          system: agentSystemPrompt,
+          toolsToUse,
+          thinking,
+          chain,
+        })) || "Application created successfully."
 
       thinking.stop()
       const elapsed = Date.now() - startTime
 
-      // Render the collapsed Thought block above the final output.
       if (chain.thoughts.length > 0) {
         console.log()
         chain.printUnified()
@@ -186,16 +230,12 @@ async function agentLoop(
       const w = process.stdout.columns ?? 80
       const dim = (s: string) => chalk.hex(theme.greenDim)(s)
       console.log(` ${chalk.hex(theme.green)("┃")} ${chalk.hex(theme.green).bold("Result")} ${dim("─".repeat(Math.max(0, w - 15)))}`)
-      // Render the agent's response through the markdown stream so headings,
-      // lists, code fences, and bold get the proper terminal styling.
       const md = new MarkdownStream()
-      md.push(result.text || accumulatedText || "Application created successfully.")
+      md.push(resultText)
       await md.end()
       console.log()
 
-      const responseMessage = result.text || accumulatedText || "Application created successfully."
-      await saveMessage(conversation.id, "assistant", responseMessage)
-
+      await saveMessage(conversation.id, "assistant", resultText)
       streamFooter(undefined, elapsed)
 
       const continueApp = await confirm({
@@ -224,15 +264,9 @@ async function agentLoop(
         initialValue: true,
       })
 
-      if (isCancel(retry) || !retry) {
-        break
-      }
+      if (isCancel(retry) || !retry) break
     }
   }
-}
-
-async function saveMessage(conversationId: string, role: string, content: string) {
-  return getChatService().addMessage(conversationId, role, content)
 }
 
 export async function startAgentChat(
@@ -251,11 +285,17 @@ export async function startAgentChat(
     const user = await getUserFromToken()
     console.log()
 
+    process.env.SUPERCODE_AGENT_PROVIDER = provider
+    if (model) process.env.SUPERCODE_AGENT_MODEL = model
     const aiProvider = createProvider(provider, model)
     const languageModel = aiProvider.model as import("ai").LanguageModel | null
 
     if (!languageModel) {
-      console.log(chalk.hex(theme.red)(`Agent mode requires a model with tool support. ${provider} provider does not export a compatible model.`))
+      console.log(
+        chalk.hex(theme.red)(
+          `Agent mode requires a model with tool support. ${provider} provider does not export a compatible model.`,
+        ),
+      )
       process.exit(1)
     }
 
@@ -265,7 +305,9 @@ export async function startAgentChat(
     console.log()
     console.log(chalk.hex(theme.green)("◆") + " " + chalk.hex(theme.muted)("agent session ended"))
   } catch (error) {
-    console.log(` ${chalk.hex(theme.red)("◆")} ${chalk.hex(theme.red)(error instanceof Error ? error.message : String(error))}`)
+    console.log(
+      ` ${chalk.hex(theme.red)("◆")} ${chalk.hex(theme.red)(error instanceof Error ? error.message : String(error))}`,
+    )
     process.exit(1)
   }
 }

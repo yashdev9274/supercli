@@ -1,25 +1,33 @@
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
-import { streamText, stepCountIs, type ModelMessage, type LanguageModel, type LanguageModelUsage } from "ai"
-import chalk from "chalk"
-import { recordUsage } from "../../lib/track-usage"
-import { computeCost } from "../../lib/pricing"
-import { isEmptyToolResult, isDeniedToolResult, summarizeToolResult, tcName } from "./tool-result"
-import { checkDailyOpusLimit, incrementDailyOpusCount } from "../../lib/token-budget"
-import { stripOrphanToolCalls } from "./sanitize-messages"
+import type { LanguageModel, ModelMessage } from "ai"
+import { OpenAICompatibleAdapter } from "./adapters/openai-compatible.ts"
 import { toolParametersToJsonSchema } from "./tools-util"
+import {
+  checkDailyOpusLimit,
+  incrementDailyOpusCount,
+} from "../../lib/token-budget"
 
-const HIGH_VALUE_MODELS = ["anthropic/claude-fable-5", "anthropic/claude-opus-5", "anthropic/claude-opus-4-8", "anthropic/claude-opus-4-7", "openai/gpt-5.5"]
-const OPUS_MODELS = ["anthropic/claude-opus-5", "anthropic/claude-opus-4-8", "anthropic/claude-opus-4-7"]
-const OPUS_MODEL = "anthropic/claude-opus-4-8"
+const HIGH_VALUE_MODELS = [
+  "anthropic/claude-fable-5",
+  "anthropic/claude-opus-5",
+  "anthropic/claude-opus-4-8",
+  "anthropic/claude-opus-4-7",
+  "openai/gpt-5.5",
+]
+const OPUS_MODELS = [
+  "anthropic/claude-opus-5",
+  "anthropic/claude-opus-4-8",
+  "anthropic/claude-opus-4-7",
+]
 
 function getConcentrateApiKey(): string {
-  return process.env.CONCENTRATE_BYOK_PROD_KEY
-    || process.env.CONCENTRATE_BYOK_DEV_KEY
-    || ""
+  return (
+    process.env.CONCENTRATE_BYOK_PROD_KEY ||
+    process.env.CONCENTRATE_BYOK_DEV_KEY ||
+    ""
+  )
 }
 
 const BASE_URL = "https://api.concentrate.ai/v1"
-
 const MAX_RETRIES = 3
 
 async function fetchWithRetry(url: any, init?: RequestInit): Promise<Response> {
@@ -27,7 +35,7 @@ async function fetchWithRetry(url: any, init?: RequestInit): Promise<Response> {
     const res = await fetch(url, init)
     if (res.ok || res.status < 500) return res
     if (attempt >= MAX_RETRIES - 1) return res
-    await new Promise<void>(r => setTimeout(r, 1000 * Math.pow(2, attempt)))
+    await new Promise<void>((r) => setTimeout(r, 1000 * Math.pow(2, attempt)))
   }
 }
 
@@ -36,10 +44,17 @@ interface NonStreamingResponse {
   usage?: { prompt_tokens?: number; completion_tokens?: number }
 }
 
-async function nonStreamingRequest(modelName: string, system: string, messages: Array<{ role: string; content: string }>, tools?: any): Promise<NonStreamingResponse> {
+async function nonStreamingRequest(
+  modelName: string,
+  system: string,
+  messages: Array<{ role: string; content: string }>,
+  tools?: any,
+): Promise<NonStreamingResponse> {
   const body: Record<string, unknown> = {
     model: modelName,
-    messages: system ? [{ role: "system", content: system }, ...messages] : messages,
+    messages: system
+      ? [{ role: "system", content: system }, ...messages]
+      : messages,
     temperature: 0.7,
     stream: false,
   }
@@ -50,14 +65,16 @@ async function nonStreamingRequest(modelName: string, system: string, messages: 
       function: {
         name,
         description: fn.description || "",
-        // AI SDK 6 / harness tools use inputSchema (Zod); legacy used parameters.
         parameters: toolParametersToJsonSchema(fn),
       },
     }))
   }
   const res = await fetchWithRetry(`${BASE_URL}/chat/completions`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${getConcentrateApiKey()}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${getConcentrateApiKey()}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(60_000),
   })
@@ -66,439 +83,77 @@ async function nonStreamingRequest(modelName: string, system: string, messages: 
     if (res.status >= 500) {
       throw new Error(
         `ConcentrateAI is having trouble reaching this provider right now ` +
-        `(HTTP ${res.status}). This is a gateway-side issue, not your request. ` +
-        `Try again, or run /model to switch.\n  ${errText}`,
+          `(HTTP ${res.status}). This is a gateway-side issue, not your request. ` +
+          `Try again, or run /model to switch.\n  ${errText}`,
       )
     }
     throw new Error(`ConcentrateAI API ${res.status}: ${errText}`)
   }
-  return await res.json() as NonStreamingResponse
+  return (await res.json()) as NonStreamingResponse
 }
 
+/**
+ * ConcentrateAI — shared OpenAI-compatible adapter + empty-stream fallback + opus budget.
+ */
 export class ConcentrateService {
-  model: LanguageModel
+  private adapter: OpenAICompatibleAdapter
+  sendMessage: any
   readonly modelName: string
-
-  constructor(modelName?: string) {
-    const apiKey = getConcentrateApiKey()
-    if (!apiKey) {
-      throw new Error("ConcentrateAI is not configured.\n\n  Set CONCENTRATE_BYOK_PROD_KEY or CONCENTRATE_BYOK_DEV_KEY in your\n  environment, or run /connect to provide your API key.\n\n  Get a key at: https://concentrate.ai")
-    }
-
-    this.modelName = modelName || "deepseek-v4-flash"
-
-    const concentrate = createOpenAICompatible({
-      name: "concentrate",
-      baseURL: BASE_URL,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-      fetch: fetchWithRetry as typeof fetch,
-    })
-
-    this.model = concentrate.chatModel(this.modelName)
+  get model(): LanguageModel {
+    return this.adapter.model
   }
 
-  async sendMessage(
-    messages: ModelMessage[],
-    onChunk?: (chunk: string) => void,
-    tools?: any,
-    onToolCall?: any,
-    signal?: AbortSignal,
-    onReasoning?: (chunk: string) => void,
-    onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void,
-    onStepFinish?: (params: { stepNumber: number; toolCalls: Array<{ toolName: string; args: unknown }>; toolResults: Array<{ toolName: string; args: unknown; result: string }> }) => void,
-    onStepBudget?: (maxSteps: number) => void,
-  ) {
-    // Combined abort: overall 120s safety + first-token 45s so a silent stream
-    // fails before the TUI's "model may be overloaded" 80s wall.
-    const streamAbortController = new AbortController()
-    const streamTimeout = setTimeout(() => streamAbortController.abort(), 120_000)
-    const firstTokenMs = Number(process.env.SUPERCODE_FIRST_TOKEN_TIMEOUT_MS) || 45_000
-    let sawStreamActivity = false
-    const firstTokenTimeout = setTimeout(() => {
-      if (!sawStreamActivity && !streamAbortController.signal.aborted) {
-        streamAbortController.abort()
-      }
-    }, firstTokenMs)
-    const markActivity = () => {
-      if (!sawStreamActivity) {
-        sawStreamActivity = true
-        clearTimeout(firstTokenTimeout)
-      }
-    }
-    const signalHandler = signal ? () => streamAbortController.abort() : undefined
-    signalHandler && signal!.addEventListener("abort", signalHandler, { once: true })
+  constructor(modelName?: string) {
+    const firstTokenMs =
+      Number(process.env.SUPERCODE_FIRST_TOKEN_TIMEOUT_MS) || 45_000
 
-    try {
-      // Drop orphan tool_calls before forwarding to Vercel AI SDK.
-      // ConcentrateAI's upstream 400s with `function_call ... missing
-      // function_call_output` when an assistant message carries
-      // `tool_calls` without a matching `role: "tool"` message further
-      // down. The chat loop is supposed to keep them paired, but a
-      // prior turn that aborted mid-tool or a stale history snapshot
-      // can drop the tool message. See sanitize-messages.ts.
-      const sanitized = stripOrphanToolCalls(messages)
-      const systemMessages = sanitized.filter(m => m.role === "system")
-      const nonSystemMessages = sanitized.filter(m => m.role !== "system")
-      const system = systemMessages.map(m => m.content).join("\n")
-      if (OPUS_MODELS.includes(this.modelName)) {
-        await checkDailyOpusLimit()
-        await incrementDailyOpusCount()
-      }
-
-      const hasTools = tools && Object.keys(tools).length > 0
-
-      // console.error(`[d] tools=${hasTools} count=${nonSystemMessages.length} keys=${hasTools ? Object.keys(tools).length : 0}`)
-
-      if (!hasTools) {
-        const result = streamText({
-          model: this.model,
-          messages: nonSystemMessages,
+    this.adapter = new OpenAICompatibleAdapter({
+      providerId: "concentrateai",
+      providerLabel: "ConcentrateAI",
+      clientName: "concentrate",
+      baseURL: BASE_URL,
+      apiKey: getConcentrateApiKey(),
+      modelName: modelName || "deepseek-v4-flash",
+      missingKeyError:
+        "ConcentrateAI is not configured.\n\n  Set CONCENTRATE_BYOK_PROD_KEY or CONCENTRATE_BYOK_DEV_KEY in your\n  environment, or run /connect to provide your API key.\n\n  Get a key at: https://concentrate.ai",
+      fetch: fetchWithRetry as typeof fetch,
+      highValueModels: HIGH_VALUE_MODELS,
+      defaultMaxOutputTokens: 8192,
+      toolLoop: "native",
+      streamTimeoutMs: 120_000,
+      firstTokenMs,
+      useFullStream: true,
+      maxSteps: 8,
+      beforeSend: async (name) => {
+        if (OPUS_MODELS.includes(name)) {
+          await checkDailyOpusLimit()
+          await incrementDailyOpusCount()
+        }
+      },
+      emptyStreamFallback: async ({ modelName: m, system, messages, tools }) => {
+        const data = await nonStreamingRequest(
+          m,
           system,
-          abortSignal: streamAbortController.signal,
-          ...(!HIGH_VALUE_MODELS.includes(this.modelName) ? { maxOutputTokens: 8192 } : {}),
-        })
-
-        let fullResponse = ""
-        let chunkCount = 0
-        // Iterate fullStream to surface reasoning chunks alongside text.
-        for await (const event of result.fullStream) {
-          markActivity()
-          if (event.type === "text-delta") {
-            if (event.text == null) continue
-            chunkCount++
-            fullResponse += event.text
-            onChunk?.(event.text)
-          } else if (event.type === "reasoning-delta") {
-            if (event.text) onReasoning?.(event.text)
-          }
-        }
-        // console.error(`[d] non-tools streamed ${chunkCount} chunks resp="${fullResponse}"`)
-
-        if (!fullResponse.trim()) {
-          const nonStreamData = await nonStreamingRequest(this.modelName, system, nonSystemMessages.map((m: any) => ({ role: m.role, content: typeof m.content === "string" ? m.content : JSON.stringify(m.content) })))
-          const content = nonStreamData?.choices?.[0]?.message?.content ?? ""
-          if (content) {
-            onChunk?.(content)
-          }
-          const inputTokens = nonStreamData?.usage?.prompt_tokens ?? 0
-          const outputTokens = nonStreamData?.usage?.completion_tokens ?? 0
-          recordUsage({
-            provider: "concentrateai",
-            model: this.modelName,
-            inputTokens,
-            outputTokens,
-            cachedInputTokens: 0,
-            totalTokens: inputTokens + outputTokens,
-            costUsd: computeCost(this.modelName, inputTokens, outputTokens, 0),
-            durationMs: null,
-          })
-          return {
-            content,
-            finishReason: "stop" as const,
-            usage: {
-              inputTokens,
-              outputTokens,
-              totalTokens: inputTokens + outputTokens,
-              inputTokenDetails: {
-                noCacheTokens: undefined,
-                cacheReadTokens: 0,
-                cacheWriteTokens: undefined,
-              },
-              outputTokenDetails: {
-                textTokens: undefined,
-                reasoningTokens: undefined,
-              },
-            },
-          }
-        }
-
-        const [finishReason, usage] = await Promise.all([
-          result.finishReason,
-          result.usage,
-        ])
-
-        recordUsage({
-          provider: "concentrateai",
-          model: this.modelName,
-          inputTokens: usage.inputTokens ?? 0,
-          outputTokens: usage.outputTokens ?? 0,
-          cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
-          totalTokens: usage.totalTokens ?? 0,
-          costUsd: computeCost(this.modelName, usage.inputTokens ?? 0, usage.outputTokens ?? 0, usage.inputTokenDetails?.cacheReadTokens ?? 0),
-          durationMs: null,
-        })
-
-        return {
-          content: fullResponse,
-          finishReason,
-          usage,
-        }
-      }
-
-      // Notify the caller of the step budget so the UI can show "step 3/8".
-      onStepBudget?.(8)
-
-      let fullResponse = ""
-
-      // Track per-step tool results so we can inject a sentinel when every
-      // tool returns empty. Used to prevent the "invent after empty fetch"
-      // hallucination loop.
-      const seenStepResults: Array<{ toolName: string; result: string }> = []
-      // Track consecutive denials of the same tool — stop the model looping
-      // on a permission prompt the user already answered.
-      const deniedCounts = new Map<string, number>()
-      let stopForDenialLoop = false
-      // Track tool call repetition — same tool + same args 3+ times signals a loop
-      const toolCallHistory: Array<{ toolName: string; argsKey: string }> = []
-      let stopForRepetition = false
-
-      const result = streamText({
-        model: this.model,
-        messages: nonSystemMessages,
-        system,
-        tools,
-        ...(!HIGH_VALUE_MODELS.includes(this.modelName) ? { maxOutputTokens: 8192 } : {} as Record<string, never>),
-        stopWhen: stepCountIs(8),
-        abortSignal: streamAbortController.signal,
-        prepareStep: async ({ messages }) => {
-          if (stopForRepetition) {
-            return {
-              messages: [
-                ...messages,
-                {
-                  role: "system" as const,
-                  content:
-                    "SYSTEM NOTICE: You have called the same tools with the same arguments " +
-                    "multiple times without making progress. Stop repeating yourself. " +
-                    "Analyze what you already have and respond to the user.",
-                },
-              ],
-            }
-          }
-          if (stopForDenialLoop) {
-            return {
-              messages: [
-                ...messages,
-                {
-                  role: "system" as const,
-                  content:
-                    "SYSTEM NOTICE: You have called the same permission-protected tool multiple " +
-                    "times after the user denied it. Stop calling it. Respond to the user with " +
-                    "what you have so far and ask for guidance.",
-                },
-              ],
-            }
-          }
-          if (seenStepResults.length === 0) return undefined
-          const allEmpty = seenStepResults.every((r) => isEmptyToolResult(r.result))
-          if (!allEmpty) return undefined
-          const summary = seenStepResults
-            .map((r) => `- ${r.toolName}: ${summarizeToolResult(r.result)}`)
-            .join("\n")
-          return {
-            messages: [
-              ...messages,
-              {
-                role: "system" as const,
-                content:
-                  "SYSTEM NOTICE: All tool calls so far have returned empty or error results. " +
-                  "You have NO source material to answer with. Do NOT invent specifications, pricing, " +
-                  "dates, leaderboard rankings, or any factual claims. Tell the user which tools failed " +
-                  "and what you would need to proceed.\n\nTool outcomes:\n" + summary,
-              },
-            ],
-          }
-        },
-        onStepFinish: async (event) => {
-          if (event.toolCalls?.length) {
-            for (const tc of event.toolCalls) {
-              onToolCall?.({ toolName: tc.toolName, args: (tc as any).input as Record<string, unknown> })
-            }
-          }
-          // Build a toolCallId -> input map from the tool-call parts so we
-          // can attach the original args to each tool-result. The SDK's
-          // ToolResultPart only carries `output`, not `input`, so the only
-          // way to recover the args is to look them up by toolCallId here.
-          const inputByCallId = new Map<string, unknown>()
-          if (event.toolCalls?.length) {
-            for (const tc of event.toolCalls) {
-              const id = (tc as any).toolCallId
-              if (typeof id === "string") {
-                inputByCallId.set(id, (tc as any).input)
-              }
-            }
-          }
-          const toolResults = (event as any).toolResults as
-            | Array<{ toolName?: string; toolCallId?: string; input?: unknown; output?: unknown }>
-            | undefined
-          // Reset per-step results before collecting this step's, so the
-          // prepareStep sentinel only sees the PREVIOUS step's results.
-          // Without this, one successful tool call permanently disarms the
-          // empty-result guard and the model can hallucinate for 7 more steps.
-          seenStepResults.length = 0
-          if (toolResults?.length) {
-            for (const tr of toolResults) {
-              const name = tcName(tr.toolName) ?? "unknown"
-              const out = (tr as any).output
-              const text =
-                typeof out === "string"
-                  ? out
-                  : out === undefined || out === null
-                    ? ""
-                    : JSON.stringify(out)
-              seenStepResults.push({ toolName: name, result: text })
-              const args = tr.input ?? (tr.toolCallId ? inputByCallId.get(tr.toolCallId) : undefined)
-              if (onToolResult) {
-                onToolResult({ toolName: name, args, result: text })
-              }
-              if (isDeniedToolResult(text)) {
-                const prev = deniedCounts.get(name) ?? 0
-                const next = prev + 1
-                deniedCounts.set(name, next)
-                if (next >= 2) stopForDenialLoop = true
-              } else {
-                deniedCounts.set(name, 0)
-              }
-            }
-          }
-          // Tool call repetition guard: same tool + same args 3+ times → stop.
-          if (event.toolCalls?.length) {
-            for (const tc of event.toolCalls) {
-              const args = (tc as any).input ?? {}
-              const argsKey = JSON.stringify(args, Object.keys(args).sort())
-              toolCallHistory.push({ toolName: tc.toolName, argsKey })
-              let count = 0
-              for (const h of toolCallHistory) {
-                if (h.toolName === tc.toolName && h.argsKey === argsKey) count++
-              }
-              if (count >= 3) {
-                stopForRepetition = true
-                break
-              }
-            }
-            if (toolCallHistory.length > 12) {
-              toolCallHistory.splice(0, toolCallHistory.length - 12)
-            }
-          }
-        },
-      })
-
-      let toolChunkCount = 0
-      let sawToolEvents = false
-      // Iterate fullStream to surface reasoning chunks alongside text.
-      for await (const event of result.fullStream) {
-        markActivity()
-        if (event.type === "text-delta") {
-          if (event.text == null) continue
-          toolChunkCount++
-          fullResponse += event.text
-          onChunk?.(event.text)
-        } else if (event.type === "reasoning-delta") {
-          if (event.text) onReasoning?.(event.text)
-        } else if (event.type === "tool-call" || event.type === "tool-result") {
-          sawToolEvents = true
-        }
-      }
-      // console.error(`[d] tools streamed ${toolChunkCount} chunks resp="${fullResponse}"`)
-
-      // Same empty-stream fallback as non-tools path — ConcentrateAI's
-      // Novita proxy intermittently drops content on streaming requests.
-      // Skip if the model made tool calls (tool-text-only responses are valid).
-      if (!fullResponse.trim() && !sawToolEvents) {
-        const nonStreamData = await nonStreamingRequest(this.modelName, system, nonSystemMessages.map((m: any) => ({ role: m.role, content: typeof m.content === "string" ? m.content : JSON.stringify(m.content) })), tools)
-        const content = nonStreamData?.choices?.[0]?.message?.content ?? ""
-        if (content) {
-          onChunk?.(content)
-        }
-        const inputTokens = nonStreamData?.usage?.prompt_tokens ?? 0
-        const outputTokens = nonStreamData?.usage?.completion_tokens ?? 0
-        recordUsage({
-          provider: "concentrateai",
-          model: this.modelName,
-          inputTokens,
-          outputTokens,
-          cachedInputTokens: 0,
-          totalTokens: inputTokens + outputTokens,
-          costUsd: computeCost(this.modelName, inputTokens, outputTokens, 0),
-          durationMs: null,
-        })
-        return {
-          content,
-          finishReason: "stop" as const,
-          usage: {
-            inputTokens,
-            outputTokens,
-            totalTokens: inputTokens + outputTokens,
-            inputTokenDetails: {
-              noCacheTokens: undefined,
-              cacheReadTokens: 0,
-              cacheWriteTokens: undefined,
-            },
-            outputTokenDetails: {
-              textTokens: undefined,
-              reasoningTokens: undefined,
-            },
-          },
-        }
-      }
-
-      const [finishReason, usage] = await Promise.all([
-        result.finishReason,
-        result.usage,
-      ])
-
-      recordUsage({
-        provider: "concentrateai",
-        model: this.modelName,
-        inputTokens: usage.inputTokens ?? 0,
-          outputTokens: usage.outputTokens ?? 0,
-          cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
-          totalTokens: usage.totalTokens ?? 0,
-          costUsd: computeCost(this.modelName, usage.inputTokens ?? 0, usage.outputTokens ?? 0, usage.inputTokenDetails?.cacheReadTokens ?? 0),
-          durationMs: null,
-        })
-
-        return {
-          content: fullResponse,
-          finishReason,
-          usage,
-        }
-    } catch (error: any) {
-      if (error?.name === "AbortError" || streamAbortController.signal.aborted) {
-        if (!sawStreamActivity) {
-          throw new Error(
-            `No response from model within ${Math.round(firstTokenMs / 1000)}s. ` +
-              "The provider may be overloaded — try again or run /model to switch.",
-          )
-        }
-        throw error?.name === "AbortError" ? error : new DOMException("Aborted", "AbortError")
-      }
-      const msg = error instanceof Error ? error.message : String(error)
-      const is5xx = /ConcentrateAI (?:API )?5\d\d/.test(msg) || /status code 5\d\d/i.test(msg)
-      if (is5xx) {
-        const friendly = new Error(
-          `ConcentrateAI gateway error (HTTP 5xx). This is upstream — not your request. ` +
-          `Try again, or run /model to switch providers.\n  ${msg}`,
+          messages.map((msg: any) => ({
+            role: msg.role,
+            content:
+              typeof msg.content === "string"
+                ? msg.content
+                : JSON.stringify(msg.content),
+          })),
+          tools,
         )
-        console.error(chalk.red("ConcentrateAI Service Error:"), friendly.message)
-        throw friendly
-      }
-      console.error(chalk.red("ConcentrateAI Service Error:"), msg)
-      throw error
-    } finally {
-      clearTimeout(streamTimeout)
-      clearTimeout(firstTokenTimeout)
-      if (signalHandler) signal!.removeEventListener("abort", signalHandler as any)
-    }
+        return {
+          content: data?.choices?.[0]?.message?.content ?? "",
+          usage: data?.usage,
+        }
+      },
+    })
+    this.modelName = this.adapter.modelName
+    this.sendMessage = this.adapter.sendMessage.bind(this.adapter)
   }
 
   async getMessage(messages: ModelMessage[], tools?: any) {
-    let fullResponse = ""
-    const result = await this.sendMessage(messages, (chunk) => {
-      fullResponse += chunk
-    })
-    return result.content
+    return this.adapter.getMessage(messages, tools)
   }
 }

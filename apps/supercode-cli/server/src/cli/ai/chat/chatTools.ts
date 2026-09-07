@@ -1,23 +1,47 @@
+/**
+ * Tool-mode chat loop — pick enabled tools, then stream via concentrateai.
+ */
 import prisma from "../../../lib/prisma"
 import chalk from "chalk"
 import { multiselect, isCancel, text } from "@clack/prompts"
-import { createThinking, theme, frame, panel, userMessage, streamFooter, streamHeader } from "src/cli/utils/tui"
+import {
+  createThinking,
+  theme,
+  frame,
+  panel,
+  userMessage,
+  streamFooter,
+  streamHeader,
+} from "src/cli/utils/tui"
 import { MarkdownStream } from "src/cli/utils/markdown-stream"
 import { getStoredToken } from "src/lib/token"
 import { ChatService } from "src/service/chat-service"
 import { createProvider } from "src/cli/ai/provider"
-import { enableTools, resetTools, availableTools, getEnabledToolNames } from "src/config/tools.config"
+import {
+  enableTools,
+  resetTools,
+  availableTools,
+  getEnabledToolNames,
+} from "src/config/tools.config"
 
-let _chatService: ChatService
+type Conversation = {
+  id: string
+  title: string | null
+  mode: string
+  userId: string
+  createdAt: Date
+  updatedAt: Date
+}
 
-function getChatService() {
+let _chatService: ChatService | undefined
+
+function getChatService(): ChatService {
   if (!_chatService) _chatService = new ChatService()
   return _chatService
 }
 
 async function getUserFromToken() {
   const token = await getStoredToken()
-
   if (!token?.access_token) {
     console.log(chalk.hex(theme.red)("Not authenticated. Please login first."))
     process.exit(1)
@@ -40,19 +64,19 @@ async function getUserFromToken() {
   return user
 }
 
-async function getAIResponse(conversationId: string, onChunk?: (chunk: string) => void): Promise<string> {
+async function getAIResponse(
+  conversationId: string,
+  onChunk?: (chunk: string) => void,
+): Promise<string> {
   const dbMessages = await getChatService().getMessages(conversationId)
   const messages = getChatService().formatMessagesForAI(dbMessages)
   const provider = createProvider("concentrateai")
-  const result = await provider.sendMessage(
-    messages as any,
-    onChunk,
-  )
+  const result = await provider.sendMessage(messages as any, onChunk)
   return result.content
 }
 
-async function selectTools() {
-  const toolOptions = availableTools.map(tool => ({
+async function selectTools(): Promise<void> {
+  const toolOptions = availableTools.map((tool) => ({
     value: tool.id,
     label: tool.name,
     hint: tool.description,
@@ -74,9 +98,9 @@ async function selectTools() {
 
   if (selected.length > 0) {
     const names = selected
-      .map((id: string) => availableTools.find(t => t.id === id))
+      .map((id: string) => availableTools.find((t) => t.id === id))
       .filter(Boolean)
-      .map(t => chalk.hex(theme.green)(t!.name))
+      .map((t) => chalk.hex(theme.green)(t!.name))
     console.log(`  ${chalk.hex(theme.muted)("tools:")} ${names.join(chalk.hex(theme.dim)(" · "))}`)
   }
 }
@@ -86,7 +110,7 @@ async function initToolConversation(userId: string, conversationId: string | nul
   const conversation = await getChatService().getOrCreateConversation(
     userId,
     conversationId ?? undefined,
-    "tool"
+    "tool",
   )
   thinking.succeed()
 
@@ -100,26 +124,32 @@ async function initToolConversation(userId: string, conversationId: string | nul
   }
 
   console.log()
-  console.log(
-    panel(detail.join("\n"), { title: "session" })
-  )
+  console.log(panel(detail.join("\n"), { title: "session" }))
   console.log()
 
   return conversation
 }
 
-interface Conversation {
-  id: string
-  title: string | null
-  mode: string
-  userId: string
-  createdAt: Date
-  updatedAt: Date
+async function saveMessage(conversationId: string, role: string, content: string) {
+  return getChatService().addMessage(conversationId, role, content)
+}
+
+async function updateConversationTitle(
+  conversationId: string,
+  userInput: string,
+  messageCount: number,
+) {
+  if (messageCount !== 1) return
+  const baseTitle = userInput.slice(0, 50)
+  await getChatService().updateTitle(
+    conversationId,
+    userInput.length > 50 ? `${baseTitle}...` : baseTitle,
+  )
 }
 
 async function toolChatLoop(conversation: Conversation) {
   console.log(` ${chalk.hex(theme.muted)("•")} Type your message`)
-  console.log(` ${chalk.hex(theme.muted)('•')} Type "exit" to end`)
+  console.log(` ${chalk.hex(theme.muted)("•")} Type "exit" to end`)
   console.log()
 
   while (true) {
@@ -127,9 +157,7 @@ async function toolChatLoop(conversation: Conversation) {
       message: chalk.hex(theme.green)("your message"),
       placeholder: "Type your message...",
       validate(value: string | undefined) {
-        if (!value || value.trim().length === 0) {
-          return "Message cannot be empty"
-        }
+        if (!value || value.trim().length === 0) return "Message cannot be empty"
       },
     })
 
@@ -156,18 +184,15 @@ async function toolChatLoop(conversation: Conversation) {
     const thinking = createThinking("thinking")
     const md = new MarkdownStream()
 
-    const aiResponse = await getAIResponse(
-      conversation.id,
-      (chunk) => {
-        if (isFirstChunk) {
-          thinking.stop()
-          isFirstChunk = false
-          streamHeader(modelName)
-        }
-        md.push(chunk)
-        fullResponse += chunk
+    const aiResponse = await getAIResponse(conversation.id, (chunk) => {
+      if (isFirstChunk) {
+        thinking.stop()
+        isFirstChunk = false
+        streamHeader(modelName)
       }
-    )
+      md.push(chunk)
+      fullResponse += chunk
+    })
 
     const elapsed = Date.now() - startTime
     if (isFirstChunk) {
@@ -186,23 +211,13 @@ async function toolChatLoop(conversation: Conversation) {
   }
 }
 
-async function saveMessage(conversationId: string, role: string, content: string) {
-  return getChatService().addMessage(conversationId, role, content)
-}
-
-async function updateConversationTitle(conversationId: string, userInput: string, messageCount: number) {
-  if (messageCount !== 1) return
-  const baseTitle = userInput.slice(0, 50)
-  await getChatService().updateTitle(conversationId, userInput.length > 50 ? `${baseTitle}...` : baseTitle)
-}
-
 export async function startToolChat(conversationId: string | null = null) {
   try {
     console.log(
       frame(
         ` ${chalk.hex(theme.green).bold("supercode")} ${chalk.hex(theme.muted)("· tool mode")} `,
-        { borderColor: theme.green }
-      )
+        { borderColor: theme.green },
+      ),
     )
     console.log()
 
@@ -215,7 +230,9 @@ export async function startToolChat(conversationId: string | null = null) {
     resetTools()
     console.log(` ${chalk.hex(theme.green)("◆")} ${chalk.hex(theme.muted)("tools session ended")}`)
   } catch (error) {
-    console.log(` ${chalk.hex(theme.red)("◆")} ${chalk.hex(theme.red)(error instanceof Error ? error.message : String(error))}`)
+    console.log(
+      ` ${chalk.hex(theme.red)("◆")} ${chalk.hex(theme.red)(error instanceof Error ? error.message : String(error))}`,
+    )
     resetTools()
     process.exit(1)
   }

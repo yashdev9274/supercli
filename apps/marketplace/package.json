@@ -14,6 +14,7 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@prisma/client-runtime-utils": "7.8.0",
     "@super/db": "workspace:*",
     "jose": "^5.9.6",
     "next": "16.1.1",
@@ -23,8 +24,8 @@
   },
   "devDependencies": {
     "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.7",
     "typescript": "^5"
   }
 }

@@ -1,3 +1,6 @@
+/**
+ * Workspace filesystem scan — tree, tech stack, git metadata.
+ */
 import fs from "node:fs/promises"
 import fsSync from "node:fs"
 import path from "node:path"
@@ -36,6 +39,8 @@ const ALWAYS_IGNORE = new Set([
 const MAX_TREE_DEPTH = 2
 const MAX_DIR_CHILDREN = 40
 
+// ── ignore rules ───────────────────────────────────────────────────────────
+
 async function readGitignore(dir: string): Promise<Set<string>> {
   const ignore = new Set<string>()
   try {
@@ -46,7 +51,9 @@ async function readGitignore(dir: string): Promise<Set<string>> {
         ignore.add(trimmed.replace(/\/$/, ""))
       }
     }
-  } catch {}
+  } catch {
+    /* no gitignore */
+  }
   return ignore
 }
 
@@ -57,22 +64,32 @@ function shouldIgnore(name: string, gitignore: Set<string>): boolean {
   return false
 }
 
+async function mergeGitignores(...dirs: string[]): Promise<Set<string>> {
+  const combined = new Set<string>()
+  for (const dir of dirs) {
+    const set = await readGitignore(dir)
+    for (const x of set) combined.add(x)
+  }
+  return combined
+}
+
+// ── tree + count ───────────────────────────────────────────────────────────
+
 async function scanDir(
   dirPath: string,
   gitignore: Set<string>,
-  depth: number = 0,
+  depth = 0,
 ): Promise<FileNode[]> {
   if (depth > MAX_TREE_DEPTH) return []
 
-  const entries: FileNode[] = []
   let dirEntries: string[] = []
-
   try {
     dirEntries = await fs.readdir(dirPath)
   } catch {
     return []
   }
 
+  // Prefer directories first, then alpha — heuristic (dot in name ≈ file).
   dirEntries.sort((a, b) => {
     const aIsDir = !a.includes(".")
     const bIsDir = !b.includes(".")
@@ -81,6 +98,7 @@ async function scanDir(
     return a.localeCompare(b)
   })
 
+  const entries: FileNode[] = []
   for (const name of dirEntries) {
     if (shouldIgnore(name, gitignore)) continue
     if (entries.length >= MAX_DIR_CHILDREN) break
@@ -112,20 +130,43 @@ async function countFiles(dirPath: string, gitignore: Set<string>): Promise<numb
   } catch {
     return 0
   }
+
   for (const name of dirEntries) {
     if (shouldIgnore(name, gitignore)) continue
     const fullPath = path.join(dirPath, name)
     try {
       const stat = await fs.stat(fullPath)
-      if (stat.isDirectory()) {
-        count += await countFiles(fullPath, gitignore)
-      } else {
-        count++
-      }
-    } catch {}
+      if (stat.isDirectory()) count += await countFiles(fullPath, gitignore)
+      else count++
+    } catch {
+      /* skip */
+    }
   }
   return count
 }
+
+// ── tech / git / package ───────────────────────────────────────────────────
+
+const TECH_MARKERS: Array<[string | string[], string]> = [
+  ["next", "Next.js"],
+  ["react", "React"],
+  [["@prisma/client", "prisma"], "Prisma ORM"],
+  ["tailwindcss", "Tailwind CSS"],
+  [["better-auth", "@better-auth"], "Better-Auth"],
+  ["express", "Express"],
+  [["@trpc/client", "@trpc/server"], "tRPC"],
+  [["@tanstack/react-query", "@tanstack/query"], "TanStack Query"],
+  ["zustand", "Zustand"],
+  [["socket.io", "socket.io-client"], "Socket.io"],
+  [["drizzle", "drizzle-orm"], "Drizzle ORM"],
+  ["eslint", "ESLint"],
+  ["prettier", "Prettier"],
+  [["next-auth", "@auth/core"], "Next-Auth"],
+  [["shadcn", "@radix-ui"], "shadcn/ui"],
+  [["@clerk/nextjs", "clerk"], "Clerk"],
+  [["aws-sdk", "@aws-sdk"], "AWS SDK"],
+  [["graphql", "@apollo/client"], "GraphQL"],
+]
 
 function detectTechStack(dirPath: string): string[] {
   const stack: string[] = []
@@ -135,32 +176,24 @@ function detectTechStack(dirPath: string): string[] {
     const pkg = JSON.parse(raw)
     const allDeps = { ...pkg.dependencies, ...pkg.devDependencies } as Record<string, string>
 
-    if (allDeps.next) stack.push("Next.js")
-    if (allDeps.react) stack.push("React")
-    if (allDeps["@prisma/client"] || allDeps.prisma) stack.push("Prisma ORM")
-    if (allDeps.tailwindcss) stack.push("Tailwind CSS")
-    if (allDeps["better-auth"] || allDeps["@better-auth"]) stack.push("Better-Auth")
-    if (allDeps.express) stack.push("Express")
-    if (allDeps["@trpc/client"] || allDeps["@trpc/server"]) stack.push("tRPC")
-    if (allDeps["@tanstack/react-query"] || allDeps["@tanstack/query"]) stack.push("TanStack Query")
-    if (allDeps.zustand) stack.push("Zustand")
-    if (allDeps["socket.io"] || allDeps["socket.io-client"]) stack.push("Socket.io")
-    if (allDeps.drizzle || allDeps["drizzle-orm"]) stack.push("Drizzle ORM")
-    if (allDeps.vitest || allDeps.jest) stack.push(allDeps.vitest ? "Vitest" : "Jest")
-    if (allDeps.eslint) stack.push("ESLint")
-    if (allDeps.prettier) stack.push("Prettier")
-    if (allDeps["next-auth"] || allDeps["@auth/core"]) stack.push("Next-Auth")
-    if (allDeps.shadcn || allDeps["@radix-ui"]) stack.push("shadcn/ui")
-    if (allDeps["@clerk/nextjs"] || allDeps.clerk) stack.push("Clerk")
-    if (allDeps["aws-sdk"] || allDeps["@aws-sdk"]) stack.push("AWS SDK")
-    if (allDeps["graphql"] || allDeps["@apollo/client"]) stack.push("GraphQL")
-  } catch {}
+    for (const [keys, label] of TECH_MARKERS) {
+      const list = Array.isArray(keys) ? keys : [keys]
+      if (list.some((k) => allDeps[k])) stack.push(label)
+    }
+
+    if (allDeps.vitest) stack.push("Vitest")
+    else if (allDeps.jest) stack.push("Jest")
+  } catch {
+    /* no package.json */
+  }
 
   try {
-    if (fsSync.existsSync(path.join(dirPath, "turbo.json"))) {
-      if (!stack.includes("Turborepo")) stack.push("Turborepo")
+    if (fsSync.existsSync(path.join(dirPath, "turbo.json")) && !stack.includes("Turborepo")) {
+      stack.push("Turborepo")
     }
-  } catch {}
+  } catch {
+    /* ignore */
+  }
 
   return stack
 }
@@ -183,7 +216,9 @@ function getGitInfo(cwd: string): { isRepo: boolean; branch: string | null; root
   }
 }
 
-function readPackageJson(dirPath: string): { name?: string; private?: boolean; workspaces?: string[] } | null {
+function readPackageJson(
+  dirPath: string,
+): { name?: string; private?: boolean; workspaces?: string[] } | null {
   try {
     const raw = fsSync.readFileSync(path.join(dirPath, "package.json"), "utf-8")
     return JSON.parse(raw)
@@ -192,15 +227,24 @@ function readPackageJson(dirPath: string): { name?: string; private?: boolean; w
   }
 }
 
+async function pathExists(p: string): Promise<boolean> {
+  try {
+    await fs.access(p)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// ── public API ─────────────────────────────────────────────────────────────
+
 export async function scanWorkspace(cwd?: string): Promise<WorkspaceInfo> {
   const startDir = cwd || process.cwd()
   const { isRepo, branch, root } = getGitInfo(startDir)
   const workspaceRoot = root || startDir
-  const gitignore = await readGitignore(workspaceRoot)
-  const gitignoreAtCwd = startDir !== workspaceRoot ? await readGitignore(startDir) : new Set<string>()
-  const combined = new Set<string>()
-  gitignore.forEach(x => combined.add(x))
-  gitignoreAtCwd.forEach(x => combined.add(x))
+
+  const dirs = startDir !== workspaceRoot ? [workspaceRoot, startDir] : [workspaceRoot]
+  const combined = await mergeGitignores(...dirs)
 
   const [fileTree, fileCount, pkg] = await Promise.all([
     scanDir(workspaceRoot, combined, 0),
@@ -209,10 +253,12 @@ export async function scanWorkspace(cwd?: string): Promise<WorkspaceInfo> {
   ])
 
   const techStack = detectTechStack(workspaceRoot)
-
-  const hasTsconfig = await fs.access(path.join(workspaceRoot, "tsconfig.json")).then(() => true).catch(() => false)
-  const hasPrisma = await fs.access(path.join(workspaceRoot, "prisma", "schema.prisma")).then(() => true).catch(() => false)
-  const isMonorepo = !!(pkg?.workspaces && pkg.workspaces.length > 0) || techStack.includes("Turborepo")
+  const [hasTsconfig, hasPrisma] = await Promise.all([
+    pathExists(path.join(workspaceRoot, "tsconfig.json")),
+    pathExists(path.join(workspaceRoot, "prisma", "schema.prisma")),
+  ])
+  const isMonorepo =
+    !!(pkg?.workspaces && pkg.workspaces.length > 0) || techStack.includes("Turborepo")
 
   return {
     dirName: path.basename(workspaceRoot),
