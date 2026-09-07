@@ -323,7 +323,7 @@ export function renderReasoningBlock(reasoning: string, elapsedMs: number): stri
   const elapsed = elapsedMs < 1000 ? `${elapsedMs}ms` : `${(elapsedMs / 1000).toFixed(1)}s`
   const indent = chalk.hex(theme.greenDim)("┃")
   const toggle = chalk.hex(theme.greenGlow)("▼")
-      const label = chalk.hex(theme.greenMute)("Thoughts")
+      const label = chalk.hex(theme.greenMute)("Thinking")
       const time = chalk.hex(theme.greenDim)(`· ${elapsed}`)
       return `${indent} ${toggle} ${label} ${time}`
 }
@@ -775,7 +775,7 @@ export class ThoughtChain {
         this.writeCollapsedSummary(entry, indent, elapsedStr)
       } else {
         const toggle = chalk.hex(theme.greenGlow)("▼")
-        const label = chalk.hex(theme.greenMute)("Thoughts")
+        const label = chalk.hex(theme.greenMute)("Thinking")
         const time = chalk.hex(theme.greenDim)(elapsedStr)
         process.stdout.write(
           `${indent} ${toggle} ${label} ${chalk.hex(theme.greenDim)("·")} ${time}\n`,
@@ -789,12 +789,26 @@ export class ThoughtChain {
 
   private writeCollapsedSummary(entry: ThoughtEntry, indent: string, elapsedStr: string): void {
     const subCount = entry.subThoughts.length
+    const hasBody = entry.body.trim().length > 0
     if (entry.tools.length === 0 && subCount === 0) {
-      process.stdout.write(`${indent} ${chalk.hex(theme.greenDim)(`Thoughts · ${elapsedStr}`)}\n`)
+      // Pure reasoning — collapsed Thinking dropdown bookmark
+      const toggle = chalk.hex(theme.greenGlow)("▶")
+      const label = chalk.hex(theme.greenMute)("Thinking")
+      const preview = hasBody
+        ? chalk.hex(theme.greenDim)(` · ${truncateStr(entry.body.trim().replace(/\s+/g, " "), 56)}`)
+        : ""
+      process.stdout.write(`${indent} ${toggle} ${label} ${chalk.hex(theme.greenDim)(`· ${elapsedStr}`)}${preview} ${chalk.hex(theme.greenDim)("[Ctrl+T]")}\n`)
       return
     }
 
     process.stdout.write(`\n${codexDivider()}\n\n`)
+    // Thinking header when reasoning accompanied tools
+    if (hasBody) {
+      const toggle = chalk.hex(theme.greenGlow)("▶")
+      process.stdout.write(
+        `${indent} ${toggle} ${chalk.hex(theme.greenMute)("Thinking")} ${chalk.hex(theme.greenDim)(`· ${elapsedStr}`)} ${chalk.hex(theme.greenDim)("[Ctrl+T]")}\n`,
+      )
+    }
 
     if (entry.tools.length > 0) {
       const groups = groupToolsByCategory(entry.tools)
@@ -862,6 +876,21 @@ export class ThoughtChain {
   }
 
   private writeExpandedDetail(entry: ThoughtEntry, indent: string): void {
+    // Reasoning body first — this is the Thinking dropdown content
+    const body = entry.body.trim()
+    if (body) {
+      for (const bl of body.split("\n")) {
+        const trimmed = bl.trimEnd()
+        if (!trimmed) {
+          process.stdout.write(`${indent}\n`)
+          continue
+        }
+        for (const wrapped of wrapVisible(trimmed, terminalWidth() - 6, "    ")) {
+          process.stdout.write(`${indent}   ${chalk.hex(theme.greenMute)(wrapped)}\n`)
+        }
+      }
+      if (entry.tools.length > 0 || entry.subThoughts.length > 0) process.stdout.write("\n")
+    }
     // Tool rows grouped by category
     const groups = groupToolsByCategory(entry.tools)
     let groupIdx = 0
@@ -1014,7 +1043,7 @@ export class ThoughtChain {
     const toggleIcon = entry.collapsed
       ? chalk.hex(theme.greenDim)("▶")
       : chalk.hex(theme.greenGlow)("▼")
-    const header = `${toggleIcon} ${chalk.hex(theme.greenMute)("Thoughts")}${chalk.hex(theme.greenDim)(":")} ${chalk.hex(theme.greenGlow)(elapsed)}`
+    const header = `${toggleIcon} ${chalk.hex(theme.greenMute)("Thinking")}${chalk.hex(theme.greenDim)(":")} ${chalk.hex(theme.greenGlow)(elapsed)}`
     const indent = chalk.hex(theme.greenDim)("┃")
 
     const lines: string[] = []

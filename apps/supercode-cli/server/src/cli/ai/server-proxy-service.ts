@@ -84,11 +84,12 @@ export class ServerProxyService {
 
     // Safety timeout: even though the server now bounds the upstream work,
     // don't let a stalled server hang the turn forever on the client side.
-    // Separate first-token timeout so a silent stream fails well before the
-    // 80s "model may be overloaded" UI wall (default 45s).
+    // Separate first-token timeout so a silent stream fails with a clear error.
+    // Default 90s: Concentrate TTFT + tool-heavy prompts often exceed 45s even
+    // when the cloud is healthy; status heartbeats still reset this timer.
     const controller = new AbortController()
-    const timeoutMs = Number(process.env.SUPERCODE_REQUEST_TIMEOUT_MS) || 120_000
-    const firstTokenMs = Number(process.env.SUPERCODE_FIRST_TOKEN_TIMEOUT_MS) || 45_000
+    const timeoutMs = Number(process.env.SUPERCODE_REQUEST_TIMEOUT_MS) || 180_000
+    const firstTokenMs = Number(process.env.SUPERCODE_FIRST_TOKEN_TIMEOUT_MS) || 90_000
     let sawActivity = false
     const timeoutId = setTimeout(() => {
       if (!signal?.aborted) controller.abort(new Error("Request timed out"))

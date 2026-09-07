@@ -10,6 +10,11 @@ import {
   KNOWN_TOOL_NAMES,
   type EmbeddedToolCall,
 } from "./embedded-tool-calls"
+import {
+  createThinkSplitter,
+  finalizeAnswerVsProcess,
+  splitThinkContent,
+} from "./split-think-content"
 
 /** Built-in tools + any request-scoped names (MCP, custom). */
 export function mergeKnownTools(extra?: Iterable<string> | null): Set<string> {
@@ -134,9 +139,13 @@ export async function streamOpenAICompatibleChat(
   let sawToolCalls = false
   let emittedToolCalls = false
   let pendingToolCalls: Record<number, { id: string; name: string; args: string }> = {}
-  const embedded = parseStreamedContent({
+const embedded = parseStreamedContent({
     knownTools: mergeKnownTools(knownTools),
   })
+  // DeepSeek / MiniMax / similar models embed private CoT inside <think>
+  // (or </mm:think>) tags on the text channel. Split those into reasoning
+  // so Result never shows the scratch pad.
+  const thinkSplit = createThinkSplitter()
   const emittedKeys = new Set<string>()
 
   const emitToolCall = (name: string, args: Record<string, unknown>, id?: string) => {
@@ -184,10 +193,34 @@ export async function streamOpenAICompatibleChat(
     }
   }
 
+  // Keep the NDJSON pipe warm while waiting on the first/next SSE chunk so
+  // cloud clients (45s body-stall) don't abort during slow upstream TTFT.
+  const heartbeatMs = Number(process.env.SUPERCODE_UPSTREAM_HEARTBEAT_MS) || 12_000
+  let lastActivity = Date.now()
+  let hbTicks = 0
+  const heartbeatId = setInterval(() => {
+    if (Date.now() - lastActivity < heartbeatMs - 500) return
+    hbTicks += 1
+    try {
+      res.write(
+        JSON.stringify({
+          type: "status",
+          phase: "upstream_wait",
+          message: `waiting for model tokens · ${hbTicks * Math.round(heartbeatMs / 1000)}s`,
+        }) + "\n",
+      )
+      // @ts-expect-error flush exists on some Node response wrappers
+      if (typeof (res as any).flush === "function") (res as any).flush()
+    } catch {
+      /* response closed */
+    }
+  }, heartbeatMs)
+
   try {
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
+      lastActivity = Date.now()
       buffer += decoder.decode(value, { stream: true })
       const lines = buffer.split("\n")
       buffer = lines.pop() || ""
@@ -205,12 +238,19 @@ export async function streamOpenAICompatibleChat(
           }
           const delta = data.choices?.[0]?.delta
 
-          const contentChunk = extractDeltaContent(delta)
+const contentChunk = extractDeltaContent(delta)
           if (contentChunk) {
             const blk = embedded.push(contentChunk)
             if (blk.text) {
-              fullContent += blk.text
-              res.write(JSON.stringify({ type: "text", content: blk.text }) + "\n")
+              const split = thinkSplit.push(blk.text)
+              if (split.reasoning) {
+                reasoningContent += split.reasoning
+                res.write(JSON.stringify({ type: "reasoning", content: split.reasoning }) + "\n")
+              }
+              if (split.text) {
+                fullContent += split.text
+                res.write(JSON.stringify({ type: "text", content: split.text }) + "\n")
+              }
             }
             emitEmbedded(blk.calls)
           }
@@ -263,24 +303,64 @@ export async function streamOpenAICompatibleChat(
         }) + "\n",
       )
     }
+  } finally {
+    clearInterval(heartbeatId)
   }
 
-  // Release trailing prose / completed embedded descriptors.
+// Release trailing prose / completed embedded descriptors.
   const flushed = embedded.flush()
   if (flushed.text) {
-    fullContent += flushed.text
-    res.write(JSON.stringify({ type: "text", content: flushed.text }) + "\n")
+    const split = thinkSplit.push(flushed.text)
+    if (split.reasoning) {
+      reasoningContent += split.reasoning
+      res.write(JSON.stringify({ type: "reasoning", content: split.reasoning }) + "\n")
+    }
+    if (split.text) {
+      fullContent += split.text
+      res.write(JSON.stringify({ type: "text", content: split.text }) + "\n")
+    }
   }
   emitEmbedded(flushed.calls)
+
+  // Flush any partial tag held across the last chunk boundary.
+  {
+    const tail = thinkSplit.flush()
+    if (tail.reasoning) {
+      reasoningContent += tail.reasoning
+      res.write(JSON.stringify({ type: "reasoning", content: tail.reasoning }) + "\n")
+    }
+    if (tail.text) {
+      fullContent += tail.text
+      res.write(JSON.stringify({ type: "text", content: tail.text }) + "\n")
+    }
+  }
 
   // Final pending structured tool calls (if any remain).
   if (Object.keys(pendingToolCalls).length > 0) flushPending()
 
-  // Fallback: if model returned only reasoning content and no visible text, emit reasoning as text.
-  if (!fullContent && reasoningContent.trim()) {
-    fullContent = reasoningContent
-    res.write(JSON.stringify({ type: "text", content: reasoningContent }) + "\n")
+  // End-of-stream gate: untagged process monologue still on the text channel
+  // (DeepSeek planning sentences without <think> tags) moves to reasoning.
+  if (fullContent.trim()) {
+    const cleaned = finalizeAnswerVsProcess(fullContent, reasoningContent)
+    if (cleaned.reasoning && cleaned.reasoning !== reasoningContent.trim()) {
+      const prior = reasoningContent.trim()
+      const extra = cleaned.reasoning.startsWith(prior)
+        ? cleaned.reasoning.slice(prior.length).trim()
+        : cleaned.reasoning
+      if (extra) {
+        reasoningContent = cleaned.reasoning
+        res.write(JSON.stringify({ type: "reasoning", content: extra }) + "\n")
+      }
+    }
+    // We already streamed provisional text chunks; the CLI final gate also
+    // re-filters. Keep fullContent as the cleaned answer for callers/stats.
+    fullContent = cleaned.text
   }
+
+  // Do NOT copy raw reasoning into the text/Result channel. DeepSeek-style
+  // models often finish with only CoT; dumping it as "text" made Result show
+  // the same scratch pad as Thinking. Keep reasoning on the reasoning stream;
+  // empty visible answers are handled by the soft empty-response path below.
 
 // DeepSeek/MiniMax sometimes emit only DSML/control tokens with no recoverable
   // tool call. Callers that retry non-streaming (concentrate/supercode) should
@@ -321,7 +401,7 @@ export function emitFromNonStreamingMessage(
   let emittedToolCalls = false
   const content = message?.content ?? message?.reasoning_content ?? ""
 
-  if (content) {
+if (content) {
     const parser = parseStreamedContent({
       knownTools: mergeKnownTools(knownTools),
     })
@@ -329,8 +409,14 @@ export function emitFromNonStreamingMessage(
     const flushed = parser.flush()
     const cleanText = `${blk.text}${flushed.text}`
     if (cleanText) {
-      fullContent = cleanText
-      res.write(JSON.stringify({ type: "text", content: cleanText }) + "\n")
+      const split = finalizeAnswerVsProcess(cleanText)
+      if (split.reasoning) {
+        res.write(JSON.stringify({ type: "reasoning", content: split.reasoning }) + "\n")
+      }
+      if (split.text) {
+        fullContent = split.text
+        res.write(JSON.stringify({ type: "text", content: split.text }) + "\n")
+      }
     }
     for (const call of [...blk.calls, ...flushed.calls]) {
       emittedToolCalls = true
@@ -344,8 +430,16 @@ export function emitFromNonStreamingMessage(
       )
     }
   } else if (reasoningFallback.trim()) {
-    fullContent = reasoningFallback
-    res.write(JSON.stringify({ type: "text", content: reasoningFallback }) + "\n")
+    // Prefer structured reasoning over dumping CoT into Result.
+    const split = splitThinkContent(reasoningFallback)
+    if (split.reasoning || !split.text) {
+      const reason = split.reasoning || reasoningFallback
+      res.write(JSON.stringify({ type: "reasoning", content: reason }) + "\n")
+    }
+    if (split.text) {
+      fullContent = split.text
+      res.write(JSON.stringify({ type: "text", content: split.text }) + "\n")
+    }
   }
 
   const toolCalls = message?.tool_calls

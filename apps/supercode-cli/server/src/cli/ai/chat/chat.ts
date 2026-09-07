@@ -13,6 +13,7 @@ import {
 import type { ModelMessage } from "ai"
 import { createProvider, type ModelProvider, type AIProvider } from "src/cli/ai/provider.ts"
 import { checkPlanGate } from "src/lib/plan-gate"
+import { createThinkSplitter, finalizeAnswerVsProcess } from "src/lib/split-think-content"
 
 /** Rough token estimate of the conversation context (chars / 4). */
 function estimateContextTokens(messages: ModelMessage[]): number {
@@ -372,10 +373,9 @@ async function streamAIResponse(
       promptContent += `\n\n## Plan Mode Note\n\nYou are in plan mode. You MUST NOT write files, run commands, or execute code. Produce a structured plan and stop. The user will review with /plan execute.`
     }
 
-    // Applied to all modes — encourage concise, user-facing progress updates.
-    // These are not hidden chain-of-thought; they are short status messages
-    // like "I’m checking the request parser before changing the chat loop."
-    promptContent += `\n\n## Progress Display\n\nWhile working, share brief first-person progress updates when they help the user follow along. Write them as plain prose, not hidden reasoning: one or two concrete sentences about what you are checking, what you learned, or what you are changing. Do not expose private chain-of-thought. Before using tools, state the next practical step when possible. After tool results reveal an important finding, summarize that finding before continuing.`
+    // Applied to all modes — keep internal process out of the final answer body.
+    // Progress/reasoning belongs in the thinking stream; the final answer is Result.
+    promptContent += `\n\n## Progress Display & Final Answer\n\nSeparate your work into two surfaces:\n\n1. **Thinking / process** (reasoning stream + tool narration): short first-person progress about what you are checking, learning, or changing. Keep this concise. Do not dump long private chain-of-thought. Before tools, state the next practical step when useful.\n2. **Result** (final answer body): the polished user-facing answer only — clear headings, lists, tables, and code fences when helpful. Do not restate tool logs, spinner status, or intermediate scratch reasoning in the Result. Put the complete answer in Result after tools finish; avoid mixing process narration into the final markdown.\n\n**Hard rule:** Never put tool-planning monologue in Result (examples of FORBIDDEN Result text: "User wants web search…", "Need provide query…", "Use web_search twice…", "Must supply parameters properly in invokes…", "I'll run several web searches in one block…"). Those belong only in Thinking. If you have nothing user-facing yet because tools are still running or failed, leave Result empty rather than narrating your plan. After tools return, Result must answer the user query with findings — not how you planned the tools.`
 
     if (extraContext) {
       promptContent += `\n\n## Referenced Files\n\nFiles marked with @ in the user message have been read and included below. Do not re-read them with tools.\n\n${extraContext}\n`
@@ -442,8 +442,12 @@ async function streamAIResponse(
   const citationTracker = new CitationTracker()
 
   // Incremental markdown renderer. Buffers chunks and emits styled
-  // terminal output (headings bold, lists bulleted, etc.) via marked-terminal.
-  const md = new MarkdownStream()
+  // terminal output (headings, lists, tables, code) under a Result rail.
+  const md = new MarkdownStream().withResultHeader(true)
+  // Defense in depth: even if a provider path leaks CoT into the text
+  // channel (DeepSeek <think>, MiniMax </mm:think>, bare orphan closes),
+  // peel it into the Thinking stream so Result stays user-facing only.
+  const thinkSplit = createThinkSplitter()
 
   // Drive the persistent status bar during streaming
   let elapsedInterval: ReturnType<typeof setInterval> | undefined
@@ -548,12 +552,23 @@ async function streamAIResponse(
       model: (provider as any).model ?? null,
       allTools: toolsToUse,
       onChunk: (chunk) => {
+        if (chunk == null) return
+        // Think-split first so <|thinking|> tags aren't eaten by tool-XML strip.
+        const split = thinkSplit.push(String(chunk))
+        if (split.reasoning) {
+          fullReasoning += split.reasoning
+          if (!chain.isOpen) chain.beginAndPrint()
+          chain.append(split.reasoning)
+          thinking.showReasoning(split.reasoning)
+        }
+        const filtered = split.text ? stripToolCallXml(split.text) : ""
+        if (!filtered) return
         if (isFirstChunk && !hasOutputHeader) {
           emitHeader()
           isFirstChunk = false
         }
-        md.push(chunk)
-        fullResponse += chunk
+        md.push(filtered)
+        fullResponse += filtered
       },
       onToolCall: ({ toolName, args }) => {
         if (!hasOutputHeader) emitHeader()
@@ -607,20 +622,28 @@ async function streamAIResponse(
       aiMessages as ModelMessage[],
       (chunk) => {
         if (chunk == null) return
+        // Peel embedded CoT / think tags out of the text channel FIRST so
+        // Result only gets the user-facing answer (Thinking gets process).
+        // Must run before stripToolCallXml — that path also drops <|…|> tokens
+        // and would otherwise leave CoT body in Result without its tags.
+        const split = thinkSplit.push(String(chunk))
+        if (split.reasoning) {
+          fullReasoning += split.reasoning
+          if (!chain.isOpen) chain.beginAndPrint()
+          chain.append(split.reasoning)
+          thinking.showReasoning(split.reasoning)
+          if (!hasOutputHeader) setTurnStatus("model reasoning")
+        }
+        // Filter raw tool call XML markup from the visible answer only.
+        const filtered = split.text ? stripToolCallXml(split.text) : ""
+        if (!filtered) return
         if (isFirstChunk && !hasOutputHeader) {
           emitHeader()
           isFirstChunk = false
           statusRow.setStreaming()
         }
-        // Filter raw tool call XML markup from streaming text output.
-        // Some providers emit raw <|tool_calls_section_begin|>... XML in the
-        // text stream alongside structured tool calls. Strip it to prevent
-        // leakage to the terminal.
-        const filtered = stripToolCallXml(chunk)
-        if (filtered) {
-          md.push(filtered)
-          fullResponse += filtered
-        }
+        md.push(filtered)
+        fullResponse += filtered
       },
       toolsToUse,
       async ({ toolName, args }: { toolName: string; args?: unknown }) => {
@@ -666,6 +689,12 @@ async function streamAIResponse(
           return
         }
         fullReasoning += reasoningChunk
+        // Keep process text on the thought chain (Thinking dropdown), never
+        // push it into the Result markdown stream.
+        if (!chain.isOpen) {
+          chain.beginAndPrint()
+        }
+        chain.append(reasoningChunk)
         thinking.showReasoning(reasoningChunk)
         // Surface that the model is actually reasoning — not stuck idle.
         if (!hasOutputHeader) {
@@ -808,14 +837,82 @@ async function streamAIResponse(
     activeStatusRow = null
     activeChain = null
 
-    // Flush any trailing markdown — finalizes the open block with a
-    // typing animation so the user sees content appear progressively.
-    // Set fallback content from fullResponse in case the buffer is empty
-    // but the model did generate text (edge case where chunks weren't pushed).
+    // If pure reasoning arrived with no tools/text steps closed yet, fold it
+    // into the Thinking block so process never leaks into Result.
+    if (fullReasoning.trim().length > 0 && chain.thoughts.length > 0) {
+      const last = chain.thoughts[chain.thoughts.length - 1]!
+      if (!last.body.trim()) {
+        last.body = fullReasoning.trim()
+      } else if (!last.body.includes(fullReasoning.trim().slice(0, 40))) {
+        last.body = `${last.body.trim()}\n${fullReasoning.trim()}`
+      }
+      if (last.endTime === null) {
+        chain.finishAndPrint({ autoCollapse: true })
+      }
+    } else if (fullReasoning.trim().length > 0 && chain.thoughts.length === 0) {
+      chain.begin()
+      chain.append(fullReasoning.trim())
+      chain.finishAndPrint({ autoCollapse: true })
+    }
+
+    // Flush any partial think-tag held across the last chunk boundary.
+    {
+      const tail = thinkSplit.flush()
+      if (tail.reasoning) {
+        fullReasoning += tail.reasoning
+        if (!chain.isOpen) chain.beginAndPrint()
+        chain.append(tail.reasoning)
+        thinking.showReasoning(tail.reasoning)
+      }
+      if (tail.text) {
+        md.push(tail.text)
+        fullResponse += tail.text
+      }
+    }
+
+    // Final gate for ALL providers/models: peel untagged process monologue
+    // ("Need provide query… Use web_search twice…") out of Result even when
+    // no <think> tags were present. Applies after streaming so every path
+    // (proxy, concentrate, openrouter, google, minimax, …) is covered.
+    {
+      const cleaned = finalizeAnswerVsProcess(fullResponse, fullReasoning)
+      if (cleaned.reasoning && cleaned.reasoning !== fullReasoning.trim()) {
+        const extra = cleaned.reasoning.startsWith(fullReasoning.trim())
+          ? cleaned.reasoning.slice(fullReasoning.trim().length).trim()
+          : cleaned.reasoning
+        if (extra) {
+          fullReasoning = cleaned.reasoning
+          // Rebuild / fold into Thinking so process isn't lost.
+          if (chain.thoughts.length === 0) {
+            chain.begin()
+            chain.append(extra)
+            chain.finishAndPrint({ autoCollapse: true })
+          } else {
+            const last = chain.thoughts[chain.thoughts.length - 1]!
+            if (!last.body.includes(extra.slice(0, Math.min(40, extra.length)))) {
+              last.body = `${last.body.trim()}\n${extra}`.trim()
+            }
+          }
+        }
+      }
+      fullResponse = cleaned.text
+      // Replace the markdown buffer so Result never prints process scratch.
+      md.reset()
+      if (fullResponse.trim()) {
+        md.push(fullResponse)
+        md.setFallback(fullResponse)
+      }
+    }
+
+    // Flush final answer markdown under the Result rail only.
     if (fullResponse.trim().length > 0) {
       md.setFallback(fullResponse)
     }
-    await md.end()
+    if (md.hasContent) {
+      console.log()
+      await md.end()
+      console.log()
+    }
 
     // If tools ran but the model produced no analysis text, show a minimal
     // marker so the turn doesn't end with a dangling thought block.
