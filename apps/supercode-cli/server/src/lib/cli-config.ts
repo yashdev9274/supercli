@@ -14,6 +14,7 @@ export interface CliConfig {
   mode: "chat" | "agent"
   crispMode?: "off" | "lite" | "full" | "ultra"
   apiKeys?: Partial<Record<ModelProvider, string>>
+  checkForUpdates?: boolean
   mcpServers?: Record<string, McpServerConfig>
   mcpCredentials?: Record<string, McpCredentials>
   composioApiKey?: string
@@ -137,6 +138,21 @@ export async function getCliConfig(): Promise<CliConfig | null> {
     return null
   } catch {
     return null
+  }
+}
+
+/**
+ * Read the checkForUpdates setting independently of config version guard.
+ * A preference like this should survive version bumps — it's not tied to
+ * provider/model defaults that may change between versions.
+ */
+export async function getCheckForUpdatesSetting(): Promise<boolean> {
+  try {
+    const data = await fs.readFile(CONFIG_FILE, "utf-8")
+    const config = JSON.parse(data) as CliConfig
+    return config.checkForUpdates === true
+  } catch {
+    return false
   }
 }
 
