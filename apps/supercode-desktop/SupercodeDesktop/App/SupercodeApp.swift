@@ -87,4 +87,5 @@ func application(_ application: NSApplication, open urls: [URL]) {
 extension Notification.Name {
     static let focusComposer = Notification.Name("ai.supercode.desktop.focusComposer")
     static let openConversation = Notification.Name("ai.supercode.desktop.openConversation")
+    static let composerPrefill = Notification.Name("ai.supercode.desktop.composerPrefill")
 }

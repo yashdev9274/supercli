@@ -37,7 +37,7 @@ import {
   setCurrentAgent,
   type PermissionPromptReply,
 } from "src/tools/permission-manager.ts"
-import { agentService, loadPrompt } from "src/agent/index.ts"
+import { agentService, loadPrompt } from "src/agents/index.ts"
 export type { ModelProvider } from "src/cli/ai/provider.ts"
 import {
   theme,
@@ -60,8 +60,8 @@ import { MarkdownStream } from "src/cli/utils/markdown-stream.ts"
 import { getContextWindow } from "src/cli/ai/context-windows.ts"
 import type { WorkspaceInfo } from "src/cli/workspace/scanner.ts"
 import { buildSystemPrompt } from "src/cli/workspace/context.ts"
-import { tools } from "src/tools/registry.ts"
-import { setDelegateRuntime } from "src/tools/definitions/delegate.ts"
+import { tools } from "src/agents/tools/registry.ts"
+import { setDelegateRuntime } from "src/agents/tools/delegate.ts"
 import { getMcpManager } from "src/mcp/mcp-manager"
 import { CitationTracker } from "src/lib/citation-tracker.ts"
 import { loadEnvOnce } from "src/lib/load-env"
@@ -399,11 +399,20 @@ async function streamAIResponse(
   const startTime = Date.now()
 
   const thinking = new ThinkingDisplay()
-  thinking.start("thinking")
+  // StepStatusRow owns the live TTY status bar. ThinkingDisplay still tracks
+  // the ThoughtChain + non-TTY fallback labels, but we do NOT start its
+  // spinner on TTY — two spinners fighting for the same cursor row is what
+  // made turns look stuck on "Thinking" while real phases never appeared.
+  const statusRow = new StepStatusRow()
+  const agentName = mode === "plan" ? "plan" : (mode === "chat" ? "chat" : "build")
+  statusRow.start(agentName, provider.modelName, provider.connectionType)
+  statusRow.setStatus("preparing turn")
+  if (!process.stdout.isTTY) {
+    thinking.start("preparing turn")
+  }
 
-  // Per-step live chain — ThinkingDisplay owns the spinner; we use the chain
-  // directly here for per-step block rendering. Each AI step opens a
-  // `▼ Thought: 0.0s` block, appends `┃   → Read foo.ts` rows as tools
+  // Per-step live chain — we use the chain for per-step block rendering.
+  // Each AI step opens a `▼ Thought: 0.0s` block, appends tool rows as tools
   // fire, then auto-collapses to `+ Thought: N.Ns` when the step finishes.
   const chain = thinking.getChain()
   activeChain = chain
@@ -414,17 +423,15 @@ async function streamAIResponse(
   let currentSubChain: ThoughtChain | null = null
   // Task name extracted from delegate/task args (e.g. "Find BUILTIN_CONNECTORS").
   let currentSubChainTaskName = ""
-  // Live status row above the input prompt — shows model name, current
-  // step, current tool, and elapsed time. Replaces the on-input
-  // ThinkingDisplay spinner pattern (kept for non-TTY fallback) and the
-  // previous noisy per-tool debug lines.
-  const statusRow = new StepStatusRow()
-  const agentName = mode === "plan" ? "plan" : (mode === "chat" ? "chat" : "build")
-  statusRow.start(agentName, provider.modelName, provider.connectionType)
   // Publish to the module-scoped slot so the persistent footer's resize
   // handler can notify us too — StepStatusRow reserves no row of its own,
   // but its render math depends on the current terminal width.
   activeStatusRow = statusRow
+
+  const setTurnStatus = (label: string) => {
+    statusRow.setStatus(label)
+    thinking.setStatus(label)
+  }
 
   // Per-turn tool result tracker. Used to detect "all tools returned empty"
   // (the hallucination precursor) and to render empty tool calls in red.
@@ -452,10 +459,12 @@ async function streamAIResponse(
   let modeSwitchRequest: { requested: boolean; reason?: string } = { requested: false }
 
   if (workspaceInfo) {
+    setTurnStatus("loading tools")
     toolsToUse = { ...tools }
-    // Merge MCP tools from any connected servers
+    // Merge MCP tools from any connected servers (bounded — see mcp-manager timeouts)
     const mcpManager = getMcpManager()
     if (mcpManager.isStarted) {
+      setTurnStatus("loading mcp tools")
       const mcpTools = await mcpManager.getAllTools()
       if (mcpTools && Object.keys(mcpTools).length > 0) {
         Object.assign(toolsToUse, mcpTools)
@@ -589,6 +598,11 @@ async function streamAIResponse(
   }
 
   try {
+    setTurnStatus(
+      provider.connectionType === "proxy"
+        ? "sending via cloud · waiting for first token"
+        : "sending request · waiting for first token",
+    )
     const result = await provider.sendMessage(
       aiMessages as ModelMessage[],
       (chunk) => {
@@ -642,9 +656,21 @@ async function streamAIResponse(
         if (statusBar) statusBar.incTools()
       },
       abortController.signal,
-      (reasoningChunk) => {
+(reasoningChunk) => {
+        // Server status heartbeats arrive as `[status] …` via onReasoning so
+        // the live bar can show connecting / plan-gate / upstream without
+        // waiting for first model token.
+        if (typeof reasoningChunk === "string" && reasoningChunk.startsWith("[status] ")) {
+          const label = reasoningChunk.slice("[status] ".length).trim() || "cloud working"
+          if (!hasOutputHeader) setTurnStatus(label)
+          return
+        }
         fullReasoning += reasoningChunk
         thinking.showReasoning(reasoningChunk)
+        // Surface that the model is actually reasoning — not stuck idle.
+        if (!hasOutputHeader) {
+          setTurnStatus("model reasoning")
+        }
       },
       async ({ toolName, args, result, stepNumber }: { toolName: string; args?: unknown; result: unknown; stepNumber?: number }) => {
         // Capture tool result for the post-turn warning + tracker.
@@ -743,6 +769,7 @@ async function streamAIResponse(
       ({ stepNumber }) => {
         chain.finishAndPrint({ autoCollapse: true })
         statusRow.setPhase("thinking")
+        setTurnStatus("waiting for next model step")
         const step = stepNumber ?? chain.thoughts.length
         statusRow.setStepCount(step)
         thinking.setStepCount(step)

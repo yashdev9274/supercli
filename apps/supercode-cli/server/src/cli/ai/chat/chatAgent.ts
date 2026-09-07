@@ -7,10 +7,10 @@ import { getStoredToken } from "src/lib/token"
 import { ChatService } from "src/service/chat-service"
 import { createProvider, type ModelProvider } from "src/cli/ai/provider"
 import { type WorkspaceInfo } from "src/cli/workspace/scanner"
-import { agentService, loadPrompt } from "src/agent"
+import { agentService, loadPrompt, runTurn, getAgent } from "src/agents"
 import { buildSystemPrompt } from "src/cli/workspace/context"
 import { ThinkingDisplay, ThoughtChain } from "src/cli/ai/chat/thinking"
-import { tools } from "src/tools/registry"
+import { tools } from "src/agents"
 import { getMcpManager } from "src/mcp/mcp-manager"
 
 let _chatService: ChatService

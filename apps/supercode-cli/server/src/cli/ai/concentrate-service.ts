@@ -6,6 +6,7 @@ import { computeCost } from "../../lib/pricing"
 import { isEmptyToolResult, isDeniedToolResult, summarizeToolResult, tcName } from "./tool-result"
 import { checkDailyOpusLimit, incrementDailyOpusCount } from "../../lib/token-budget"
 import { stripOrphanToolCalls } from "./sanitize-messages"
+import { toolParametersToJsonSchema } from "./tools-util"
 
 const HIGH_VALUE_MODELS = ["anthropic/claude-fable-5", "anthropic/claude-opus-5", "anthropic/claude-opus-4-8", "anthropic/claude-opus-4-7", "openai/gpt-5.5"]
 const OPUS_MODELS = ["anthropic/claude-opus-5", "anthropic/claude-opus-4-8", "anthropic/claude-opus-4-7"]
@@ -46,7 +47,12 @@ async function nonStreamingRequest(modelName: string, system: string, messages: 
   if (tools && typeof tools === "object") {
     body.tools = Object.entries(tools).map(([name, fn]: [string, any]) => ({
       type: "function",
-      function: { name, description: fn.description || "", parameters: fn.parameters || { type: "object", properties: {} } },
+      function: {
+        name,
+        description: fn.description || "",
+        // AI SDK 6 / harness tools use inputSchema (Zod); legacy used parameters.
+        parameters: toolParametersToJsonSchema(fn),
+      },
     }))
   }
   const res = await fetchWithRetry(`${BASE_URL}/chat/completions`, {
@@ -104,14 +110,23 @@ export class ConcentrateService {
     onStepFinish?: (params: { stepNumber: number; toolCalls: Array<{ toolName: string; args: unknown }>; toolResults: Array<{ toolName: string; args: unknown; result: string }> }) => void,
     onStepBudget?: (maxSteps: number) => void,
   ) {
-    // Build a combined abort controller with a 120s safety timeout. This
-    // prevents the SDK's tool loop from hanging indefinitely when the model
-    // API becomes unresponsive after a tool result submission.
-    // Build a combined abort controller with a 120s safety timeout. This
-    // prevents the SDK's tool loop from hanging indefinitely when the model
-    // API becomes unresponsive after a tool result submission.
+    // Combined abort: overall 120s safety + first-token 45s so a silent stream
+    // fails before the TUI's "model may be overloaded" 80s wall.
     const streamAbortController = new AbortController()
     const streamTimeout = setTimeout(() => streamAbortController.abort(), 120_000)
+    const firstTokenMs = Number(process.env.SUPERCODE_FIRST_TOKEN_TIMEOUT_MS) || 45_000
+    let sawStreamActivity = false
+    const firstTokenTimeout = setTimeout(() => {
+      if (!sawStreamActivity && !streamAbortController.signal.aborted) {
+        streamAbortController.abort()
+      }
+    }, firstTokenMs)
+    const markActivity = () => {
+      if (!sawStreamActivity) {
+        sawStreamActivity = true
+        clearTimeout(firstTokenTimeout)
+      }
+    }
     const signalHandler = signal ? () => streamAbortController.abort() : undefined
     signalHandler && signal!.addEventListener("abort", signalHandler, { once: true })
 
@@ -149,6 +164,7 @@ export class ConcentrateService {
         let chunkCount = 0
         // Iterate fullStream to surface reasoning chunks alongside text.
         for await (const event of result.fullStream) {
+          markActivity()
           if (event.type === "text-delta") {
             if (event.text == null) continue
             chunkCount++
@@ -373,6 +389,7 @@ export class ConcentrateService {
       let sawToolEvents = false
       // Iterate fullStream to surface reasoning chunks alongside text.
       for await (const event of result.fullStream) {
+        markActivity()
         if (event.type === "text-delta") {
           if (event.text == null) continue
           toolChunkCount++
@@ -449,7 +466,15 @@ export class ConcentrateService {
           usage,
         }
     } catch (error: any) {
-      if (error?.name === "AbortError") throw error
+      if (error?.name === "AbortError" || streamAbortController.signal.aborted) {
+        if (!sawStreamActivity) {
+          throw new Error(
+            `No response from model within ${Math.round(firstTokenMs / 1000)}s. ` +
+              "The provider may be overloaded — try again or run /model to switch.",
+          )
+        }
+        throw error?.name === "AbortError" ? error : new DOMException("Aborted", "AbortError")
+      }
       const msg = error instanceof Error ? error.message : String(error)
       const is5xx = /ConcentrateAI (?:API )?5\d\d/.test(msg) || /status code 5\d\d/i.test(msg)
       if (is5xx) {
@@ -464,6 +489,7 @@ export class ConcentrateService {
       throw error
     } finally {
       clearTimeout(streamTimeout)
+      clearTimeout(firstTokenTimeout)
       if (signalHandler) signal!.removeEventListener("abort", signalHandler as any)
     }
   }

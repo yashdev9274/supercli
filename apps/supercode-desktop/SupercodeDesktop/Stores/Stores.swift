@@ -29,10 +29,12 @@ final class AppSessionStore: ObservableObject {
 
     private init() {
         // Prefer UserDefaults so launch never hits Keychain for a non-secret preference.
-        serverURL = UserDefaults.standard.string(forKey: "serverURL")
+        // Debug → local API; Release → production. Custom overrides still win.
+        let stored = UserDefaults.standard.string(forKey: "serverURL")
             ?? UserDefaults.standard.string(forKey: "ai.supercode.desktop.serverURL")
             ?? KeychainStore.get(.serverURL)
-            ?? "https://supercode-8w7e.onrender.com"
+        let resolvedServer = ServerConfig.resolvedURL(stored: stored)
+        serverURL = resolvedServer
 
         let storedProvider = UserDefaults.standard.string(forKey: providerDefaultsKey)
             ?? ModelCatalog.defaultProvider.rawValue
@@ -45,6 +47,12 @@ final class AppSessionStore: ObservableObject {
         if let effortRaw = UserDefaults.standard.string(forKey: effortDefaultsKey),
            let effort = EffortLevel(rawValue: effortRaw) {
             selectedEffort = effort
+        }
+
+        // Persist migration after all stored properties are initialized.
+        if stored.map(ServerConfig.normalize) != ServerConfig.normalize(resolvedServer) {
+            UserDefaults.standard.set(resolvedServer, forKey: "serverURL")
+            KeychainStore.set(resolvedServer, for: .serverURL)
         }
     }
 
@@ -99,9 +107,18 @@ let me = try await SupercodeAPIClient.shared.getCurrentUser()
     }
 
     func updateServerURL(_ url: String) {
-        serverURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = ServerConfig.normalize(url)
+        serverURL = trimmed.isEmpty ? ServerConfig.defaultURL : trimmed
         KeychainStore.set(serverURL, for: .serverURL)
         UserDefaults.standard.set(serverURL, forKey: "serverURL")
+    }
+
+    func useLocalServer() {
+        updateServerURL(ServerConfig.localURL)
+    }
+
+    func useProductionServer() {
+        updateServerURL(ServerConfig.productionURL)
     }
 
     func startLogin() {
@@ -244,6 +261,15 @@ final class WorkspaceStore: ObservableObject {
     @Published var expandedPaths: Set<String> = []
     @Published var selectedPath: String?
     @Published var fileBrowserTab: FileBrowserTab = .allFiles
+    /// Main center column: chat transcript vs file editor.
+    @Published var mainPane: MainPaneMode = .chat
+    @Published var openFiles: [OpenEditorFile] = []
+    @Published var activeFileId: String?
+
+    enum MainPaneMode: String, Equatable {
+        case chat
+        case file
+    }
 
     private let defaultsKey = "workspaceBookmark"
     private let pathKey = "workspacePath"
@@ -298,7 +324,7 @@ path = url.path
         AgentRunStore.shared.isInspectorVisible = true
     }
 
-    func clearWorkspace() {
+func clearWorkspace() {
         path = nil
         displayName = "No workspace"
         gitBranch = nil
@@ -306,6 +332,9 @@ path = url.path
         expandedPaths = []
         selectedPath = nil
         treeError = nil
+        openFiles = []
+        activeFileId = nil
+        mainPane = .chat
         UserDefaults.standard.removeObject(forKey: pathKey)
         UserDefaults.standard.removeObject(forKey: defaultsKey)
         bookmarkData = nil
@@ -337,9 +366,9 @@ path = url.path
         }
     }
 
-    func toggleExpanded(_ node: WorkspaceNode) {
+func toggleExpanded(_ node: WorkspaceNode) {
         guard node.isDirectory else {
-            selectedPath = node.path
+            openFile(at: node.path)
             return
         }
         if expandedPaths.contains(node.path) {
@@ -348,6 +377,88 @@ path = url.path
             expandedPaths.insert(node.path)
             ensureChildrenLoaded(for: node)
         }
+    }
+
+    /// Open a workspace file in the main editor pane (desk-style).
+    func openFile(at path: String) {
+        selectedPath = path
+        if let existing = openFiles.first(where: { $0.path == path }) {
+            activeFileId = existing.id
+            mainPane = .file
+            return
+        }
+
+        let maxBytes = 1_500_000
+        let url = URL(fileURLWithPath: path)
+        var file = OpenEditorFile(path: path)
+
+        do {
+            let attrs = try FileManager.default.attributesOfItem(atPath: path)
+            let size = (attrs[.size] as? NSNumber)?.intValue ?? 0
+            if size > maxBytes {
+                file.error = "File is too large to preview (\(size / 1024) KB)."
+            } else if let data = try? Data(contentsOf: url) {
+                if looksBinary(data) {
+                    file.isBinary = true
+                } else if let text = String(data: data, encoding: .utf8)
+                    ?? String(data: data, encoding: .isoLatin1) {
+                    file.content = text
+                } else {
+                    file.isBinary = true
+                }
+            } else {
+                file.error = "Could not read file."
+            }
+        } catch {
+            file.error = error.localizedDescription
+        }
+
+        openFiles.append(file)
+        activeFileId = file.id
+        mainPane = .file
+    }
+
+    func closeFile(_ id: String) {
+        openFiles.removeAll { $0.id == id }
+        if activeFileId == id {
+            activeFileId = openFiles.last?.id
+        }
+        if openFiles.isEmpty {
+            mainPane = .chat
+            selectedPath = nil
+        }
+    }
+
+    func showChatPane() {
+        mainPane = .chat
+    }
+
+    /// Shallow file names for @mention picker.
+    func flatFileNames(limit: Int = 40) -> [String] {
+        var names: [String] = []
+        func walk(_ nodes: [WorkspaceNode]) {
+            for node in nodes {
+                if names.count >= limit { return }
+                if node.isDirectory {
+                    if let kids = node.children { walk(kids) }
+                } else {
+                    names.append(node.name)
+                }
+            }
+        }
+        walk(rootNodes)
+        return names
+    }
+
+    private func looksBinary(_ data: Data) -> Bool {
+        if data.isEmpty { return false }
+        let sample = data.prefix(512)
+        if sample.contains(0) { return true }
+        // High ratio of non-printable → treat as binary
+        let nonPrintable = sample.filter { byte in
+            byte < 9 || (byte > 13 && byte < 32)
+        }.count
+        return Double(nonPrintable) / Double(sample.count) > 0.3
     }
 
     private func ensureChildrenLoaded(for node: WorkspaceNode) {
@@ -521,19 +632,37 @@ func reset() {
         saveLocalCache()
     }
 
-    /// Clear the active chat transcript (CLI `/clear` equivalent).
+/// Clear the active chat transcript (CLI `/clear` equivalent).
     /// Keeps the conversation list; wipes in-memory messages and agent run state.
     func clearActiveSession() {
         messages = []
         errorMessage = nil
         AgentRunStore.shared.reset()
+        AgentRunStore.shared.dismissAlert()
     }
 
     /// Start fresh: clear transcript + create a new conversation.
     func clearSessionAndStartNew() async {
         clearActiveSession()
         activeConversationId = nil
+        WorkspaceStore.shared.showChatPane()
         await createConversation(mode: mode.rawValue)
+    }
+
+    /// Drop the last user message (and trailing assistant reply) so the user can edit & resend.
+    func beginEditLastUserMessage() -> String? {
+        guard let idx = messages.lastIndex(where: { $0.role == .user }) else { return nil }
+        let content = messages[idx].content
+        // Remove that user turn and anything after it (assistant / tools).
+        messages.removeSubrange(idx...)
+        AgentRunStore.shared.stop()
+        AgentRunStore.shared.lastError = nil
+        AgentRunStore.shared.dismissAlert()
+        return content
+    }
+
+    func removeMessage(id: String) {
+        messages.removeAll { $0.id == id }
     }
 
     func refreshList() async {
@@ -644,10 +773,11 @@ func reset() {
 final class AgentRunStore: ObservableObject {
     static let shared = AgentRunStore()
 
-    @Published var status: AgentStatus = .idle
+@Published var status: AgentStatus = .idle
     @Published var diffs: [DiffFile] = []
     @Published var selectedDiffId: String?
     @Published var lastError: String?
+    @Published var activeAlert: AgentAlertKind?
     @Published var isInspectorVisible: Bool = true
     @Published var agentTodos: [AgentTodoItem] = []
     @Published var stepCount: Int = 0
@@ -660,9 +790,34 @@ final class AgentRunStore: ObservableObject {
         diffs = []
         selectedDiffId = nil
         lastError = nil
+        activeAlert = nil
         agentTodos = []
         stepCount = 0
         PermissionManager.shared.resolve(.deny)
+    }
+
+    func dismissAlert() {
+        activeAlert = nil
+    }
+
+    func presentError(_ message: String) {
+        lastError = message
+        activeAlert = Self.alert(from: message)
+    }
+
+    private static func alert(from message: String) -> AgentAlertKind {
+        let lower = message.lowercased()
+if lower.contains("plan_limit")
+            || lower.contains("plan limit")
+            || lower.contains("subscription")
+            || lower.contains("no active subscription")
+            || (lower.contains("upgrade") && lower.contains("credit")) {
+            return .planLimit(message: message)
+        }
+        if lower.contains("credit") || lower.contains("quota") || lower.contains("billing") {
+            return .planLimit(message: message)
+        }
+        return .streamError(message: message)
     }
 
     func stop() {
@@ -678,9 +833,11 @@ final class AgentRunStore: ObservableObject {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        runTask?.cancel()
+runTask?.cancel()
         lastError = nil
+        activeAlert = nil
         stepCount = 0
+        WorkspaceStore.shared.showChatPane()
 
         runTask = Task {
             let conversations = ConversationStore.shared
@@ -807,15 +964,15 @@ final class AgentRunStore: ObservableObject {
                                 }
                             case .finish:
                                 break
-                            case .error(let message):
+case .error(let message):
                                 sawError = message
-                                self.lastError = message
+                                self.presentError(message)
                                 self.status = .error
                             }
                         }
                     }
 
-                    if let sawError {
+if let sawError {
                         throw APIError.server(sawError)
                     }
 
@@ -831,7 +988,39 @@ final class AgentRunStore: ObservableObject {
                         )
                     }
 
+                    // Models often leak internal planning as content. When tools ran,
+                    // move that monologue into a collapsed "Thinking" part.
+                    if !recentTools.isEmpty, Self.looksLikePlanningMonologue(stepText) {
+                        demoteMonologueToReasoning(
+                            conversations: conversations,
+                            assistantId: assistantId,
+                            monologue: stepText
+                        )
+                        stepText = ""
+                    }
+
                     if recentTools.isEmpty {
+                        // If the only output is planning monologue and the user asked about a file,
+                        // nudge one forced tool turn instead of ending on meta-text.
+                        if Self.looksLikePlanningMonologue(stepText),
+                           step < ToolCatalog.maxAgentSteps - 1,
+                           Self.userLikelyNeedsTools(trimmed) {
+                            demoteMonologueToReasoning(
+                                conversations: conversations,
+                                assistantId: assistantId,
+                                monologue: stepText
+                            )
+                            apiMessages.append([
+                                "role": "assistant",
+                                "content": stepText.isEmpty ? "" : stepText,
+                            ])
+                            apiMessages.append([
+                                "role": "user",
+                                "content": "Do not narrate. Call the appropriate tool(s) now (read_file / search_files) to load the referenced file, then answer with guidance based on the tool results.",
+                            ])
+                            stepText = ""
+                            continue
+                        }
                         // Final assistant turn — no more tools
                         status = .idle
                         break
@@ -943,9 +1132,9 @@ final class AgentRunStore: ObservableObject {
                 }
             } catch is CancellationError {
                 status = .idle
-            } catch {
+} catch {
                 status = .error
-                lastError = error.localizedDescription
+                presentError(error.localizedDescription)
                 conversations.updateAssistant(id: assistantId) { msg in
                     if msg.content.isEmpty {
                         msg.content = "Error: \(error.localizedDescription)"
@@ -956,12 +1145,105 @@ final class AgentRunStore: ObservableObject {
         }
     }
 
-    private func stringifyArgs(_ args: [String: Any]) -> String {
+private func stringifyArgs(_ args: [String: Any]) -> String {
         guard JSONSerialization.isValidJSONObject(args),
               let data = try? JSONSerialization.data(withJSONObject: args),
               let s = String(data: data, encoding: .utf8)
         else { return "{}" }
         return s
+    }
+
+    /// True when assistant text is internal planning rather than a user-facing answer.
+    private static func looksLikePlanningMonologue(_ text: String) -> Bool {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return false }
+        // Short meta-only replies with no substance
+        let lower = t.lowercased()
+        let markers = [
+            "the user wants me",
+            "the user asked me",
+            "let me find",
+            "let me look",
+            "let me read",
+            "let me check",
+            "let me search",
+            "i'll find",
+            "i'll look",
+            "i'll read",
+            "i'll start",
+            "i will find",
+            "i will read",
+            "i need to find",
+            "i need to read",
+            "i need to look",
+            "first i'll",
+            "first, i'll",
+            "i should read",
+            "i should find",
+            "going to read",
+            "going to find",
+            "guide them about",
+            "and guide them",
+            "and guide me",
+        ]
+        let hit = markers.contains { lower.contains($0) }
+        guard hit else { return false }
+        // If the text is long and has real structure (headers, bullets with substance), keep it.
+        let lines = t.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+        let substantive = lines.filter { line in
+            line.count > 40
+                && !markers.contains { line.lowercased().contains($0) }
+        }
+        // Pure monologue: short or almost entirely marker-driven.
+        return t.count < 500 || substantive.count <= 1
+    }
+
+    private static func userLikelyNeedsTools(_ prompt: String) -> Bool {
+        let lower = prompt.lowercased()
+        if lower.contains("@") { return true }
+        if lower.contains(".md") || lower.contains(".ts") || lower.contains(".swift")
+            || lower.contains(".tsx") || lower.contains(".js") || lower.contains(".py") {
+            return true
+        }
+        let verbs = ["review", "read", "open", "explain", "guide", "analyze", "analyse",
+                     "summarize", "summarise", "look at", "check", "inspect", "walk me"]
+        return verbs.contains { lower.contains($0) }
+    }
+
+    private func demoteMonologueToReasoning(
+        conversations: ConversationStore,
+        assistantId: String,
+        monologue: String
+    ) {
+        let trimmed = monologue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        conversations.updateAssistant(id: assistantId) { msg in
+            // Strip matching text parts that are just the monologue.
+            msg.parts.removeAll { part in
+                if case .text(_, let c) = part {
+                    return c.trimmingCharacters(in: .whitespacesAndNewlines) == trimmed
+                        || trimmed.contains(c.trimmingCharacters(in: .whitespacesAndNewlines))
+                        || c.contains(trimmed)
+                }
+                return false
+            }
+            // Rebuild content without the monologue prefix if present.
+            if msg.content.contains(trimmed) {
+                msg.content = msg.content.replacingOccurrences(of: trimmed, with: "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            } else if msg.content.trimmingCharacters(in: .whitespacesAndNewlines) == trimmed {
+                msg.content = ""
+            }
+            // Append as reasoning (collapsed Thinking disclosure in UI).
+            if let idx = msg.parts.lastIndex(where: {
+                if case .reasoning = $0 { return true }
+                return false
+            }), case .reasoning(let id, let existing) = msg.parts[idx] {
+                msg.parts[idx] = .reasoning(id: id, content: existing + "\n" + trimmed)
+            } else {
+                msg.parts.insert(.reasoning(id: UUID().uuidString, content: trimmed), at: 0)
+            }
+        }
     }
 
     private func updateTodos(from json: String) {

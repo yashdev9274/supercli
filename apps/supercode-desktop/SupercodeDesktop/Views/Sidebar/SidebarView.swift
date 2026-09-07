@@ -17,13 +17,16 @@ navRow(title: "Home", systemImage: "house", selected: conversations.activeConver
                     conversations.clearActiveSession()
                 }
 
-                Button {
-                    Task { await conversations.createConversation(mode: conversations.mode.rawValue) }
+Button {
+                    Task {
+                        WorkspaceStore.shared.showChatPane()
+                        await conversations.createConversation(mode: conversations.mode.rawValue)
+                    }
                 } label: {
                     HStack(spacing: 8) {
-                        Image(systemName: "plus")
+                        Image(systemName: "square.and.pencil")
                             .font(.system(size: 11, weight: .bold))
-                        Text("Create")
+                        Text("New Chat")
                             .font(.system(size: 12, weight: .semibold))
                         Spacer()
                     }

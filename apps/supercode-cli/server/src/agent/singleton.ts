@@ -1,7 +1,2 @@
-import { DefaultAgentService } from "./agent-service"
-import { registerBuiltInAgents } from "./built-in"
-
-const agentService = new DefaultAgentService()
-registerBuiltInAgents(agentService)
-
-export { agentService }
+/** @deprecated re-export from src/agents */
+export { agentService } from "src/agents"

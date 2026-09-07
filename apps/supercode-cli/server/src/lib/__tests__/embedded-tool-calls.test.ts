@@ -293,6 +293,92 @@ test("stripControlTokens helper", () => {
   expect(stripControlTokens("a<|foo|>b")).toBe("ab")
 })
 
+test("DeepSeek DSML control tokens are stripped from prose", () => {
+  const out = drain(parseStreamedContent(), [
+    "Let me look at that file.\n\n<｜｜DSML｜｜tool_calls>\n<｜｜DSML｜｜>",
+  ])
+  expect(out.text.trim()).toBe("Let me look at that file.")
+  expect(out.calls.length).toBe(0)
+})
+
+test("DeepSeek DSML tokens split across chunks do not leak", () => {
+  const out = drain(parseStreamedContent(), [
+    "Reading.\n<｜",
+    "｜DSML｜｜tool_calls>\n",
+    "<｜｜DSML｜｜",
+    ">",
+  ])
+  expect(out.text).not.toContain("DSML")
+  expect(out.text).not.toContain("<｜")
+  expect(out.text.trim()).toBe("Reading.")
+})
+
+test("stripControlTokens removes fullwidth DSML markers", () => {
+  expect(
+    stripControlTokens("hi <｜｜DSML｜｜tool_calls> there <｜｜DSML｜｜>"),
+  ).toBe("hi  there ")
+})
+
+test("DeepSeek DSML invoke with parameters becomes a tool call", () => {
+  const out = drain(parseStreamedContent(), [
+    'Let me read it.\n<｜DSML｜tool_calls>\n<｜DSML｜invoke name="read_file">\n<｜DSML｜parameter name="path" string="true">offline-ai.md</｜DSML｜parameter>\n</｜DSML｜invoke>\n</｜DSML｜tool_calls>',
+  ])
+  expect(out.text.trim()).toBe("Let me read it.")
+  expect(out.calls.length).toBe(1)
+  expect(out.calls[0]).toEqual({
+    name: "read_file",
+    args: { path: "offline-ai.md" },
+    id: "",
+  })
+})
+
+test("DeepSeek DSML invoke with JSON number param (string=false)", () => {
+  const out = drain(parseStreamedContent(), [
+    '<｜DSML｜invoke name="web_search">\n<｜DSML｜parameter name="query" string="true">bun test</｜DSML｜parameter>\n<｜DSML｜parameter name="limit" string="false">5</｜DSML｜parameter>\n</｜DSML｜invoke>',
+  ])
+  expect(out.calls.length).toBe(1)
+  expect(out.calls[0].name).toBe("web_search")
+  expect(out.calls[0].args).toEqual({ query: "bun test", limit: 5 })
+  expect(out.text).toBe("")
+})
+
+test("DeepSeek DSML invoke split across chunks is recovered", () => {
+  const out = drain(parseStreamedContent(), [
+    'Checking.\n<｜DSML｜tool_calls>\n<｜DSML｜invoke name="read_file">\n',
+    '<｜DSML｜parameter name="path" string="true">src/a.ts',
+    "</｜DSML｜parameter>\n</｜DSML｜invoke>\n</｜DSML｜tool_calls>",
+  ])
+  expect(out.text.trim()).toBe("Checking.")
+  expect(out.calls.length).toBe(1)
+  expect(out.calls[0].args.path).toBe("src/a.ts")
+})
+
+test("DeepSeek doubled-bar DSML invoke (relay variant) is recovered", () => {
+  const out = drain(parseStreamedContent(), [
+    '<｜｜DSML｜｜invoke name="search_files"><｜｜DSML｜｜parameter name="query" string="true">agent</｜｜DSML｜｜parameter></｜｜DSML｜｜invoke>',
+  ])
+  expect(out.calls.length).toBe(1)
+  expect(out.calls[0].name).toBe("search_files")
+  expect(out.calls[0].args.query).toBe("agent")
+})
+
+test("incomplete DSML tool_calls wrapper alone does not empty-out prose", () => {
+  const out = drain(parseStreamedContent(), [
+    "Let me look at that file.\n\n<｜｜DSML｜｜tool_calls>\n<｜｜DSML｜｜",
+  ])
+  expect(out.text.trim()).toBe("Let me look at that file.")
+  expect(out.calls.length).toBe(0)
+})
+
+test("unclosed DSML invoke is dropped on flush, not leaked", () => {
+  const out = drain(parseStreamedContent(), [
+    '<｜DSML｜invoke name="read_file"><｜DSML｜parameter name="path" string="true">x',
+  ])
+  expect(out.calls.length).toBe(0)
+  expect(out.text).not.toContain("DSML")
+  expect(out.text).not.toContain("read_file")
+})
+
 test("extractEmbeddedToolCalls one-shot helper", () => {
   const out = extractEmbeddedToolCalls(
     'Looking.]<]minimax[>[<tool_call>\n{ "tool": "run_command", "command": "ls" }',

@@ -6,6 +6,7 @@ import { computeCost } from "../../lib/pricing"
 import { isEmptyToolResult, isDeniedToolResult, summarizeToolResult } from "./tool-result"
 import { parseStreamedContent, KNOWN_TOOL_NAMES } from "src/lib/embedded-tool-calls"
 import { stripOrphanToolCalls } from "./sanitize-messages"
+import { toolParametersToJsonSchema } from "./tools-util"
 
 const MODEL_MAX_TOKENS: Record<string, number> = {
   "moonshotai/kimi-k2.6": 256,
@@ -91,15 +92,15 @@ export class OpenRouterService {
       bodyObj.messages = [{ role: "system", content: system }, ...bodyObj.messages]
     }
     if (tools && Object.keys(tools).length > 0) {
-      bodyObj.tools = Object.entries(tools).map(([name, fn]: [string, any]) => {
-        // AI SDK 6 tools expose `inputSchema`; legacy `parameters` is kept
-        // as a fallback so tools that haven't been wrapped still serialize.
-        const schema = fn.inputSchema ?? fn.parameters ?? {}
-        return {
-          type: "function",
-          function: { name, description: fn.description || "", parameters: schema },
-        }
-      })
+      bodyObj.tools = Object.entries(tools).map(([name, fn]: [string, any]) => ({
+        type: "function",
+        // Convert Zod inputSchema → JSON Schema; raw Zod stringifies to {}.
+        function: {
+          name,
+          description: fn.description || "",
+          parameters: toolParametersToJsonSchema(fn),
+        },
+      }))
     }
 
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {

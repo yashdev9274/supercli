@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct ChatPaneView: View {
@@ -55,13 +56,48 @@ var body: some View {
                     }
                 }
 
-                if let error = agentRun.lastError {
-                    Text(error)
-                        .font(.system(size: 11))
-                        .foregroundStyle(DesktopTheme.danger)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 6)
+if let alert = agentRun.activeAlert {
+                    AlertCard(
+                        title: alert.title,
+                        message: alert.message,
+                        tone: alert.tone,
+                        primaryActionTitle: {
+                            switch alert {
+                            case .lowCredits, .planLimit: return "Upgrade"
+                            case .streamError: return "Dismiss"
+                            case .info: return nil
+                            }
+                        }(),
+                        primaryAction: {
+                            switch alert {
+                            case .lowCredits, .planLimit:
+                                if let url = URL(string: "https://supercode.ai/pricing") {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            case .streamError:
+                                agentRun.dismissAlert()
+                                agentRun.lastError = nil
+                            case .info:
+                                break
+                            }
+                        },
+                        secondaryActionTitle: {
+                            switch alert {
+                            case .lowCredits, .planLimit: return "Dismiss"
+                            default: return nil
+                            }
+                        }(),
+                        secondaryAction: {
+                            agentRun.dismissAlert()
+                            agentRun.lastError = nil
+                        },
+                        onDismiss: {
+                            agentRun.dismissAlert()
+                            agentRun.lastError = nil
+                        }
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 6)
                 }
 
                 ComposerBar()
@@ -143,15 +179,37 @@ private var statusLabel: String {
 
 struct MessageBubble: View {
     let message: ChatMessage
+    @EnvironmentObject private var conversations: ConversationStore
+    @EnvironmentObject private var agentRun: AgentRunStore
+    @State private var isHovered = false
+
+    private var isLastUser: Bool {
+        message.role == .user && conversations.messages.last(where: { $0.role == .user })?.id == message.id
+    }
+
+    private var copyableText: String {
+        if !message.content.isEmpty { return message.content }
+        return message.parts.compactMap { part -> String? in
+            switch part {
+            case .text(_, let c): return c.isEmpty ? nil : c
+            case .reasoning(_, let c): return c.isEmpty ? nil : c
+            case .toolCall: return nil
+            }
+        }.joined(separator: "\n\n")
+    }
 
     var body: some View {
         switch message.role {
         case .user:
-            HStack {
-                Spacer(minLength: 80)
+            HStack(alignment: .bottom, spacing: 8) {
+                Spacer(minLength: 60)
+                if isHovered || isLastUser {
+                    messageActions(isUser: true)
+                }
                 Text(message.content)
                     .font(.system(size: 13))
                     .foregroundStyle(DesktopTheme.textPrimary)
+                    .textSelection(.enabled)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .background(
@@ -159,56 +217,100 @@ struct MessageBubble: View {
                             .fill(DesktopTheme.userBubble)
                     )
             }
-case .assistant:
+            .onHover { isHovered = $0 }
+        case .assistant:
             VStack(alignment: .leading, spacing: 10) {
-                if message.parts.isEmpty {
-                    if message.content.isEmpty {
-                        streamingPlaceholder
-                    } else {
-                        markdownText(message.content)
-                    }
-                } else {
-                    ForEach(message.parts) { part in
-                        switch part {
-                        case .text(_, let content):
-                            if content.isEmpty {
-                                EmptyView()
-                            } else {
-                                markdownText(content)
-                            }
-                        case .reasoning(_, let content):
-                            DisclosureGroup {
-                                Text(content)
-                                    .font(DesktopTheme.monoSmall)
-                                    .foregroundStyle(DesktopTheme.textMuted)
-                                    .textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            } label: {
-                                Label("Thinking", systemImage: "brain.head.profile")
-                                    .font(DesktopTheme.monoTiny)
-                                    .foregroundStyle(DesktopTheme.textMuted)
-                            }
-                        case .toolCall(let tool):
-                            ToolCallCard(tool: tool)
-                        }
-                    }
-                    if message.content.isEmpty && message.parts.allSatisfy({ part in
-                        if case .toolCall = part { return true }
-                        if case .reasoning = part { return true }
-                        if case .text(_, let c) = part { return c.isEmpty }
-                        return false
-                    }) {
-                        // Still generating first text after tools / thinking
-                        EmptyView()
+                HStack(alignment: .top, spacing: 8) {
+                    assistantBody
+                    if isHovered && !copyableText.isEmpty {
+                        messageActions(isUser: false)
                     }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.trailing, 40)
+            .padding(.trailing, 24)
+            .onHover { isHovered = $0 }
         default:
             Text(message.content)
                 .font(DesktopTheme.monoSmall)
                 .foregroundStyle(DesktopTheme.textMuted)
+        }
+    }
+
+    @ViewBuilder
+    private var assistantBody: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if message.parts.isEmpty {
+                if message.content.isEmpty {
+                    streamingPlaceholder
+                } else {
+                    markdownText(message.content)
+                }
+            } else {
+                ForEach(message.parts) { part in
+                    switch part {
+                    case .text(_, let content):
+                        if content.isEmpty {
+                            EmptyView()
+                        } else {
+                            markdownText(content)
+                        }
+                    case .reasoning(_, let content):
+                        DisclosureGroup {
+                            Text(content)
+                                .font(DesktopTheme.monoSmall)
+                                .foregroundStyle(DesktopTheme.textMuted)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } label: {
+                            Label("Thinking", systemImage: "brain.head.profile")
+                                .font(DesktopTheme.monoTiny)
+                                .foregroundStyle(DesktopTheme.textMuted)
+                        }
+                    case .toolCall(let tool):
+                        ToolCallCard(tool: tool)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func messageActions(isUser: Bool) -> some View {
+        HStack(spacing: 4) {
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(copyableText, forType: .string)
+            } label: {
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DesktopTheme.textMuted)
+                    .padding(6)
+                    .background(Circle().fill(DesktopTheme.panelElevated))
+            }
+            .buttonStyle(.plain)
+            .help("Copy")
+
+if isUser && isLastUser && (agentRun.status == .idle || agentRun.status == .error) {
+                Button {
+                    if let text = conversations.beginEditLastUserMessage() {
+                        NotificationCenter.default.post(
+                            name: .composerPrefill,
+                            object: text
+                        )
+                        NotificationCenter.default.post(name: .focusComposer, object: nil)
+                    }
+                } label: {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(DesktopTheme.textMuted)
+                        .padding(6)
+                        .background(Circle().fill(DesktopTheme.panelElevated))
+                }
+                .buttonStyle(.plain)
+                .help("Edit and resend")
+                .disabled(agentRun.status != .idle && agentRun.status != .error)
+            }
         }
     }
 
@@ -328,11 +430,44 @@ struct ComposerBar: View {
     @EnvironmentObject private var conversations: ConversationStore
     @EnvironmentObject private var session: AppSessionStore
     @EnvironmentObject private var agentRun: AgentRunStore
+    @EnvironmentObject private var workspace: WorkspaceStore
     @State private var draft: String = ""
+    @State private var pickerSelection: Int = 0
     @FocusState private var focused: Bool
+
+    private enum PickerKind {
+        case slash(query: String, range: Range<String.Index>)
+        case mention(query: String, range: Range<String.Index>)
+    }
+
+    private var activePicker: PickerKind? {
+        Self.detectPicker(in: draft)
+    }
+
+    private var slashItems: [ComposerCommands.SlashCommand] {
+        guard case .slash(let query, _) = activePicker else { return [] }
+        return ComposerCommands.filteredSlash(query: query)
+    }
+
+    private var mentionItems: [ComposerCommands.MentionItem] {
+        guard case .mention(let query, _) = activePicker else { return [] }
+        let chats = conversations.conversations.prefix(8).map(\.displayTitle)
+        return ComposerCommands.mentionItems(
+            query: query,
+            workspacePath: workspace.path,
+            fileNames: workspace.flatFileNames(),
+            recentChats: Array(chats)
+        )
+    }
 
     var body: some View {
         VStack(spacing: 0) {
+            if let picker = activePicker {
+                pickerPanel(for: picker)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 4)
+            }
+
             VStack(alignment: .leading, spacing: 10) {
                 ZStack(alignment: .topLeading) {
                     if draft.isEmpty {
@@ -341,12 +476,21 @@ struct ComposerBar: View {
                             .foregroundStyle(DesktopTheme.textMuted)
                             .padding(.top, 8)
                             .padding(.leading, 5)
+                            .allowsHitTesting(false)
                     }
-                    TextEditor(text: $draft)
-                        .font(.system(size: 13))
-                        .scrollContentBackground(.hidden)
-                        .frame(minHeight: 52, maxHeight: 140)
-                        .focused($focused)
+ComposerTextEditor(
+                        text: $draft,
+                        isEnabled: !isRunning,
+                        onSubmit: { handleSubmit() },
+                        onNavigatePicker: activePicker == nil
+                            ? nil
+                            : { delta in navigatePicker(delta: delta) },
+                        onCancelPicker: activePicker == nil
+                            ? nil
+                            : { dismissPickerToken() }
+                    )
+                    .frame(minHeight: 52, maxHeight: 140)
+                    .focused($focused)
                 }
 
                 HStack(spacing: 8) {
@@ -425,7 +569,7 @@ struct ComposerBar: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(!canSend)
-                        .keyboardShortcut(.return, modifiers: [.command])
+                        .help("Send (Return) · Shift+Return for newline")
                     }
                 }
             }
@@ -442,11 +586,155 @@ struct ComposerBar: View {
             .padding(.bottom, 16)
             .padding(.top, 8)
         }
-        .background(DesktopTheme.background)
+.background(DesktopTheme.background)
         .onReceive(NotificationCenter.default.publisher(for: .focusComposer)) { _ in
             focused = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: .composerPrefill)) { note in
+            if let text = note.object as? String {
+                draft = text
+                focused = true
+            }
+        }
+        .onChange(of: draft) { _, _ in
+            pickerSelection = 0
+        }
         .onAppear { focused = true }
+    }
+
+    @ViewBuilder
+    private func pickerPanel(for picker: PickerKind) -> some View {
+        switch picker {
+        case .slash:
+            ComposerPickerPanel(
+                title: "Commands",
+                emptyLabel: "No matching commands"
+            ) {
+                ForEach(Array(slashItems.enumerated()), id: \.element.id) { index, item in
+                    ComposerPickerRow(
+                        icon: item.systemImage,
+                        title: "/" + item.title,
+                        subtitle: item.subtitle,
+                        selected: index == pickerSelection
+                    ) {
+                        applySlash(item)
+                    }
+                }
+            }
+        case .mention:
+            ComposerPickerPanel(
+                title: "Mention",
+                emptyLabel: "No matches"
+            ) {
+                ForEach(Array(mentionItems.enumerated()), id: \.element.id) { index, item in
+                    ComposerPickerRow(
+                        icon: item.systemImage,
+                        title: item.label,
+                        subtitle: item.detail,
+                        selected: index == pickerSelection
+                    ) {
+                        applyMention(item)
+                    }
+                }
+            }
+        }
+    }
+
+    private func navigatePicker(delta: Int) {
+        let count: Int
+        switch activePicker {
+        case .slash: count = slashItems.count
+        case .mention: count = mentionItems.count
+        case .none: return
+        }
+        guard count > 0 else { return }
+        pickerSelection = (pickerSelection + delta + count) % count
+    }
+
+    private func handleSubmit() {
+        if let picker = activePicker {
+            switch picker {
+            case .slash:
+                guard slashItems.indices.contains(pickerSelection) else {
+                    send()
+                    return
+                }
+                applySlash(slashItems[pickerSelection])
+            case .mention:
+                guard mentionItems.indices.contains(pickerSelection) else {
+                    send()
+                    return
+                }
+                applyMention(mentionItems[pickerSelection])
+            }
+            return
+        }
+        send()
+    }
+
+    private func applySlash(_ item: ComposerCommands.SlashCommand) {
+        guard case .slash(_, let range) = activePicker else {
+            draft = item.insertText
+            if item.autoSend { send() }
+            return
+        }
+draft.replaceSubrange(range, with: item.insertText)
+        if item.autoSend {
+            let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+            let cmd = item.command.trimmingCharacters(in: .whitespacesAndNewlines)
+            let insert = item.insertText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed == cmd || trimmed == insert {
+                send()
+            }
+        }
+    }
+
+    private func applyMention(_ item: ComposerCommands.MentionItem) {
+        guard case .mention(_, let range) = activePicker else {
+            draft = item.insertText
+            return
+        }
+        draft.replaceSubrange(range, with: item.insertText)
+    }
+
+    private func dismissPickerToken() {
+        guard let picker = activePicker else { return }
+        switch picker {
+        case .slash(_, let range), .mention(_, let range):
+            draft.replaceSubrange(range, with: "")
+        }
+    }
+
+/// Detect trailing `/cmd` or `@mention` token for popup pickers (desk6/desk7).
+    private static func detectPicker(in text: String) -> PickerKind? {
+        let lineStart: String.Index
+        if let nl = text.lastIndex(of: "\n") {
+            lineStart = text.index(after: nl)
+        } else {
+            lineStart = text.startIndex
+        }
+        let line = text[lineStart...]
+        // Start of last whitespace-delimited token on the current line.
+        let tokenStart: String.Index
+        if let ws = line.lastIndex(where: { $0.isWhitespace }) {
+            tokenStart = text.index(after: ws)
+        } else {
+            tokenStart = lineStart
+        }
+        guard tokenStart < text.endIndex else { return nil }
+        let token = String(text[tokenStart...])
+        guard !token.isEmpty else { return nil }
+        let range = tokenStart..<text.endIndex
+
+        if token.hasPrefix("/") {
+            if token.contains(where: { $0.isWhitespace }) { return nil }
+            return .slash(query: token, range: range)
+        }
+        if token.hasPrefix("@") {
+            if token.dropFirst().contains(where: { $0.isWhitespace }) { return nil }
+            return .mention(query: token, range: range)
+        }
+        return nil
     }
 
     /// Hierarchical picker matching CLI: Supercode Cloud + BYOK provider groups.
@@ -527,9 +815,221 @@ Section(ModelCatalog.SectionKind.cloud.title) {
     }
 
     private func send() {
-        let text = draft
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !isRunning else { return }
         draft = ""
         agentRun.send(prompt: text)
+    }
+}
+
+/// NSTextView wrapper: Return sends, Shift+Return inserts a newline.
+/// Arrow keys navigate slash/@ pickers when a callback is provided.
+struct ComposerTextEditor: NSViewRepresentable {
+    @Binding var text: String
+    var isEnabled: Bool
+    var onSubmit: () -> Void
+    var onNavigatePicker: ((Int) -> Void)? = nil
+    var onCancelPicker: (() -> Void)? = nil
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scroll = NSScrollView()
+        scroll.hasVerticalScroller = true
+        scroll.hasHorizontalScroller = false
+        scroll.autohidesScrollers = true
+        scroll.borderType = .noBorder
+        scroll.drawsBackground = false
+
+        let textView = ComposerNSTextView()
+        textView.delegate = context.coordinator
+        textView.drawsBackground = false
+        textView.backgroundColor = .clear
+        textView.isRichText = false
+        textView.allowsUndo = true
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isAutomaticTextReplacementEnabled = false
+        textView.font = NSFont.systemFont(ofSize: 13)
+        textView.textColor = NSColor(DesktopTheme.textPrimary)
+        textView.insertionPointColor = NSColor(DesktopTheme.accent)
+        textView.textContainerInset = NSSize(width: 2, height: 6)
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.containerSize = NSSize(
+            width: 0,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        let coordinator = context.coordinator
+        textView.onSubmit = { [weak coordinator] in
+            coordinator?.parent.onSubmit()
+        }
+        textView.onNavigatePicker = { [weak coordinator] delta in
+            coordinator?.parent.onNavigatePicker?(delta)
+        }
+        textView.onCancelPicker = { [weak coordinator] in
+            coordinator?.parent.onCancelPicker?()
+        }
+
+        scroll.documentView = textView
+        coordinator.textView = textView
+        return scroll
+    }
+
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        let coordinator = context.coordinator
+        coordinator.parent = self
+        guard let textView = coordinator.textView else { return }
+        textView.onSubmit = { [weak coordinator] in
+            coordinator?.parent.onSubmit()
+        }
+        textView.onNavigatePicker = { [weak coordinator] delta in
+            coordinator?.parent.onNavigatePicker?(delta)
+        }
+        textView.onCancelPicker = { [weak coordinator] in
+            coordinator?.parent.onCancelPicker?()
+        }
+        textView.isEditable = isEnabled
+        textView.isSelectable = true
+        if textView.string != text {
+            textView.string = text
+        }
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: ComposerTextEditor
+        weak var textView: ComposerNSTextView?
+
+        init(_ parent: ComposerTextEditor) {
+            self.parent = parent
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            parent.text = textView.string
+        }
+    }
+}
+
+final class ComposerNSTextView: NSTextView {
+    var onSubmit: (() -> Void)?
+    var onNavigatePicker: ((Int) -> Void)?
+    var onCancelPicker: (() -> Void)?
+
+    override func keyDown(with event: NSEvent) {
+        let isReturn =
+            event.keyCode == 36 /* Return */
+            || event.keyCode == 76 /* Keypad Enter */
+            || event.charactersIgnoringModifiers == "\r"
+            || event.charactersIgnoringModifiers == "\n"
+
+        if isReturn {
+            let shift = event.modifierFlags.contains(.shift)
+            let option = event.modifierFlags.contains(.option)
+            if shift || option {
+                insertText("\n", replacementRange: selectedRange())
+                return
+            }
+            onSubmit?()
+            return
+        }
+
+        // Up / Down for picker navigation when handler is set
+        if event.keyCode == 126 /* up */ {
+            if onNavigatePicker != nil {
+                onNavigatePicker?(-1)
+                return
+            }
+        }
+        if event.keyCode == 125 /* down */ {
+            if onNavigatePicker != nil {
+                onNavigatePicker?(1)
+                return
+            }
+        }
+        if event.keyCode == 53 /* escape */ {
+            if onCancelPicker != nil {
+                onCancelPicker?()
+                return
+            }
+        }
+
+        super.keyDown(with: event)
+    }
+}
+
+struct ComposerPickerPanel<Content: View>: View {
+    let title: String
+    let emptyLabel: String
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(DesktopTheme.monoTiny)
+                .foregroundStyle(DesktopTheme.textMuted)
+                .padding(.horizontal, 10)
+                .padding(.top, 8)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 2) {
+                    content()
+                }
+                .padding(.horizontal, 6)
+                .padding(.bottom, 8)
+            }
+            .frame(maxHeight: 220)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(DesktopTheme.panel)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(DesktopTheme.borderStrong, lineWidth: 1)
+                )
+        )
+    }
+}
+
+struct ComposerPickerRow: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(selected ? DesktopTheme.accent : DesktopTheme.textSecondary)
+                    .frame(width: 18)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(DesktopTheme.textPrimary)
+                        .lineLimit(1)
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(DesktopTheme.textMuted)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(selected ? DesktopTheme.accentSoft : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -854,6 +1354,44 @@ struct AuthView: View {
                     .background(RoundedRectangle(cornerRadius: 8).fill(DesktopTheme.panel))
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(DesktopTheme.border, lineWidth: 1))
                     .font(DesktopTheme.monoSmall)
+
+                    HStack(spacing: 8) {
+                        Button("Local") { session.useLocalServer() }
+                            .buttonStyle(.plain)
+                            .font(DesktopTheme.monoTiny)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule().fill(
+                                    session.serverURL == ServerConfig.localURL
+                                    ? DesktopTheme.accent.opacity(0.25)
+                                    : DesktopTheme.panelElevated
+                                )
+                            )
+                            .foregroundStyle(DesktopTheme.textSecondary)
+                            .help(ServerConfig.localURL)
+
+                        Button("Production") { session.useProductionServer() }
+                            .buttonStyle(.plain)
+                            .font(DesktopTheme.monoTiny)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule().fill(
+                                    session.serverURL == ServerConfig.productionURL
+                                    ? DesktopTheme.accent.opacity(0.25)
+                                    : DesktopTheme.panelElevated
+                                )
+                            )
+                            .foregroundStyle(DesktopTheme.textSecondary)
+                            .help(ServerConfig.productionURL)
+
+                        Spacer()
+
+                        Text(ServerConfig.buildDefaultLabel)
+                            .font(DesktopTheme.monoTiny)
+                            .foregroundStyle(DesktopTheme.textMuted)
+                    }
                 }
                 .frame(width: 420)
 
@@ -933,6 +1471,13 @@ Section("Server") {
                     get: { session.serverURL },
                     set: { session.updateServerURL($0) }
                 ))
+                HStack {
+                    Button("Use local API") { session.useLocalServer() }
+                    Button("Use production API") { session.useProductionServer() }
+                }
+                Text(ServerConfig.buildDefaultHelp)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             Section("Model") {
                 Picker("Provider", selection: Binding(

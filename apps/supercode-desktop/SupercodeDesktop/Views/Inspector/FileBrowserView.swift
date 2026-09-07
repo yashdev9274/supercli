@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct RightSidebarView: View {
@@ -198,7 +199,12 @@ struct FileTreeRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .contextMenu {
+.contextMenu {
+                if !node.isDirectory {
+                    Button("Open in Editor") {
+                        workspace.openFile(at: node.path)
+                    }
+                }
                 Button("Reveal in Finder") {
                     NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: node.path)])
                 }

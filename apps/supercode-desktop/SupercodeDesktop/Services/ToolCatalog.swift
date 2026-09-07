@@ -58,7 +58,7 @@ enum ToolCatalog {
         return false
     }
 
-    static func systemPrompt(
+static func systemPrompt(
         mode: AgentMode,
         workspacePath: String?,
         gitBranch: String?,
@@ -72,6 +72,7 @@ enum ToolCatalog {
         if let workspacePath {
             lines.append("Workspace root: \(workspacePath)")
             lines.append("All file paths for tools are relative to this workspace root unless absolute under it.")
+            lines.append("When the user @mentions a filename (e.g. @offline-ai.md), resolve it under the workspace (search if needed) and read it with read_file before answering.")
             if let gitBranch {
                 lines.append("Current git branch: \(gitBranch)")
             }
@@ -79,12 +80,23 @@ enum ToolCatalog {
             lines.append("No workspace is connected. Ask the user to open a workspace before file or shell tools.")
         }
 
+        // Shared anti-monologue rules (models often leak internal planning as the only "answer").
+        lines.append("""
+        OUTPUT RULES (critical):
+        - Never narrate your plan in the user-visible answer. Do NOT write lines like "The user wants me to…", "Let me find and read…", "I'll start by…", or "I need to…".
+        - If you need information from the workspace, your FIRST action must be a tool call (read_file / search_files / run_command). Do not describe the tool call in prose first.
+        - Internal monologue belongs in reasoning only if the model supports it — never as the final assistant message.
+        - After tools return, answer the user directly with guidance, findings, and concrete paths. No preamble about what you were asked.
+        - Prefer short, structured guidance over dumping the whole file unless the user asked for the full contents.
+        """)
+
         switch mode {
         case .chat:
             lines.append("""
             Mode: chat.
             You may use read-only tools (read_file, search_files, web/url fetch).
             Do NOT write files, edit files, or run mutating shell commands.
+            For "review this file / guide me" requests: call read_file (or search_files to locate it), then give a clear guide.
             Answer questions and explain code clearly.
             """)
         case .tools:
@@ -93,6 +105,7 @@ enum ToolCatalog {
             You may read, write, edit, and run commands when needed.
             Always read before editing. Prefer edit_file for targeted changes and write_file for new/full rewrites.
             After mutations, briefly summarize what changed.
+            Start with tools, not narration.
             """)
         case .plan:
             lines.append("""
@@ -107,19 +120,20 @@ enum ToolCatalog {
             Mode: agent (build).
             You have full coding tools. Execute multi-step tasks end-to-end.
             Workflow:
-            1. Explore with read/search as needed.
+            1. Call tools immediately (explore with read/search as needed).
             2. Make targeted edits with edit_file / write_file.
             3. Run commands to verify (tests, builds) when useful.
-            4. Summarize results with paths and outcomes.
+            4. Summarize results with paths and outcomes — only after tools ran.
             Never claim you changed a file without calling a write/edit tool.
             Use real newlines in file contents — not the two-character sequence \\n.
             Do not use `cd` inside run_command; pass relative `cwd` instead.
+            FIRST RESPONSE RULE: if the task needs files or shell, begin with a tool call. Do not open with a planning paragraph.
             """)
         }
 
         lines.append("""
         Tool result format: tools return JSON strings. Treat cancelled/permission-denied results as failures and adjust.
-        When done, give a short final answer without dumping large file contents.
+        When done, give a short final answer without dumping large file contents unless requested.
         """)
         return lines.joined(separator: "\n")
     }

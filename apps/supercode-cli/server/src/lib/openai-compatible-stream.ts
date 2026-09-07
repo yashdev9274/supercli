@@ -47,6 +47,12 @@ export interface StreamChatOptions {
   surfaceReasoningAsText?: boolean
   /** Extra tool names to accept in bare-JSON descriptors (e.g. MCP tools). */
   knownTools?: Set<string>
+  /**
+   * When true, do not write an empty-response error event. Use this when the
+   * caller will retry non-streaming or surface its own fallback so the client
+   * never sees a hard error that races a successful recovery.
+   */
+  suppressEmptyError?: boolean
 }
 
 function joinTextParts(value: unknown): string {
@@ -118,7 +124,7 @@ function streamErrorMessage(data: any): string | null {
 export async function streamOpenAICompatibleChat(
   opts: StreamChatOptions,
 ): Promise<StreamChatResult> {
-  const { res, reader, knownTools } = opts
+  const { res, reader, knownTools, suppressEmptyError } = opts
   const decoder = new TextDecoder()
   let buffer = ""
   let inputTokens = 0
@@ -151,13 +157,22 @@ export async function streamOpenAICompatibleChat(
 
   const flushPending = () => {
     for (const [, call] of Object.entries(pendingToolCalls)) {
-      if (call.name && call.args) {
-        try {
-          const parsed = JSON.parse(call.args)
-          emitToolCall(call.name, parsed, call.id || undefined)
-        } catch {
-          /* skip malformed args */
+      if (!call.name) continue
+      // Models often finish tool_calls with empty / whitespace-only args for
+      // zero-arg tools, or stream only the name before EOF. Treat missing or
+      // blank args as `{}` so the call still executes instead of empty-error.
+      const raw = (call.args ?? "").trim()
+      try {
+        const parsed = raw ? JSON.parse(raw) : {}
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          emitToolCall(call.name, parsed as Record<string, unknown>, call.id || undefined)
+        } else {
+          emitToolCall(call.name, {}, call.id || undefined)
         }
+      } catch {
+        // Partial JSON that never closed — still surface the name so the
+        // client can retry rather than hard-fail as blank.
+        sawToolCalls = true
       }
     }
     pendingToolCalls = {}
@@ -267,11 +282,19 @@ export async function streamOpenAICompatibleChat(
     res.write(JSON.stringify({ type: "text", content: reasoningContent }) + "\n")
   }
 
-  if (!fullContent && !emittedToolCalls) {
+// DeepSeek/MiniMax sometimes emit only DSML/control tokens with no recoverable
+  // tool call. Callers that retry non-streaming (concentrate/supercode) should
+  // pass suppressEmptyError so this does not race a successful fallback.
+  // Otherwise emit a soft retry hint — never a silent blank finish.
+  if (!fullContent.trim() && !emittedToolCalls && !suppressEmptyError) {
+    const soft =
+      sawToolCalls || Object.keys(pendingToolCalls).length > 0
+        ? "The model started a tool call but did not finish it. Retry the turn, or switch models with /model."
+        : "Model returned an empty response. Try again or switch models with /model."
     res.write(
       JSON.stringify({
         type: "error",
-        message: "Model returned an empty response. Try again or switch models with /model.",
+        message: soft,
       }) + "\n",
     )
   }
