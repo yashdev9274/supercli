@@ -9,6 +9,14 @@ enum ServerConfig {
     /// Production CLI / chat API (Vercel).
     static let productionURL = "https://supercode-terminal.vercel.app"
 
+    /// Public device-flow identifier, not the server's GitHub OAuth client ID or a secret.
+    static let deviceClientID = "ai.supercode.desktop"
+
+    static func resolvedClientID(stored: String?) -> String {
+        let value = stored?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return value.isEmpty ? deviceClientID : value
+    }
+
     /// Local `apps/supercode-cli/server` (`BETTER_AUTH_URL` / typical `PORT=3004`).
     static let localURL = "http://localhost:3004"
 

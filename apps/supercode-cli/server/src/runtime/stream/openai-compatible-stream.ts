@@ -289,10 +289,8 @@ const contentChunk = extractDeltaContent(delta)
         }
       }
 
-      // Stream can end with [DONE]/EOF without finish_reason tool_calls.
-      if (sawToolCalls && Object.keys(pendingToolCalls).length > 0) {
-        flushPending()
-      }
+      // A network chunk is not a tool-call boundary. Keep accumulating args
+      // until finish_reason tool_calls or the final end-of-stream flush.
     }
   } catch (err: any) {
     if (err?.name !== "AbortError") {

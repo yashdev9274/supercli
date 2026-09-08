@@ -8,7 +8,7 @@ export type TurnEvent =
   | { type: "reasoning"; delta: string }
   | { type: "text"; delta: string }
   | { type: "tool_start"; toolName: string; args?: unknown; id?: string }
-  | { type: "tool_end"; toolName: string; result?: unknown; id?: string; durationMs?: number }
+  | { type: "tool_end"; toolName: string; result?: unknown; args?: unknown; id?: string; durationMs?: number }
   | { type: "finish"; text: string; reasoning?: string; finishReason?: string }
   | { type: "error"; message: string; cause?: unknown }
 

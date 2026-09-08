@@ -28,49 +28,26 @@ export async function buildToolsForTurn(
   loadEnvOnce()
 
   const isMergeDevConnected = mcpManager.connectedServers.includes("mergedev")
-  const mergedevTools = isMergeDevConnected
-    ? await mcpManager.getTools("mergedev")
-    : {}
-  const mcpProvided = new Set(Object.keys(mergedevTools))
 
+  // Legacy Google CSE path is retired in chat — use Exa / Firecrawl only.
   delete toolsToUse.web_search
 
-  const hasExaSearch = !!process.env.EXA_API_KEY || mcpProvided.has("exa_search")
-  const hasFirecrawlSearch =
-    !!process.env.FIRECRAWL_API_KEY || mcpProvided.has("firecrawl_search")
-
-  if (hasExaSearch && hasFirecrawlSearch) {
-    delete toolsToUse.firecrawl_search
-  }
-
-  if (!hasFirecrawlSearch) {
-    delete toolsToUse.firecrawl_search
-    delete toolsToUse.firecrawl_scrape
-    delete toolsToUse.firecrawl_map
-  }
-
-  if (!hasExaSearch) {
-    delete toolsToUse.exa_search
-    delete toolsToUse.exa_fetch
-  }
+  // Keep Exa + Firecrawl tools always available. Local keys are preferred; when
+  // missing/invalid the tools fall back to the authenticated server proxy and
+  // cross-provider search fallback (Exa ↔ Firecrawl).
 
   const preferenceHints: string[] = []
 
-  if (hasExaSearch) {
-    preferenceHints.push(
-      "For general web search, use `exa_search` — it is preferred. " +
-        "Use `firecrawl_scrape` when the user asks for deep websearch or webscraping (extracting full page content, " +
-        "following links, or fetching structured data from a page). " +
-        "Use `firecrawl_map` to discover URLs on a site." +
-        (isMergeDevConnected ? " These tools are routed through MergeDev's connectors." : ""),
-    )
-  } else if (hasFirecrawlSearch) {
-    preferenceHints.push(
-      "For web search, use `firecrawl_search`. For scraping a specific URL use `firecrawl_scrape`, " +
-        "and for discovering URLs on a site use `firecrawl_map`." +
-        (isMergeDevConnected ? " These tools are routed through MergeDev's connectors." : ""),
-    )
-  }
+  preferenceHints.push(
+    "For general web search, prefer `exa_search` (Exa). " +
+      "If Exa fails, it automatically falls back to Firecrawl. " +
+      "You may also call `firecrawl_search` directly. " +
+      "Use `firecrawl_scrape` when the user asks for deep websearch or webscraping " +
+      "(extracting full page content, following links, or fetching structured data from a page). " +
+      "Use `firecrawl_map` to discover URLs on a site. " +
+      "Do NOT use legacy `web_search`." +
+      (isMergeDevConnected ? " These tools are routed through MergeDev's connectors when available." : ""),
+  )
 
   if (Object.keys(toolsToUse).some((k) => k.startsWith("mcp_composio_"))) {
     preferenceHints.push(

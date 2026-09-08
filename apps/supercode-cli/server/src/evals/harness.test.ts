@@ -13,7 +13,7 @@ import { extractEmbeddedToolCalls } from "src/lib/embedded-tool-calls.ts"
 import { permissionManager, setCurrentAgent } from "src/tools/permission-manager.ts"
 import { resolvePath } from "src/lib/workspace"
 import path from "node:path"
-import { mkdir, writeFile, rm } from "node:fs/promises"
+import { mkdir, writeFile, rm, realpath } from "node:fs/promises"
 import os from "node:os"
 
 describe("agents harness catalog", () => {
@@ -146,7 +146,7 @@ describe("read_file path resolve smoke", () => {
     try {
       await writeFile(path.join(dir, "hello.txt"), "hello agents\n", "utf-8")
       const full = resolvePath("hello.txt")
-      expect(full.startsWith(dir)).toBe(true)
+      expect(full).toBe(path.join(await realpath(dir), "hello.txt"))
 
       const defined = await import("src/agents/tools/read_file.ts")
       const result = await defined.readFileTool.execute({ path: "hello.txt" })

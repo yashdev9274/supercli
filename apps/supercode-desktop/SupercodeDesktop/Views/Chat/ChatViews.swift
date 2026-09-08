@@ -248,59 +248,23 @@ struct MessageBubble: View {
                     resultSection(message.content)
                 }
             } else {
-                let reasoningParts = message.parts.compactMap { part -> String? in
-                    if case .reasoning(_, let c) = part, !c.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        return c
-                    }
-                    return nil
-                }
-                let toolParts = message.parts.compactMap { part -> ToolCallPart? in
-                    if case .toolCall(let t) = part { return t }
-                    return nil
-                }
-                let textParts = message.parts.compactMap { part -> String? in
-                    if case .text(_, let c) = part, !c.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        return c
-                    }
-                    return nil
-                }
-
-                // Process surface — thinking + tools under one disclosure
-                if !reasoningParts.isEmpty || !toolParts.isEmpty {
-                    DisclosureGroup {
-                        VStack(alignment: .leading, spacing: 10) {
-                            ForEach(Array(reasoningParts.enumerated()), id: \.offset) { _, content in
-                                Text(content)
-                                    .font(DesktopTheme.monoSmall)
-                                    .foregroundStyle(DesktopTheme.textMuted)
-                                    .textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            ForEach(toolParts) { tool in
-                                ToolCallCard(tool: tool)
-                            }
-                        }
-                        .padding(.top, 4)
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "brain.head.profile")
-                                .font(.system(size: 11, weight: .semibold))
-                            Text(thinkingLabel(reasoningCount: reasoningParts.count, toolCount: toolParts.count))
+                ForEach(Array(message.parts.enumerated()), id: \.element.id) { index, part in
+                    switch part {
+                    case .text(_, let content):
+                        if !content.isEmpty { resultSection(content) }
+                    case .reasoning(_, let content):
+                        DisclosureGroup {
+                            Text(content).font(DesktopTheme.monoSmall).textSelection(.enabled)
+                        } label: {
+                            Label("Analysis", systemImage: "brain.head.profile")
                                 .font(DesktopTheme.monoTiny)
                         }
                         .foregroundStyle(DesktopTheme.textMuted)
+                    case .toolCall(let tool):
+                        ToolCallCard(tool: tool, number: message.parts.prefix(index + 1).filter {
+                            if case .toolCall = $0 { return true }; return false
+                        }.count)
                     }
-                }
-
-                // Result surface — final answer only
-                if textParts.isEmpty && reasoningParts.isEmpty && toolParts.isEmpty {
-                    streamingPlaceholder
-                } else if !textParts.isEmpty {
-                    resultSection(textParts.joined(separator: "\n\n"))
-                } else if message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-                            && reasoningParts.isEmpty {
-                    // Fallback legacy content field
-                    resultSection(message.content)
                 }
             }
         }
@@ -719,6 +683,7 @@ struct MarkdownTableView: View {
 
 struct ToolCallCard: View {
     let tool: ToolCallPart
+    var number: Int = 0
     @State private var expanded = false
 
     var body: some View {
@@ -730,7 +695,7 @@ struct ToolCallCard: View {
                     Image(systemName: iconName)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(DesktopTheme.accent)
-                    Text(tool.displayName)
+                    Text("\(number). \(tool.displayName)")
                         .font(DesktopTheme.monoSmall)
                         .foregroundStyle(DesktopTheme.textPrimary)
                     Text(tool.primaryArg)
@@ -738,6 +703,8 @@ struct ToolCallCard: View {
                         .foregroundStyle(DesktopTheme.textSecondary)
                         .lineLimit(1)
                     Spacer()
+                    Text(tool.status.rawValue).font(DesktopTheme.monoTiny)
+                        .accessibilityLabel("Tool status: \(tool.status.rawValue)")
                     if let ms = tool.durationMs {
                         Text(String(format: "%.1fs", Double(ms) / 1000.0))
                             .font(DesktopTheme.monoTiny)
@@ -752,11 +719,11 @@ struct ToolCallCard: View {
 
 if expanded {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(argsPreview)
+                    Text(String(argsPreview.prefix(4000)))
                         .font(DesktopTheme.monoTiny)
                         .foregroundStyle(DesktopTheme.textMuted)
                         .textSelection(.enabled)
-                    if let result = tool.resultPreview, !result.isEmpty {
+                    if let result = tool.resultJSON ?? tool.resultPreview, !result.isEmpty {
                         Text(result)
                             .font(DesktopTheme.monoTiny)
                             .foregroundStyle(tool.status == .failed ? DesktopTheme.danger : DesktopTheme.textSecondary)
@@ -775,11 +742,11 @@ if expanded {
 
     private var iconName: String {
         switch tool.displayName {
-        case "read": return "doc.text"
-        case "search": return "magnifyingglass"
-        case "explore": return "folder"
-        case "edit": return "pencil"
-        case "run": return "terminal"
+        case "READ": return "doc.text"
+        case "FILE SEARCH", "WEB SEARCH": return "magnifyingglass"
+        case "FILE LIST": return "folder"
+        case "EDIT", "WRITE": return "pencil"
+        case "SHELL": return "terminal"
         default: return "wrench.and.screwdriver"
         }
     }
@@ -1563,7 +1530,7 @@ struct AgentTodoBanner: View {
                     Text(todo.title)
                         .font(.system(size: 12))
                         .foregroundStyle(DesktopTheme.textPrimary)
-                        .strikethrough(todo.status == "done")
+                        .strikethrough(todo.status == "done" || todo.status == "completed")
                 }
             }
         }
@@ -1581,7 +1548,7 @@ struct AgentTodoBanner: View {
 
     private func icon(for status: String) -> String {
         switch status {
-        case "done": return "checkmark.circle.fill"
+        case "done", "completed": return "checkmark.circle.fill"
         case "in_progress": return "circle.dotted"
         default: return "circle"
         }
@@ -1589,7 +1556,7 @@ struct AgentTodoBanner: View {
 
     private func color(for status: String) -> Color {
         switch status {
-        case "done": return DesktopTheme.success
+        case "done", "completed": return DesktopTheme.success
         case "in_progress": return DesktopTheme.accent
         default: return DesktopTheme.textMuted
         }

@@ -33,20 +33,19 @@ function asSdk(t: DefinedTool | { sdk?: unknown; description?: string }): unknow
   return t
 }
 
-function withPermissionSdk(
+function withPermissionSdk<T extends z.ZodTypeAny>(
   name: string,
-  defined: DefinedTool,
+  defined: DefinedTool<T>,
 ): unknown {
-  const base = defined.sdk as any
   return tool({
     description: defined.description,
     inputSchema: defined.inputSchema,
-    execute: async (input: z.infer<typeof defined.inputSchema>) => {
+    execute: async (input: z.infer<typeof defined.inputSchema>, options) => {
       const allowed = await permissionManager.check(name, input as Record<string, unknown>)
       if (!allowed) {
         return JSON.stringify({ cancelled: true, reason: "Permission denied by user" })
       }
-      return defined.execute(input as any)
+      return defined.execute(defined.inputSchema.parse(input), { signal: options.abortSignal })
     },
   })
 }
@@ -81,9 +80,9 @@ export const toolMeta: Record<string, ToolMeta> = {
 export const tools: Record<string, unknown> = {
   read_file: asSdk(readFileTool),
   search_files: asSdk(searchFilesTool),
-  write_file: withPermissionSdk("write_file", writeFileTool as DefinedTool),
-  edit_file: withPermissionSdk("edit_file", editFileTool as DefinedTool),
-  run_command: withPermissionSdk("run_command", runCommandTool as DefinedTool),
+  write_file: withPermissionSdk("write_file", writeFileTool),
+  edit_file: withPermissionSdk("edit_file", editFileTool),
+  run_command: withPermissionSdk("run_command", runCommandTool),
   url_fetch: asSdk(urlFetchTool),
   web_search: asSdk(webSearchTool),
   firecrawl_search: asSdk(firecrawlSearchTool),
@@ -91,7 +90,7 @@ export const tools: Record<string, unknown> = {
   firecrawl_map: asSdk(firecrawlMapTool),
   exa_search: asSdk(exaSearchTool),
   exa_fetch: asSdk(exaFetchTool),
-  code_exec: withPermissionSdk("code_exec", codeExecTool as DefinedTool),
+  code_exec: withPermissionSdk("code_exec", codeExecTool),
   read_instructions: asSdk(readInstructionsTool),
   switch_to_agent_mode: asSdk(switchToAgentModeTool),
   delegate: asSdk(delegateTool),

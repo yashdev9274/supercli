@@ -1,4 +1,4 @@
-import { useKeyboard, useRenderer } from "@opentui/react"
+import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { theme } from "./theme.ts"
 import { Header } from "./components/Header.tsx"
@@ -6,6 +6,9 @@ import { StatusBar } from "./components/StatusBar.tsx"
 import { Composer } from "./components/Composer.tsx"
 import { Transcript, type TranscriptLine } from "./components/Transcript.tsx"
 import type { SessionController } from "src/cli/session/session-controller.ts"
+import { ToolTranscript } from "src/cli/utils/tool-presentation"
+import { AnalysisActivity } from "src/cli/utils/reference-activity"
+import { sanitizeTerminalText } from "src/cli/utils/terminal-text"
 import type { TurnEvent } from "src/cli/runtime/event-bus.ts"
 
 type Props = {
@@ -29,6 +32,7 @@ function nextId(prefix: string) {
  */
 export function App({ subtitle, session, provider, model, mode: initialMode }: Props) {
   const renderer = useRenderer()
+  const { width } = useTerminalDimensions()
   const [input, setInput] = useState("")
   const [status, setStatus] = useState(
     session
@@ -58,7 +62,12 @@ export function App({ subtitle, session, provider, model, mode: initialMode }: P
     return seed
   })
 
-  const reasoningOpen = useRef(false)
+  const tools = useRef(new ToolTranscript())
+  const turnId = useRef(0)
+  const analysis = useRef<AnalysisActivity | null>(null)
+  const pendingText = useRef("")
+  const committedText = useRef("")
+  const [reasoningExpanded, setReasoningExpanded] = useState(false)
 
   const append = useCallback((kind: TranscriptLine["kind"], text: string) => {
     if (!text) return
@@ -67,46 +76,73 @@ export function App({ subtitle, session, provider, model, mode: initialMode }: P
 
   const onTurnEvent = useCallback(
     (event: TurnEvent) => {
+      const beginAnalysis = () => {
+        if (tools.current.calls.some((call) => call.status === "running")) return
+        analysis.current ??= new AnalysisActivity([], (text) => append("system", text), width - 4)
+        analysis.current.nextPhase()
+        analysis.current.start()
+        setStatus(analysis.current.status() ?? "model processing")
+      }
+      const updateTool = (call: ReturnType<ToolTranscript["start"]>) => {
+        const id = `tool-${turnId.current}-${call.id}`
+        const snapshot = { ...call }
+        setLines((prev) => {
+          const existing = prev.find((line) => line.id === id)
+          return existing ? prev.map((line) => line.id === id ? { ...line, tool: snapshot } : line)
+            : [...prev, { id, kind: "tool", text: "", tool: snapshot }]
+        })
+      }
+      const flushText = () => {
+        append("assistant", pendingText.current)
+        committedText.current += pendingText.current
+        pendingText.current = ""
+      }
       switch (event.type) {
-        case "status":
-          setStatus(event.message)
-          break
+        case "status": setStatus(sanitizeTerminalText(event.message)); break
         case "reasoning":
-          if (!reasoningOpen.current) {
-            reasoningOpen.current = true
-            append("system", "Thinking")
-          }
-          append("reasoning", event.delta.replace(/\n/g, " ").slice(0, 240))
+          if (!event.delta) break
+          beginAnalysis()
+          setLines((prev) => {
+            const last = prev.at(-1)
+            if (last?.kind === "reasoning") return [...prev.slice(0, -1), { ...last, text: last.text + event.delta }]
+            return [...prev, { id: nextId("reasoning"), kind: "reasoning", text: event.delta }]
+          })
           break
         case "text":
-          // Streaming text accumulates on finish for cleaner Result block
+          if (event.delta) beginAnalysis()
+          pendingText.current += event.delta
           break
         case "tool_start":
-          append("tool", `${event.toolName}…`)
+          analysis.current?.end("completed")
+          flushText()
+          updateTool(tools.current.start(event.toolName, event.args, event.id))
+          setStatus(`${tools.current.calls.at(-1)?.category} · running`)
           break
-        case "tool_end":
-          append("tool", `${event.toolName} done`)
+        case "tool_end": {
+          const call = tools.current.finish(event.toolName, event.args, event.result, event.id)
+          updateTool(call)
+          setStatus(`${call.category} · ${call.status}`)
           break
-        case "finish":
-          reasoningOpen.current = false
-          if (event.reasoning && !event.text) {
-            append("system", "(process only — no Result body)")
-          }
-          if (event.text) {
-            append("system", "Result")
-            for (const part of event.text.split("\n")) {
-              append("assistant", part || " ")
-            }
-          }
-          setStatus("ready")
+        }
+        case "finish": {
+          analysis.current?.end(event.finishReason === "cancelled" ? "cancelled" : event.finishReason === "error" ? "failed" : "completed")
+          for (const call of tools.current.settle(event.finishReason === "cancelled" ? "cancelled" : "failed")) updateTool(call)
+          const final = event.text.startsWith(committedText.current) ? event.text.slice(committedText.current.length) : event.text
+          if (final.trim()) { append("system", "RESULT"); append("assistant", final) }
+          pendingText.current = ""
+          setStatus(event.finishReason === "cancelled" ? "cancelled — ready" : "ready")
           break
+        }
         case "error":
+          analysis.current?.end(event.cause instanceof Error && event.cause.name === "AbortError" ? "cancelled" : "failed")
+          flushText()
+          for (const call of tools.current.settle(event.cause instanceof Error && event.cause.name === "AbortError" ? "cancelled" : "failed")) updateTool(call)
           append("error", event.message)
           setStatus("error")
           break
       }
     },
-    [append],
+    [append, width],
   )
 
   useEffect(() => {
@@ -114,8 +150,30 @@ export function App({ subtitle, session, provider, model, mode: initialMode }: P
     return session.subscribe(onTurnEvent)
   }, [session, onTurnEvent])
 
+  useEffect(() => {
+    if (!busy) return
+    const timer = setInterval(() => {
+      const running = tools.current.calls.findLast((call) => call.status === "running")
+      const label = running
+        ? `${running.category} · running · ${((Date.now() - running.startedAt) / 1000).toFixed(1)}s`
+        : analysis.current?.status()
+      if (label) setStatus(label)
+    }, 250)
+    return () => clearInterval(timer)
+  }, [busy])
+
   useKeyboard((key) => {
-    if (key.name === "escape" || (key.ctrl && key.name === "c")) {
+    if (key.ctrl && key.name === "o") {
+      setLines((prev) => {
+        const latest = prev.findLast((line) => line.tool)
+        return prev.map((line) => line === latest ? { ...line, expanded: !line.expanded } : line)
+      })
+    } else if (key.ctrl && key.name === "t") {
+      setReasoningExpanded((open) => !open)
+    } else if (key.name === "escape" && busy) {
+      session?.abort()
+      setStatus("cancelling…")
+    } else if (key.ctrl && key.name === "c") {
       session?.abort()
       renderer.destroy()
     }
@@ -185,7 +243,11 @@ export function App({ subtitle, session, provider, model, mode: initialMode }: P
     append("user", `› ${value}`)
     setBusy(true)
     setStatus("running…")
-    reasoningOpen.current = false
+    pendingText.current = ""
+    committedText.current = ""
+    turnId.current += 1
+    tools.current = new ToolTranscript()
+    analysis.current = null
     try {
       await session.runUserTurn({ text: value })
     } catch (err) {
@@ -206,8 +268,8 @@ export function App({ subtitle, session, provider, model, mode: initialMode }: P
       gap={1}
     >
       <Header provider={provider} model={model} mode={mode} />
-      <Transcript lines={lines} />
-      <StatusBar status={busy ? `${status} (busy)` : status} />
+      <Transcript lines={lines} reasoningExpanded={reasoningExpanded} />
+      <StatusBar status={`${busy ? `${status} · Esc cancel` : status} · Ctrl+O output · Ctrl+T reasoning`} />
       <Composer
         value={input}
         onInput={setInput}

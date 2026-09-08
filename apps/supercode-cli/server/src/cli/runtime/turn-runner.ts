@@ -7,6 +7,7 @@ import {
   type ResolvedProvider,
 } from "./provider-bridge.ts"
 import type { ModelProvider } from "src/cli/ai/provider"
+import { setDelegateRuntime } from "src/agents/tools/delegate"
 
 export type TurnRunnerOptions = GenerateOptions & {
   agent?: string
@@ -26,6 +27,14 @@ export async function runHarnessTurn(opts: TurnRunnerOptions): Promise<GenerateR
   bus.emit({ type: "status", message: "running turn" })
 
   const harness = createHarness()
+  setDelegateRuntime({
+    model: opts.model,
+    allTools: opts.tools ?? {},
+    onChunk: undefined,
+    onReasoning: undefined,
+    onToolCall: (params) => bus.emit({ type: "tool_start", ...params }),
+    onToolResult: (params) => bus.emit({ type: "tool_end", ...params }),
+  })
 
   try {
     const result = await harness.runTurn({
@@ -46,6 +55,7 @@ export async function runHarnessTurn(opts: TurnRunnerOptions): Promise<GenerateR
         bus.emit({
           type: "tool_start",
           toolName: params.toolName,
+          id: params.id,
           args: params.args,
         })
         opts.onToolCall?.(params)
@@ -54,17 +64,20 @@ export async function runHarnessTurn(opts: TurnRunnerOptions): Promise<GenerateR
         bus.emit({
           type: "tool_end",
           toolName: params.toolName,
+          id: params.id,
           result: params.result,
+          args: params.args,
         })
         opts.onToolResult?.(params)
       },
     })
 
+    if (result.error && !opts.signal?.aborted) bus.emit({ type: "error", message: result.error })
     bus.emit({
       type: "finish",
       text: result.text,
       reasoning: result.reasoning,
-      finishReason: result.finishReason,
+      finishReason: opts.signal?.aborted ? "cancelled" : result.finishReason,
     })
 
     return result

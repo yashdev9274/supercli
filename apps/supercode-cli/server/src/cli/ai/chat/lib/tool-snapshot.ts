@@ -114,7 +114,7 @@ export function captureToolSnapshot(toolName: string, args: unknown, resultRaw: 
       return []
     }
 
-    if (toolName === "firecrawl_search" || toolName === "firecrawl_scrape" || toolName === "firecrawl_map") {
+    if (toolName === "exa_search" || toolName === "exa_fetch" || toolName === "firecrawl_search" || toolName === "firecrawl_scrape" || toolName === "firecrawl_map") {
       const a = (args ?? {}) as { query?: string; url?: string }
       try {
         const parsed = JSON.parse(resultRaw)

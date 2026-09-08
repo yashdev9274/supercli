@@ -26,6 +26,7 @@ export function extractToolArg(toolName: string, args: unknown): string | undefi
   if (typeof fileKey === "string") return fileKey
   const url = a.url ?? a.uri ?? a.href
   if (typeof url === "string") return url
+  if (typeof a.query === "string") return a.query
   if (a.command) return String(a.command)
   if (a.prompt) return String(a.prompt).slice(0, 60)
   if (a.task) return String(a.task).slice(0, 60)
@@ -82,6 +83,8 @@ export function categorizeTool(name: string): ToolCategory {
       return "edit"
     case "web_search":
     case "url_fetch":
+    case "exa_search":
+    case "exa_fetch":
     case "firecrawl_search":
     case "firecrawl_scrape":
     case "firecrawl_map":
@@ -119,6 +122,10 @@ function describeTool(toolName: string, arg?: string): { verb: string; color: st
       return { verb: arg ? `Fetch ${arg}` : "Fetch URL", color: "#7a8a82" }
     case "web_search":
       return { verb: arg ? `Search web for ${arg}` : "Search web", color: "#5ec27e" }
+    case "exa_search":
+      return { verb: arg ? `Search ${arg}` : "Search (Exa)", color: "#5ec27e" }
+    case "exa_fetch":
+      return { verb: arg ? `Fetch ${arg}` : "Fetch (Exa)", color: "#5ec27e" }
     case "firecrawl_search":
       return { verb: arg ? `Search ${arg}` : "Search", color: "#5ec27e" }
     case "firecrawl_scrape":
@@ -244,6 +251,8 @@ function codexToolLine(tool: ThoughtTool): string {
       return `${chalk.hex(CATEGORY_COLORS.edit)("Write")} ${chalk.hex(theme.greenMute)(path)}${marker}`
     }
     case "web_search":
+    case "exa_search":
+    case "exa_fetch":
     case "firecrawl_search":
     case "firecrawl_scrape":
     case "firecrawl_map":

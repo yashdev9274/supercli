@@ -24,7 +24,7 @@ export interface DefinedTool<T extends z.ZodTypeAny = z.ZodTypeAny> {
   kind: "tool"
   description: string
   inputSchema: T
-  execute: (args: z.infer<T>, ctx?: ToolExecuteContext) => Promise<unknown>
+  execute: (args: z.input<T>, ctx?: ToolExecuteContext) => Promise<unknown>
   approval?: ApprovalMode
   name?: string
   /** AI SDK tool instance for streamText / generateText */
@@ -37,14 +37,16 @@ export function defineTool<T extends z.ZodTypeAny>(
   const sdk = tool({
     description: opts.description,
     inputSchema: opts.inputSchema,
-    execute: async (input: z.infer<T>) => opts.execute(input),
+    execute: async (input: z.infer<T>, options) => opts.execute(opts.inputSchema.parse(input), {
+      signal: options.abortSignal,
+    }),
   })
 
   return {
     kind: "tool",
     description: opts.description,
     inputSchema: opts.inputSchema,
-    execute: opts.execute,
+    execute: (input, ctx) => opts.execute(opts.inputSchema.parse(input), ctx),
     approval: opts.approval,
     name: opts.name,
     sdk,

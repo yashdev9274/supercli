@@ -1,6 +1,6 @@
 {
   "name": "supercode-cli",
-  "version": "0.1.102",
+  "version": "0.1.103",
   "description": "AI-powered coding agent CLI",
   "main": "dist/main.js",
   "bin": {
@@ -13,6 +13,8 @@
     "build": "bun run build:cli",
     "build:cli": "bun build --target node --packages bundle --outdir dist --entry ./src/cli/main.ts --external '@modelcontextprotocol/sdk' --external '@opentui/core' --external '@opentui/react' --external 'react' && sed -i '' 's|#!/usr/bin/env bun|#!/usr/bin/env node|' dist/main.js",
     "test": "bun test",
+    "desktop:contracts": "bun scripts/export-desktop-contracts.ts",
+    "desktop:contracts:check": "bun scripts/export-desktop-contracts.ts --check",
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",
     "prepublishOnly": "bun run build:cli",

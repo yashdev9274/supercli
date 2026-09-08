@@ -42,7 +42,7 @@ type ToolCall = {
 
 type StreamCallbacks = {
   onChunk?: (chunk: string) => void
-  onToolCall?: (call: { toolName: string; args: Record<string, unknown> }) => void
+  onToolCall?: (call: { id?: string; toolName: string; args: Record<string, unknown> }) => void
   onReasoning?: (chunk: string) => void
   signal?: AbortSignal
 }
@@ -159,7 +159,7 @@ export class ServerProxyService {
     messages: ModelMessage[],
     tools?: any,
     onChunk?: (chunk: string) => void,
-    onToolCall?: (call: { toolName: string; args: Record<string, unknown> }) => void,
+    onToolCall?: (call: { id?: string; toolName: string; args: Record<string, unknown> }) => void,
     signal?: AbortSignal,
     onReasoning?: (chunk: string) => void,
   ): Promise<RequestResult> {
@@ -266,7 +266,7 @@ export class ServerProxyService {
       tools?: any
       toolCalls: ToolCall[]
       onChunk?: (chunk: string) => void
-      onToolCall?: (call: { toolName: string; args: Record<string, unknown> }) => void
+      onToolCall?: (call: { id?: string; toolName: string; args: Record<string, unknown> }) => void
       onReasoning?: (chunk: string) => void
       signal?: AbortSignal
       controller: AbortController
@@ -311,7 +311,7 @@ export class ServerProxyService {
       const key = `${name}:${JSON.stringify(args)}`
       if (toolCalls.some((c) => `${c.toolName}:${JSON.stringify(c.args)}` === key)) return
       toolCalls.push({ toolName: name, args, toolCallId })
-      onToolCall?.({ toolName: name, args })
+      onToolCall?.({ id: toolCallId, toolName: name, args })
     }
 
     // Soft body-stall watchdog after headers.
@@ -401,7 +401,7 @@ export class ServerProxyService {
                 args: event.args,
                 toolCallId: event.toolCallId || `call_${Date.now()}_${toolCalls.length}`,
               })
-              onToolCall?.({ toolName: event.toolName, args: event.args })
+              onToolCall?.({ id: toolCalls[toolCalls.length - 1]?.toolCallId, toolName: event.toolName, args: event.args })
               break
             case "error":
               serverError = event.message || "AI proxy error"
@@ -440,7 +440,7 @@ export class ServerProxyService {
     tools: any,
     calls: ToolCall[],
     currentMessages: ModelMessage[],
-    onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void,
+    onToolResult?: (params: { id?: string; toolName: string; args: unknown; result: string }) => void,
   ): Promise<Array<{ toolName: string; args: unknown; result: string }>> {
     const stepResults: Array<{ toolName: string; args: unknown; result: string }> = []
 
@@ -457,7 +457,7 @@ export class ServerProxyService {
             received: validated.received,
           })
           stepResults.push({ toolName: call.toolName, args: call.args, result: toolResult })
-          onToolResult?.({ toolName: call.toolName, args: call.args, result: toolResult })
+          onToolResult?.({ id: call.toolCallId, toolName: call.toolName, args: call.args, result: toolResult })
           pushAssistantToolCall(currentMessages, call)
           pushToolResult(currentMessages, call, toolResult)
           this.collectedToolCalls.push(call)
@@ -474,7 +474,7 @@ export class ServerProxyService {
       }
 
       stepResults.push({ toolName: call.toolName, args: call.args, result: toolResult })
-      onToolResult?.({ toolName: call.toolName, args: call.args, result: toolResult })
+      onToolResult?.({ id: call.toolCallId, toolName: call.toolName, args: call.args, result: toolResult })
       pushAssistantToolCall(currentMessages, call)
       pushToolResult(currentMessages, call, toolResult)
       this.collectedToolCalls.push(call)
@@ -487,10 +487,10 @@ export class ServerProxyService {
     messages: ModelMessage[],
     onChunk?: (chunk: string) => void,
     tools?: any,
-    onToolCall?: (call: { toolName: string; args: Record<string, unknown> }) => void,
+    onToolCall?: (call: { id?: string; toolName: string; args: Record<string, unknown> }) => void,
     signal?: AbortSignal,
     onReasoning?: (chunk: string) => void,
-    onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void,
+    onToolResult?: (params: { id?: string; toolName: string; args: unknown; result: string }) => void,
     onStepFinish?: (params: {
       stepNumber: number
       toolCalls: Array<{ toolName: string; args: unknown }>

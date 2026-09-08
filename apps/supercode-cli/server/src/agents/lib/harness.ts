@@ -9,7 +9,7 @@ import {
   getParentAgent,
   permissionManager,
 } from "./approval.ts"
-import { DESTRUCTIVE_TOOLS, READ_TOOLS } from "../sandbox/policy.ts"
+import { READ_TOOLS } from "../sandbox/policy.ts"
 import { emitHook } from "../hooks/index.ts"
 import {
   stripControlTokens,
@@ -25,7 +25,7 @@ const DEFAULT_PRIMARY_BUDGET = 50
 
 interface StepEvent {
   toolCalls?: Array<{ toolName: string; input?: unknown }>
-  toolResults?: Array<{ toolName?: string; input?: unknown; output?: unknown }>
+  toolResults?: Array<{ toolCallId?: string; toolName?: string; input?: unknown; output?: unknown }>
   text?: string
   finishReason?: string
 }
@@ -52,8 +52,15 @@ export async function runAgent(
     systemPrompt = stripControlTokens(systemPrompt) || systemPrompt
   }
 
+  const reportedResults = new Set<string>()
   const tools: ToolSet | undefined = opts.tools
-    ? wrapToolsWithAgent(agent, opts.tools, opts.parentAgent)
+    ? wrapToolsWithAgent(agent, opts.tools, opts.parentAgent, {
+        ...opts,
+        onToolResult: (params) => {
+          if (params.id) reportedResults.add(params.id)
+          opts.onToolResult?.(params)
+        },
+      })
     : undefined
 
   const filesRead = new Set<string>()
@@ -119,11 +126,12 @@ export async function runAgent(
           pushReasoningDelta((c.text ?? c.delta) as string)
         }
       },
-      prepareStep: async () => {
+      prepareStep: async ({ messages: currentMessages }) => {
         if (opts.signal?.aborted) return undefined
         if (stopForRepetition) {
           return {
             messages: [
+              ...currentMessages,
               {
                 role: "system" as const,
                 content:
@@ -138,6 +146,7 @@ export async function runAgent(
           lastStepHadActionClaim = false
           return {
             messages: [
+              ...currentMessages,
               {
                 role: "system" as const,
                 content:
@@ -157,7 +166,7 @@ export async function runAgent(
           .join("\n")
         return {
           messages: [
-            ...messages,
+            ...currentMessages,
             {
               role: "system" as const,
               content:
@@ -171,34 +180,16 @@ export async function runAgent(
         }
       },
       onStepFinish: async (event: StepEvent) => {
-        if (event.text) fullText += event.text
         if (event.toolCalls?.length) {
           for (const tc of event.toolCalls) {
             const toolName = tc.toolName
             fullToolCalls.push({ toolName, args: tc.input })
-            opts.onToolCall?.({ toolName, args: tc.input })
-            await emitHook({
-              type: "tool_start",
-              agent: agent.info.name,
-              toolName,
-              args: tc.input,
-            })
 
             const args = (tc.input ?? {}) as Record<string, unknown>
             if (READ_TOOLS.has(toolName) && typeof args.path === "string") {
               filesRead.add(args.path)
             }
-            if (DESTRUCTIVE_TOOLS.has(toolName)) {
-              const target =
-                typeof args.path === "string"
-                  ? args.path
-                  : typeof args.command === "string"
-                    ? args.command.slice(0, 80)
-                    : typeof args.code === "string"
-                      ? args.code.slice(0, 80)
-                      : "(unknown)"
-              filesChanged.add(target)
-            }
+
           }
         }
 
@@ -214,7 +205,15 @@ export async function runAgent(
                   ? ""
                   : JSON.stringify(out)
             seenStepResults.push({ toolName: name, result: text })
-            opts.onToolResult?.({ toolName: name, result: out })
+            try {
+              const parsed = JSON.parse(text)
+              const args = (tr.input ?? {}) as Record<string, unknown>
+              if (parsed.success === true && (name === "write_file" || name === "edit_file") && typeof args.path === "string") filesChanged.add(args.path)
+            } catch { /* non-JSON MCP result */ }
+            // SDK-managed tools without a local execute wrapper still need a result event.
+            if (!tr.toolCallId || !reportedResults.has(tr.toolCallId)) {
+              opts.onToolResult?.({ id: tr.toolCallId, toolName: name, args: tr.input, result: out })
+            }
             await emitHook({
               type: "tool_end",
               agent: agent.info.name,
@@ -271,7 +270,7 @@ export async function runAgent(
       opts.onChunk?.(flushed.text)
     }
 
-    const usage = await result.usage
+    const usage = await result.totalUsage
     inputTokens = usage?.inputTokens ?? 0
     outputTokens = usage?.outputTokens ?? 0
     const finishReason = await result.finishReason
@@ -281,10 +280,8 @@ export async function runAgent(
     if (fullToolCalls.length === 0 && fullText) {
       const recovered = extractEmbeddedToolCalls(fullText)
       if (recovered.calls.length > 0) {
-        for (const tc of recovered.calls) {
-          fullToolCalls.push({ toolName: tc.name, args: tc.args })
-        }
-        fullText = recovered.text || fullText
+        // Parsed markup is not execution evidence. Do not report these as performed calls.
+        fullText = "The model returned tool markup instead of executable tool calls. No actions were performed; retry with a tool-capable model."
       } else {
         fullText = stripControlTokens(fullText) || fullText
       }
@@ -355,6 +352,7 @@ function wrapToolsWithAgent(
   agent: Agent,
   tools: Record<string, unknown>,
   parentAgentName?: string,
+  callbacks?: GenerateOptions,
 ): ToolSet {
   const wrapped: ToolSet = {}
   for (const [name, t] of Object.entries(tools)) {
@@ -373,18 +371,30 @@ function wrapToolsWithAgent(
         setParentAgent(parentAgentName)
         try {
           const args = typeof input === "object" && input !== null ? input : {}
+          callbacks?.onToolCall?.({ id: execOptions?.toolCallId, toolName: name, args: input })
           const allowed = await permissionManager.check(
             name,
             args as Record<string, unknown>,
           )
+          let result: unknown
           if (!allowed) {
-            return JSON.stringify({
+            result = JSON.stringify({
               success: false,
               cancelled: true,
               reason: `Permission denied by ${agent.info.name} ruleset`,
             })
+          } else {
+            await emitHook({ type: "tool_start", agent: agent.info.name, toolName: name, args: input })
+            result = await originalExecute(input, { ...execOptions, abortSignal: callbacks?.signal ?? execOptions?.abortSignal })
           }
-          return await originalExecute(input, execOptions)
+          callbacks?.onToolResult?.({ id: execOptions?.toolCallId, toolName: name, args: input, result })
+          return result
+        } catch (error) {
+          callbacks?.onToolResult?.({
+            id: execOptions?.toolCallId, toolName: name, args: input,
+            result: { success: false, cancelled: callbacks?.signal?.aborted || (error instanceof Error && error.name === "AbortError"), error: error instanceof Error ? error.message : String(error) },
+          })
+          throw error
         } finally {
           setCurrentAgent(previous)
           setParentAgent(previousParent)

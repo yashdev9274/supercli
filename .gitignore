@@ -85,6 +85,8 @@ apps/web/components/pitch
 # scripts
 scripts/
 apps/web/scripts/
+!apps/supercode-desktop/scripts/
+!apps/supercode-desktop/scripts/**
 .commandcode
 .opencode
 

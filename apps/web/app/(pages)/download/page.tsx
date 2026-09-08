@@ -2,37 +2,20 @@
 
 import { useState } from "react"
 import { motion } from "framer-motion"
+import { Check, Copy, Apple, Download } from "lucide-react"
+
 import Navbar from "@/components/homepage/navbar"
 import Footer from "@/components/homepage/footer"
-import { Check, Copy, ExternalLink, Terminal, Monitor, Apple } from "lucide-react"
+import { resolveDesktopDownload } from "@/lib/desktop-download"
 
 const installCommands: Array<{ label: string; cmd: string }> = [
-  { label: "curl", cmd: 'curl -fsSL https://supercli.dev/install | bash' },
+  { label: "curl", cmd: 'curl -fsSL https://supercli.vercel.app/install | bash' },
   { label: "npm", cmd: "npm i -g supercode-cli" },
   { label: "bun", cmd: "bun add -g supercode-cli" },
   { label: "brew", cmd: "brew install supercode" },
 ]
 
-const platforms: Array<{ name: string; arch: string; badge: string; icon: React.ReactNode }> = [
-  { name: "macOS", arch: "Apple Silicon", badge: ".dmg", icon: <Apple className="w-5 h-5" /> },
-  { name: "macOS", arch: "Intel", badge: ".dmg", icon: <Apple className="w-5 h-5" /> },
-  { name: "Windows", arch: "x64", badge: ".exe", icon: <Monitor className="w-5 h-5" /> },
-  { name: "Linux", arch: ".deb", badge: ".deb", icon: <Terminal className="w-5 h-5" /> },
-  { name: "Linux", arch: ".rpm", badge: ".rpm", icon: <Terminal className="w-5 h-5" /> },
-]
-
-const extensions: Array<{ name: string; href: string }> = [
-  { name: "VS Code", href: "#" },
-  { name: "Cursor", href: "#" },
-  { name: "Zed", href: "#" },
-  { name: "Windsurf", href: "#" },
-  { name: "VSCodium", href: "#" },
-]
-
-const integrations: Array<{ name: string; href: string }> = [
-  { name: "GitHub", href: "https://github.com/yashdev9274/supercli" },
-  { name: "GitLab", href: "#" },
-]
+const desktopDownload = resolveDesktopDownload(process.env.NEXT_PUBLIC_DESKTOP_DMG_URL)
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
@@ -99,6 +82,62 @@ export default function DownloadPage() {
                 <InstallCommand {...cmd} />
               </motion.div>
             ))}
+          </div>
+        </section>
+
+        <section className="mb-20" aria-labelledby="desktop-heading">
+          <h2 id="desktop-heading" className="text-sm font-mono text-muted-foreground uppercase tracking-wider mb-4">
+            [2] Supercode Desktop
+          </h2>
+          <div className="max-w-[400px]">
+            <h3 className="mb-3 text-lg text-muted-foreground">Mac</h3>
+            <div className="overflow-hidden rounded-md border border-foreground/60 bg-foreground/80 text-background divide-y divide-background/20">
+              {["Apple Silicon", "Intel"].map((architecture) => {
+                const content = (
+                  <>
+                    <Apple className="size-4 shrink-0 fill-current" aria-hidden="true" />
+                    <span className="font-medium">Mac</span>
+                    <span className="text-background/80">{architecture}</span>
+                    {architecture === "Apple Silicon" ? (
+                      <span className="rounded-sm bg-background/15 px-1.5 py-0.5 font-mono text-[10px] sm:text-xs">
+                        Recommended
+                      </span>
+                    ) : null}
+                    <Download className="ml-auto size-[18px] shrink-0" aria-hidden="true" />
+                  </>
+                )
+                const className = "flex min-h-[54px] w-full items-center gap-2 px-3 text-sm sm:gap-3 sm:px-5 sm:text-base transition-colors hover:bg-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-background disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
+                return desktopDownload ? (
+                  <a
+                    key={architecture}
+                    href={desktopDownload.url}
+                    aria-label={`Download Supercode for Mac ${architecture} (.dmg)`}
+                    className={className}
+                  >
+                    {content}
+                  </a>
+                ) : (
+                  <button key={architecture} disabled className={className} aria-label={`Supercode for Mac ${architecture} — coming soon`}>
+                    {content}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              macOS 14+ · Both options download the same universal .dmg.
+            </p>
+            {desktopDownload ? (
+              <>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  v{desktopDownload.version} · <a href={desktopDownload.checksumUrl} className="underline underline-offset-4">SHA-256 checksum</a>
+                </p>
+                <p className="mt-4 text-sm text-muted-foreground">
+                  Open the DMG, drag Supercode into Applications, then launch and sign in.
+                </p>
+              </>
+            ) : (
+              <p className="mt-3 text-sm text-muted-foreground">Coming soon — downloads will be enabled after release verification.</p>
+            )}
           </div>
         </section>
 

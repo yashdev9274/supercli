@@ -1,173 +1,26 @@
 import { z } from "zod"
-import { spawn } from "node:child_process"
-import path from "node:path"
 import { resolvePath } from "../../lib/workspace"
-import { serialize, ok, fail } from "../../cli/ai/tool-result"
+import { executeCommand } from "../../runtime/command"
+import { serialize, fail } from "../../cli/ai/tool-result"
 import { defineTool } from "../lib/define.ts"
 
-
 const runCommandSchema = z.object({
-  command: z.string().describe("Shell command to execute (e.g. 'npm install', 'npm run build', 'git status')"),
-  description: z
-    .string()
-    .optional()
-    .describe("Purpose of this command (for display in permission prompt)"),
-  timeout: z
-    .number()
-    .optional()
-    .default(300_000)
-    .describe("Timeout in milliseconds (default: 300000 — increase for installs/scaffolding)"),
-  cwd: z
-    .string()
-    .optional()
-    .describe("Working directory RELATIVE to workspace root (defaults to workspace root). Do NOT use 'cd' in the command — use this param instead."),
-  interactive: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe("Set to true if the command requires interactive input (prompts, selections). When true, stdin stays open and 'y' is piped on each prompt."),
-  autoYes: z
-    .boolean()
-    .optional()
-    .default(true)
-    .describe("Auto-answer 'y' to prompts. Set false to let the user interact directly."),
+  command: z.string().min(1),
+  description: z.string().optional(),
+  timeout: z.number().int().min(1).max(1800000).optional().default(300000),
+  cwd: z.string().optional(),
+  interactive: z.boolean().optional().default(false),
+  autoYes: z.boolean().optional().default(false),
 })
-
 export type RunCommandArgs = z.infer<typeof runCommandSchema>
-
-const _def = {
-  description:
-    `Execute a shell command in the workspace. Use this to install dependencies, run builds, start dev servers, run tests, or any other terminal operation.
-
-IMPORTANT RULES:
-  • Do NOT use 'cd' in commands — use the 'cwd' parameter instead. Example: run_command({ command: "npm install", cwd: "packages/foo" })
-  • For scaffolding (npm create, npx), set CI=true is already in env. Use the 'cwd' parameter, NOT 'cd &&' chains.
-  • If the command may prompt interactively, set interactive: true so stdin stays open.
-  • For any npm/npx scaffolding command, prefer: npx --yes <package> (avoids install prompt)
-  • Check exitCode in the result — zero means success.`,
+export const runCommandTool = defineTool({
+  description: "Run a noninteractive command in the workspace. Use cwd instead of cd. Inspect exitCode, signal, timedOut and success. Output previews are bounded; logPath contains additional output. Discover test/build commands from project manifests. Never claim a check passed if the command failed. Interactive handoff is not supported by this tool.",
   inputSchema: runCommandSchema,
-  execute: async ({ command, timeout, cwd: subdir, interactive, autoYes }: RunCommandArgs) =>
-    serialize(async () => {
-      const workspaceRoot = process.env.SUPERCODE_WORKSPACE_ROOT || process.cwd()
-
-      let resolvedCwd = workspaceRoot
-      if (subdir) {
-        resolvedCwd = resolvePath(subdir)
-      }
-
-      process.stdout.write(`$ ${command}\n`)
-
-      return new Promise<string>((resolvePromise) => {
-        const stdoutChunks: string[] = []
-        const stderrChunks: string[] = []
-        let killed = false
-        let done = false
-
-        const child = spawn("/bin/sh", ["-c", command], {
-          cwd: resolvedCwd,
-          env: {
-            ...process.env,
-            PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
-            CI: "true",
-            npm_config_yes: "true",
-            YES: "1",
-            NONINTERACTIVE: "1",
-            TERM: "dumb",
-            PAGER: "cat",
-            GIT_TERMINAL_PROMPT: "0",
-            HOMEBREW_NO_AUTO_UPDATE: "1",
-          },
-          stdio: ["pipe", "pipe", "pipe"],
-        })
-
-        if (child.stdin) {
-          if (autoYes) {
-            if (interactive) {
-              const pipeYes = () => {
-                try {
-                  child.stdin!.write("y\n")
-                } catch {}
-              }
-              const interval = setInterval(pipeYes, 500)
-              child.on("close", () => clearInterval(interval))
-            } else {
-              child.stdin.write("y\n".repeat(20))
-              child.stdin.end()
-            }
-          } else {
-            if (interactive && process.stdin.isTTY) {
-              process.stdin.pipe(child.stdin)
-            } else {
-              child.stdin.end()
-            }
-          }
-        }
-
-        const timer = setTimeout(() => {
-          killed = true
-          child.kill("SIGTERM")
-        }, timeout)
-
-        child.stdout?.on("data", (data: Buffer) => {
-          const text = data.toString()
-          stdoutChunks.push(text)
-          process.stdout.write(text.replace(/\n/g, "\r\n"))
-        })
-
-        child.stderr?.on("data", (data: Buffer) => {
-          const text = data.toString()
-          stderrChunks.push(text)
-          process.stderr.write(text.replace(/\n/g, "\r\n"))
-        })
-
-        child.on("close", (code) => {
-          if (done) return
-          done = true
-          clearTimeout(timer)
-
-          process.stdout.write("\r\n")
-
-          const stdout = stdoutChunks.join("")
-          const stderr = stderrChunks.join("")
-          const exitCode = code ?? 0
-
-          const result: Record<string, unknown> = {
-            exitCode,
-            stdout,
-            stderr,
-            success: exitCode === 0,
-            cancelled: killed,
-          }
-
-          if (killed) {
-            result.signal = "SIGTERM"
-            result.summary = `Command timed out after ${(timeout / 1000).toFixed(0)}s`
-          } else if (exitCode !== 0) {
-            result.summary = `Command failed with exit code ${exitCode}`
-          } else {
-            result.summary = "Command completed successfully"
-          }
-
-          resolvePromise(ok(result))
-        })
-
-        child.on("error", (err) => {
-          if (done) return
-          done = true
-          clearTimeout(timer)
-          process.stdout.write("\r\n")
-          resolvePromise(ok({
-            exitCode: -1,
-            stdout: "",
-            stderr: err.message,
-            success: false,
-            cancelled: true,
-            summary: `Failed to start command: ${err.message}`,
-          }))
-        })
-      })
-    }),
-}
-
-export const runCommandTool = defineTool(_def)
+  execute: async (input, ctx) => serialize(async () => {
+    const args = runCommandSchema.parse(input)
+    if (args.interactive || args.autoYes) return fail("Automatic prompt approval and interactive input are not supported. Use explicit noninteractive flags only when authorized, or ask the user to run the command.")
+    const result = await executeCommand({ command: args.command, cwd: resolvePath(args.cwd ?? "."), timeout: args.timeout, signal: ctx?.signal })
+    return JSON.stringify({ success: result.success, data: result, ...(result.success ? {} : { error: result.summary }) })
+  }),
+})
 export default runCommandTool

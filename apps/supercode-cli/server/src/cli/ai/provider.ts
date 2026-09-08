@@ -25,7 +25,7 @@ export interface AIProvider {
     onToolCall?: any,
     signal?: AbortSignal,
     onReasoning?: (chunk: string) => void,
-    onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void,
+    onToolResult?: (params: { id?: string; toolName: string; args: unknown; result: string }) => void,
     onStepFinish?: (params: { stepNumber: number; toolCalls: Array<{ toolName: string; args: unknown }>; toolResults: Array<{ toolName: string; args: unknown; result: string }> }) => void,
     onStepBudget?: (maxSteps: number) => void,
   ): Promise<{

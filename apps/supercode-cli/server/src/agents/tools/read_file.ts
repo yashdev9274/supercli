@@ -1,38 +1,38 @@
 import { z } from "zod"
-import { readFile } from "node:fs/promises"
-import { resolvePath, WorkspaceError } from "../../lib/workspace"
-import { serialize, ok, fail } from "../../cli/ai/tool-result"
+import { readText, contentVersion } from "../../runtime/workspace/file-operations"
+import { serialize, ok } from "../../cli/ai/tool-result"
 import { defineTool } from "../lib/define.ts"
 
 const readFileSchema = z.object({
-  path: z.string().describe("Relative path from workspace root (e.g. 'src/index.ts', 'package.json')"),
-  maxLines: z.number().optional().describe("Maximum number of lines to read (omit for full file)"),
-  description: z.string().optional().describe("What to look for (for display)"),
+  path: z.string().min(1),
+  startLine: z.number().int().min(1).optional().default(1).describe("First line, 1-based"),
+  maxLines: z.number().int().min(1).max(2000).optional().default(300),
+  description: z.string().optional(),
 })
-
 export type ReadFileArgs = z.infer<typeof readFileSchema>
-
-const _def = {
-  description: "Read the contents of a file within the workspace. Use this to examine source code, configuration files, or any file the user asks about.",
+export const readFileTool = defineTool({
+  description: "Read a workspace text file. Returns content, line range, truncation and version. Use startLine to continue reading; pass version as expectedVersion when editing.",
   inputSchema: readFileSchema,
-  execute: async ({ path: filePath, maxLines }: ReadFileArgs) =>
-    serialize(async () => {
-      const fullPath = resolvePath(filePath)
-
-      const content = await readFile(fullPath, "utf-8")
-
-      if (maxLines !== undefined) {
-        const lines = content.split("\n")
-        const sliced = lines.slice(0, maxLines)
-        if (lines.length > maxLines) {
-          sliced.push(`\n... (${lines.length - maxLines} more lines)`)
-        }
-        return ok({ path: filePath, content: sliced.join("\n"), totalLines: lines.length })
+  execute: async (input) => serialize(async () => {
+    const { path, startLine, maxLines } = readFileSchema.parse(input)
+    const { content } = await readText(path)
+    const lines = content.split("\n")
+    const selected: string[] = []
+    let chars = 0
+    for (const line of lines.slice(startLine - 1, startLine - 1 + maxLines)) {
+      if (chars + line.length > 60000) {
+        if (selected.length === 0) throw new Error("Line exceeds 60000 characters; use a targeted search or command to inspect it")
+        break
       }
-
-      return ok({ path: filePath, content, totalLines: content.split("\n").length })
-    }),
-}
-
-export const readFileTool = defineTool(_def)
+      selected.push(line)
+      chars += line.length + 1
+    }
+    const endLine = startLine + selected.length - 1
+    return ok({ path, content: selected.join("\n"), startLine, endLine,
+      totalLines: lines.length, truncated: endLine < lines.length,
+      nextLine: endLine < lines.length ? endLine + 1 : undefined,
+      version: contentVersion(content),
+    })
+  }),
+})
 export default readFileTool

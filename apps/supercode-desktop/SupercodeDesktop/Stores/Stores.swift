@@ -107,6 +107,7 @@ let me = try await SupercodeAPIClient.shared.getCurrentUser()
     }
 
     func updateServerURL(_ url: String) {
+        AgentRunStore.shared.stop()
         let trimmed = ServerConfig.normalize(url)
         serverURL = trimmed.isEmpty ? ServerConfig.defaultURL : trimmed
         KeychainStore.set(serverURL, for: .serverURL)
@@ -174,6 +175,7 @@ let me = try await SupercodeAPIClient.shared.getCurrentUser()
     }
 
 func signOut() {
+        AgentRunStore.shared.stop()
         KeychainStore.clearAuth()
         user = nil
         isAuthenticated = false
@@ -305,6 +307,7 @@ final class WorkspaceStore: ObservableObject {
     }
 
     private func consumeWorkspaceURL(_ url: URL) {
+        if path != nil { AgentRunStore.shared.stop() }
         do {
             let data = try url.bookmarkData(
                 options: [.withSecurityScope],
@@ -325,6 +328,7 @@ path = url.path
     }
 
 func clearWorkspace() {
+        AgentRunStore.shared.stop()
         path = nil
         displayName = "No workspace"
         gitBranch = nil
@@ -635,7 +639,9 @@ func reset() {
 /// Clear the active chat transcript (CLI `/clear` equivalent).
     /// Keeps the conversation list; wipes in-memory messages and agent run state.
     func clearActiveSession() {
+        AgentRunStore.shared.stop()
         messages = []
+        persistTranscript()
         errorMessage = nil
         AgentRunStore.shared.reset()
         AgentRunStore.shared.dismissAlert()
@@ -655,6 +661,7 @@ func reset() {
         let content = messages[idx].content
         // Remove that user turn and anything after it (assistant / tools).
         messages.removeSubrange(idx...)
+        persistTranscript()
         AgentRunStore.shared.stop()
         AgentRunStore.shared.lastError = nil
         AgentRunStore.shared.dismissAlert()
@@ -663,6 +670,7 @@ func reset() {
 
     func removeMessage(id: String) {
         messages.removeAll { $0.id == id }
+        persistTranscript()
     }
 
     func refreshList() async {
@@ -681,18 +689,22 @@ func reset() {
     }
 
     func createConversation(mode: String = "agent") async {
+        persistTranscript()
+        let previousID = activeConversationId
         isLoading = true
         defer { isLoading = false }
         do {
             let created = try await SupercodeAPIClient.shared.createConversation(mode: mode)
+            guard !Task.isCancelled, activeConversationId == previousID else { return }
             var summary = created
             if summary.folder == nil { summary.folder = "Work" }
             conversations.insert(summary, at: 0)
             activeConversationId = summary.id
             messages = []
-            self.mode = AgentMode(rawValue: mode) ?? .agent
+            self.mode = AgentMode.compatible(mode)
             saveLocalCache()
         } catch {
+            guard !Task.isCancelled, activeConversationId == previousID else { return }
             // Offline / unauthenticated local stub so UI remains usable while wiring auth.
             let local = ConversationSummary(
                 id: UUID().uuidString,
@@ -704,29 +716,54 @@ func reset() {
             conversations.insert(local, at: 0)
             activeConversationId = local.id
             messages = []
-            self.mode = AgentMode(rawValue: mode) ?? .agent
+            self.mode = AgentMode.compatible(mode)
             errorMessage = error.localizedDescription
             saveLocalCache()
         }
     }
 
     func selectConversation(id: String) async {
+        AgentRunStore.shared.stop()
+        persistTranscript()
         activeConversationId = id
+        messages = []
+        errorMessage = nil
         isLoading = true
-        defer { isLoading = false }
-        if let existing = conversations.first(where: { $0.id == id }),
-           let mode = AgentMode(rawValue: existing.mode) {
-            self.mode = mode
+        defer { if activeConversationId == id { isLoading = false } }
+        if let existing = conversations.first(where: { $0.id == id }) { mode = AgentMode.compatible(existing.mode) }
+        if let url = transcriptURL(id), let data = try? Data(contentsOf: url),
+           let cached = try? JSONDecoder().decode([ChatMessage].self, from: data) {
+            messages = cached
+            return
         }
         do {
-            messages = try await SupercodeAPIClient.shared.getMessages(conversationId: id)
+            let loaded = try await SupercodeAPIClient.shared.getMessages(conversationId: id)
+            guard activeConversationId == id else { return }
+            messages = loaded
         } catch {
-            messages = messages // keep whatever is in memory
+            guard activeConversationId == id else { return }
             errorMessage = error.localizedDescription
         }
     }
 
+    private func transcriptURL(_ id: String) -> URL? {
+        let filename = NativeFileTools.version(id)
+        let scope = NativeFileTools.version((UserDefaults.standard.string(forKey: "serverURL") ?? "default") + "|" + (AppSessionStore.shared.user?.id ?? "local"))
+        guard let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return nil }
+        return directory.appendingPathComponent("Supercode/transcripts/\(scope)/\(filename).json")
+    }
+
+    func persistTranscript() {
+        guard let id = activeConversationId, let url = transcriptURL(id), let data = try? JSONEncoder().encode(messages) else { return }
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            try data.write(to: url, options: [.atomic])
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        } catch { errorMessage = "Could not save local transcript: \(error.localizedDescription)" }
+    }
+
     func setMode(_ mode: AgentMode) async {
+        AgentRunStore.shared.stop()
         self.mode = mode
         guard let id = activeConversationId else { return }
         if let idx = conversations.firstIndex(where: { $0.id == id }) {
@@ -783,9 +820,11 @@ final class AgentRunStore: ObservableObject {
     @Published var stepCount: Int = 0
 
     private var runTask: Task<Void, Never>?
+    private var runID: UUID?
+    private var activeAssistantID: String?
 
     func reset() {
-        runTask?.cancel()
+        stop()
         status = .idle
         diffs = []
         selectedDiffId = nil
@@ -821,7 +860,11 @@ if lower.contains("plan_limit")
     }
 
     func stop() {
+        runID = nil
         runTask?.cancel()
+        if let id = activeAssistantID { finishPending(assistantID: id, cancelled: true) }
+        activeAssistantID = nil
+        ConversationStore.shared.persistTranscript()
         runTask = nil
         if status != .idle {
             status = .idle
@@ -832,433 +875,107 @@ if lower.contains("plan_limit")
     func send(prompt: String) {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-
-runTask?.cancel()
+        stop()
+        let token = UUID()
+        runID = token
         lastError = nil
         activeAlert = nil
         stepCount = 0
-        WorkspaceStore.shared.showChatPane()
-
+        status = .thinking
+        let conversations = ConversationStore.shared
+        let workspace = WorkspaceStore.shared
+        let session = AppSessionStore.shared
+        let context = NativeTurnEngine.Context(root: workspace.path, mode: conversations.mode, provider: session.selectedProvider, model: session.selectedModel)
+        let system = ToolCatalog.systemPrompt(mode: context.mode, workspacePath: context.root, gitBranch: workspace.gitBranch, effort: session.selectedEffort)
+        workspace.showChatPane()
         runTask = Task {
-            let conversations = ConversationStore.shared
-            let session = AppSessionStore.shared
-            let workspace = WorkspaceStore.shared
-            let mode = conversations.mode
-
-            if conversations.activeConversationId == nil {
-                await conversations.createConversation(mode: mode.rawValue)
+            if conversations.activeConversationId == nil { await conversations.createConversation(mode: context.mode.rawValue) }
+            guard runID == token, !Task.isCancelled, let conversationID = conversations.activeConversationId else { return }
+            let assistantID = UUID().uuidString
+            activeAssistantID = assistantID
+            conversations.appendLocal(ChatMessage(role: .user, content: trimmed))
+            var history: [[String: Any]] = [["role": "system", "content": system]]
+            history += conversations.messages.flatMap { message -> [[String: Any]] in
+                if let canonical = message.canonicalHistory { return canonical.map { $0.mapValues(\.value) } }
+                return message.content.isEmpty ? [] : [["role": message.role.rawValue, "content": message.content]]
             }
-            guard let conversationId = conversations.activeConversationId else { return }
-
-            let userMessage = ChatMessage(role: .user, content: trimmed)
-            conversations.appendLocal(userMessage)
-
-            if conversations.messages.filter({ $0.role == .user }).count == 1 {
-                let title = String(trimmed.prefix(48))
-                await conversations.renameActive(title: title)
+            conversations.appendLocal(ChatMessage(id: assistantID, role: .assistant, content: ""))
+            let activity: NativeTurnEngine.Activity = { part in
+                guard self.runID == token, conversations.activeConversationId == conversationID, !Task.isCancelled else { return }
+                switch part {
+                case .toolCall: self.status = .tool
+                case .text: self.status = .streaming
+                case .reasoning: self.status = .thinking
+                }
+                conversations.updateAssistant(id: assistantID) { $0.apply(part) }
             }
-
-            try? await SupercodeAPIClient.shared.addMessage(
-                conversationId: conversationId,
-                role: "user",
-                content: trimmed
-            )
-
-            let assistantId = UUID().uuidString
-            conversations.appendLocal(
-                ChatMessage(id: assistantId, role: .assistant, content: "", parts: [])
-            )
-
-            status = .thinking
-
-            // Working transcript for multi-turn tool loop (OpenAI-style roles).
-            var apiMessages: [[String: Any]] = []
-            let system = ToolCatalog.systemPrompt(
-                mode: mode,
-                workspacePath: workspace.path,
-                gitBranch: workspace.gitBranch,
-                effort: session.selectedEffort
-            )
-            apiMessages.append(["role": "system", "content": system])
-
-            for msg in conversations.messages {
-                if msg.id == assistantId { continue }
-                guard msg.role == .user || msg.role == .assistant || msg.role == .system else { continue }
-                let content = msg.content.isEmpty
-                    ? msg.parts.compactMap { part -> String? in
-                        if case .text(_, let c) = part { return c }
-                        return nil
-                    }.joined()
-                    : msg.content
-                if content.isEmpty { continue }
-                apiMessages.append(["role": msg.role.rawValue, "content": content])
-            }
-            // Ensure latest user turn present
-            if (apiMessages.last?["content"] as? String) != trimmed {
-                apiMessages.append(["role": "user", "content": trimmed])
-            }
-
-            let tools = ToolCatalog.tools(for: mode)
-            var collectedText = ""
-
             do {
-                for step in 0..<ToolCatalog.maxAgentSteps {
-                    try Task.checkCancellation()
-                    stepCount = step + 1
-                    status = .thinking
-
-                    var stepText = ""
-                    var toolCalls: [(id: String, name: String, args: [String: Any])] = []
-                    var sawError: String?
-
-                    try await SupercodeAPIClient.shared.streamChat(
-                        messages: apiMessages,
-                        provider: session.selectedProvider,
-                        model: session.selectedModel,
-                        tools: tools.isEmpty ? nil : tools
-                    ) { event in
-                        await MainActor.run {
-                            switch event {
-                            case .text(let chunk):
-                                self.status = .streaming
-                                stepText += chunk
-                                collectedText += chunk
-                                conversations.updateAssistant(id: assistantId) { msg in
-                                    msg.content += chunk
-                                    if let idx = msg.parts.lastIndex(where: {
-                                        if case .text = $0 { return true }
-                                        return false
-                                    }), case .text(let id, let existing) = msg.parts[idx] {
-                                        msg.parts[idx] = .text(id: id, content: existing + chunk)
-                                    } else {
-                                        msg.parts.append(.text(id: UUID().uuidString, content: chunk))
-                                    }
-                                }
-                            case .reasoning(let chunk):
-                                self.status = .thinking
-                                conversations.updateAssistant(id: assistantId) { msg in
-                                    if let idx = msg.parts.lastIndex(where: {
-                                        if case .reasoning = $0 { return true }
-                                        return false
-                                    }), case .reasoning(let id, let existing) = msg.parts[idx] {
-                                        msg.parts[idx] = .reasoning(id: id, content: existing + chunk)
-                                    } else {
-                                        msg.parts.append(.reasoning(id: UUID().uuidString, content: chunk))
-                                    }
-                                }
-                            case .toolCall(let id, let name, let args):
-                                self.status = .tool
-                                let plainArgs = Dictionary(uniqueKeysWithValues: args.map { ($0.key, $0.value.value as Any) })
-                                toolCalls.append((id: id, name: name, args: plainArgs))
-                                let part = ToolCallPart(
-                                    id: id,
-                                    toolName: name,
-                                    args: args,
-                                    status: .running,
-                                    resultPreview: nil,
-                                    durationMs: nil,
-                                    isExpanded: false
-                                )
-                                conversations.updateAssistant(id: assistantId) { msg in
-                                    msg.parts.append(.toolCall(part))
-                                }
-                            case .finish:
-                                break
-case .error(let message):
-                                sawError = message
-                                self.presentError(message)
-                                self.status = .error
-                            }
-                        }
-                    }
-
-if let sawError {
-                        throw APIError.server(sawError)
-                    }
-
-                    let recentTools: [ToolCallPart] = toolCalls.map { call in
-                        ToolCallPart(
-                            id: call.id,
-                            toolName: call.name,
-                            args: call.args.mapValues { AnyCodable($0) },
-                            status: .running,
-                            resultPreview: nil,
-                            durationMs: nil,
-                            isExpanded: false
-                        )
-                    }
-
-                    // Models often leak internal planning as content. When tools ran,
-                    // move that monologue into a collapsed "Thinking" part.
-                    if !recentTools.isEmpty, Self.looksLikePlanningMonologue(stepText) {
-                        demoteMonologueToReasoning(
-                            conversations: conversations,
-                            assistantId: assistantId,
-                            monologue: stepText
-                        )
-                        stepText = ""
-                    }
-
-                    if recentTools.isEmpty {
-                        // If the only output is planning monologue and the user asked about a file,
-                        // nudge one forced tool turn instead of ending on meta-text.
-                        if Self.looksLikePlanningMonologue(stepText),
-                           step < ToolCatalog.maxAgentSteps - 1,
-                           Self.userLikelyNeedsTools(trimmed) {
-                            demoteMonologueToReasoning(
-                                conversations: conversations,
-                                assistantId: assistantId,
-                                monologue: stepText
-                            )
-                            apiMessages.append([
-                                "role": "assistant",
-                                "content": stepText.isEmpty ? "" : stepText,
-                            ])
-                            apiMessages.append([
-                                "role": "user",
-                                "content": "Do not narrate. Call the appropriate tool(s) now (read_file / search_files) to load the referenced file, then answer with guidance based on the tool results.",
-                            ])
-                            stepText = ""
-                            continue
-                        }
-                        // Final assistant turn — no more tools
-                        status = .idle
-                        break
-                    }
-
-                    // Append assistant tool_calls message for next turn context
-                    var assistantToolCalls: [[String: Any]] = []
-                    var toolResultMessages: [[String: Any]] = []
-
-                    for part in recentTools {
-                        try Task.checkCancellation()
-                        status = .tool
-                        if part.toolName == "write_file" || part.toolName == "edit_file" || part.toolName == "run_command" {
-                            status = .needsPermission
-                        }
-
-                        let plainArgs = part.args.mapValues { $0.value as Any }
-                        let started = Date()
-
-                        let result = await LocalToolRuntime.execute(
-                            name: part.toolName,
-                            args: plainArgs,
-                            workspaceRoot: workspace.path,
-                            mode: mode
-                        )
-                        let duration = Int(Date().timeIntervalSince(started) * 1000)
-
-                        conversations.updateAssistant(id: assistantId) { msg in
-                            if let idx = msg.parts.firstIndex(where: {
-                                if case .toolCall(let p) = $0 { return p.id == part.id }
-                                return false
-                            }), case .toolCall(var p) = msg.parts[idx] {
-                                p.status = result.success ? .completed : .failed
-                                p.resultPreview = result.preview ?? String(result.json.prefix(240))
-                                p.durationMs = duration
-                                msg.parts[idx] = .toolCall(p)
-                            }
-                        }
-
-                        if let rel = result.mutatedRelativePath, let abs = result.mutatedAbsolutePath {
-                            recordDiff(
-                                path: rel,
-                                absolutePath: abs,
-                                previous: result.previousContent,
-                                newContent: result.newContent
-                            )
-                            workspace.reloadTree()
-                        }
-
-                        if part.toolName == "todowrite" {
-                            updateTodos(from: result.json)
-                        }
-                        if part.toolName == "switch_to_agent_mode", result.success {
-                            await conversations.setMode(.agent)
-                        }
-                        if part.toolName == "question" {
-                            // Stop loop so user can answer
-                            status = .idle
-                            // Still feed tool result
-                        }
-
-                        let fnCall: [String: Any] = [
-                            "id": part.id,
-                            "type": "function",
-                            "function": [
-                                "name": part.toolName,
-                                "arguments": stringifyArgs(plainArgs),
-                            ] as [String: Any],
-                        ]
-                        assistantToolCalls.append(fnCall)
-                        toolResultMessages.append([
-                            "role": "tool",
-                            "tool_call_id": part.id,
-                            "name": part.toolName,
-                            "content": result.json,
-                        ])
-                    }
-
-                    // Push assistant message with tool_calls + tool results
-                    var assistantMsg: [String: Any] = [
-                        "role": "assistant",
-                        "content": stepText.isEmpty ? NSNull() : stepText,
-                        "tool_calls": assistantToolCalls,
-                    ]
-                    if stepText.isEmpty {
-                        assistantMsg["content"] = ""
-                    }
-                    apiMessages.append(assistantMsg)
-                    apiMessages.append(contentsOf: toolResultMessages)
-
-                    // If a question tool ran, stop for user input
-                    if recentTools.contains(where: { $0.toolName == "question" }) {
-                        status = .idle
-                        break
+                try Task.checkCancellation()
+                let references = try await NativeFileReferences.resolve(prompt: trimmed, context: context, activity: activity)
+                history += references
+                let outcome = try await NativeTurnEngine.run(history: history, context: context, activity: activity) { result, name in
+                    guard self.runID == token, conversations.activeConversationId == conversationID else { return }
+                    if name == "todowrite" { self.updateTodos(from: result.json) }
+                    if let rel = result.mutatedRelativePath, let abs = result.mutatedAbsolutePath {
+                        self.recordDiff(path: rel, absolutePath: abs, previous: result.previousContent, newContent: result.newContent)
+                        workspace.reloadTree()
                     }
                 }
-
-                if status != .error {
-                    status = .idle
+                guard runID == token, !Task.isCancelled else { return }
+                conversations.updateAssistant(id: assistantID) { message in
+                    message.canonicalHistory = (references + outcome.history).map { $0.mapValues(AnyCodable.init) }
                 }
-
-                let finalText = conversations.messages.first(where: { $0.id == assistantId })?.content ?? collectedText
-                if !finalText.isEmpty {
-                    try? await SupercodeAPIClient.shared.addMessage(
-                        conversationId: conversationId,
-                        role: "assistant",
-                        content: finalText
-                    )
-                }
-            } catch is CancellationError {
+                conversations.persistTranscript()
                 status = .idle
-} catch {
-                status = .error
-                presentError(error.localizedDescription)
-                conversations.updateAssistant(id: assistantId) { msg in
-                    if msg.content.isEmpty {
-                        msg.content = "Error: \(error.localizedDescription)"
-                        msg.parts = [.text(id: UUID().uuidString, content: msg.content)]
-                    }
+                activeAssistantID = nil
+                try? await SupercodeAPIClient.shared.addMessage(conversationId: conversationID, role: "user", content: trimmed)
+                let finalText = conversations.messages.first { $0.id == assistantID }?.content ?? outcome.text
+                try? await SupercodeAPIClient.shared.addMessage(conversationId: conversationID, role: "assistant", content: finalText)
+                guard runID == token else { return }
+                if conversations.messages.filter({ $0.role == .user }).count == 1 { await conversations.renameActive(title: String(trimmed.prefix(48))) }
+            } catch {
+                guard runID == token else { return }
+                finishPending(assistantID: assistantID, cancelled: Task.isCancelled || error is CancellationError)
+                if Task.isCancelled || error is CancellationError { status = .idle }
+                else {
+                    status = .error
+                    presentError(error.localizedDescription)
+                    conversations.updateAssistant(id: assistantID) { $0.apply(.text(id: UUID().uuidString, content: "Error: \(error.localizedDescription)")) }
                 }
+                conversations.persistTranscript()
             }
         }
     }
 
-private func stringifyArgs(_ args: [String: Any]) -> String {
-        guard JSONSerialization.isValidJSONObject(args),
-              let data = try? JSONSerialization.data(withJSONObject: args),
-              let s = String(data: data, encoding: .utf8)
-        else { return "{}" }
-        return s
-    }
-
-    /// True when assistant text is internal planning rather than a user-facing answer.
-    private static func looksLikePlanningMonologue(_ text: String) -> Bool {
-        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty else { return false }
-        // Short meta-only replies with no substance
-        let lower = t.lowercased()
-        let markers = [
-            "the user wants me",
-            "the user asked me",
-            "let me find",
-            "let me look",
-            "let me read",
-            "let me check",
-            "let me search",
-            "i'll find",
-            "i'll look",
-            "i'll read",
-            "i'll start",
-            "i will find",
-            "i will read",
-            "i need to find",
-            "i need to read",
-            "i need to look",
-            "first i'll",
-            "first, i'll",
-            "i should read",
-            "i should find",
-            "going to read",
-            "going to find",
-            "guide them about",
-            "and guide them",
-            "and guide me",
-        ]
-        let hit = markers.contains { lower.contains($0) }
-        guard hit else { return false }
-        // If the text is long and has real structure (headers, bullets with substance), keep it.
-        let lines = t.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
-        let substantive = lines.filter { line in
-            line.count > 40
-                && !markers.contains { line.lowercased().contains($0) }
-        }
-        // Pure monologue: short or almost entirely marker-driven.
-        return t.count < 500 || substantive.count <= 1
-    }
-
-    private static func userLikelyNeedsTools(_ prompt: String) -> Bool {
-        let lower = prompt.lowercased()
-        if lower.contains("@") { return true }
-        if lower.contains(".md") || lower.contains(".ts") || lower.contains(".swift")
-            || lower.contains(".tsx") || lower.contains(".js") || lower.contains(".py") {
-            return true
-        }
-        let verbs = ["review", "read", "open", "explain", "guide", "analyze", "analyse",
-                     "summarize", "summarise", "look at", "check", "inspect", "walk me"]
-        return verbs.contains { lower.contains($0) }
-    }
-
-    private func demoteMonologueToReasoning(
-        conversations: ConversationStore,
-        assistantId: String,
-        monologue: String
-    ) {
-        let trimmed = monologue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        conversations.updateAssistant(id: assistantId) { msg in
-            // Strip matching text parts that are just the monologue.
-            msg.parts.removeAll { part in
-                if case .text(_, let c) = part {
-                    return c.trimmingCharacters(in: .whitespacesAndNewlines) == trimmed
-                        || trimmed.contains(c.trimmingCharacters(in: .whitespacesAndNewlines))
-                        || c.contains(trimmed)
-                }
-                return false
+    private func finishPending(assistantID: String, cancelled: Bool) {
+        ConversationStore.shared.updateAssistant(id: assistantID) { message in
+            message.parts = message.parts.map { part in
+                guard case .toolCall(var tool) = part, tool.status == .queued || tool.status == .running else { return part }
+                tool.status = cancelled ? .cancelled : .failed
+                tool.resultPreview = cancelled ? "Cancelled" : "Stream interrupted"
+                return .toolCall(tool)
             }
-            // Rebuild content without the monologue prefix if present.
-            if msg.content.contains(trimmed) {
-                msg.content = msg.content.replacingOccurrences(of: trimmed, with: "")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-            } else if msg.content.trimmingCharacters(in: .whitespacesAndNewlines) == trimmed {
-                msg.content = ""
-            }
-            // Append as reasoning (collapsed Thinking disclosure in UI).
-            if let idx = msg.parts.lastIndex(where: {
-                if case .reasoning = $0 { return true }
-                return false
-            }), case .reasoning(let id, let existing) = msg.parts[idx] {
-                msg.parts[idx] = .reasoning(id: id, content: existing + "\n" + trimmed)
-            } else {
-                msg.parts.insert(.reasoning(id: UUID().uuidString, content: trimmed), at: 0)
+            // Preserve completed operations even if the round was interrupted; never leave orphan tool calls.
+            if message.canonicalHistory == nil {
+                message.canonicalHistory = message.parts.compactMap { part -> [[String: AnyCodable]]? in
+                    guard case .toolCall(let tool) = part else { return nil }
+                    let result = tool.resultJSON ?? LocalToolRuntime.failJSON(cancelled: cancelled, reason: tool.resultPreview ?? "Interrupted").json
+                    return [
+                        ["role": AnyCodable("assistant"), "content": AnyCodable(""), "tool_calls": AnyCodable([["id": tool.id, "type": "function", "function": ["name": tool.toolName, "arguments": NativeTurnEngine.json(tool.args.mapValues(\.value))]]])],
+                        ["role": AnyCodable("tool"), "tool_call_id": AnyCodable(tool.id), "content": AnyCodable(result)],
+                    ]
+                }.flatMap { $0 }
+                message.canonicalHistory?.append(["role": AnyCodable("assistant"), "content": AnyCodable(message.content + (cancelled ? "\nRun cancelled." : "\nRun interrupted."))])
             }
         }
     }
 
     private func updateTodos(from json: String) {
-        guard let data = json.data(using: .utf8),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let rows = obj["todos"] as? [[String: Any]]
-        else { return }
-        agentTodos = rows.compactMap { row in
-            let title = row["title"] as? String ?? ""
-            guard !title.isEmpty else { return nil }
-            return AgentTodoItem(
-                id: (row["id"] as? String) ?? UUID().uuidString,
-                title: title,
-                status: (row["status"] as? String) ?? "pending"
-            )
+        guard let object = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any],
+              let data = object["data"] as? [String: Any], let rows = data["todos"] as? [[String: Any]] else { return }
+        agentTodos = rows.enumerated().compactMap { index, row in
+            guard let content = row["content"] as? String else { return nil }
+            return AgentTodoItem(id: String(index), title: content, status: row["status"] as? String ?? "pending")
         }
     }
 
@@ -1312,6 +1029,12 @@ private func stringifyArgs(_ args: [String: Any]) -> String {
         guard let idx = diffs.firstIndex(where: { $0.id == id }) else { return }
         let file = diffs[idx]
         if let abs = file.absolutePath {
+            guard let root = WorkspaceStore.shared.path,
+                  let url = try? NativeFileTools.resolve(abs, root: root),
+                  let current = try? NativeFileTools.load(url), current == file.newContent else {
+                presentError("Cannot revert: file changed since the agent edit. Review it manually.")
+                return
+            }
             if file.wasCreated {
                 try? FileManager.default.removeItem(atPath: abs)
             } else if let previous = file.previousContent {

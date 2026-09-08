@@ -40,6 +40,9 @@ import {
 } from "src/cli/utils/tui.ts"
 import { ThinkingDisplay, TurnTracker, toolLabel, ThoughtChain, extractToolArg } from "./thinking.ts"
 import { StepStatusRow } from "./step-status-row.ts"
+import { AnalysisActivity, renderReferenceActivity } from "src/cli/utils/reference-activity"
+import { ToolTranscript, renderToolBlock } from "src/cli/utils/tool-presentation"
+import { sanitizeTerminalText } from "src/cli/utils/terminal-text"
 import { MarkdownStream } from "src/cli/utils/markdown-stream.ts"
 import { getContextWindow } from "src/cli/ai/context-windows.ts"
 import type { WorkspaceInfo } from "src/cli/workspace/scanner.ts"
@@ -77,7 +80,6 @@ import {
   modeColors,
   modeDisplay,
   MODES,
-  captureToolSnapshot,
   assembleStreamSystemPrompt,
   buildToolsForTurn,
 } from "./lib/index.ts"
@@ -119,6 +121,7 @@ async function streamAIResponse(
   workspaceInfo?: WorkspaceInfo,
   statusBar?: PersistentStatusBar,
   extraContext?: string,
+  referenceActivity?: { transcript: ToolTranscript; files: string[] },
 ): Promise<{
   content: string
   elapsed: number
@@ -141,8 +144,9 @@ async function streamAIResponse(
       { role: "system", content: promptContent },
       ...aiMessages,
     ]
+  } else if (extraContext) {
+    aiMessages = [{ role: "system", content: extraContext }, ...aiMessages]
   }
-
 
   let fullResponse = ""
   let fullReasoning = ""
@@ -167,7 +171,28 @@ async function streamAIResponse(
   // Per-step live chain — we use the chain for per-step block rendering.
   // Each AI step opens a `▼ Thought: 0.0s` block, appends tool rows as tools
   // fire, then auto-collapses to `+ Thought: N.Ns` when the step finishes.
-  const chain = thinking.getChain()
+  const chain = new ThoughtChain(true)
+  const transcript = referenceActivity?.transcript ?? new ToolTranscript()
+  activeTranscript = transcript
+  const analysis = new AnalysisActivity(referenceActivity?.files ?? [], (text) => process.stdout.write(text), process.stdout.columns ?? 80)
+  const beginAnalysis = () => {
+    if (transcript.calls.some((call) => call.status === "running")) return
+    emitHeader()
+    analysis.nextPhase()
+    analysis.start()
+    const label = analysis.status()
+    if (label) statusBar?.setStatusMessage(label)
+  }
+  let committedTextLength = 0
+  const printTool = (call: ReturnType<ToolTranscript["start"]>, completionOnly = false) => {
+    statusBar?.setStatusMessage(`${call.category} · ${call.status} · ${(Math.max(0, (call.endedAt ?? Date.now()) - call.startedAt) / 1000).toFixed(1)}s`)
+    process.stdout.write(renderToolBlock(call, { width: process.stdout.columns, interactive: !!process.stdout.isTTY, completionOnly }))
+  }
+  const finishReasoning = () => {
+    const entry = chain.current
+    chain.finishAndPrint({ autoCollapse: true })
+    if (entry?.body.trim()) process.stdout.write(`  Thinking · ${((entry.endTime! - entry.startTime) / 1000).toFixed(1)}s${process.stdout.isTTY ? " [Ctrl+T details]" : ""}\n`)
+  }
   activeChain = chain
   // Buffered sub-chain for delegate/task subagent tool calls. Created when a
   // delegate/task tool starts, fed by the delegate onToolCall, finalized when
@@ -189,10 +214,12 @@ async function streamAIResponse(
   // Per-turn tool result tracker. Used to detect "all tools returned empty"
   // (the hallucination precursor) and to render empty tool calls in red.
   const turnTracker = new TurnTracker()
+  const referenceCallCount = transcript.calls.length
 
   // Phase 7: citation tracker — records every URL/file/search the model
   // uses so we can flag uncited factual claims in the response.
   const citationTracker = new CitationTracker()
+  for (const file of referenceActivity?.files ?? []) citationTracker.recordFromToolCall("read_file", { path: file })
 
   // Incremental markdown renderer. Buffers chunks and emits styled
   // terminal output (headings, lists, tables, code) under a Result rail.
@@ -209,6 +236,12 @@ async function streamAIResponse(
     statusBar.update({ isStreaming: true, elapsed: 0 })
     elapsedInterval = setInterval(() => {
       statusBar.setElapsed(Date.now() - startTime)
+      const running = transcript.calls.findLast((call) => call.status === "running")
+      if (running) statusBar.setStatusMessage(`${running.category} · running · ${((Date.now() - running.startedAt) / 1000).toFixed(1)}s · Esc cancel`)
+      else {
+        const label = analysis?.status()
+        if (label) statusBar.setStatusMessage(label)
+      }
     }, 250)
   }
 
@@ -231,13 +264,15 @@ async function streamAIResponse(
         // Think-split first so <|thinking|> tags aren't eaten by tool-XML strip.
         const split = thinkSplit.push(String(chunk))
         if (split.reasoning) {
+          beginAnalysis()
           fullReasoning += split.reasoning
           if (!chain.isOpen) chain.beginAndPrint()
-          chain.append(split.reasoning)
+          chain.append(sanitizeTerminalText(split.reasoning))
           thinking.showReasoning(split.reasoning)
         }
         const filtered = split.text ? stripToolCallXml(split.text) : ""
         if (!filtered) return
+        beginAnalysis()
         if (isFirstChunk && !hasOutputHeader) {
           emitHeader()
           isFirstChunk = false
@@ -245,8 +280,9 @@ async function streamAIResponse(
         md.push(filtered)
         fullResponse += filtered
       },
-      onToolCall: ({ toolName, args }) => {
+      onToolCall: ({ toolName, args, id }) => {
         if (!hasOutputHeader) emitHeader()
+        printTool(transcript.start(toolName, args, id))
         // Route subagent tool calls to the buffered sub-chain so they're
         // stored as subThoughts for post-hoc Ctrl+X toggling.
         if (currentSubChain) {
@@ -255,11 +291,14 @@ async function streamAIResponse(
           }
           currentSubChain.printToolRow(toolName, args)
         }
-        // Sub-agent tool calls are tracked internally in the sub-chain
-        // for Ctrl+X toggle — no live printing to keep the terminal clean.
+        // Also retain the nested reasoning view alongside chronological blocks.
         statusRow.setCurrentTool(toolName, args)
         verbosePrint(toolName, args, provider.modelName, Date.now())
         if (statusBar) statusBar.incTools()
+      },
+      onToolResult: ({ toolName, args, result, id }) => {
+        printTool(transcript.finish(toolName, args, result, id), true)
+        citationTracker.recordFromToolCall(toolName, args)
       },
     })
   }
@@ -303,15 +342,17 @@ async function streamAIResponse(
         // and would otherwise leave CoT body in Result without its tags.
         const split = thinkSplit.push(String(chunk))
         if (split.reasoning) {
+          beginAnalysis()
           fullReasoning += split.reasoning
           if (!chain.isOpen) chain.beginAndPrint()
-          chain.append(split.reasoning)
+          chain.append(sanitizeTerminalText(split.reasoning))
           thinking.showReasoning(split.reasoning)
           if (!hasOutputHeader) setTurnStatus("model reasoning")
         }
         // Filter raw tool call XML markup from the visible answer only.
         const filtered = split.text ? stripToolCallXml(split.text) : ""
         if (!filtered) return
+        beginAnalysis()
         if (isFirstChunk && !hasOutputHeader) {
           emitHeader()
           isFirstChunk = false
@@ -321,15 +362,13 @@ async function streamAIResponse(
         fullResponse += filtered
       },
       toolsToUse,
-      async ({ toolName, args }: { toolName: string; args?: unknown }) => {
+      async ({ toolName, args, id }: { toolName: string; args?: unknown; id?: string }) => {
         if (!hasOutputHeader) emitHeader()
-        thinking.showToolCall(toolName, args)
-        // Open a fresh block only on the first tool call of a step;
-        // consecutive calls append to the same open block.
-        if (!chain.isOpen) {
-          chain.beginAndPrint()
-        }
-        chain.printToolRow(toolName, args)
+        finishReasoning()
+        analysis?.end("completed")
+        md.flush()
+        committedTextLength = fullResponse.length
+        printTool(transcript.start(toolName, args, id))
         // When the main agent calls delegate/task, create a buffered sub-chain
         // so subagent tool calls are captured as a nested "Explore Task" section.
         // The first entry is created lazily when the first subagent tool fires.
@@ -363,76 +402,33 @@ async function streamAIResponse(
           if (!hasOutputHeader) setTurnStatus(label)
           return
         }
+        beginAnalysis()
         fullReasoning += reasoningChunk
         // Keep process text on the thought chain (Thinking dropdown), never
         // push it into the Result markdown stream.
         if (!chain.isOpen) {
           chain.beginAndPrint()
         }
-        chain.append(reasoningChunk)
+        chain.append(sanitizeTerminalText(reasoningChunk))
         thinking.showReasoning(reasoningChunk)
         // Surface that the model is actually reasoning — not stuck idle.
         if (!hasOutputHeader) {
           setTurnStatus("model reasoning")
         }
       },
-      async ({ toolName, args, result, stepNumber }: { toolName: string; args?: unknown; result: unknown; stepNumber?: number }) => {
+      async ({ toolName, args, result, id }: { toolName: string; args?: unknown; result: unknown; id?: string }) => {
         // Capture tool result for the post-turn warning + tracker.
-        const entry = turnTracker.recordCall(toolName, args, result as string)
+        turnTracker.recordCall(toolName, args, typeof result === "string" ? result : JSON.stringify(result ?? null))
+        printTool(transcript.finish(toolName, args, result, id), true)
 
         // Phase 7: record the source as a citation if it's a research tool.
         citationTracker.recordFromToolCall(toolName, args)
-
-        // Empty/denied → mark the live Thought block's last tool row so the
-        // expanded view shows a red ✗ and finishAndPrint keeps the block open.
-        if (entry.empty || entry.permissionDenied) {
-          chain.markLastToolFlagged()
-        }
-
-        // Capture a snapshot/diff under the tool row for file-changing tools
-        // and store it on the last tool in the current thought entry. The
-        // snapshot is rendered only when the thought block is expanded.
-        if (!entry.empty && !entry.permissionDenied && process.stdout.isTTY) {
-          const snap = captureToolSnapshot(toolName, args, result as string)
-          if (snap.length > 0) {
-            const lastTool = chain.current?.tools?.[chain.current.tools.length - 1]
-            if (lastTool) lastTool.snapshot = snap
-          }
-        }
 
         // Finalize the buffered sub-chain for delegate/task. Only keep
         // entries that have at least one tool call — empty entries from the
         // initial begin() are discarded.
         if (currentSubChain && (toolName === "delegate" || toolName === "task")) {
           currentSubChain.finish()
-          // Print a collapsed "Explore Task" summary for the sub-agent
-          if (process.stdout.isTTY) {
-            const rail = chalk.hex(theme.greenDim)("┃")
-            const subIndent = `${rail}   ${rail}`
-            const elapsed = currentSubChain.elapsed
-            const elapsedStr =
-              elapsed < 1000 ? `${elapsed}ms` : `${(elapsed / 1000).toFixed(1)}s`
-            const hadFailures = currentSubChain.thoughts.some(
-              (t) => t.tools.some((tt) => tt.flagged),
-            )
-            const toggle = hadFailures
-              ? chalk.hex(theme.greenGlow)("+")
-              : chalk.hex("#5ec27e")("✓")
-            const taskDesc = currentSubChainTaskName
-              ? ` ${chalk.hex(theme.greenDim)("—")} ${chalk.hex(theme.white)(currentSubChainTaskName)}`
-              : ""
-            process.stdout.write(
-              `${subIndent} ${toggle} ${chalk.hex(theme.greenMute)("Explore Task")}${taskDesc} ${chalk.hex(theme.greenDim)("·")} ${elapsedStr}\n`,
-            )
-            const toolCount = currentSubChain.thoughts.reduce(
-              (n, t) => n + t.tools.length, 0,
-            )
-            if (toolCount > 0) {
-              process.stdout.write(
-                `${subIndent}   ${chalk.hex(theme.greenDim)("↳")} ${chalk.hex(theme.greenMute)(`${toolCount} toolcall${toolCount === 1 ? "" : "s"} · ${elapsedStr}`)}\n`,
-              )
-            }
-          }
           const lastEntry = chain.thoughts[chain.thoughts.length - 1]
           if (lastEntry) {
             const nonEmpty = currentSubChain.thoughts.filter(
@@ -471,7 +467,7 @@ async function streamAIResponse(
       // status row. This is the OpenCode-style render: each step writes
       // its expanded tool list then auto-collapses to "+ Thought: N.Ns".
       ({ stepNumber }) => {
-        chain.finishAndPrint({ autoCollapse: true })
+        finishReasoning()
         statusRow.setPhase("thinking")
         setTurnStatus("waiting for next model step")
         const step = stepNumber ?? chain.thoughts.length
@@ -486,6 +482,7 @@ async function streamAIResponse(
       },
     )
 
+    for (const call of transcript.settle(abortController.signal.aborted ? "cancelled" : "failed")) printTool(call, true)
     const elapsed = Date.now() - startTime
     const usage = await result.usage
     // Only stop the thinking display if we never emitted the header —
@@ -501,7 +498,7 @@ async function streamAIResponse(
     if (chain.thoughts.length > 0) {
       const last = chain.thoughts[chain.thoughts.length - 1]!
       if (last.endTime === null) {
-        chain.finishAndPrint({ autoCollapse: true })
+        finishReasoning()
       }
     }
 
@@ -510,24 +507,24 @@ async function streamAIResponse(
     // end-of-turn dump.
     statusRow.stop()
     activeStatusRow = null
-    activeChain = null
+    // Retain reasoning and tool details until the next turn.
 
     // If pure reasoning arrived with no tools/text steps closed yet, fold it
     // into the Thinking block so process never leaks into Result.
     if (fullReasoning.trim().length > 0 && chain.thoughts.length > 0) {
       const last = chain.thoughts[chain.thoughts.length - 1]!
       if (!last.body.trim()) {
-        last.body = fullReasoning.trim()
+        last.body = sanitizeTerminalText(fullReasoning.trim())
       } else if (!last.body.includes(fullReasoning.trim().slice(0, 40))) {
-        last.body = `${last.body.trim()}\n${fullReasoning.trim()}`
+        last.body = sanitizeTerminalText(`${last.body.trim()}\n${fullReasoning.trim()}`)
       }
       if (last.endTime === null) {
-        chain.finishAndPrint({ autoCollapse: true })
+        finishReasoning()
       }
     } else if (fullReasoning.trim().length > 0 && chain.thoughts.length === 0) {
       chain.begin()
-      chain.append(fullReasoning.trim())
-      chain.finishAndPrint({ autoCollapse: true })
+      chain.append(sanitizeTerminalText(fullReasoning.trim()))
+      finishReasoning()
     }
 
     // Flush any partial think-tag held across the last chunk boundary.
@@ -536,7 +533,7 @@ async function streamAIResponse(
       if (tail.reasoning) {
         fullReasoning += tail.reasoning
         if (!chain.isOpen) chain.beginAndPrint()
-        chain.append(tail.reasoning)
+        chain.append(sanitizeTerminalText(tail.reasoning))
         thinking.showReasoning(tail.reasoning)
       }
       if (tail.text) {
@@ -550,7 +547,7 @@ async function streamAIResponse(
     // no <think> tags were present. Applies after streaming so every path
     // (proxy, concentrate, openrouter, google, minimax, …) is covered.
     {
-      const cleaned = finalizeAnswerVsProcess(fullResponse, fullReasoning)
+      const cleaned = finalizeAnswerVsProcess(fullResponse.slice(committedTextLength), fullReasoning)
       if (cleaned.reasoning && cleaned.reasoning !== fullReasoning.trim()) {
         const extra = cleaned.reasoning.startsWith(fullReasoning.trim())
           ? cleaned.reasoning.slice(fullReasoning.trim().length).trim()
@@ -560,28 +557,32 @@ async function streamAIResponse(
           // Rebuild / fold into Thinking so process isn't lost.
           if (chain.thoughts.length === 0) {
             chain.begin()
-            chain.append(extra)
-            chain.finishAndPrint({ autoCollapse: true })
+            chain.append(sanitizeTerminalText(extra))
+            finishReasoning()
           } else {
             const last = chain.thoughts[chain.thoughts.length - 1]!
             if (!last.body.includes(extra.slice(0, Math.min(40, extra.length)))) {
-              last.body = `${last.body.trim()}\n${extra}`.trim()
+              last.body = sanitizeTerminalText(`${last.body.trim()}\n${extra}`.trim())
             }
           }
         }
       }
-      fullResponse = cleaned.text
+      fullResponse = fullResponse.slice(0, committedTextLength) + cleaned.text
       // Replace the markdown buffer so Result never prints process scratch.
       md.reset()
-      if (fullResponse.trim()) {
-        md.push(fullResponse)
-        md.setFallback(fullResponse)
+      if (cleaned.text.trim()) {
+        md.push(cleaned.text)
+        md.setFallback(cleaned.text)
       }
     }
 
+    finishReasoning()
+    analysis?.end(abortController.signal.aborted ? "cancelled" : "completed")
+    statusBar?.setStatusMessage("")
+
     // Flush final answer markdown under the Result rail only.
     if (fullResponse.trim().length > 0) {
-      md.setFallback(fullResponse)
+      md.setFallback(fullResponse.slice(committedTextLength))
     }
     if (md.hasContent) {
       console.log()
@@ -595,7 +596,7 @@ async function streamAIResponse(
       const w = process.stdout.columns ?? 80
       const dim = (s: string) => chalk.hex(theme.greenDim)(s)
       console.log(` ${chalk.hex(theme.green)("┃")} ${chalk.hex(theme.green).bold("Result")} ${dim("─".repeat(Math.max(0, w - 15)))}`)
-      console.log(` ${chalk.hex(theme.green)("┃")} ${chalk.hex(theme.muted)("Tools completed — no analysis text returned.")}`)
+      console.log(` ${chalk.hex(theme.green)("┃")} ${chalk.hex(theme.muted)("Tool activity ended — no analysis text returned.")}`)
     }
 
     // Update the persistent status bar with final turn state
@@ -615,7 +616,8 @@ async function streamAIResponse(
     //   (b) "all empty"  — at least one tool succeeded but returned empty
     //       content, OR a tool returned success:false without being denied.
     //       This is the hallucination precursor. Show as red.
-    if (turnTracker.allResultsEmpty() && turnTracker.hasAnyToolCalls()) {
+    const modelCalls = transcript.calls.slice(referenceCallCount)
+    if (turnTracker.allResultsEmpty() && modelCalls.length > 0 && modelCalls.every((call) => call.status !== "completed")) {
       const calls = turnTracker.allCalls()
       const allDenied = calls.every((c) => c.permissionDenied)
       const empty = turnTracker.emptyCount()
@@ -698,23 +700,27 @@ async function streamAIResponse(
       content: fullResponse,
       elapsed,
       usage,
+      aborted: abortController.signal.aborted,
       modeSwitchRequested: modeSwitchRequest.requested,
       modeSwitchReason: modeSwitchRequest.reason,
     }
   } catch (error: any) {
+    analysis?.end(error?.name === "AbortError" || abortController.signal.aborted ? "cancelled" : "failed")
     cleanupStreamingTicker()
+    for (const call of transcript.settle(error?.name === "AbortError" || abortController.signal.aborted ? "cancelled" : "failed")) printTool(call, true)
+    statusBar?.setStatusMessage("")
     if (error?.name === "AbortError" || abortController.signal.aborted) {
       thinking.stop()
       // Close any in-progress per-step block so the live chat log stays clean.
       if (chain && chain.thoughts.length > 0) {
         const last = chain.thoughts[chain.thoughts.length - 1]!
         if (last.endTime === null) {
-          chain.finishAndPrint({ autoCollapse: true })
+          finishReasoning()
         }
       }
       statusRow.stop()
       activeStatusRow = null
-      if (fullResponse.trim().length > 0) md.setFallback(fullResponse)
+      if (fullResponse.trim().length > 0) md.setFallback(fullResponse.slice(committedTextLength))
       await md.end()
       if (statusBar) statusBar.update({ isStreaming: false, elapsed: 0 })
       console.log()
@@ -729,7 +735,7 @@ async function streamAIResponse(
     statusRow.stop()
     activeStatusRow = null
     activeChain = null
-    if (fullResponse.trim().length > 0) md.setFallback(fullResponse)
+    if (fullResponse.trim().length > 0) md.setFallback(fullResponse.slice(committedTextLength))
     await md.end()
     if (statusBar) statusBar.update({ isStreaming: false, elapsed: 0 })
     throw error
@@ -753,11 +759,12 @@ interface Conversation {
   updatedAt: Date
 }
 
+let activeTranscript: ToolTranscript | null = null
 let streamAbort: AbortController | null = null
 // The currently-streaming ThoughtChain (or null between turns). Exposed at
 // module scope so the stdin keypress handler can hit Ctrl+T without
 // threading the chain through every helper.
-let activeChain: { thoughts: { endTime: number | null; subThoughts: { collapsed: boolean }[] }[]; togglePrinted: (i: number) => void; reprintThought: (i: number) => void } | null = null
+let activeChain: { thoughts: { body: string; collapsed: boolean; endTime: number | null; subThoughts: { collapsed: boolean }[] }[]; togglePrinted: (i: number) => void; reprintThought: (i: number) => void } | null = null
 let stdinInput = ""
 let stdinCursor = 0
 let stdinMode = "chat"
@@ -1020,6 +1027,27 @@ function stdinKeypress(_str: string, key: any) {
     return
   }
 
+  if (key.ctrl && (key.name === "o" || key.name === "t") && process.stdout.isTTY) {
+    process.stdout.write("\n")
+    if (key.name === "o") {
+      const latest = activeTranscript?.calls.at(-1)
+      if (latest) process.stdout.write("TOOL DETAILS (append-only)\n" + renderToolBlock(latest, { width: process.stdout.columns, expanded: true }))
+    } else if (activeChain) {
+      const index = activeChain.thoughts.length - 1
+      const thought = activeChain.thoughts[index]
+      if (thought) {
+        thought.collapsed = !thought.collapsed
+        process.stdout.write("REASONING DETAILS (append-only)\n" + (thought.collapsed ? "Collapsed\n" : sanitizeTerminalText(thought.body) + "\n"))
+      }
+    }
+    if (stdinResolve) {
+      stdinPrevWrapLines = 1
+      slashListLines = atListLines = ddListLines = 0
+      renderInput()
+    }
+    return
+  }
+
   // No input handler active
   if (!stdinResolve) return
 
@@ -1113,21 +1141,6 @@ function stdinKeypress(_str: string, key: any) {
 
   if (key.ctrl && key.name === "c") {
     process.exit(0)
-    return
-  }
-
-  // Ctrl+T — toggle the most recently printed Thought block (collapsed ↔ expanded).
-  // Cheap in-place redraw: clear the line at the current cursor, rewrite the
-  // chevron + body in the new state, then move the cursor back down. Only
-  // works on a TTY because the rendered Thought blocks live in ANSI scrollback.
-  if (key.ctrl && key.name === "t" && process.stdout.isTTY && activeChain) {
-    const thoughts = activeChain.thoughts
-    if (thoughts.length > 0) {
-      const last = thoughts[thoughts.length - 1]!
-      if (last.endTime !== null) {
-        activeChain.togglePrinted(thoughts.length - 1)
-      }
-    }
     return
   }
 
@@ -1628,9 +1641,7 @@ function stripToolCallXml(chunk: string): string {
   // This handles the Kimi K2-6 pattern:
   //   <|tool_calls_section_begin|><|tool_call_begin|>functions.read_file:0<|tool_call_argument_begin|>...
   if (/<\|tool_calls_section_begin\|>/.test(chunk)) return ""
-  const stripped = out.replace(/<function>[^<]*<\/function>/g, "").trim()
-  if (!stripped) return ""
-  return stripped
+  return out.replace(/<function>[^<]*<\/function>/g, "")
 }
 
 async function chatInput(currentMode: string): Promise<{ input: string; mode: string }> {
@@ -2089,43 +2100,34 @@ export async function chatLoop(
         await trySetAutoTitle(conversation.id, cleanInput, messageCount)
       }
 
-      // Resolve referenced files (@ + drag-drop) into extra context
+      // File-context preparation is part of the visible turn, not a hidden preflight.
+      const referenceTranscript = new ToolTranscript()
+      activeTranscript = referenceTranscript
+      activeChain = null
+      const referenceRoot = workspaceInfo?.workspaceRoot ?? process.cwd()
       const resolved = await resolveFileReferences(
         unquoted,
         workspaceInfo?.workspaceRoot,
         [...ddTracker.detectedFiles],
+        (event) => {
+          footer.setStatusMessage(`${event.phase === "lookup" ? "FILE LOOKUP" : "READ"} · ${event.state === "start" ? "running" : event.result?.success ? "completed" : "failed"}`)
+          process.stdout.write(renderReferenceActivity(referenceTranscript, event, process.stdout.columns, !!process.stdout.isTTY))
+        },
       )
+      footer.setStatusMessage("")
       const loadedPaths = Object.keys(resolved.content)
       const fileContext =
         loadedPaths.length > 0
           ? Object.entries(resolved.content)
               .map(([filePath, content]) => {
                 const rel = path.relative(
-                  workspaceInfo!.workspaceRoot,
+                  referenceRoot,
                   filePath,
                 )
                 return `<file path="${rel}">\n${content}\n</file>`
               })
               .join("\n\n")
           : undefined
-
-      if (loadedPaths.length > 0) {
-        process.stdout.write("\n")
-        for (const fp of loadedPaths) {
-          const rel = path.relative(workspaceInfo!.workspaceRoot, fp)
-          process.stdout.write(
-            ` ${chalk.hex(theme.green)("📄")} ${chalk.hex(theme.green)(rel)} loaded\n`,
-          )
-        }
-        process.stdout.write("\n")
-      }
-      if (resolved.unresolved.length > 0) {
-        for (const fp of resolved.unresolved) {
-          process.stdout.write(
-            ` ${chalk.hex(theme.amber)("⚠")} ${chalk.hex(theme.amber)(fp)} not found\n`,
-          )
-        }
-      }
 
       try {
         const totalTokens = await loadContextTokens(conversation.id)
@@ -2135,7 +2137,7 @@ export async function chatLoop(
           footer.renderLine()
           continue
         }
-        const result = await streamAIResponse(provider, conversation.id, conversation.mode, workspaceInfo, footer, fileContext)
+        const result = await streamAIResponse(provider, conversation.id, conversation.mode, workspaceInfo, footer, fileContext, { transcript: referenceTranscript, files: loadedPaths.map((fp) => path.relative(referenceRoot, fp)) })
 
         if (result.aborted) {
           if (result.content && result.content !== "(cancelled)") {

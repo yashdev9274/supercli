@@ -70,6 +70,7 @@ struct MessageDTO: Decodable {
 enum StreamEvent: Equatable {
     case text(String)
     case reasoning(String)
+    case status(String)
     case toolCall(id: String, name: String, args: [String: AnyCodable])
     case finish(reason: String?, usage: [String: AnyCodable]?)
     case error(String)
@@ -98,10 +99,10 @@ actor SupercodeAPIClient {
     }
 
     private var clientID: String {
-        KeychainStore.get(.clientID)
-            ?? UserDefaults.standard.string(forKey: "clientID")
-            ?? ProcessInfo.processInfo.environment["GITHUB_CLIENT_ID"]
-            ?? ""
+        ServerConfig.resolvedClientID(stored:
+            KeychainStore.get(.clientID)
+                ?? UserDefaults.standard.string(forKey: "clientID")
+        )
     }
 
     private func authHeaders(includeJSON: Bool = true) -> [String: String] {
@@ -143,6 +144,15 @@ actor SupercodeAPIClient {
             throw APIError.unauthorized
         }
         return (data, http)
+    }
+
+    func searchProxy(provider: String, body: [String: Any]) async throws -> [String: Any] {
+        guard ["exa", "firecrawl"].contains(provider) else { throw APIError.invalidURL }
+        let payload = try JSONSerialization.data(withJSONObject: body)
+        let (data, http) = try await request("POST", path: "/api/tools/\(provider)-search", body: payload)
+        guard (200..<300).contains(http.statusCode) else { throw APIError.server("\(provider) search returned HTTP \(http.statusCode)") }
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw APIError.decoding }
+        return object
     }
 
     // MARK: - Device auth (Better Auth)
@@ -321,47 +331,30 @@ actor SupercodeAPIClient {
         }
 
         for try await line in bytes.lines {
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty,
-                  let data = trimmed.data(using: .utf8),
-                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let type = obj["type"] as? String
-            else { continue }
+            try Task.checkCancellation()
+            if let event = try Self.decodeEvent(line) { await onEvent(event) }
+        }
+    }
 
-switch type {
-            case "text":
-                let content = obj["content"] as? String ?? ""
-                await onEvent(.text(content))
-            case "reasoning":
-                let content = obj["content"] as? String ?? ""
-                await onEvent(.reasoning(content))
-            case "tool-call":
-                let name = obj["toolName"] as? String ?? obj["name"] as? String ?? "tool"
-                let id = obj["toolCallId"] as? String ?? UUID().uuidString
-                var args: [String: AnyCodable] = [:]
-                if let rawArgs = obj["args"] as? [String: Any] {
-                    args = rawArgs.mapValues { AnyCodable($0) }
-                } else if let rawArgs = obj["arguments"] as? [String: Any] {
-                    args = rawArgs.mapValues { AnyCodable($0) }
-                } else if let argString = obj["arguments"] as? String,
-                          let data = argString.data(using: .utf8),
-                          let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    args = parsed.mapValues { AnyCodable($0) }
-                }
-                await onEvent(.toolCall(id: id, name: name, args: args))
-            case "finish":
-                let reason = obj["reason"] as? String ?? obj["finishReason"] as? String
-                var usage: [String: AnyCodable]?
-                if let raw = obj["usage"] as? [String: Any] {
-                    usage = raw.mapValues { AnyCodable($0) }
-                }
-                await onEvent(.finish(reason: reason, usage: usage))
-            case "error":
-                let message = obj["error"] as? String ?? obj["message"] as? String ?? "Stream error"
-                await onEvent(.error(message))
-            default:
-                continue
-            }
+    nonisolated static func decodeEvent(_ line: String) throws -> StreamEvent? {
+        guard !line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        guard let object = try JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any], let type = object["type"] as? String else { throw APIError.decoding }
+        switch type {
+        case "text": return .text(object["content"] as? String ?? "")
+        case "reasoning": return .reasoning(object["content"] as? String ?? "")
+        case "status": return .status(object["message"] as? String ?? object["status"] as? String ?? "Working")
+        case "tool-call":
+            let name = object["toolName"] as? String ?? object["name"] as? String ?? "tool"
+            let id = object["toolCallId"] as? String ?? UUID().uuidString
+            let raw = object["args"] ?? object["arguments"] ?? [:]
+            let args: [String: Any]
+            if let value = raw as? [String: Any] { args = value }
+            else if let string = raw as? String, let value = try JSONSerialization.jsonObject(with: Data(string.utf8)) as? [String: Any] { args = value }
+            else { throw NativeToolError("Malformed arguments for \(name)") }
+            return .toolCall(id: id, name: name, args: args.mapValues(AnyCodable.init))
+        case "finish": return .finish(reason: object["reason"] as? String ?? object["finishReason"] as? String, usage: (object["usage"] as? [String: Any])?.mapValues(AnyCodable.init))
+        case "error": return .error(object["error"] as? String ?? object["message"] as? String ?? "Stream error")
+        default: return nil
         }
     }
 

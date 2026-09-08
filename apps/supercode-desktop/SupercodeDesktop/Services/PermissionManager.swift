@@ -16,14 +16,6 @@ final class PermissionManager: ObservableObject {
     private var alwaysAllowTools: Set<String> = []
     /// toolName|resource pattern always allow
     private var alwaysAllowKeys: Set<String> = []
-    /// Always-allow safe read-only shell prefixes
-    private let readonlyCommandPrefixes = [
-        "git status", "git log", "git diff", "git show", "git branch",
-        "git rev-parse", "git remote", "ls", "pwd", "cat ", "head ", "tail ",
-        "wc ", "echo ", "find ", "grep ", "rg ", "which ", "file ", "stat ",
-        "tree", "uname", "whoami", "date", "env", "printenv",
-    ]
-
     private var continuation: CheckedContinuation<PermissionDecision, Never>?
 
     private init() {
@@ -63,13 +55,8 @@ final class PermissionManager: ObservableObject {
             return true
         }
 
-        if toolName == "run_command", let cmd = (args["command"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) {
-            let lower = cmd.lowercased()
-            if !ToolCatalog.isDestructive(toolName, args: args),
-               readonlyCommandPrefixes.contains(where: { lower.hasPrefix($0) || lower == $0.trimmingCharacters(in: .whitespaces) }) {
-                return true
-            }
-        }
+        // Shell prefixes cannot establish safety: substitutions, redirects and compound commands may mutate files.
+        // Commands require an explicit user grant, including apparently read-only commands.
 
         if !ToolCatalog.requiresPermission(toolName) {
             return true
@@ -113,8 +100,10 @@ final class PermissionManager: ObservableObject {
             pending = request
         }
 
-        pending = nil
-        continuation = nil
+        if pending?.id == request.id {
+            pending = nil
+            continuation = nil
+        }
 
         switch decision {
         case .once:
