@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 import SwiftUI
 
 enum AgentMode: String, CaseIterable, Identifiable, Codable {
@@ -6,6 +7,15 @@ enum AgentMode: String, CaseIterable, Identifiable, Codable {
     case tools
     case plan
     case agent
+
+    static func compatible(_ name: String) -> AgentMode {
+        switch name {
+        case "build", "general", "agent": return .agent
+        case "explore", "chat": return .chat
+        case "tools": return .tools
+        default: return .plan
+        }
+    }
 
     var id: String { rawValue }
 
@@ -127,8 +137,8 @@ struct ConversationSummary: Identifiable, Codable, Equatable, Hashable {
     }
 }
 
-struct ChatMessage: Identifiable, Equatable {
-    enum Role: String, Equatable {
+struct ChatMessage: Identifiable, Equatable, Codable {
+    enum Role: String, Equatable, Codable {
         case user
         case assistant
         case system
@@ -140,6 +150,24 @@ struct ChatMessage: Identifiable, Equatable {
     var content: String
     var createdAt: Date
     var parts: [MessagePart]
+    var canonicalHistory: [[String: AnyCodable]]?
+
+    mutating func apply(_ part: MessagePart) {
+        switch part {
+        case .toolCall(let tool):
+            if let index = parts.firstIndex(where: { $0.id == tool.id }) { parts[index] = part }
+            else { parts.append(part) }
+        case .text(let id, let chunk):
+            content += chunk
+            if case .text(let lastID, let text) = parts.last, lastID == id {
+                parts[parts.count - 1] = .text(id: id, content: text + chunk)
+            } else { parts.append(part) }
+        case .reasoning(let id, let chunk):
+            if case .reasoning(let lastID, let text) = parts.last, lastID == id {
+                parts[parts.count - 1] = .reasoning(id: id, content: text + chunk)
+            } else { parts.append(part) }
+        }
+    }
 
     init(
         id: String = UUID().uuidString,
@@ -156,7 +184,7 @@ struct ChatMessage: Identifiable, Equatable {
     }
 }
 
-enum MessagePart: Identifiable, Equatable {
+enum MessagePart: Identifiable, Equatable, Codable {
     case text(id: String, content: String)
     case reasoning(id: String, content: String)
     case toolCall(ToolCallPart)
@@ -170,7 +198,7 @@ enum MessagePart: Identifiable, Equatable {
     }
 }
 
-struct ToolCallPart: Identifiable, Equatable {
+struct ToolCallPart: Identifiable, Equatable, Codable {
     let id: String
     var toolName: String
     var args: [String: AnyCodable]
@@ -178,17 +206,9 @@ struct ToolCallPart: Identifiable, Equatable {
     var resultPreview: String?
     var durationMs: Int?
     var isExpanded: Bool
+    var resultJSON: String?
 
-    var displayName: String {
-        switch toolName {
-        case "read_file", "read": return "read"
-        case "search_files", "search", "grep": return "search"
-        case "explore", "glob", "list_dir": return "explore"
-        case "edit_file", "write_file": return "edit"
-        case "run_command": return "run"
-        default: return toolName.replacingOccurrences(of: "_", with: " ")
-        }
-    }
+    var displayName: String { TerminalContract.category(toolName) }
 
     var primaryArg: String {
         if let path = args["path"]?.stringValue { return path }
@@ -199,7 +219,10 @@ struct ToolCallPart: Identifiable, Equatable {
     }
 }
 
-enum ToolCallStatus: String, Equatable {
+enum ToolCallStatus: String, Equatable, Codable {
+    case queued
+    case cancelled
+    case denied
     case running
     case completed
     case failed
@@ -328,6 +351,11 @@ struct AnyCodable: Codable, Equatable, Hashable {
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
+        if let number = value as? NSNumber {
+            if CFGetTypeID(number) == CFBooleanGetTypeID() { try container.encode(number.boolValue) }
+            else { try container.encode(number.doubleValue) }
+            return
+        }
         switch value {
         case is NSNull:
             try container.encodeNil()

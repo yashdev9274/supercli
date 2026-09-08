@@ -20,9 +20,9 @@ import { parseStreamedContent, KNOWN_TOOL_NAMES } from "src/lib/embedded-tool-ca
 
 export interface ToolExecutorCallbacks {
   onChunk?: (chunk: string) => void
-  onToolCall?: (params: { toolName: string; args: Record<string, unknown> }) => void
+  onToolCall?: (params: { id?: string; toolName: string; args: Record<string, unknown> }) => void
   onReasoning?: (chunk: string) => void
-  onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void
+  onToolResult?: (params: { id?: string; toolName: string; args: unknown; result: string }) => void
   signal?: AbortSignal
   onStepFinish?: (params: {
     stepNumber: number
@@ -37,7 +37,7 @@ export type ToolSetDefinition = Record<
     description?: string
     parameters?: z.ZodType<any> | Record<string, unknown>
     inputSchema?: z.ZodType<any> | Record<string, unknown>
-    execute?: (args: any) => Promise<string>
+    execute?: (args: any, options?: any) => Promise<string>
   }
 >
 
@@ -63,7 +63,7 @@ function pushUniqueCall(
   args: Record<string, unknown>,
   toolCallId?: string,
 ) {
-  const key = `${toolName}:${JSON.stringify(args)}`
+  const key = toolCallId || `${toolName}:${JSON.stringify(args)}`
   if (seen.has(key)) return
   seen.add(key)
   list.push({
@@ -139,7 +139,14 @@ export async function executeToolLoop(
       maxSteps: 1,
     }
     if (system) streamOptions.system = system
-    if (tools && Object.keys(tools).length > 0) streamOptions.tools = tools
+    // This compatibility loop owns execution; expose schemas only to the SDK.
+    if (tools && Object.keys(tools).length > 0) {
+      streamOptions.tools = Object.fromEntries(Object.entries(tools).map(([name, definition]) => {
+        const { execute: _execute, ...schema } = definition
+        return [name, schema]
+      }))
+    }
+    const textStart = accumulatedContent.length
 
     const result = streamText(streamOptions)
 
@@ -173,42 +180,63 @@ export async function executeToolLoop(
 
     const toolCalls: PendingCall[] = []
     const seenToolKeys = new Set<string>()
-    collectStructuredCalls(result as any, toolCalls, seenToolKeys)
-    for (const call of embeddedCalls) {
+    collectStructuredCalls({ steps: await result.steps }, toolCalls, seenToolKeys)
+    // Prefer structured calls. Markup must not duplicate a structured action.
+    for (const call of toolCalls.length === 0 ? embeddedCalls : []) {
       pushUniqueCall(toolCalls, seenToolKeys, call.name, call.args, call.id || undefined)
     }
 
+    const stepUsage = await result.usage
+    accumulatedUsage = {
+      inputTokens: (accumulatedUsage.inputTokens ?? 0) + (stepUsage.inputTokens ?? 0),
+      outputTokens: (accumulatedUsage.outputTokens ?? 0) + (stepUsage.outputTokens ?? 0),
+      totalTokens: (accumulatedUsage.totalTokens ?? 0) + (stepUsage.totalTokens ?? 0),
+    }
     if (toolCalls.length === 0) break
 
-    ;(messages as any).push({
+    messages.push({
       role: "assistant",
-      content: "",
-      tool_calls: toolCalls.map((tc) => ({
-        toolCallId: tc.toolCallId,
-        toolName: tc.toolName,
-        args: tc.args,
-      })),
+      content: [
+        { type: "text", text: accumulatedContent.slice(textStart) },
+        ...toolCalls.map((tc) => ({
+          type: "tool-call" as const,
+          toolCallId: tc.toolCallId,
+          toolName: tc.toolName,
+          input: tc.args,
+        })),
+      ],
     })
 
     const stepResults: Array<{ toolName: string; args: unknown; result: string }> = []
 
     for (const tc of toolCalls) {
-      callbacks.onToolCall?.({ toolName: tc.toolName, args: tc.args })
+      callbacks.onToolCall?.({ id: tc.toolCallId, toolName: tc.toolName, args: tc.args })
 
       const toolDef = functions?.[tc.toolName]
-      const resultStr = await runToolExecute(toolDef?.execute, tc.toolName, tc.args)
+      callbacks.signal?.throwIfAborted()
+      const execute = toolDef?.execute
+      const resultStr = await runToolExecute(execute ? async (args) => {
+        const schema = toolDef.inputSchema ?? toolDef.parameters
+        const input = schema && "parse" in schema && typeof schema.parse === "function" ? schema.parse(args) : args
+        const output = await execute(input, { toolCallId: tc.toolCallId, messages, abortSignal: callbacks.signal })
+        return typeof output === "string" ? output : JSON.stringify(output ?? null)
+      } : undefined, tc.toolName, tc.args)
 
       allToolResults.push({ toolName: tc.toolName, result: resultStr })
       stepResults.push({ toolName: tc.toolName, args: tc.args, result: resultStr })
-      callbacks.onToolResult?.({ toolName: tc.toolName, args: tc.args, result: resultStr })
+      callbacks.onToolResult?.({ id: tc.toolCallId, toolName: tc.toolName, args: tc.args, result: resultStr })
 
       if (denialGuard.record(tc.toolName, resultStr)) stopForDenialLoop = true
       if (repetitionGuard.record(tc.toolName, tc.args)) stopForRepetition = true
 
-      ;(messages as any).push({
+      messages.push({
         role: "tool",
-        content: resultStr,
-        tool_call_id: tc.toolCallId,
+        content: [{
+          type: "tool-result",
+          toolCallId: tc.toolCallId,
+          toolName: tc.toolName,
+          output: { type: "text", value: resultStr },
+        }],
       })
     }
 
@@ -229,22 +257,6 @@ export async function executeToolLoop(
       iter = maxIterations - 1
     }
 
-    try {
-      const stepUsage = await result.usage
-      if (stepUsage) {
-        accumulatedUsage = {
-          inputTokens:
-            (accumulatedUsage.inputTokens || 0) +
-            ((stepUsage as any).promptTokens || (stepUsage as any).inputTokens || 0),
-          outputTokens:
-            (accumulatedUsage.outputTokens || 0) +
-            ((stepUsage as any).completionTokens || (stepUsage as any).outputTokens || 0),
-          totalTokens: (accumulatedUsage.totalTokens || 0) + (stepUsage.totalTokens || 0),
-        }
-      }
-    } catch {
-      /* usage may fail */
-    }
   }
 
   return {

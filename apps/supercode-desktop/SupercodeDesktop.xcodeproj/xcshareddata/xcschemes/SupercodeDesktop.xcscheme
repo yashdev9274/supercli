@@ -37,6 +37,17 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "EA4A15255E04430671EEB551"
+               BuildableName = "SupercodeDesktopTests.xctest"
+               BlueprintName = "SupercodeDesktopTests"
+               ReferencedContainer = "container:SupercodeDesktop.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

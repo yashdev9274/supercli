@@ -66,7 +66,7 @@ export async function runProviderStreamTurn(opts: {
   onEvent?: (event: TurnEvent) => void
   onChunk?: (chunk: string) => void
   onReasoning?: (chunk: string) => void
-  onToolCall?: (params: { toolName: string; args?: unknown }) => void
+  onToolCall?: (params: { id?: string; toolName: string; args?: unknown }) => void
   onToolResult?: (params: {
     toolName: string
     args?: unknown
@@ -99,25 +99,32 @@ export async function runProviderStreamTurn(opts: {
         }
       },
       opts.tools,
-      (params: { toolName: string; args?: unknown }) => {
+      (params: { id?: string; toolName: string; args?: unknown }) => {
         emit({
           type: "tool_start",
           toolName: params.toolName,
+          id: params.id,
           args: params.args,
         })
         opts.onToolCall?.(params)
       },
       opts.signal,
       (reasoningChunk: string) => {
+        if (reasoningChunk.startsWith("[status] ")) {
+          emit({ type: "status", message: reasoningChunk.slice(9) })
+          return
+        }
         reasoningAcc += reasoningChunk
         emit({ type: "reasoning", delta: reasoningChunk })
         opts.onReasoning?.(reasoningChunk)
       },
-      (params: { toolName: string; args: unknown; result: string }) => {
+      (params: { id?: string; toolName: string; args: unknown; result: string }) => {
         emit({
           type: "tool_end",
           toolName: params.toolName,
+          id: params.id,
           result: params.result,
+          args: params.args,
         })
         opts.onToolResult?.(params)
       },
@@ -152,14 +159,13 @@ export async function runProviderStreamTurn(opts: {
       type: "finish",
       text: final.text,
       reasoning: final.reasoning || undefined,
-      finishReason: typeof result.finishReason === "string" ? result.finishReason : undefined,
+      finishReason: opts.signal?.aborted ? "cancelled" : typeof result.finishReason === "string" ? result.finishReason : undefined,
     })
 
     return {
       text: final.text,
       reasoning: final.reasoning || undefined,
-      finishReason:
-        typeof result.finishReason === "string" ? result.finishReason : undefined,
+      finishReason: opts.signal?.aborted ? "cancelled" : typeof result.finishReason === "string" ? result.finishReason : undefined,
       usage: result.usage,
     }
   } catch (err) {

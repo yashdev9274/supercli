@@ -27,25 +27,16 @@ function statusHint(status: number): string | undefined {
   return undefined
 }
 
-export async function firecrawlFetch({
-  apiPath,
-  proxyAction,
-  body,
-  timeout = 30000,
-}: FirecrawlOptions): Promise<FirecrawlResult> {
-  loadEnvOnce()
-  const apiKey = process.env.FIRECRAWL_API_KEY
+function isAuthFailure(status?: number): boolean {
+  return status === 401 || status === 403
+}
 
-    if (!apiKey) {
-    const proxy = await proxyToolCall(`/api/tools/${proxyAction}`, body)
-    if (proxy.ok) return { ok: true, data: proxy.data }
-    return {
-      ok: false,
-      error: `Firecrawl proxy failed: ${proxy.error}. Set FIRECRAWL_API_KEY environment variable locally, or fix the proxy issue above.`,
-      hint: `Proxy error: ${proxy.error}. Try web_search or url_fetch as a fallback.`,
-    }
-  }
-
+async function callFirecrawlDirect(
+  apiKey: string,
+  apiPath: string,
+  body: Record<string, unknown>,
+  timeout: number,
+): Promise<FirecrawlResult> {
   try {
     const res = await fetch(`${FIRECRAWL_BASE}${apiPath}`, {
       method: "POST",
@@ -57,7 +48,7 @@ export async function firecrawlFetch({
       signal: AbortSignal.timeout(timeout),
     })
 
-    const data = await res.json()
+    const data = await res.json().catch(() => ({}))
 
     if (!res.ok) {
       return {
@@ -68,6 +59,10 @@ export async function firecrawlFetch({
       }
     }
 
+    if (!data || typeof data !== "object" || data.success === false ||
+      (apiPath === "/search" && !Array.isArray(data.data) && !Array.isArray(data.data?.web) && !Array.isArray(data.data?.news))) {
+      return { ok: false, error: "Firecrawl returned a failed or malformed response" }
+    }
     return { ok: true, data }
   } catch (err: any) {
     const isTimeout = err?.name === "TimeoutError" || err?.name === "AbortError"
@@ -76,5 +71,39 @@ export async function firecrawlFetch({
       error: isTimeout ? "Request timed out" : (err.message || String(err)),
       hint: isTimeout ? "Site may be slow or unreachable. Try url_fetch instead." : undefined,
     }
+  }
+}
+
+export async function firecrawlFetch({
+  apiPath,
+  proxyAction,
+  body,
+  timeout = 30000,
+}: FirecrawlOptions): Promise<FirecrawlResult> {
+  loadEnvOnce()
+  const apiKey = process.env.FIRECRAWL_API_KEY
+
+  if (apiKey) {
+    const direct = await callFirecrawlDirect(apiKey, apiPath, body, timeout)
+    if (direct.ok) return direct
+    if (!isAuthFailure(direct.status)) return direct
+  }
+
+  const proxy = await proxyToolCall(`/api/tools/${proxyAction}`, body)
+  if (proxy.ok) return { ok: true, data: proxy.data }
+
+  if (apiKey) {
+    return {
+      ok: false,
+      error: `Firecrawl returned HTTP 401/403 and server proxy also failed: ${proxy.error}`,
+      hint: "Local FIRECRAWL_API_KEY is invalid. Fix FIRECRAWL_API_KEY or ensure the server proxy has a valid key.",
+      status: 401,
+    }
+  }
+
+  return {
+    ok: false,
+    error: `Firecrawl proxy failed: ${proxy.error}. Set FIRECRAWL_API_KEY environment variable locally, or fix the proxy issue above.`,
+    hint: `Proxy error: ${proxy.error}. Try exa_search or url_fetch as a fallback.`,
   }
 }

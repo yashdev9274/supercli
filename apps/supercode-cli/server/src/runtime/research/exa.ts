@@ -25,25 +25,16 @@ function statusHint(status: number): string | undefined {
   return undefined
 }
 
-export async function exaFetch({
-  apiPath,
-  proxyAction,
-  body,
-  timeout = 30000,
-}: ExaOptions): Promise<ExaResult> {
-  loadEnvOnce()
-  const apiKey = process.env.EXA_API_KEY
+function isAuthFailure(status?: number): boolean {
+  return status === 401 || status === 403
+}
 
-  if (!apiKey) {
-    const proxy = await proxyToolCall(`/api/tools/${proxyAction}`, body)
-    if (proxy.ok) return { ok: true, data: proxy.data }
-    return {
-      ok: false,
-      error: `Exa proxy failed: ${proxy.error}. Set EXA_API_KEY environment variable locally, or fix the proxy issue above.`,
-      hint: `Proxy error: ${proxy.error}. Try url_fetch as a fallback.`,
-    }
-  }
-
+async function callExaDirect(
+  apiKey: string,
+  apiPath: string,
+  body: Record<string, unknown>,
+  timeout: number,
+): Promise<ExaResult> {
   try {
     const res = await fetch(`${EXA_BASE}${apiPath}`, {
       method: "POST",
@@ -55,7 +46,7 @@ export async function exaFetch({
       signal: AbortSignal.timeout(timeout),
     })
 
-    const data = await res.json()
+    const data = await res.json().catch(() => ({}))
 
     if (!res.ok) {
       return {
@@ -66,6 +57,9 @@ export async function exaFetch({
       }
     }
 
+    if (!data || typeof data !== "object" || (apiPath === "/search" && !Array.isArray(data.results))) {
+      return { ok: false, error: "Exa returned a malformed response" }
+    }
     return { ok: true, data }
   } catch (err: any) {
     const isTimeout = err?.name === "TimeoutError" || err?.name === "AbortError"
@@ -74,5 +68,40 @@ export async function exaFetch({
       error: isTimeout ? "Request timed out" : (err.message || String(err)),
       hint: isTimeout ? "Exa API may be slow or unreachable. Try url_fetch instead." : undefined,
     }
+  }
+}
+
+export async function exaFetch({
+  apiPath,
+  proxyAction,
+  body,
+  timeout = 30000,
+}: ExaOptions): Promise<ExaResult> {
+  loadEnvOnce()
+  const apiKey = process.env.EXA_API_KEY
+
+  // Prefer local key; on missing/invalid key fall back to authenticated server proxy.
+  if (apiKey) {
+    const direct = await callExaDirect(apiKey, apiPath, body, timeout)
+    if (direct.ok) return direct
+    if (!isAuthFailure(direct.status)) return direct
+  }
+
+  const proxy = await proxyToolCall(`/api/tools/${proxyAction}`, body)
+  if (proxy.ok) return { ok: true, data: proxy.data }
+
+  if (apiKey) {
+    return {
+      ok: false,
+      error: `Exa returned HTTP 401/403 and server proxy also failed: ${proxy.error}`,
+      hint: "Local EXA_API_KEY is invalid. Fix EXA_API_KEY or ensure the server proxy has a valid key.",
+      status: 401,
+    }
+  }
+
+  return {
+    ok: false,
+    error: `Exa proxy failed: ${proxy.error}. Set EXA_API_KEY environment variable locally, or fix the proxy issue above.`,
+    hint: `Proxy error: ${proxy.error}. Try firecrawl_search or url_fetch as a fallback.`,
   }
 }

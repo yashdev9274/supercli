@@ -125,31 +125,50 @@ export function findDragDropPaths(
   return found
 }
 
+export type FileReferenceEvent = {
+  id: string
+  phase: "lookup" | "read"
+  state: "start" | "end"
+  path: string
+  result?: { success: boolean; data?: { content?: string; matches?: string[] }; error?: string }
+}
+
 export async function resolveFileReferences(
   input: string,
   workspaceRoot?: string,
   extraPaths?: string[],
+  onActivity?: (event: FileReferenceEvent) => void,
 ): Promise<{ content: Record<string, string>; unresolved: string[] }> {
   const content: Record<string, string> = {}
   const unresolved: string[] = []
   const seen = new Set<string>()
 
+  const emit = (event: FileReferenceEvent) => {
+    try { onActivity?.(event) } catch { /* Presentation must not interrupt file loading. */ }
+  }
   const tryAdd = async (filePath: string) => {
-    if (seen.has(filePath)) return
-    seen.add(filePath)
+    const resolved = path.resolve(workspaceRoot ?? process.cwd(), filePath)
+    if (seen.has(resolved)) return
+    seen.add(resolved)
+    const displayPath = path.relative(workspaceRoot ?? process.cwd(), resolved)
+    const prefix = `reference-${seen.size}`
+    let phase: FileReferenceEvent["phase"] = "lookup"
+    const event = (state: FileReferenceEvent["state"], result?: FileReferenceEvent["result"]) =>
+      emit({ id: `${prefix}-${phase}`, phase, state, path: displayPath, result })
+    event("start")
     try {
-      const resolved = workspaceRoot
-        ? path.resolve(workspaceRoot, filePath)
-        : path.resolve(filePath)
       const stat = await fs.stat(resolved)
-      if (stat.isFile() && stat.size < 512 * 1024) {
-        const data = await fs.readFile(resolved, "utf-8")
-        content[resolved] = data
-      } else {
-        unresolved.push(filePath)
-      }
-    } catch {
+      if (!stat.isFile()) throw new Error("Reference is not a file")
+      if (stat.size >= 512 * 1024) throw new Error("File exceeds the 512 KiB context limit")
+      event("end", { success: true, data: { matches: [displayPath] } })
+      phase = "read"
+      event("start")
+      const data = await fs.readFile(resolved, "utf-8")
+      content[resolved] = data
+      event("end", { success: true, data: { content: data } })
+    } catch (error) {
       unresolved.push(filePath)
+      event("end", { success: false, error: error instanceof Error ? error.message : String(error) })
     }
   }
 

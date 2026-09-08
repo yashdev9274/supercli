@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto"
 import { z } from "zod"
 import type { LanguageModel, ToolSet } from "ai"
 import { agentService } from "src/agents/service.ts"
@@ -64,7 +65,8 @@ interface DelegateRuntime {
   model: LanguageModel | null
   allTools: Record<string, unknown>
   onChunk?: (chunk: string) => void
-  onToolCall?: (params: { toolName: string; args?: unknown }) => void
+  onToolCall?: GenerateOptions["onToolCall"]
+  onToolResult?: GenerateOptions["onToolResult"]
   onReasoning?: (chunk: string) => void
 }
 
@@ -75,6 +77,17 @@ let runtime: DelegateRuntime = {
 
 export function setDelegateRuntime(rt: Partial<DelegateRuntime>) {
   runtime = { ...runtime, ...rt }
+}
+
+// Namespace SDK IDs per child so concurrent tasks cannot overwrite parent/sibling blocks.
+export function delegateActivityCallbacks(rt: Pick<DelegateRuntime, "onToolCall" | "onToolResult">) {
+  const prefix = `delegate-${randomUUID()}`
+  return {
+    onToolCall: (params: Parameters<NonNullable<GenerateOptions["onToolCall"]>>[0]) =>
+      rt.onToolCall?.({ ...params, id: params.id ? `${prefix}-${params.id}` : undefined }),
+    onToolResult: (params: Parameters<NonNullable<GenerateOptions["onToolResult"]>>[0]) =>
+      rt.onToolResult?.({ ...params, id: params.id ? `${prefix}-${params.id}` : undefined }),
+  }
 }
 
 function filterTools(
@@ -131,7 +144,7 @@ const _delegateDef = {
       prompt: args.task,
       budget: args.budget ?? agent.info.steps,
       onChunk: runtime.onChunk,
-      onToolCall: runtime.onToolCall,
+      ...delegateActivityCallbacks(runtime),
       parentAgent: getCurrentAgent(),
     }
 
@@ -235,7 +248,7 @@ const _taskDef = {
           prompt: item.task,
           budget: item.budget ?? agent.info.steps,
           onChunk: runtime.onChunk,
-          onToolCall: runtime.onToolCall,
+          ...delegateActivityCallbacks(runtime),
           parentAgent: getCurrentAgent(),
         })
         return {

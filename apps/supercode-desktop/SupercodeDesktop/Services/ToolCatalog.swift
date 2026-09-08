@@ -6,33 +6,20 @@ enum ToolCatalog {
 
     static func tools(for mode: AgentMode) -> [[String: Any]] {
         let names = toolNames(for: mode)
-        return names.compactMap { definitions[$0] }
+        return names.compactMap { name in
+            if let definition = TerminalContract.tools[name] {
+                return ["type": "function", "function": definition]
+            }
+            return definitions[name]
+        }
     }
 
     static func toolNames(for mode: AgentMode) -> [String] {
+        let readOnly = ["read_file", "search_files", "url_fetch", "exa_search", "firecrawl_search", "question", "todowrite", "delegate", "task"]
         switch mode {
-        case .chat:
-            return [
-                "read_file", "search_files", "url_fetch", "web_search",
-                "read_instructions", "question",
-            ]
-        case .tools:
-            return [
-                "read_file", "search_files", "write_file", "edit_file",
-                "run_command", "url_fetch", "web_search", "read_instructions",
-                "question", "todowrite",
-            ]
-        case .plan:
-            return [
-                "read_file", "search_files", "url_fetch", "web_search",
-                "read_instructions", "question", "todowrite", "switch_to_agent_mode",
-            ]
-        case .agent:
-            return [
-                "read_file", "search_files", "write_file", "edit_file",
-                "run_command", "url_fetch", "web_search", "code_exec",
-                "read_instructions", "question", "todowrite", "switch_to_agent_mode",
-            ]
+        case .chat: return readOnly
+        case .plan: return readOnly + ["switch_to_agent_mode"]
+        case .tools, .agent: return readOnly + ["write_file", "edit_file", "run_command"]
         }
     }
 
@@ -141,135 +128,7 @@ static func systemPrompt(
     // MARK: - Definitions
 
     private static let definitions: [String: [String: Any]] = [
-        "read_file": fn(
-            "read_file",
-            "Read the contents of a file within the workspace.",
-            props: [
-                "path": prop("string", "Relative path from workspace root"),
-                "maxLines": prop("number", "Maximum number of lines to read (omit for full file)"),
-                "description": prop("string", "What to look for (for display)"),
-            ],
-            required: ["path"]
-        ),
-        "search_files": fn(
-            "search_files",
-            "Search for text patterns across workspace files.",
-            props: [
-                "pattern": prop("string", "Text or regex pattern to search for"),
-                "include": prop("string", "File glob pattern e.g. '*.ts'"),
-                "maxResults": prop("number", "Maximum number of results (default 20)"),
-            ],
-            required: ["pattern"]
-        ),
-        "write_file": fn(
-            "write_file",
-            "Create a new file or overwrite an existing file with complete content.",
-            props: [
-                "path": prop("string", "Relative path from workspace root"),
-                "content": prop("string", "Complete file content to write (real newlines)"),
-                "description": prop("string", "Brief description of what this file does"),
-            ],
-            required: ["path", "content"]
-        ),
-        "edit_file": fn(
-            "edit_file",
-            "Replace an exact substring in an existing file. Read first; oldText must match exactly.",
-            props: [
-                "path": prop("string", "Relative path from workspace root"),
-                "oldText": prop("string", "Exact substring to find including whitespace"),
-                "newText": prop("string", "Replacement text"),
-                "replaceAll": prop("boolean", "Replace all occurrences (default false)"),
-                "description": prop("string", "Brief description of the edit"),
-            ],
-            required: ["path", "oldText", "newText"]
-        ),
-        "run_command": fn(
-            "run_command",
-            "Execute a shell command in the workspace. Do not use cd; use cwd instead.",
-            props: [
-                "command": prop("string", "Shell command to execute"),
-                "description": prop("string", "Purpose of this command"),
-                "timeout": prop("number", "Timeout in milliseconds (default 300000)"),
-                "cwd": prop("string", "Working directory relative to workspace root"),
-            ],
-            required: ["command"]
-        ),
-        "code_exec": fn(
-            "code_exec",
-            "Execute a short script via /bin/sh -c for quick checks.",
-            props: [
-                "code": prop("string", "Shell/script body to execute"),
-                "description": prop("string", "What this script does"),
-            ],
-            required: ["code"]
-        ),
-        "url_fetch": fn(
-            "url_fetch",
-            "Fetch text content from a public HTTP(S) URL.",
-            props: [
-                "url": prop("string", "Absolute https URL"),
-                "maxChars": prop("number", "Max characters to return (default 20000)"),
-            ],
-            required: ["url"]
-        ),
-        "web_search": fn(
-            "web_search",
-            "Search the web for documentation or current information. Returns titles and URLs.",
-            props: [
-                "query": prop("string", "Search query"),
-                "maxResults": prop("number", "Max results (default 5)"),
-            ],
-            required: ["query"]
-        ),
-        "read_instructions": fn(
-            "read_instructions",
-            "Read project instruction files (AGENTS.md, CLAUDE.md, README.md, etc.) from the workspace.",
-            props: [
-                "path": prop("string", "Optional specific instruction file path"),
-            ],
-            required: []
-        ),
-        "question": fn(
-            "question",
-            "Ask the user a clarifying question when blocked. Prefer this over guessing.",
-            props: [
-                "prompt": prop("string", "Question to show the user"),
-                "options": [
-                    "type": "array",
-                    "items": ["type": "string"],
-                    "description": "Optional multiple-choice options",
-                ] as [String: Any],
-            ],
-            required: ["prompt"]
-        ),
-        "todowrite": fn(
-            "todowrite",
-            "Update the agent's task checklist for multi-step work.",
-            props: [
-                "todos": [
-                    "type": "array",
-                    "description": "Todo items",
-                    "items": [
-                        "type": "object",
-                        "properties": [
-                            "id": prop("string", "Stable id"),
-                            "title": prop("string", "Short title"),
-                            "status": prop("string", "pending|in_progress|done"),
-                        ] as [String: Any],
-                        "required": ["title", "status"],
-                    ] as [String: Any],
-                ] as [String: Any],
-            ],
-            required: ["todos"]
-        ),
-        "switch_to_agent_mode": fn(
-            "switch_to_agent_mode",
-            "Request switching the conversation into agent (build) mode to implement changes.",
-            props: [
-                "reason": prop("string", "Why agent mode is needed"),
-            ],
-            required: ["reason"]
-        ),
+        "switch_to_agent_mode": fn("switch_to_agent_mode", "Ask the user to select Agent mode; does not change permissions.", props: ["reason": prop("string", "Why implementation needs Agent mode")], required: ["reason"]),
     ]
 
     private static func fn(

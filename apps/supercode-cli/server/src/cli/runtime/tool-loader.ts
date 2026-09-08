@@ -26,6 +26,14 @@ export async function loadSessionTools(_opts?: {
     }
   }
 
+  if (_opts?.mode === "plan" || _opts?.mode === "explore") {
+    // Unknown MCP tools cannot be assumed read-only.
+    for (const name of Object.keys(tools)) {
+      const category = toolMeta[name]?.category
+      if (category !== "read" && category !== "web") delete tools[name]
+    }
+  }
+
   return {
     tools,
     meta: toolMeta,

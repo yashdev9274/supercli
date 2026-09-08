@@ -23,6 +23,7 @@ targets:
       - path: SupercodeDesktop
         excludes:
           - "**/.DS_Store"
+          - "Resources/AppIcon-backup-*"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.supercode.desktop
@@ -41,8 +42,8 @@ targets:
         CFBundleName: Supercode
         CFBundleDisplayName: Supercode
         CFBundleIdentifier: ai.supercode.desktop
-        CFBundleVersion: "1"
-        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundlePackageType: APPL
         CFBundleExecutable: Supercode
         LSMinimumSystemVersion: "14.0"
@@ -56,6 +57,20 @@ targets:
               - supercode
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+  SupercodeDesktopTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: SupercodeDesktopTests
+    dependencies:
+      - target: SupercodeDesktop
+    settings:
+      base:
+        PRODUCT_NAME: SupercodeDesktopTests
+        PRODUCT_MODULE_NAME: SupercodeDesktopTests
+        GENERATE_INFOPLIST_FILE: true
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Supercode.app/Contents/MacOS/Supercode"
+        BUNDLE_LOADER: "$(TEST_HOST)"
 schemes:
   SupercodeDesktop:
     build:
@@ -63,5 +78,9 @@ schemes:
         SupercodeDesktop: all
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - SupercodeDesktopTests
     archive:
       config: Release

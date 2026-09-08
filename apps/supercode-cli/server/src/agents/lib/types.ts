@@ -32,8 +32,8 @@ export interface GenerateOptions {
   /** Private process / reasoning delta (tags + channel). */
   onReasoning?: (chunk: string) => void
   onStatus?: (message: string) => void
-  onToolCall?: (params: { toolName: string; args?: unknown }) => void
-  onToolResult?: (params: { toolName: string; result?: unknown }) => void
+  onToolCall?: (params: { id?: string; toolName: string; args?: unknown }) => void
+  onToolResult?: (params: { id?: string; toolName: string; args?: unknown; result?: unknown }) => void
   signal?: AbortSignal
   budget?: number
   parentAgent?: string
