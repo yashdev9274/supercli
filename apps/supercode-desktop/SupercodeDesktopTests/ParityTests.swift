@@ -14,6 +14,9 @@ final class ParityTests: XCTestCase {
         XCTAssertEqual(ServerConfig.resolvedClientID(stored: "  \n"), "ai.supercode.desktop")
         XCTAssertEqual(ServerConfig.resolvedClientID(stored: " custom "), "custom")
         XCTAssertEqual(ServerConfig.resolvedURL(stored: nil), ServerConfig.defaultURL)
+        XCTAssertEqual(ServerConfig.resolvedURL(stored: "https://supercli.com/"), ServerConfig.defaultURL)
+        XCTAssertEqual(ServerConfig.resolvedURL(stored: "https://www.supercli.com"), ServerConfig.defaultURL)
+        XCTAssertEqual(ServerConfig.resolvedURL(stored: "https://custom.example.com/"), "https://custom.example.com")
         XCTAssertEqual(URL(string: ServerConfig.productionURL)?.scheme, "https")
         #if DEBUG
         XCTAssertEqual(ServerConfig.defaultURL, ServerConfig.localURL)
@@ -142,6 +145,33 @@ final class ParityTests: XCTestCase {
         let object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(numbers)) as! [String: Any]
         XCTAssertEqual(String(describing: object["startLine"]!), "1")
         XCTAssertEqual(object["literal"] as? Bool, true)
+    }
+
+    func testAuthResponseValidation() throws {
+        let json = try XCTUnwrap(HTTPURLResponse(
+            url: URL(string: "https://supercode-terminal.vercel.app/api/auth/device/code")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "application/json; charset=utf-8"]
+        ))
+        XCTAssertNoThrow(try SupercodeAPIClient.requireJSON(json))
+
+        let html = try XCTUnwrap(HTTPURLResponse(
+            url: URL(string: "https://supercli.com/login")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "text/html; charset=utf-8"]
+        ))
+        XCTAssertThrowsError(try SupercodeAPIClient.requireJSON(html)) { error in
+            XCTAssertTrue(error.localizedDescription.contains("not JSON"))
+            XCTAssertFalse(error.localizedDescription.contains("DOCTYPE"))
+        }
+
+        let payload = Data(#"{"error":"authorization_pending"}"#.utf8)
+        XCTAssertEqual(
+            SupercodeAPIClient.serverMessage(from: payload, statusCode: 400),
+            "authorization_pending"
+        )
     }
 
     func testNDJSONDecoding() throws {
