@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Optional `youcom_search` tool — You.com web search provider alongside exa_search/firecrawl_search, opt-in via `YDC_API_KEY`
 - Server-side Composio session proxy — CLI fetches composio MCP session from Render server's env var instead of requiring local `COMPOSIO_API_KEY` in `.env`
 - New `POST /api/composio/session` backend endpoint authenticated via bearer token
 - `createSessionFromServer()` method on `ComposioSessionManager` — fallback chain: server proxy → local SDK → user prompt
