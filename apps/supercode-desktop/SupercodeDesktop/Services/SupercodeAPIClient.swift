@@ -4,6 +4,7 @@ enum APIError: LocalizedError {
     case invalidURL
     case unauthorized
     case server(String)
+    case unexpectedResponse(statusCode: Int, contentType: String?)
     case decoding
     case cancelled
 
@@ -12,6 +13,9 @@ enum APIError: LocalizedError {
         case .invalidURL: return "Invalid server URL"
         case .unauthorized: return "Unauthorized — please sign in again"
         case .server(let message): return message
+        case .unexpectedResponse(let statusCode, let contentType):
+            let type = contentType ?? "unknown content type"
+            return "The Supercode server returned HTTP \(statusCode) as \(type), not JSON. Check the server URL and try again."
         case .decoding: return "Failed to decode server response"
         case .cancelled: return "Request cancelled"
         }
@@ -158,29 +162,25 @@ actor SupercodeAPIClient {
     // MARK: - Device auth (Better Auth)
 
     func requestDeviceCode() async throws -> DeviceCodeResponse {
-        // better-auth device plugin endpoints under /api/auth
         let payload = try JSONSerialization.data(withJSONObject: [
             "client_id": clientID,
             "scope": "openid profile email",
         ])
-        let candidates = [
-            "/api/auth/device/code",
-            "/api/auth/device/authorize",
-        ]
-        var lastError: Error = APIError.server("Device auth unavailable")
-        for path in candidates {
-            do {
-                let (data, http) = try await request("POST", path: path, body: payload, authorized: false)
-                if (200..<300).contains(http.statusCode) {
-                    return try decoder.decode(DeviceCodeResponse.self, from: data)
-                }
-                let message = String(data: data, encoding: .utf8) ?? "HTTP \(http.statusCode)"
-                lastError = APIError.server(message)
-            } catch {
-                lastError = error
-            }
+        let (data, http) = try await request(
+            "POST",
+            path: "/api/auth/device/code",
+            body: payload,
+            authorized: false
+        )
+        try Self.requireJSON(http)
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(Self.serverMessage(from: data, statusCode: http.statusCode))
         }
-        throw lastError
+        do {
+            return try decoder.decode(DeviceCodeResponse.self, from: data)
+        } catch {
+            throw APIError.decoding
+        }
     }
 
     func pollDeviceToken(deviceCode: String) async throws -> TokenResponse? {
@@ -190,6 +190,7 @@ actor SupercodeAPIClient {
             "client_id": clientID,
         ])
         let (data, http) = try await request("POST", path: "/api/auth/device/token", body: payload, authorized: false)
+        try Self.requireJSON(http)
         if http.statusCode == 400 || http.statusCode == 403 {
             if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 let err = (obj["error"] as? String) ?? ""
@@ -203,10 +204,34 @@ actor SupercodeAPIClient {
             return nil
         }
         guard (200..<300).contains(http.statusCode) else {
-            let message = String(data: data, encoding: .utf8) ?? "HTTP \(http.statusCode)"
-            throw APIError.server(message)
+            throw APIError.server(Self.serverMessage(from: data, statusCode: http.statusCode))
         }
-        return try decoder.decode(TokenResponse.self, from: data)
+        do {
+            return try decoder.decode(TokenResponse.self, from: data)
+        } catch {
+            throw APIError.decoding
+        }
+    }
+
+    nonisolated static func requireJSON(_ response: HTTPURLResponse) throws {
+        let contentType = response.value(forHTTPHeaderField: "Content-Type")
+        guard contentType?.lowercased().contains("application/json") == true else {
+            throw APIError.unexpectedResponse(
+                statusCode: response.statusCode,
+                contentType: contentType
+            )
+        }
+    }
+
+    nonisolated static func serverMessage(from data: Data, statusCode: Int) -> String {
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            for key in ["error_description", "message", "error"] {
+                if let message = object[key] as? String, !message.isEmpty {
+                    return message
+                }
+            }
+        }
+        return "Supercode authentication failed with HTTP \(statusCode)."
     }
 
     // MARK: - User / conversations

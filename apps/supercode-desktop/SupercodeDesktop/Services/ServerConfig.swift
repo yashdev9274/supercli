@@ -29,9 +29,11 @@ enum ServerConfig {
         #endif
     }
 
-    /// Legacy hosts that should migrate to the current build default once.
+    /// Legacy or web-only hosts that should migrate to the current API host once.
     private static let legacyHosts: Set<String> = [
         "https://supercode-8w7e.onrender.com",
+        "https://supercli.com",
+        "https://www.supercli.com",
         "http://localhost:10000",
         "http://127.0.0.1:10000",
     ]
