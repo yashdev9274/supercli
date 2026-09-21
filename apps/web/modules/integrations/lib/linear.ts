@@ -6,23 +6,35 @@ import {
 } from "./composio"
 import { getOrganizationIdForUser } from "./org"
 
-/** Canonical Linear project for all Supercode Review issues (create once, reuse forever). */
-export const SUPERCODE_AI_PROJECT_NAME = "supercodeAI"
-
+const LINEAR_PROJECT_PREFIX = "Supercode"
 const MAX_LINEAR_DESCRIPTION_CHARS = 60_000
+
+function repositoryKey(owner: string, repo: string): string {
+  return `${owner}/${repo}`.toLowerCase()
+}
+
+function repositoryProjectName(owner: string, repo: string): string {
+  return `${LINEAR_PROJECT_PREFIX} · ${owner}/${repo}`.slice(0, 255)
+}
 
 function normalizeProjectName(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "")
 }
 
-/** Match supercodeAI / Supercode AI / supercode-ai / etc. */
-function isSupercodeAiProjectName(name: string | null | undefined): boolean {
+function isRepositoryProjectName(
+  name: string | null | undefined,
+  owner: string,
+  repo: string,
+): boolean {
   if (!name) return false
-  return normalizeProjectName(name) === normalizeProjectName(SUPERCODE_AI_PROJECT_NAME)
+  return (
+    normalizeProjectName(name) ===
+    normalizeProjectName(repositoryProjectName(owner, repo))
+  )
 }
 
 type LinearConfig = {
-  supercodeAiProjectId?: string
+  repositoryProjectIds?: Record<string, string>
   supercodeAiTeamId?: string
 }
 
@@ -155,11 +167,19 @@ function truncate(text: string, max: number) {
 function readLinearConfig(config: unknown): LinearConfig {
   const obj = asRecord(config)
   if (!obj) return {}
+
+  const repositoryProjectIds = asRecord(obj.repositoryProjectIds)
+  const validRepositoryProjectIds = repositoryProjectIds
+    ? Object.fromEntries(
+        Object.entries(repositoryProjectIds).filter(
+          (entry): entry is [string, string] =>
+            typeof entry[1] === "string" && Boolean(entry[1].trim()),
+        ),
+      )
+    : undefined
+
   return {
-    supercodeAiProjectId:
-      typeof obj.supercodeAiProjectId === "string"
-        ? obj.supercodeAiProjectId
-        : undefined,
+    repositoryProjectIds: validRepositoryProjectIds,
     supercodeAiTeamId:
       typeof obj.supercodeAiTeamId === "string" ? obj.supercodeAiTeamId : undefined,
   }
@@ -348,27 +368,34 @@ function buildIssueDescription(params: {
   prTitle: string
   prUrl: string
   prDescription: string
-  reviewMarkdown: string
 }) {
   const prDescription =
     params.prDescription?.trim() || "_No pull request description provided._"
-  const review = params.reviewMarkdown?.trim() || "_Review body empty._"
 
   const body = [
     `## ${params.prTitle || `PR #${params.prNumber}`}`,
     ``,
     `**Pull request:** [${params.owner}/${params.repo}#${params.prNumber}](${params.prUrl})`,
     ``,
+    `**Repository:** ${params.owner}/${params.repo}`,
+    ``,
     `### PR description`,
     prDescription,
     ``,
     `---`,
     ``,
-    `### Supercode review`,
-    review,
+    `_Supercode Review posts each completed review as a comment on this issue._`,
   ].join("\n")
 
   return truncate(body, MAX_LINEAR_DESCRIPTION_CHARS)
+}
+
+function buildReviewComment(reviewMarkdown: string): string {
+  const review = reviewMarkdown.trim() || "_Review body empty._"
+  return truncate(
+    [`## Supercode review`, ``, review].join("\n"),
+    MAX_LINEAR_DESCRIPTION_CHARS,
+  )
 }
 
 async function resolveTeamId(params: {
@@ -416,58 +443,58 @@ async function listAllLinearProjects(params: {
 }
 
 /**
- * Resolve the single shared Linear project for reviews.
- * Order: cached id → existing name match (supercodeAI variants) → create once.
- * Never creates when a match or cache already exists.
+ * Resolve one persistent Linear project per connected repository.
+ * Order: cached id → existing name match → create → re-list after a race.
  */
-async function ensureSupercodeAiProject(params: {
+async function ensureRepositoryProject(params: {
   entityId: string
   connectedAccountId: string
   teamId: string
+  owner: string
+  repo: string
   cachedProjectId?: string | null
 }): Promise<string> {
-  // Fast path: once we've stored the project id, always reuse it.
-  // Avoids list/create races that would spawn duplicate projects per review.
   if (params.cachedProjectId?.trim()) {
     return params.cachedProjectId.trim()
   }
 
+  const projectName = repositoryProjectName(params.owner, params.repo)
   let projects: Array<{ id: string; name: string | null }> = []
   try {
     projects = await listAllLinearProjects({
       entityId: params.entityId,
       connectedAccountId: params.connectedAccountId,
     })
-    const existing = projects.find((p) => isSupercodeAiProjectName(p.name))
+    const existing = projects.find((project) =>
+      isRepositoryProjectName(project.name, params.owner, params.repo),
+    )
     if (existing?.id) {
       console.log(
-        `[linear] reusing existing project "${existing.name}" id=${existing.id}`,
+        `[linear] reusing repository project "${existing.name}" id=${existing.id}`,
       )
       return existing.id
     }
   } catch (error) {
-    console.warn("[linear] list projects failed before create:", error)
+    console.warn("[linear] list repository projects failed before create:", error)
   }
 
   console.log(
-    `[linear] creating project "${SUPERCODE_AI_PROJECT_NAME}" on team=${params.teamId}`,
+    `[linear] creating repository project "${projectName}" on team=${params.teamId}`,
   )
   try {
     const created = await createLinearProjectViaComposio({
       entityId: params.entityId,
       connectedAccountId: params.connectedAccountId,
-      name: SUPERCODE_AI_PROJECT_NAME,
+      name: projectName,
       teamIds: [params.teamId],
-      description:
-        "Automated PR reviews from Supercode Review. One shared project for all connected-repo reviews — issues are created/updated per PR, not new projects.",
+      description: `Automated pull request reviews for ${params.owner}/${params.repo}. Each pull request is tracked as one Linear issue, with review runs added as comments.`,
     })
 
     const projectId = extractId(created, ["id", "projectId", "project_id"])
     if (projectId) return projectId
   } catch (createError) {
-    // Another worker may have created it concurrently — re-list and reuse.
     console.warn(
-      "[linear] create project failed; re-listing for existing supercodeAI:",
+      `[linear] create repository project "${projectName}" failed; re-listing:`,
       createError,
     )
   }
@@ -477,15 +504,15 @@ async function ensureSupercodeAiProject(params: {
       entityId: params.entityId,
       connectedAccountId: params.connectedAccountId,
     })
-    const existing = projects.find((p) => isSupercodeAiProjectName(p.name))
+    const existing = projects.find((project) =>
+      isRepositoryProjectName(project.name, params.owner, params.repo),
+    )
     if (existing?.id) return existing.id
   } catch (error) {
-    console.warn("[linear] re-list projects after create failed:", error)
+    console.warn("[linear] re-list repository projects after create failed:", error)
   }
 
-  throw new Error(
-    `Could not find or create Linear project "${SUPERCODE_AI_PROJECT_NAME}"`,
-  )
+  throw new Error(`Could not find or create Linear project "${projectName}"`)
 }
 
 async function findExistingReviewIssue(params: {
@@ -552,8 +579,8 @@ export type NotifyLinearReviewResult = {
 }
 
 /**
- * After a Supercode PR review completes, ensure Linear has a single "supercodeAI"
- * project and create/update an issue for this PR under that project (never a new project per review).
+ * After a Supercode PR review completes, ensure Linear has one project for the
+ * repository and one issue for the PR, then append this review as a comment.
  */
 export async function notifyLinearOfCompletedReview(
   input: NotifyLinearReviewInput,
@@ -576,7 +603,7 @@ export async function notifyLinearOfCompletedReview(
     },
   })
 
-if (!integration?.isActive || !integration.composioConnectedAccountId) {
+  if (!integration?.isActive || !integration.composioConnectedAccountId) {
     return { skipped: true, reason: "linear_not_connected" }
   }
 
@@ -585,8 +612,8 @@ if (!integration?.isActive || !integration.composioConnectedAccountId) {
   const connectedAccountId = integration.composioConnectedAccountId
   const cached = readLinearConfig(integration.config)
 
-  // Require an explicitly chosen workspace so we never create supercodeAI
-  // under a random first team from LINEAR_GET_ALL_LINEAR_TEAMS.
+  // Require an explicitly chosen workspace so repository projects are never
+  // created under an arbitrary first team.
   const preferredTeamId =
     integration.linearTeamId || cached.supercodeAiTeamId || null
   if (!preferredTeamId) {
@@ -600,16 +627,22 @@ if (!integration?.isActive || !integration.composioConnectedAccountId) {
     preferredTeamName: integration.linearTeamName,
   })
 
-  const projectId = await ensureSupercodeAiProject({
+  const repoKey = repositoryKey(input.owner, input.repo)
+  const projectId = await ensureRepositoryProject({
     entityId,
     connectedAccountId,
     teamId,
-    cachedProjectId: cached.supercodeAiProjectId,
+    owner: input.owner,
+    repo: input.repo,
+    cachedProjectId: cached.repositoryProjectIds?.[repoKey],
   })
 
   const nextConfig: LinearConfig = {
     ...cached,
-    supercodeAiProjectId: projectId,
+    repositoryProjectIds: {
+      ...cached.repositoryProjectIds,
+      [repoKey]: projectId,
+    },
     supercodeAiTeamId: teamId,
   }
   await prisma.integration.update({
@@ -638,7 +671,6 @@ if (!integration?.isActive || !integration.composioConnectedAccountId) {
     prTitle: input.prTitle,
     prUrl: input.prUrl,
     prDescription: input.prDescription,
-    reviewMarkdown: input.reviewMarkdown,
   })
 
   // Prefer our Conversation mapping (stable across re-reviews)
@@ -722,6 +754,13 @@ if (!integration?.isActive || !integration.composioConnectedAccountId) {
     issueIdentifier = createdIssue?.identifier ?? null
     issueUrl = createdIssue?.url ?? null
   }
+
+  await createLinearCommentViaComposio({
+    entityId,
+    connectedAccountId,
+    issueId,
+    body: buildReviewComment(input.reviewMarkdown),
+  })
 
   try {
     await prisma.conversation.upsert({

@@ -39,6 +39,7 @@ function toolkitSlugFromToolSlug(toolSlug: string): string | null {
 }
 
 let composioSingleton: Composio | null = null
+const resolvedToolVersions = new Map<string, Promise<string>>()
 
 export function isComposioConfigured(): boolean {
   return Boolean(process.env.COMPOSIO_API_KEY?.trim())
@@ -447,25 +448,61 @@ export async function deleteComposioConnectedAccount(
   throw new Error("Composio SDK cannot delete/disable connected accounts")
 }
 
+async function resolveConcreteToolVersion(
+  composio: Composio,
+  toolSlug: string,
+  configuredVersion: string,
+): Promise<string> {
+  if (configuredVersion !== "latest") return configuredVersion
+
+  const cached = resolvedToolVersions.get(toolSlug)
+  if (cached) return cached
+
+  const pending = composio.tools
+    .getRawComposioToolBySlug(toolSlug)
+    .then((tool) => {
+      const version = tool.version?.trim()
+      if (!version || version === "latest") {
+        throw new Error(
+          `Composio returned no concrete toolkit version for ${toolSlug}. Set COMPOSIO_TOOLKIT_VERSION_${toolkitSlugFromToolSlug(toolSlug)?.toUpperCase() || "<TOOLKIT>"}.`,
+        )
+      }
+      return version
+    })
+    .catch((error) => {
+      resolvedToolVersions.delete(toolSlug)
+      throw error
+    })
+
+  resolvedToolVersions.set(toolSlug, pending)
+  return pending
+}
+
 /**
  * Execute a Composio tool for a connected account (Phase 2+ notifications).
- * Always passes toolkit `version` to satisfy TS-SDK::TOOL_VERSION_REQUIRED.
+ * Manual execution requires a concrete toolkit version; "latest" is resolved
+ * from the current tool metadata before executing.
  */
 export async function executeComposioTool(params: {
   toolSlug: string
   userId: string // composio entity id
   arguments: Record<string, unknown>
   connectedAccountId?: string
-  /** Override toolkit version; defaults from env / "latest". */
+  /** Override toolkit version; defaults from env / current concrete version. */
   version?: string
 }) {
   const composio = getComposio()
   const toolkitSlug = toolkitSlugFromToolSlug(params.toolSlug)
-  const version =
+  const configuredVersion =
     params.version?.trim() ||
     (toolkitSlug
       ? resolveComposioToolkitVersion(toolkitSlug)
       : process.env.COMPOSIO_TOOLKIT_VERSION?.trim() || "latest")
+  const version = await resolveConcreteToolVersion(
+    composio,
+    params.toolSlug,
+    configuredVersion,
+  )
 
   return composio.tools.execute(params.toolSlug, {
     userId: params.userId,
@@ -474,7 +511,7 @@ export async function executeComposioTool(params: {
     ...(params.connectedAccountId
       ? { connectedAccountId: params.connectedAccountId }
       : {}),
-  } as never)
+  })
 }
 
 export function getProviderCallbackUrl(
