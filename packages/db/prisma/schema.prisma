@@ -90,6 +90,21 @@ model Review {
   @@map("review")
 }
 
+model NovaEarlyInvite {
+  id            String    @id @default(cuid())
+  name          String
+  role          String
+  email         String    @unique
+  emailStatus   String    @default("pending") // pending | sent | failed
+  resendEmailId String?
+  emailSentAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([createdAt])
+  @@map("nova_early_invite")
+}
+
 model Integration {
   id             String       @id @default(cuid())
   organizationId String
