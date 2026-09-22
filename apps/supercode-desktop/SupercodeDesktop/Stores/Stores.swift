@@ -182,6 +182,7 @@ func signOut() {
         avatarImage = nil
         avatarTask?.cancel()
         ConversationStore.shared.reset()
+        ReviewStore.shared.reset()
         AgentRunStore.shared.reset()
     }
 

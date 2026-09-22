@@ -93,6 +93,19 @@ actor SupercodeAPIClient {
         config.timeoutIntervalForResource = 600
         session = URLSession(configuration: config)
         decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let raw = try container.decode(String.self)
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = formatter.date(from: raw) { return date }
+            formatter.formatOptions = [.withInternetDateTime]
+            if let date = formatter.date(from: raw) { return date }
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Invalid ISO-8601 date: \(raw)"
+            )
+        }
     }
 
     private var baseURL: URL {
@@ -313,6 +326,47 @@ actor SupercodeAPIClient {
     func updateTitle(conversationId: String, title: String) async throws {
         let payload = try JSONSerialization.data(withJSONObject: ["title": title])
         _ = try await request("PUT", path: "/api/conversations/\(conversationId)/title", body: payload)
+    }
+
+    // MARK: - Supercode Review
+
+    func listReviews() async throws -> [PullRequestReviewSummary] {
+        let (data, http) = try await request("GET", path: "/api/reviews")
+        try Self.requireJSON(http)
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(Self.serverMessage(from: data, statusCode: http.statusCode))
+        }
+        return try decoder.decode([PullRequestReviewSummary].self, from: data)
+    }
+
+    func getReview(id: String) async throws -> PullRequestReviewDetail {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let (data, http) = try await request("GET", path: "/api/reviews/\(encoded)")
+        try Self.requireJSON(http)
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(Self.serverMessage(from: data, statusCode: http.statusCode))
+        }
+        return try decoder.decode(PullRequestReviewDetail.self, from: data)
+    }
+
+    func getReviewFiles(id: String) async throws -> [PullRequestDiffFile] {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let (data, http) = try await request("GET", path: "/api/reviews/\(encoded)/files")
+        try Self.requireJSON(http)
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(Self.serverMessage(from: data, statusCode: http.statusCode))
+        }
+        return try decoder.decode([PullRequestDiffFile].self, from: data)
+    }
+
+    func triggerReview(id: String) async throws -> ReviewTriggerResponse {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let (data, http) = try await request("POST", path: "/api/reviews/\(encoded)/trigger", body: Data("{}".utf8))
+        try Self.requireJSON(http)
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(Self.serverMessage(from: data, statusCode: http.statusCode))
+        }
+        return try decoder.decode(ReviewTriggerResponse.self, from: data)
     }
 
     // MARK: - NDJSON chat stream

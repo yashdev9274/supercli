@@ -7,6 +7,7 @@ struct SupercodeApp: App {
     @StateObject private var workspace = WorkspaceStore.shared
     @StateObject private var conversations = ConversationStore.shared
     @StateObject private var agentRun = AgentRunStore.shared
+    @StateObject private var reviewStore = ReviewStore.shared
     @StateObject private var permissions = PermissionManager.shared
 
     var body: some Scene {
@@ -16,6 +17,7 @@ struct SupercodeApp: App {
                 .environmentObject(workspace)
                 .environmentObject(conversations)
                 .environmentObject(agentRun)
+                .environmentObject(reviewStore)
                 .environmentObject(permissions)
                 .frame(minWidth: 1100, minHeight: 680)
                 .background(DesktopTheme.background)
