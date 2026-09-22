@@ -4,6 +4,7 @@ struct SidebarView: View {
     @EnvironmentObject private var session: AppSessionStore
     @EnvironmentObject private var conversations: ConversationStore
     @EnvironmentObject private var workspace: WorkspaceStore
+    @EnvironmentObject private var reviewStore: ReviewStore
     @State private var showAccountMenu = false
 
     var body: some View {
@@ -12,13 +13,19 @@ struct SidebarView: View {
             Color.clear.frame(height: 42)
 
             VStack(alignment: .leading, spacing: 6) {
-navRow(title: "Home", systemImage: "house", selected: conversations.activeConversationId == nil && conversations.messages.isEmpty) {
+                navRow(title: "Home", systemImage: "house", selected: reviewStore.destination == .home) {
+                    reviewStore.showHome()
                     conversations.activeConversationId = nil
                     conversations.clearActiveSession()
                 }
 
+                navRow(title: "Review", systemImage: "arrow.triangle.pull", selected: reviewStore.destination == .review) {
+                    reviewStore.showReview()
+                }
+
 Button {
                     Task {
+                        reviewStore.showHome()
                         WorkspaceStore.shared.showChatPane()
                         await conversations.createConversation(mode: conversations.mode.rawValue)
                     }
@@ -152,7 +159,10 @@ Button {
     private func conversationRow(_ item: ConversationSummary) -> some View {
         let selected = conversations.activeConversationId == item.id
         return Button {
-            Task { await conversations.selectConversation(id: item.id) }
+            Task {
+                reviewStore.showHome()
+                await conversations.selectConversation(id: item.id)
+            }
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "folder")

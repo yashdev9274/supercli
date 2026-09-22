@@ -27,6 +27,7 @@ struct RootView: View {
 struct DesktopShellView: View {
     @EnvironmentObject private var workspace: WorkspaceStore
     @EnvironmentObject private var agentRun: AgentRunStore
+    @EnvironmentObject private var reviewStore: ReviewStore
     @State private var sidebarWidth: CGFloat = DesktopTheme.sidebarWidth
     @State private var inspectorWidth: CGFloat = DesktopTheme.inspectorDefaultWidth
 
@@ -42,19 +43,24 @@ struct DesktopShellView: View {
             VStack(spacing: 0) {
                 TitleBarView()
                 Divider().overlay(DesktopTheme.border)
-HStack(spacing: 0) {
-                    Group {
-                        if workspace.mainPane == .file {
-                            FileViewerPane()
-                        } else {
-                            ChatPaneView()
+                if reviewStore.destination == .review {
+                    ReviewWorkspaceView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    HStack(spacing: 0) {
+                        Group {
+                            if workspace.mainPane == .file {
+                                FileViewerPane()
+                            } else {
+                                ChatPaneView()
+                            }
                         }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if agentRun.isInspectorVisible {
-                        Divider().overlay(DesktopTheme.border)
-                        RightSidebarView()
-                            .frame(width: inspectorWidth)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        if agentRun.isInspectorVisible {
+                            Divider().overlay(DesktopTheme.border)
+                            RightSidebarView()
+                                .frame(width: inspectorWidth)
+                        }
                     }
                 }
             }
@@ -92,9 +98,26 @@ HStack(spacing: 0) {
 struct TitleBarView: View {
     @EnvironmentObject private var workspace: WorkspaceStore
     @EnvironmentObject private var agentRun: AgentRunStore
+    @EnvironmentObject private var reviewStore: ReviewStore
 
     var body: some View {
         HStack(spacing: 12) {
+            if reviewStore.destination == .review {
+                HStack(spacing: 7) {
+                    Image(systemName: "arrow.triangle.pull")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(DesktopTheme.accent)
+                    Text("Supercode Review")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(DesktopTheme.textPrimary)
+                }
+                .padding(.leading, 16)
+                Spacer()
+                Text("AI code review")
+                    .font(DesktopTheme.monoTiny)
+                    .foregroundStyle(DesktopTheme.textMuted)
+                    .padding(.trailing, 12)
+            } else {
             // No logo here — logo lives in empty chat / auth / dock only.
             HStack(spacing: 6) {
                 ForEach(Array(workspace.breadcrumbSegments().enumerated()), id: \.offset) { index, segment in
@@ -183,6 +206,7 @@ Spacer()
             .buttonStyle(.plain)
             .help("Toggle files sidebar")
             .padding(.trailing, 12)
+            }
         }
         .frame(height: 42)
         .background(DesktopTheme.panel)

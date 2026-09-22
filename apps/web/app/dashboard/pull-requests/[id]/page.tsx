@@ -5,7 +5,6 @@ import { use, useEffect, useMemo, useRef, useState } from "react"
 import {
   getPrDiffFiles,
   getReview,
-  getReviews,
   queueReview,
 } from "@/modules/dashboard/actions"
 import {
@@ -61,16 +60,6 @@ export default function ReviewDetailPage(props: {
       const status = query.state.data?.status
       return status === "pending" ? 4000 : false
     },
-  })
-
-  const repoFullName = review?.repository.fullName
-
-  const { data: reviews = [], isLoading: reviewsLoading } = useQuery({
-    queryKey: ["reviews", repoFullName ?? "all-detail"],
-    queryFn: () => getReviews(repoFullName),
-    enabled: Boolean(repoFullName) || !isLoading,
-    refetchOnWindowFocus: false,
-    staleTime: 30_000,
   })
 
   const { data: files = [], isLoading: filesLoading } = useQuery({
@@ -138,8 +127,6 @@ export default function ReviewDetailPage(props: {
       <PrWorkspace
         activeId={id}
         review={review}
-        reviews={reviews}
-        reviewsLoading={reviewsLoading && !reviews.length}
         files={files}
         filesLoading={filesLoading}
         tab={tab}
