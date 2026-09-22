@@ -370,8 +370,8 @@ export async function updateLinearTeam(
     const nextTeamId = parsed.data.teamId ?? null
     const nextTeamName = parsed.data.teamName ?? null
 
-// Keep supercodeAiProjectId only if team unchanged; otherwise clear so
-    // notify recreates/finds project under the newly selected team.
+    // Repository projects belong to a team. Clear their cached IDs when the
+    // selected team changes so future reviews resolve/create them there.
     const prevConfig =
       existing.config &&
       typeof existing.config === "object" &&
@@ -386,10 +386,11 @@ export async function updateLinearTeam(
       nextConfig.supercodeAiTeamId = nextTeamId
     }
     if (teamChanged) {
+      delete nextConfig.repositoryProjectIds
       delete nextConfig.supercodeAiProjectId
     }
 
-await prisma.integration.update({
+    await prisma.integration.update({
       where: { id: existing.id },
       data: {
         linearTeamId: nextTeamId,

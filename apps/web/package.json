@@ -51,6 +51,7 @@
     "@super/db": "workspace:*",
     "@super/db-terminal": "workspace:*",
     "@super/embeddings-sdk": "workspace:*",
+    "@super/whatsapp": "workspace:*",
     "@tanstack/react-query": "^5.90.17",
     "@vercel/analytics": "^1.6.1",
     "@vercel/speed-insights": "^1.3.1",

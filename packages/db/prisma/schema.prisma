@@ -42,9 +42,11 @@ model User {
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
-  sessions       Session[]
-  accounts       Account[]
-  respositories  Repository[]
+  sessions                Session[]
+  accounts                Account[]
+  respositories           Repository[]
+  whatsAppIdentities      WhatsAppIdentity[]
+  whatsAppLinkChallenges  WhatsAppLinkChallenge[]
 
   @@unique([email])
   @@index([organizationId])
@@ -83,7 +85,9 @@ model Review {
   status       String         @default("completed") // completed, failed, pending
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
-  conversations Conversation[]
+  conversations      Conversation[]
+  whatsAppDeliveries WhatsAppDelivery[]
+  whatsAppActions    WhatsAppAction[]
 
   @@unique([repositoryId, prNumber])
   @@index([repositoryId])
@@ -172,6 +176,121 @@ model Message {
 
   @@index([conversationId])
   @@map("message")
+}
+
+model WhatsAppIdentity {
+  id             String @id @default(cuid())
+  userId         String
+  user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phoneNumberId  String
+  phoneE164      String?
+  conversationId String?
+  businessScopedUserId       String?
+  parentBusinessScopedUserId String?
+  username       String?
+  verifiedAt     DateTime
+  isActive       Boolean  @default(true)
+  notifyReviews  Boolean  @default(true)
+  lastActiveAt   DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  deliveries WhatsAppDelivery[]
+  actions    WhatsAppAction[]
+
+  @@unique([userId, phoneNumberId])
+  @@unique([phoneNumberId, phoneE164])
+  @@unique([phoneNumberId, businessScopedUserId])
+  @@index([phoneNumberId, parentBusinessScopedUserId])
+  @@index([conversationId])
+  @@map("whatsapp_identity")
+}
+
+model WhatsAppLinkChallenge {
+  id            String @id @default(cuid())
+  userId        String
+  user          User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phoneNumberId String
+  phoneE164     String
+  codeHash      String
+  expiresAt     DateTime
+  consumedAt    DateTime?
+  attempts      Int      @default(0)
+  sendCount     Int      @default(1)
+  windowStartedAt DateTime @default(now())
+  requestIpHash String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId, phoneNumberId, phoneE164, createdAt])
+  @@index([expiresAt])
+  @@map("whatsapp_link_challenge")
+}
+
+model WhatsAppWebhookEvent {
+  id             String @id @default(cuid())
+  idempotencyKey String @unique
+  eventType      String
+  payloadVersion String?
+  phoneNumberId  String
+  payload        Json
+  status         String @default("pending") // pending | processing | completed | failed
+  attempts       Int    @default(0)
+  error          String? @db.Text
+  processedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([phoneNumberId, eventType])
+  @@map("whatsapp_webhook_event")
+}
+
+model WhatsAppDelivery {
+  id          String @id @default(cuid())
+  reviewId    String
+  review      Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  identityId  String
+  identity    WhatsAppIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  templateName String
+  messageId   String? @unique
+  status      String  @default("queued") // queued | sent | delivered | read | failed
+  attempts    Int     @default(0)
+  errorCode   String?
+  error       String? @db.Text
+  sentAt      DateTime?
+  deliveredAt DateTime?
+  readAt      DateTime?
+  failedAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([reviewId, identityId, templateName])
+  @@index([identityId, status])
+  @@map("whatsapp_delivery")
+}
+
+model WhatsAppAction {
+  id                String @id @default(cuid())
+  externalActionKey String @unique
+  externalMessageId String?
+  action            String
+  status            String @default("pending") // pending | processing | completed | denied | failed
+  identityId        String
+  identity          WhatsAppIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  reviewId          String
+  review            Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  authorized        Boolean?
+  denialReason      String?
+  githubReviewId    BigInt?
+  error             String? @db.Text
+  completedAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([reviewId, status])
+  @@index([identityId, createdAt])
+  @@map("whatsapp_action")
 }
 
 model Session {
