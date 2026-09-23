@@ -6,8 +6,9 @@ import Foundation
 /// - **Release** builds talk to production by default.
 /// - Settings / sign-in can still override with any custom URL.
 enum ServerConfig {
-    /// Production CLI / chat API (Vercel).
-    static let productionURL = "https://supercode-terminal.vercel.app"
+    /// Production CLI / chat API. Desktop talks directly to the API host so
+    /// newly added endpoints do not depend on a separately deployed web proxy.
+    static let productionURL = "https://supercode-8w7e.onrender.com"
 
     /// Public device-flow identifier, not the server's GitHub OAuth client ID or a secret.
     static let deviceClientID = "ai.supercode.desktop"
@@ -31,7 +32,7 @@ enum ServerConfig {
 
     /// Legacy or web-only hosts that should migrate to the current API host once.
     private static let legacyHosts: Set<String> = [
-        "https://supercode-8w7e.onrender.com",
+        "https://supercode-terminal.vercel.app",
         "https://supercli.com",
         "https://www.supercli.com",
         "http://localhost:10000",

@@ -9,6 +9,7 @@ struct SupercodeApp: App {
     @StateObject private var agentRun = AgentRunStore.shared
     @StateObject private var reviewStore = ReviewStore.shared
     @StateObject private var permissions = PermissionManager.shared
+    @StateObject private var connections = ConnectionsStore.shared
 
     var body: some Scene {
         WindowGroup {
@@ -19,6 +20,7 @@ struct SupercodeApp: App {
                 .environmentObject(agentRun)
                 .environmentObject(reviewStore)
                 .environmentObject(permissions)
+                .environmentObject(connections)
                 .frame(minWidth: 1100, minHeight: 680)
                 .background(DesktopTheme.background)
                 .preferredColorScheme(.dark)
@@ -63,6 +65,7 @@ CommandMenu("Agent") {
             SettingsView()
                 .environmentObject(session)
                 .environmentObject(workspace)
+                .environmentObject(connections)
         }
     }
 }

@@ -281,6 +281,7 @@ struct UserAvatarView: View {
 }
 
 struct AccountMenuView: View {
+    @Environment(\.openSettings) private var openSettings
     @EnvironmentObject private var session: AppSessionStore
     @EnvironmentObject private var workspace: WorkspaceStore
     @Binding var isPresented: Bool
@@ -312,8 +313,10 @@ struct AccountMenuView: View {
             }
 
             menuButton(title: "Settings", systemImage: "gearshape") {
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                 isPresented = false
+                DispatchQueue.main.async {
+                    openSettings()
+                }
             }
 
 menuButton(title: "Open Workspace…", systemImage: "folder") {

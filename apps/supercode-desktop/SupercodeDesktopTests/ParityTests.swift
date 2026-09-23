@@ -16,6 +16,7 @@ final class ParityTests: XCTestCase {
         XCTAssertEqual(ServerConfig.resolvedURL(stored: nil), ServerConfig.defaultURL)
         XCTAssertEqual(ServerConfig.resolvedURL(stored: "https://supercli.com/"), ServerConfig.defaultURL)
         XCTAssertEqual(ServerConfig.resolvedURL(stored: "https://www.supercli.com"), ServerConfig.defaultURL)
+        XCTAssertEqual(ServerConfig.resolvedURL(stored: "https://supercode-terminal.vercel.app"), ServerConfig.defaultURL)
         XCTAssertEqual(ServerConfig.resolvedURL(stored: "https://custom.example.com/"), "https://custom.example.com")
         XCTAssertEqual(URL(string: ServerConfig.productionURL)?.scheme, "https")
         #if DEBUG
@@ -186,6 +187,23 @@ final class ParityTests: XCTestCase {
         }
         XCTAssertThrowsError(try SupercodeAPIClient.decodeEvent(#"{"type":"tool-call","arguments":"{"}"#))
         XCTAssertNil(try SupercodeAPIClient.decodeEvent(" "))
+    }
+
+    func testConnectedToolDecoding() throws {
+        let data = Data(#"{"tools":[{"name":"GITHUB_GET_REPOS","displayName":"Get repositories","description":"Lists repositories","parameters":{"type":"object","properties":{"limit":{"type":"integer"}}},"toolkit":"github","toolkitName":"GitHub","requiresApproval":false}]}"#.utf8)
+        let response = try JSONDecoder().decode(ComposioToolsResponse.self, from: data)
+        let tool = try XCTUnwrap(response.tools.first)
+        XCTAssertEqual(tool.name, "GITHUB_GET_REPOS")
+        XCTAssertEqual(tool.toolkitName, "GitHub")
+        XCTAssertFalse(tool.requiresApproval)
+        let function = try XCTUnwrap(tool.openAITool["function"] as? [String: Any])
+        XCTAssertEqual(function["name"] as? String, "GITHUB_GET_REPOS")
+    }
+
+    func testConnectionLogoDecodesSVG() throws {
+        let svg = Data(##"<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="#ff9f0a"/></svg>"##.utf8)
+        let image = try XCTUnwrap(ConnectionLogoLoader.decode(svg))
+        XCTAssertEqual(image.size, NSSize(width: 32, height: 32))
     }
 
     @MainActor
