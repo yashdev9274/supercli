@@ -10,11 +10,16 @@ type TerminalUser = {
 }
 
 function terminalApiUrl() {
+  const defaultUrl =
+    process.env.NODE_ENV === "production"
+      ? "https://supercode-terminal.vercel.app"
+      : "http://localhost:3004"
+
   return (
     process.env.SUPERCODE_TERMINAL_API_URL ||
     process.env.TERMINAL_SERVER_URL ||
     process.env.NEXT_PUBLIC_TERMINAL_URL ||
-    "http://localhost:3004"
+    defaultUrl
   ).replace(/\/$/, "")
 }
 
