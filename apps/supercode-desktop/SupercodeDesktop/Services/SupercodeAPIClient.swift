@@ -370,6 +370,61 @@ actor SupercodeAPIClient {
         return try decoder.decode(ReviewTriggerResponse.self, from: data)
     }
 
+    // MARK: - Connections
+
+    func listConnectedApps() async throws -> [ConnectedApp] {
+        let (data, http) = try await request("POST", path: "/api/composio/apps", body: Data("{}".utf8))
+        try Self.requireJSON(http)
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(Self.serverMessage(from: data, statusCode: http.statusCode))
+        }
+        return try decoder.decode(ConnectedAppsResponse.self, from: data).apps
+    }
+
+    func connectApp(slug: String) async throws -> ComposioConnectResponse {
+        let payload = try JSONSerialization.data(withJSONObject: ["slug": slug])
+        let (data, http) = try await request("POST", path: "/api/composio/connect", body: payload)
+        try Self.requireJSON(http)
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(Self.serverMessage(from: data, statusCode: http.statusCode))
+        }
+        return try decoder.decode(ComposioConnectResponse.self, from: data)
+    }
+
+    func disconnectApp(connectedAccountId: String) async throws {
+        let payload = try JSONSerialization.data(withJSONObject: ["connectedAccountId": connectedAccountId])
+        let (data, http) = try await request("POST", path: "/api/composio/disconnect", body: payload)
+        try Self.requireJSON(http)
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(Self.serverMessage(from: data, statusCode: http.statusCode))
+        }
+    }
+
+    func listComposioTools() async throws -> [ComposioToolDefinition] {
+        let (data, http) = try await request("POST", path: "/api/composio/tools", body: Data("{}".utf8))
+        try Self.requireJSON(http)
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(Self.serverMessage(from: data, statusCode: http.statusCode))
+        }
+        return try decoder.decode(ComposioToolsResponse.self, from: data).tools
+    }
+
+    func executeComposioTool(name: String, arguments: [String: Any]) async throws -> [String: Any] {
+        let payload = try JSONSerialization.data(withJSONObject: [
+            "toolName": name,
+            "arguments": arguments,
+        ])
+        let (data, http) = try await request("POST", path: "/api/composio/execute", body: payload)
+        try Self.requireJSON(http)
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(Self.serverMessage(from: data, statusCode: http.statusCode))
+        }
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw APIError.decoding
+        }
+        return object
+    }
+
     // MARK: - NDJSON chat stream
 
 /// Streams NDJSON chat events. `onEvent` is invoked on the cooperative task (caller should hop to MainActor if needed).

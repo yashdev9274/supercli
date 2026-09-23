@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
   async rewrites() {
     // Dev-only proxies: `next dev` ignores vercel.json, so keep the same
     // explicit terminal API groups that production routes to Render.
-    const groups = ["auth", "billing", "webhooks", "user", "conversations", "reviews", "ai", "tools"]
+    const groups = ["auth", "billing", "webhooks", "user", "conversations", "reviews", "ai", "tools", "composio"]
     return groups.map((group) => ({
       source: `/api/${group}/:path*`,
       destination: `${API_SERVER}/api/${group}/:path*`,

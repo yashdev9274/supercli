@@ -31,7 +31,8 @@ final class NativeTurnEngine {
         var generated: [[String: Any]] = []
         var repetitions: [String: Int] = [:]
         let namespace = UUID().uuidString
-        let tools = ToolCatalog.tools(for: context.mode).filter { tool in
+        let externalTools = depth == 0 ? ConnectionsStore.shared.cachedToolDefinitions(for: context.mode) : []
+        let tools = (ToolCatalog.tools(for: context.mode) + externalTools).filter { tool in
             let name = (tool["function"] as? [String: Any])?["name"] as? String ?? ""
             return (depth == 0 || !["delegate", "task", "switch_to_agent_mode"].contains(name)) && (whitelist == nil || whitelist!.contains(name))
         }
@@ -97,6 +98,8 @@ final class NativeTurnEngine {
                     stopReason = result.preview
                 } else if ["delegate", "task"].contains(call.toolName) {
                     result = await delegate(name: call.toolName, args: args, context: context, depth: depth, stream: stream, activity: activity, resultHandler: resultHandler)
+                } else if ConnectionsStore.shared.hasTool(named: call.toolName) {
+                    result = await ConnectionsStore.shared.execute(name: call.toolName, arguments: args)
                 } else {
                     result = await LocalToolRuntime.execute(name: call.toolName, args: args, workspaceRoot: context.root, mode: context.mode)
                 }

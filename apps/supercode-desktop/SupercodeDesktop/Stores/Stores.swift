@@ -184,6 +184,7 @@ func signOut() {
         ConversationStore.shared.reset()
         ReviewStore.shared.reset()
         AgentRunStore.shared.reset()
+        ConnectionsStore.shared.reset()
     }
 
     func loadAvatar(from urlString: String?) {
@@ -912,6 +913,7 @@ if lower.contains("plan_limit")
             }
             do {
                 try Task.checkCancellation()
+                await ConnectionsStore.shared.loadToolsIfNeeded()
                 let references = try await NativeFileReferences.resolve(prompt: trimmed, context: context, activity: activity)
                 history += references
                 let outcome = try await NativeTurnEngine.run(history: history, context: context, activity: activity) { result, name in

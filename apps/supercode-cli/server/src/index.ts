@@ -36,6 +36,7 @@ import {
   serializeChatContent,
 } from "./lib/openai-compatible-stream"
 import { stripOrphanToolCalls } from "./cli/ai/sanitize-messages"
+import { registerComposioRoutes } from "./routes/composio"
 
 function toolParams(fn: any): object {
   const raw = fn.parameters ?? fn.inputSchema
@@ -386,6 +387,8 @@ async function getUserFromBearer(req: express.Request) {
     return null
   }
 }
+
+registerComposioRoutes(app, getUserFromBearer)
 
 async function proxyDesktopReview(req: express.Request, res: express.Response) {
   const user = await getUserFromBearer(req)
@@ -1854,103 +1857,6 @@ app.post("/api/tools/exa-fetch", async (req, res) => {
     res.status(response.status).json(data)
   } catch (error: any) {
     res.status(500).json({ error: error.message || "Exa fetch proxy failed" })
-  }
-})
-
-// ── Composio session proxy (server-side API key) ──
-
-app.post("/api/composio/session", async (req, res) => {
-  try {
-    const user = await getUserFromBearer(req)
-    if (!user) { res.status(401).json({ error: "Unauthorized" }); return }
-
-    const apiKey = process.env.COMPOSIO_API_KEY
-    if (!apiKey) { res.status(500).json({ error: "Composio not configured on server" }); return }
-
-    const { Composio } = await import("@composio/core")
-    const composio = new Composio({ apiKey })
-
-    const connectedRes = await (composio.connectedAccounts as any).list({})
-    const connectedIds: Record<string, string> = {}
-    for (const acct of (connectedRes.items ?? [])) {
-      if (acct.status === "ACTIVE") {
-        connectedIds[acct.toolkit?.slug] = acct.id
-      }
-    }
-
-    const s = await composio.sessions.create(`user_${user.id}`, {
-      mcp: true,
-      connectedAccounts: connectedIds,
-    })
-
-    res.json({
-      url: (s as any).mcp.url as string,
-      headers: (s as any).mcp.headers as Record<string, string>,
-      sessionId: (s as any).session_id as string,
-      apiKey,
-    })
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || "Composio session creation failed" })
-  }
-})
-
-app.post("/api/composio/apps", async (req, res) => {
-  try {
-    const user = await getUserFromBearer(req)
-    if (!user) { res.status(401).json({ error: "Unauthorized" }); return }
-
-    const apiKey = process.env.COMPOSIO_API_KEY
-    if (!apiKey) { res.status(500).json({ error: "Composio not configured on server" }); return }
-
-    const { Composio } = await import("@composio/core")
-    const composio = new Composio({ apiKey })
-
-    const [authConfigs, toolkits, connectedRes] = await Promise.all([
-      (composio as any).authConfigs.list({}),
-      (composio.toolkits as any).get(),
-      (composio.connectedAccounts as any).list({}),
-    ])
-
-    const configuredSlugs = new Set<string>(
-      (authConfigs.items ?? []).map((ac: any) => ac.toolkit?.slug).filter(Boolean),
-    )
-
-    const connectedMap = new Map<string, string>()
-    for (const acct of connectedRes.items ?? []) {
-      const slug: string = acct.toolkit?.slug
-      if (slug && acct.status === "ACTIVE") {
-        connectedMap.set(slug, acct.id)
-      }
-    }
-
-    const toolkitMap = new Map<string, any>()
-    for (const tk of toolkits) {
-      toolkitMap.set(tk.slug, tk)
-    }
-
-    const apps: any[] = []
-    for (const slug of configuredSlugs) {
-      const tk = toolkitMap.get(slug)
-      if (!tk) continue
-      const conn = connectedMap.get(slug)
-      apps.push({
-        slug: tk.slug,
-        name: tk.name,
-        description: tk.meta?.description ?? "",
-        logo: tk.meta?.logo,
-        connected: !!conn,
-        connectedAccountId: conn ?? null,
-      })
-    }
-
-    apps.sort((a, b) => {
-      if (a.connected !== b.connected) return a.connected ? -1 : 1
-      return a.name.localeCompare(b.name)
-    })
-
-    res.json({ apps })
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || "Composio list apps failed" })
   }
 })
 

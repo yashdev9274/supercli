@@ -118,6 +118,47 @@ final class PermissionManager: ObservableObject {
         }
     }
 
+    /// Connected services may mutate remote data even in Chat mode. Their
+    /// server-provided safety classification decides when approval is needed.
+    func authorizeExternal(toolName: String, args: [String: Any]) async -> Bool {
+        if alwaysAllowTools.contains(toolName) {
+            return true
+        }
+        let resource = resourceKey(toolName: toolName, args: args)
+        if alwaysAllowKeys.contains("\(toolName)|\(resource)") {
+            return true
+        }
+
+        let request = PermissionRequest(
+            id: UUID().uuidString,
+            toolName: toolName,
+            summary: summaryLine(toolName: toolName, args: args),
+            detail: detailBlock(toolName: toolName, args: args),
+            resource: resource,
+            isDangerous: true
+        )
+        let decision: PermissionDecision = await withCheckedContinuation { cont in
+            continuation?.resume(returning: .deny)
+            continuation = cont
+            pending = request
+        }
+        if pending?.id == request.id {
+            pending = nil
+            continuation = nil
+        }
+        switch decision {
+        case .once:
+            return true
+        case .always:
+            alwaysAllowTools.insert(toolName)
+            alwaysAllowKeys.insert("\(toolName)|\(resource)")
+            persist()
+            return true
+        case .deny:
+            return false
+        }
+    }
+
     func resolve(_ decision: PermissionDecision) {
         continuation?.resume(returning: decision)
         continuation = nil

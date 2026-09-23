@@ -33,6 +33,10 @@
     {
       "source": "/api/tools/:path*",
       "destination": "https://supercode-8w7e.onrender.com/api/tools/:path*"
+    },
+    {
+      "source": "/api/composio/:path*",
+      "destination": "https://supercode-8w7e.onrender.com/api/composio/:path*"
     }
   ]
 }
