@@ -13,6 +13,26 @@
     {
       "source": "/api/webhooks/:path*",
       "destination": "https://supercode-8w7e.onrender.com/api/webhooks/:path*"
+    },
+    {
+      "source": "/api/user/:path*",
+      "destination": "https://supercode-8w7e.onrender.com/api/user/:path*"
+    },
+    {
+      "source": "/api/conversations/:path*",
+      "destination": "https://supercode-8w7e.onrender.com/api/conversations/:path*"
+    },
+    {
+      "source": "/api/reviews/:path*",
+      "destination": "https://supercode-8w7e.onrender.com/api/reviews/:path*"
+    },
+    {
+      "source": "/api/ai/:path*",
+      "destination": "https://supercode-8w7e.onrender.com/api/ai/:path*"
+    },
+    {
+      "source": "/api/tools/:path*",
+      "destination": "https://supercode-8w7e.onrender.com/api/tools/:path*"
     }
   ]
 }

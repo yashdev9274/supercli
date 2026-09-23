@@ -251,8 +251,9 @@ actor SupercodeAPIClient {
 
     func getCurrentUser() async throws -> SupercodeUser {
         let (data, http) = try await request("GET", path: "/api/user/me")
+        try Self.requireJSON(http)
         guard (200..<300).contains(http.statusCode) else {
-            throw APIError.server(String(data: data, encoding: .utf8) ?? "Failed to load user")
+            throw APIError.server(Self.serverMessage(from: data, statusCode: http.statusCode))
         }
         return try decoder.decode(SupercodeUser.self, from: data)
     }
