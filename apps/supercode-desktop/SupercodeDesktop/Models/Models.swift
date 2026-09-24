@@ -97,6 +97,29 @@ struct WorkspaceNode: Identifiable, Hashable {
     }
 }
 
+struct FileVisualStyle {
+    let symbol: String
+    let color: Color
+    let label: String
+
+    static func forPath(_ path: String) -> FileVisualStyle {
+        switch (path as NSString).pathExtension.lowercased() {
+        case "py": return .init(symbol: "chevron.left.forwardslash.chevron.right", color: Color(red: 0.36, green: 0.68, blue: 0.92), label: "PY")
+        case "ts", "tsx": return .init(symbol: "curlybraces", color: Color(red: 0.22, green: 0.58, blue: 0.92), label: "TS")
+        case "js", "jsx", "mjs", "cjs": return .init(symbol: "curlybraces", color: Color(red: 0.95, green: 0.78, blue: 0.25), label: "JS")
+        case "swift": return .init(symbol: "swift", color: Color(red: 0.96, green: 0.39, blue: 0.20), label: "SW")
+        case "json": return .init(symbol: "list.bullet.indent", color: Color(red: 0.90, green: 0.75, blue: 0.30), label: "{}")
+        case "md", "mdx": return .init(symbol: "doc.richtext", color: Color(red: 0.60, green: 0.72, blue: 0.88), label: "MD")
+        case "css", "scss": return .init(symbol: "paintbrush.pointed", color: Color(red: 0.68, green: 0.42, blue: 0.92), label: "CSS")
+        case "html", "htm": return .init(symbol: "chevron.left.forwardslash.chevron.right", color: Color(red: 0.95, green: 0.42, blue: 0.24), label: "HTML")
+        case "yml", "yaml", "toml": return .init(symbol: "slider.horizontal.3", color: Color(red: 0.82, green: 0.50, blue: 0.78), label: "CFG")
+        case "sh", "bash", "zsh": return .init(symbol: "terminal", color: Color(red: 0.38, green: 0.78, blue: 0.52), label: "SH")
+        case "png", "jpg", "jpeg", "gif", "svg", "webp": return .init(symbol: "photo", color: Color(red: 0.78, green: 0.48, blue: 0.86), label: "IMG")
+        default: return .init(symbol: "doc.text", color: DesktopTheme.textSecondary, label: "FILE")
+        }
+    }
+}
+
 enum AgentStatus: String, Equatable {
     case idle
     case thinking
@@ -115,6 +138,19 @@ enum AgentStatus: String, Equatable {
         case .error: return "Error"
         }
     }
+}
+
+struct AgentTurnResult: Equatable {
+    enum Outcome: Equatable {
+        case completed
+        case cancelled
+        case failed(String)
+    }
+
+    let id: UUID
+    let assistantMessageID: String?
+    let text: String
+    let outcome: Outcome
 }
 
 struct SupercodeUser: Codable, Equatable, Identifiable {
@@ -242,6 +278,7 @@ struct DiffFile: Identifiable, Equatable {
     var newContent: String?
     /// True when the file was created by the agent (reject deletes it).
     var wasCreated: Bool
+    var isStaged: Bool
 
     init(
         id: String,
@@ -252,7 +289,8 @@ struct DiffFile: Identifiable, Equatable {
         isAccepted: Bool? = nil,
         previousContent: String? = nil,
         newContent: String? = nil,
-        wasCreated: Bool = false
+        wasCreated: Bool = false,
+        isStaged: Bool = false
     ) {
         self.id = id
         self.path = path
@@ -263,6 +301,7 @@ struct DiffFile: Identifiable, Equatable {
         self.previousContent = previousContent
         self.newContent = newContent
         self.wasCreated = wasCreated
+        self.isStaged = isStaged
     }
 
     var additions: Int { hunks.flatMap(\.lines).filter { $0.kind == .add }.count }

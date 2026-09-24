@@ -270,6 +270,10 @@ final class WorkspaceStore: ObservableObject {
     @Published var openFiles: [OpenEditorFile] = []
     @Published var activeFileId: String?
 
+    var activeFile: OpenEditorFile? {
+        openFiles.first(where: { $0.id == activeFileId })
+    }
+
     enum MainPaneMode: String, Equatable {
         case chat
         case file
@@ -386,10 +390,11 @@ func toggleExpanded(_ node: WorkspaceNode) {
     }
 
     /// Open a workspace file in the main editor pane (desk-style).
-    func openFile(at path: String) {
+    func openFile(at path: String, line: Int? = nil) {
         selectedPath = path
-        if let existing = openFiles.first(where: { $0.path == path }) {
-            activeFileId = existing.id
+        if let index = openFiles.firstIndex(where: { $0.path == path }) {
+            openFiles[index].navigationLine = line
+            activeFileId = openFiles[index].id
             mainPane = .file
             return
         }
@@ -397,6 +402,7 @@ func toggleExpanded(_ node: WorkspaceNode) {
         let maxBytes = 1_500_000
         let url = URL(fileURLWithPath: path)
         var file = OpenEditorFile(path: path)
+        file.navigationLine = line
 
         do {
             let attrs = try FileManager.default.attributesOfItem(atPath: path)
@@ -409,6 +415,7 @@ func toggleExpanded(_ node: WorkspaceNode) {
                 } else if let text = String(data: data, encoding: .utf8)
                     ?? String(data: data, encoding: .isoLatin1) {
                     file.content = text
+                    file.savedContent = text
                 } else {
                     file.isBinary = true
                 }
@@ -433,6 +440,31 @@ func toggleExpanded(_ node: WorkspaceNode) {
             mainPane = .chat
             selectedPath = nil
         }
+    }
+
+    func updateFileContent(id: String, content: String) {
+        guard let index = openFiles.firstIndex(where: { $0.id == id }) else { return }
+        openFiles[index].content = content
+    }
+
+    func saveFile(_ id: String) {
+        guard let index = openFiles.firstIndex(where: { $0.id == id }) else { return }
+        do {
+            try openFiles[index].content.write(
+                to: URL(fileURLWithPath: openFiles[index].path),
+                atomically: true,
+                encoding: .utf8
+            )
+            openFiles[index].savedContent = openFiles[index].content
+            selectedPath = openFiles[index].path
+        } catch {
+            openFiles[index].error = error.localizedDescription
+        }
+    }
+
+    func saveActiveFile() {
+        guard let activeFileId else { return }
+        saveFile(activeFileId)
     }
 
     func showChatPane() {
@@ -818,8 +850,10 @@ final class AgentRunStore: ObservableObject {
     @Published var lastError: String?
     @Published var activeAlert: AgentAlertKind?
     @Published var isInspectorVisible: Bool = true
+    @Published var isSidebarVisible: Bool = true
     @Published var agentTodos: [AgentTodoItem] = []
     @Published var stepCount: Int = 0
+    @Published var lastTurnResult: AgentTurnResult?
 
     private var runTask: Task<Void, Never>?
     private var runID: UUID?
@@ -862,6 +896,8 @@ if lower.contains("plan_limit")
     }
 
     func stop() {
+        let cancelledRunID = runID
+        let cancelledAssistantID = activeAssistantID
         runID = nil
         runTask?.cancel()
         if let id = activeAssistantID { finishPending(assistantID: id, cancelled: true) }
@@ -871,12 +907,21 @@ if lower.contains("plan_limit")
         if status != .idle {
             status = .idle
         }
+        if let cancelledRunID {
+            lastTurnResult = AgentTurnResult(
+                id: cancelledRunID,
+                assistantMessageID: cancelledAssistantID,
+                text: "",
+                outcome: .cancelled
+            )
+        }
         PermissionManager.shared.resolve(.deny)
     }
 
-    func send(prompt: String) {
+    @discardableResult
+    func send(prompt: String) -> UUID? {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty else { return nil }
         stop()
         let token = UUID()
         runID = token
@@ -928,26 +973,48 @@ if lower.contains("plan_limit")
                 conversations.updateAssistant(id: assistantID) { message in
                     message.canonicalHistory = (references + outcome.history).map { $0.mapValues(AnyCodable.init) }
                 }
-                conversations.persistTranscript()
-                status = .idle
-                activeAssistantID = nil
-                try? await SupercodeAPIClient.shared.addMessage(conversationId: conversationID, role: "user", content: trimmed)
                 let finalText = conversations.messages.first { $0.id == assistantID }?.content ?? outcome.text
-                try? await SupercodeAPIClient.shared.addMessage(conversationId: conversationID, role: "assistant", content: finalText)
+                conversations.persistTranscript()
                 guard runID == token else { return }
-                if conversations.messages.filter({ $0.role == .user }).count == 1 { await conversations.renameActive(title: String(trimmed.prefix(48))) }
+                runID = nil
+                activeAssistantID = nil
+                lastTurnResult = AgentTurnResult(
+                    id: token,
+                    assistantMessageID: assistantID,
+                    text: finalText,
+                    outcome: .completed
+                )
+                status = .idle
+                try? await SupercodeAPIClient.shared.addMessage(conversationId: conversationID, role: "user", content: trimmed)
+                try? await SupercodeAPIClient.shared.addMessage(conversationId: conversationID, role: "assistant", content: finalText)
+                if conversations.activeConversationId == conversationID,
+                   conversations.messages.filter({ $0.role == .user }).count == 1 {
+                    await conversations.renameActive(title: String(trimmed.prefix(48)))
+                }
             } catch {
                 guard runID == token else { return }
                 finishPending(assistantID: assistantID, cancelled: Task.isCancelled || error is CancellationError)
-                if Task.isCancelled || error is CancellationError { status = .idle }
+                if Task.isCancelled || error is CancellationError {
+                    lastTurnResult = AgentTurnResult(id: token, assistantMessageID: assistantID, text: "", outcome: .cancelled)
+                    status = .idle
+                }
                 else {
+                    lastTurnResult = AgentTurnResult(
+                        id: token,
+                        assistantMessageID: assistantID,
+                        text: "",
+                        outcome: .failed(error.localizedDescription)
+                    )
                     status = .error
                     presentError(error.localizedDescription)
                     conversations.updateAssistant(id: assistantID) { $0.apply(.text(id: UUID().uuidString, content: "Error: \(error.localizedDescription)")) }
                 }
+                runID = nil
+                activeAssistantID = nil
                 conversations.persistTranscript()
             }
         }
+        return token
     }
 
     private func finishPending(assistantID: String, cancelled: Bool) {
@@ -1046,6 +1113,36 @@ if lower.contains("plan_limit")
         }
         diffs[idx].isAccepted = false
         WorkspaceStore.shared.reloadTree()
+    }
+
+    func stageDiff(_ id: String) {
+        guard let index = diffs.firstIndex(where: { $0.id == id }),
+              let root = WorkspaceStore.shared.path else { return }
+        let path = diffs[index].path
+        Task.detached(priority: .userInitiated) {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+            process.currentDirectoryURL = URL(fileURLWithPath: root)
+            process.arguments = ["add", "--", path]
+            let errorPipe = Pipe()
+            process.standardError = errorPipe
+            do {
+                try process.run()
+                process.waitUntilExit()
+                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                let message = String(data: errorData, encoding: .utf8) ?? "Could not stage file"
+                await MainActor.run {
+                    guard let current = self.diffs.firstIndex(where: { $0.id == id }) else { return }
+                    if process.terminationStatus == 0 {
+                        self.diffs[current].isStaged = true
+                    } else {
+                        self.presentError(message.trimmingCharacters(in: .whitespacesAndNewlines))
+                    }
+                }
+            } catch {
+                await MainActor.run { self.presentError(error.localizedDescription) }
+            }
+        }
     }
 
     func acceptAllDiffs() {

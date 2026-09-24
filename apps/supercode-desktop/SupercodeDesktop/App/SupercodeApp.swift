@@ -10,6 +10,7 @@ struct SupercodeApp: App {
     @StateObject private var reviewStore = ReviewStore.shared
     @StateObject private var permissions = PermissionManager.shared
     @StateObject private var connections = ConnectionsStore.shared
+    @StateObject private var voiceCall = VoiceCallStore.shared
 
     var body: some Scene {
         WindowGroup {
@@ -21,6 +22,7 @@ struct SupercodeApp: App {
                 .environmentObject(reviewStore)
                 .environmentObject(permissions)
                 .environmentObject(connections)
+                .environmentObject(voiceCall)
                 .frame(minWidth: 1100, minHeight: 680)
                 .background(DesktopTheme.background)
                 .preferredColorScheme(.dark)
@@ -40,7 +42,7 @@ struct SupercodeApp: App {
                 .keyboardShortcut("o", modifiers: [.command])
             }
 
-CommandMenu("Agent") {
+            CommandMenu("Agent") {
                 Button("Focus Composer") {
                     NotificationCenter.default.post(name: .focusComposer, object: nil)
                 }
@@ -58,6 +60,39 @@ CommandMenu("Agent") {
                         Task { await ConversationStore.shared.setMode(mode) }
                     }
                 }
+            }
+
+            CommandMenu("Voice") {
+                Button(voiceCall.isActive ? "End Voice Call" : "Start Voice Call") {
+                    voiceCall.toggleCall()
+                }
+                .keyboardShortcut("v", modifiers: [.control])
+
+                if voiceCall.isActive {
+                    Button(voiceCall.state == .muted ? "Unmute" : "Mute") {
+                        voiceCall.toggleMute()
+                    }
+                }
+            }
+
+            CommandMenu("View") {
+                Button(agentRun.isSidebarVisible ? "Hide Left Sidebar" : "Show Left Sidebar") {
+                    agentRun.isSidebarVisible.toggle()
+                }
+                .keyboardShortcut("b", modifiers: [.command])
+
+                Button(agentRun.isInspectorVisible ? "Hide Right Sidebar" : "Show Right Sidebar") {
+                    agentRun.isInspectorVisible.toggle()
+                }
+                .keyboardShortcut("b", modifiers: [.command, .option])
+
+                Divider()
+
+                Button("Save File") {
+                    workspace.saveActiveFile()
+                }
+                .keyboardShortcut("s", modifiers: [.command])
+                .disabled(workspace.mainPane != .file || workspace.activeFile?.isDirty != true)
             }
         }
 

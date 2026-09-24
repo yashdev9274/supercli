@@ -2,6 +2,38 @@ import XCTest
 @testable import Supercode
 
 final class ParityTests: XCTestCase {
+    func testVoiceWAVEncodingAndSpeechCleanup() {
+        let wav = DesktopVoiceCapture.encodeWAV(samples: [0, 0.5, -0.5], sampleRate: 16_000)
+        XCTAssertEqual(String(data: wav.prefix(4), encoding: .ascii), "RIFF")
+        XCTAssertEqual(String(data: wav.dropFirst(8).prefix(4), encoding: .ascii), "WAVE")
+        XCTAssertEqual(wav.count, 44 + (3 * MemoryLayout<Int16>.size))
+
+        let spoken = VoiceCallStore.spokenText("## Result\nUse `bun test`. [Docs](https://example.com)\n```ts\nsecret()\n```")
+        XCTAssertEqual(spoken, "Result\nUse bun test. Docs\n Code omitted.")
+        XCTAssertFalse(spoken.contains("secret()"))
+        XCTAssertTrue(FileManager.default.isExecutableFile(atPath: "/usr/bin/say"))
+    }
+
+    func testEditorRulerCoordinatesStayInsideVisibleEditor() {
+        let firstLineY = EditorLayoutGeometry.rulerLabelY(
+            lineFragmentY: 0,
+            lineHeight: 16,
+            labelHeight: 11,
+            textInsetY: 14,
+            visibleOriginY: 0
+        )
+        XCTAssertEqual(firstLineY, 16.5)
+
+        let scrolledLineY = EditorLayoutGeometry.rulerLabelY(
+            lineFragmentY: 160,
+            lineHeight: 16,
+            labelHeight: 11,
+            textInsetY: 14,
+            visibleOriginY: 160
+        )
+        XCTAssertEqual(scrolledLineY, firstLineY)
+    }
+
     func workspace() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("supercode-test-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
