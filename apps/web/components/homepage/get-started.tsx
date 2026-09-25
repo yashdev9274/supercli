@@ -21,15 +21,13 @@ const commands: CommandLine[] = [
 
 const GetStartedSection = () => {
   const [visible, setVisible] = useState(false)
-  const [reduceMotion, setReduceMotion] = useState(false)
+  const [reduceMotion] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  )
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const sectionRef = useRef<HTMLElement>(null)
-
-  useEffect(() => {
-    setReduceMotion(
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-    )
-  }, [])
 
   useEffect(() => {
     const el = sectionRef.current
