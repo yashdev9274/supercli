@@ -1,7 +1,8 @@
 import Navbar from "@/components/homepage/navbar";
 import HeroSection from "@/components/homepage/hero";
-import GetStartedSection from "@/components/homepage/get-started";
 import SponsorsSection from "@/components/homepage/sponsors-section";
+import FeaturesSection from "@/components/homepage/features-section";
+import ConnectorsSection from "@/components/homepage/connectors-section";
 import PartnershipsSection from "@/components/homepage/partnerships-section";
 import ProvidersSection from "@/components/homepage/providers-section";
 import ChangelogCard from "@/components/homepage/changelog-card";
@@ -18,9 +19,11 @@ export default async function Home() {
       <Navbar />
       <HeroSection />
 
-      <GetStartedSection />
-
       <SponsorsSection />
+
+      <FeaturesSection />
+
+      <ConnectorsSection />
 
       <PartnershipsSection />
 
