@@ -108,23 +108,25 @@ function askOne(item: z.infer<typeof questionItemSchema>): Promise<string | stri
         return
       }
 
+      // Narrow once: `options` is optional in the schema.
+      const options = item.options ?? []
       if (item.multiple) {
         const indices = trimmed
           .split(",")
           .map((s) => parseInt(s.trim(), 10))
-          .filter((n) => !isNaN(n) && n >= 1 && n <= item.options!.length)
+          .filter((n) => !isNaN(n) && n >= 1 && n <= options.length)
         if (indices.length === 0) {
           resolve([])
           return
         }
-        resolve(indices.map((i) => item.options![i - 1].label))
+        resolve(indices.map((i) => options[i - 1]!.label))
       } else {
         const num = parseInt(trimmed, 10)
-        if (isNaN(num) || num < 1 || num > item.options.length) {
+        if (isNaN(num) || num < 1 || num > options.length) {
           resolve("(invalid selection)")
           return
         }
-        resolve(item.options[num - 1].label)
+        resolve(options[num - 1]!.label)
       }
     })
   })
