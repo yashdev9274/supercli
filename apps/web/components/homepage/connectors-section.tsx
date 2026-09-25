@@ -10,42 +10,42 @@ const CONNECTORS: Connector[] = [
   {
     slug: "github",
     name: "GitHub",
-    description: "Fix CI failures and turn issues into pull requests.",
+    description: "Investigate issues, repair failing checks, and open ready-to-review pull requests.",
   },
   {
     slug: "linear",
     name: "Linear",
-    description: "Pick up assigned issues and keep their status current.",
+    description: "Move assigned work from scoped issue to verified implementation.",
   },
   {
     slug: "gmail",
     name: "Gmail",
-    description: "Turn product requests and bug reports into action.",
+    description: "Convert product feedback and bug reports into structured engineering work.",
   },
   {
     slug: "slack",
     name: "Slack",
-    description: "Triage requests and share progress where your team works.",
+    description: "Pick up requests, report progress, and return results in the right channel.",
   },
   {
     slug: "notion",
     name: "Notion",
-    description: "Build directly from specs, plans, and product context.",
+    description: "Ground implementation in the specs, decisions, and context your team maintains.",
   },
   {
     slug: "jira",
     name: "Jira",
-    description: "Take ownership of tickets and deliver reviewed changes.",
+    description: "Take tickets from backlog through implementation, validation, and review.",
   },
   {
     slug: "cal",
     name: "Cal.com",
-    description: "Trigger follow-up work from scheduled conversations.",
+    description: "Turn scheduled conversations into clear, trackable follow-up work.",
   },
   {
     slug: "googlecalendar",
     name: "Google Calendar",
-    description: "Prepare for meetings and automate the work after them.",
+    description: "Prepare the right context before meetings and act on decisions afterward.",
   },
 ]
 
@@ -55,12 +55,12 @@ export default function ConnectorsSection() {
       <div className="mx-auto max-w-[1200px]">
         <div className="max-w-[760px]">
           <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-primary/75">
-            Nova connectors
+            Works across your stack
           </p>
           <h2 className="mt-5 text-[36px] font-medium leading-[1.06] tracking-[-0.045em] sm:text-[48px] lg:text-[56px]">
-            <span className="text-white/30">Connect once, deliver repeatedly</span>
+            <span className="text-white/30">Connect the tools that hold your work.</span>
             <br />
-            <span className="text-white/90">with the tools you already use.</span>
+            <span className="text-white/90">Nova carries the context between them.</span>
           </h2>
         </div>
 

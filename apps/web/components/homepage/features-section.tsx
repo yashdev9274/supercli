@@ -7,11 +7,11 @@ const repositories = [
 ]
 
 const planItems = [
-  "Understand the request",
-  "Map affected systems",
+  "Clarify the outcome",
+  "Map the codebase",
   "Trace dependencies",
-  "Plan the implementation",
-  "Validate the approach",
+  "Design the change",
+  "Check the approach",
 ]
 
 function ArrowIcon() {
@@ -37,7 +37,7 @@ function AutomationPreview() {
   return (
     <div className="relative min-h-[470px] overflow-hidden border border-white/10 bg-card bg-[url('/cloudy.png')] bg-cover bg-center bg-no-repeat sm:min-h-[520px]">
       <div className="relative mx-auto mt-8 w-[62%] rounded-xl border border-white/10 bg-[#1b1b1a]/90 px-5 py-3 text-center text-[11px] leading-5 text-white/62 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
-        Every weekday, find stale issues, verify their status, and prepare the next action.
+        Every weekday, inspect stale issues, confirm what still matters, and move the right work forward.
       </div>
       <div aria-hidden="true" className="mx-auto h-8 w-px bg-white/14" />
 
@@ -45,7 +45,7 @@ function AutomationPreview() {
         <div className="flex items-center justify-between">
           <div>
             <p className="font-mono text-[8px] uppercase tracking-[0.14em] text-white/25">Workflow</p>
-            <h4 className="mt-1 text-[14px] font-semibold text-white/78">Repository maintenance</h4>
+            <h4 className="mt-1 text-[14px] font-semibold text-white/78">Continuous repository care</h4>
           </div>
           <span className="rounded-full border border-emerald-400/20 bg-emerald-400/7 px-2.5 py-1 font-mono text-[8px] text-emerald-400">ACTIVE</span>
         </div>
@@ -70,13 +70,13 @@ function AutomationPreview() {
         <div className="mt-5">
           <p className="font-mono text-[8px] uppercase tracking-[0.12em] text-white/25">Action</p>
           <div className="mt-2 rounded-lg border border-white/9 bg-[#111110] p-3 text-[10px] leading-5 text-white/48">
-            Review issues with no activity in 14 days. Reproduce confirmed bugs, update outdated labels, run affected tests, and open a fix when the change is safe.
+            Review issues inactive for 14 days. Reproduce confirmed bugs, refresh outdated context, run the relevant tests, and open a fix when the evidence is clear.
           </div>
         </div>
 
         <div className="mt-4 flex items-center justify-between border-t border-white/8 pt-4 font-mono text-[8px]">
           <span className="text-white/28">Last run · today at 9:00 AM</span>
-          <span className="text-emerald-400">✓ 6 issues maintained</span>
+          <span className="text-emerald-400">✓ 6 issues advanced</span>
         </div>
       </div>
     </div>
@@ -116,7 +116,7 @@ function ReviewPreview() {
             Nova&apos;s analysis
           </p>
           <p className="mt-3 max-w-[500px] text-[10px] leading-5 text-white/52">
-            This change adds three workflow stages to the landing page. The review traced server and client boundaries, checked responsive behavior, and found one unsafe redirect plus a race in shared session state.
+            The change is structurally sound, but two paths need attention before merge. The review traced the affected boundaries, verified responsive behavior, and identified an unsafe redirect and a shared-state race.
           </p>
         </div>
 
@@ -204,7 +204,7 @@ function CodeAndTestPreview() {
         </div>
 
         <p className="mt-5 max-w-[470px] text-[12px] leading-6 text-white/58">
-          Implemented the new workflow section and verified it across desktop and mobile. Added responsive coverage, checked accessibility, and ran the project&apos;s quality gates.
+          Built the workflow experience and verified it across desktop and mobile. Responsive behavior, accessibility checks, and the repository&apos;s quality gates all pass.
         </p>
 
         <div className="mt-4 flex flex-wrap gap-2 font-mono text-[8px]">
@@ -298,10 +298,10 @@ function PlanningPreview() {
           <div className="flex items-center justify-between border-b border-white/8 pb-4">
             <div>
               <p className="text-[14px] font-semibold text-white/80">
-                Landing architecture
+                Homepage workflow architecture
               </p>
               <p className="mt-1 font-mono text-[8px] text-white/28">
-                3 systems · 8 dependencies · ready to build
+                3 systems · 8 dependencies · risks mapped
               </p>
             </div>
             <span className="rounded-full border border-primary/20 bg-primary/8 px-2 py-1 font-mono text-[8px] text-primary">
@@ -313,15 +313,15 @@ function PlanningPreview() {
             <div className="rounded-lg border border-white/9 bg-white/[0.025] p-3 text-white/55">
               <span className="text-primary">01</span>
               <p className="mt-2 text-[10px] font-sans font-semibold text-white/72">
-                Marketing shell
+                Product foundation
               </p>
-              <p className="mt-1 text-white/28">layout · navigation · tokens</p>
+              <p className="mt-1 text-white/28">layout · navigation · design system</p>
             </div>
             <div className="flex items-center justify-center text-white/20">→</div>
             <div className="rounded-lg border border-white/9 bg-white/[0.025] p-3 text-white/55">
               <span className="text-primary">02</span>
               <p className="mt-2 text-[10px] font-sans font-semibold text-white/72">
-                Nova experience
+                Workflow experience
               </p>
               <p className="mt-1 text-white/28">hero · workflow · desktop UI</p>
             </div>
@@ -330,11 +330,11 @@ function PlanningPreview() {
           <div className="mt-4 rounded-lg border border-dashed border-white/10 p-3">
             <div className="flex items-center gap-2 font-mono text-[8px] text-white/38">
               <span className="text-emerald-400">✓</span>
-              Affected routes and components identified
+              Affected routes, components, and boundaries mapped
             </div>
             <div className="mt-2 flex items-center gap-2 font-mono text-[8px] text-white/38">
               <span className="text-emerald-400">✓</span>
-              Existing design system preserved
+              Existing patterns and design system preserved
             </div>
             <div className="mt-2 flex items-center gap-2 font-mono text-[8px] text-white/38">
               <span className="text-primary">◆</span>
@@ -352,9 +352,9 @@ export default function FeaturesSection() {
     <section className="border-t border-border px-5 py-24 sm:px-8 sm:py-32">
       <div className="mx-auto max-w-[1280px]">
         <h2 className="max-w-[850px] text-balance text-[34px] font-medium leading-[1.08] tracking-[-0.045em] sm:text-[48px] lg:text-[58px]">
-          <span className="text-white/32">From problem to merged PR,</span>
+          <span className="text-white/32">Give Nova the outcome.</span>
           <span className="block text-white/88">
-            Nova gets hard engineering work done.
+            It handles the engineering path to production.
           </span>
         </h2>
 
@@ -364,16 +364,16 @@ export default function FeaturesSection() {
               01
             </p>
             <h3 className="mt-4 text-[28px] font-medium tracking-[-0.035em] text-white/88 sm:text-[36px]">
-              Understand and plan
+              Understand before changing
             </h3>
             <p className="mt-3 max-w-[520px] text-[15px] leading-7 text-white/42 sm:text-[17px]">
-              Nova maps your codebase and systems architecture before it writes a line of code. It traces dependencies, surfaces risk, and builds an implementation plan grounded in your actual stack.
+              Nova reads across repositories, follows dependencies, and identifies the boundaries that matter before touching code. You get a practical plan based on how your system actually works.
             </p>
             <Link
               href="/download"
               className="mt-6 inline-flex items-center gap-2 text-[14px] font-medium text-primary transition-[gap,color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hoverable:hover:gap-3 hoverable:hover:text-primary/80"
             >
-              See Nova in action
+              See how Nova plans
               <ArrowIcon />
             </Link>
           </div>
@@ -389,16 +389,16 @@ export default function FeaturesSection() {
               02
             </p>
             <h3 className="mt-4 text-[28px] font-medium tracking-[-0.035em] text-white/88 sm:text-[36px]">
-              Code and test
+              Build, run, and verify
             </h3>
             <p className="mt-3 max-w-[520px] text-[15px] leading-7 text-white/42 sm:text-[17px]">
-              Delegate implementation to Nova, then follow every edit, command, and test from the desktop app. Nova works through failures, validates the result, and leaves you with a review-ready pull request.
+              Nova edits the right files, runs the project, and works through failures in your environment. Every command and change stays visible, ending with tested code ready for review.
             </p>
             <Link
               href="/download"
               className="mt-6 inline-flex items-center gap-2 text-[14px] font-medium text-primary transition-[gap,color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hoverable:hover:gap-3 hoverable:hover:text-primary/80"
             >
-              Build with Nova
+              Ship a change with Nova
               <ArrowIcon />
             </Link>
           </div>
@@ -410,16 +410,16 @@ export default function FeaturesSection() {
               03
             </p>
             <h3 className="mt-4 text-[28px] font-medium tracking-[-0.035em] text-white/88 sm:text-[36px]">
-              Review
+              Review with full context
             </h3>
             <p className="mt-3 max-w-[520px] text-[15px] leading-7 text-white/42 sm:text-[17px]">
-              Nova reviews every pull request with full codebase context. It catches bugs, security issues, and regressions before production, then points to the exact code and proposes a grounded fix.
+              Nova evaluates each pull request against the wider codebase—not only the diff. It explains concrete bugs, security risks, and regressions at the exact line where action is needed.
             </p>
             <Link
               href="/code-review"
               className="mt-6 inline-flex items-center gap-2 text-[14px] font-medium text-primary transition-[gap,color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hoverable:hover:gap-3 hoverable:hover:text-primary/80"
             >
-              Explore Nova Review
+              Explore contextual review
               <ArrowIcon />
             </Link>
           </div>
@@ -435,16 +435,16 @@ export default function FeaturesSection() {
               04
             </p>
             <h3 className="mt-4 text-[28px] font-medium tracking-[-0.035em] text-white/88 sm:text-[36px]">
-              Automate and maintain
+              Keep the codebase moving
             </h3>
             <p className="mt-3 max-w-[520px] text-[15px] leading-7 text-white/42 sm:text-[17px]">
-              Schedule recurring engineering work or trigger Nova from repository events. It can triage stale issues, refresh dependencies, close test-coverage gaps, and proactively repair the work your team should not repeat.
+              Run recurring engineering work on a schedule or in response to repository events. Nova triages issues, refreshes dependencies, closes coverage gaps, and handles maintenance before it becomes backlog.
             </p>
             <Link
               href="/download"
               className="mt-6 inline-flex items-center gap-2 text-[14px] font-medium text-primary transition-[gap,color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hoverable:hover:gap-3 hoverable:hover:text-primary/80"
             >
-              Automate with Nova
+              Put maintenance on autopilot
               <ArrowIcon />
             </Link>
           </div>

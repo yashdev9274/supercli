@@ -166,16 +166,16 @@ export default function HeroSection() {
     <section className="relative overflow-hidden border-b border-border px-4 pt-[190px] sm:pt-[210px]">
       <div className="relative mx-auto flex max-w-[1180px] flex-col items-center text-center">
         <p className="font-mono text-[10px] font-medium uppercase tracking-[0.28em] text-primary sm:text-[11px]">
-          The AI software engineer
+          An AI engineer for real codebases
         </p>
 
         <h1 className="mt-7 max-w-[980px] text-balance text-[48px] font-medium leading-[0.98] tracking-[-0.055em] text-white sm:text-[70px] lg:text-[88px]">
           Meet Nova.
-          <span className="block text-white/56">Your engineering team, multiplied.</span>
+          <span className="block text-white/56">Turn engineering intent into shipped code.</span>
         </h1>
 
         <p className="mt-7 max-w-[620px] text-pretty text-[15px] leading-7 text-white/48 sm:text-[17px]">
-          Nova plans, writes, reviews, and ships production code from your desktop—working across your codebase with the tools and models you already trust.
+          Nova understands your codebase, plans the work, writes and tests the change, and prepares it for review—all from a desktop workspace built for software teams.
         </p>
 
         <div className="mt-9 flex flex-col items-center gap-3 sm:flex-row">
@@ -183,7 +183,7 @@ export default function HeroSection() {
             href="/download"
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-white px-5 text-[13px] font-semibold text-black transition-[transform,background-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hoverable:hover:bg-white/90 active:scale-[0.97]"
           >
-            Download for Mac
+            Get Nova for Mac
             <ArrowIcon />
           </Link>
           <a
@@ -192,7 +192,7 @@ export default function HeroSection() {
             rel="noopener noreferrer"
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-white/14 bg-white/[0.025] px-5 text-[13px] font-medium text-white/76 transition-[transform,background-color,border-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hoverable:hover:border-white/24 hoverable:hover:bg-white/5 active:scale-[0.97]"
           >
-            Book a Demo
+            Talk to the founder
             <ArrowIcon />
           </a>
         </div>
