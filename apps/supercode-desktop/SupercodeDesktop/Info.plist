@@ -44,6 +44,8 @@
 	</dict>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © Supercode. All rights reserved.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Supercode uses the microphone for voice conversations with your coding agent.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>

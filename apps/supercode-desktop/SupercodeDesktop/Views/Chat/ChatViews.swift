@@ -6,6 +6,7 @@ struct ChatPaneView: View {
     @EnvironmentObject private var agentRun: AgentRunStore
     @EnvironmentObject private var workspace: WorkspaceStore
     @EnvironmentObject private var permissions: PermissionManager
+    @EnvironmentObject private var voiceCall: VoiceCallStore
 
 var body: some View {
         ZStack {
@@ -100,6 +101,9 @@ if let alert = agentRun.activeAlert {
                     .padding(.bottom, 6)
                 }
 
+                if voiceCall.isActive {
+                    VoiceCallBar()
+                }
                 ComposerBar()
             }
 
@@ -763,6 +767,7 @@ struct ComposerBar: View {
     @EnvironmentObject private var session: AppSessionStore
     @EnvironmentObject private var agentRun: AgentRunStore
     @EnvironmentObject private var workspace: WorkspaceStore
+    @EnvironmentObject private var voiceCall: VoiceCallStore
     @State private var draft: String = ""
     @State private var pickerSelection: Int = 0
     @FocusState private var focused: Bool
@@ -838,6 +843,23 @@ ComposerTextEditor(
                     }
                     .buttonStyle(.plain)
                     .help("Attach files (coming soon)")
+
+                    Button {
+                        voiceCall.toggleCall()
+                    } label: {
+                        Image(systemName: voiceCall.isActive ? "phone.fill" : "waveform.and.mic")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(voiceCall.isActive ? .black : DesktopTheme.textSecondary)
+                            .frame(width: 26, height: 26)
+                            .background(
+                                Circle().fill(voiceCall.isActive ? DesktopTheme.accent : DesktopTheme.panelElevated)
+                            )
+                            .overlay(Circle().stroke(DesktopTheme.border, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isRunning && !voiceCall.isActive)
+                    .help(voiceCall.isActive ? "End voice call" : "Start voice call (⌃V)")
+                    .accessibilityLabel(voiceCall.isActive ? "End voice call" : "Start voice call")
 
                     Menu {
                         ForEach(AgentMode.allCases) { mode in
@@ -930,6 +952,16 @@ ComposerTextEditor(
         }
         .onChange(of: draft) { _, _ in
             pickerSelection = 0
+        }
+        .onChange(of: voiceCall.transcript) { _, transcript in
+            guard voiceCall.isActive,
+                  voiceCall.state == .listening || voiceCall.state == .transcribing else { return }
+            draft = transcript
+        }
+        .onChange(of: voiceCall.state) { _, state in
+            if state == .thinking {
+                draft = ""
+            }
         }
         .onAppear { focused = true }
     }
@@ -1367,6 +1399,7 @@ struct ComposerPickerRow: View {
 
 struct DiffInspectorView: View {
     @EnvironmentObject private var agentRun: AgentRunStore
+    @EnvironmentObject private var workspace: WorkspaceStore
     var embedded: Bool = false
 
     var body: some View {
@@ -1406,90 +1439,27 @@ struct DiffInspectorView: View {
                     Spacer()
                 }
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(agentRun.diffs) { file in
-                            Button {
-                                agentRun.selectedDiffId = file.id
-                            } label: {
-                                Text(URL(fileURLWithPath: file.path).lastPathComponent)
-                                    .font(DesktopTheme.monoTiny)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 5)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .fill(agentRun.selectedDiffId == file.id
-                                                  ? DesktopTheme.panelElevated
-                                                  : DesktopTheme.background)
-                                    )
-                                    .foregroundStyle(DesktopTheme.textSecondary)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(10)
-                }
-
-                Divider().overlay(DesktopTheme.border)
-
-                if let file = agentRun.diffs.first(where: { $0.id == agentRun.selectedDiffId }) ?? agentRun.diffs.first {
+                VStack(spacing: 0) {
                     HStack {
-                        Text(file.path)
-                            .font(DesktopTheme.monoTiny)
+                        Text("Working changes")
+                            .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(DesktopTheme.textSecondary)
-                            .lineLimit(1)
                         Spacer()
-if file.isAccepted == false {
-                            Text("Reverted")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(DesktopTheme.textMuted)
-                        } else {
-                            Button("Revert") { agentRun.rejectDiff(file.id) }
-                                .buttonStyle(.plain)
-                                .foregroundStyle(DesktopTheme.danger)
-                                .font(.system(size: 11, weight: .semibold))
-                            Button("Keep") { agentRun.acceptDiff(file.id) }
-                                .buttonStyle(.plain)
-                                .foregroundStyle(DesktopTheme.success)
-                                .font(.system(size: 11, weight: .semibold))
-                        }
+                        Text("\(agentRun.diffs.count)")
+                            .font(DesktopTheme.monoTiny)
+                            .foregroundStyle(DesktopTheme.textMuted)
                     }
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 9)
 
                     ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(file.hunks) { hunk in
-                                Text(hunk.header)
-                                    .font(DesktopTheme.monoTiny)
-                                    .foregroundStyle(DesktopTheme.textMuted)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                ForEach(hunk.lines) { line in
-                                    HStack(alignment: .top, spacing: 0) {
-                                        Text(prefix(for: line.kind))
-                                            .font(DesktopTheme.monoSmall)
-                                            .foregroundStyle(DesktopTheme.textMuted)
-                                            .frame(width: 14, alignment: .center)
-                                        Text(line.text)
-                                            .font(DesktopTheme.monoSmall)
-                                            .foregroundStyle(DesktopTheme.textPrimary)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                    }
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 1)
-                                    .background(background(for: line.kind))
-                                }
+                        LazyVStack(spacing: 2) {
+                            ForEach(agentRun.diffs) { file in
+                                ChangeFileRow(file: file)
                             }
                         }
-                        .padding(.bottom, 12)
-                    }
-
-                    if let accepted = file.isAccepted {
-                        Text(accepted ? "Accepted (apply-to-disk in Phase 3)" : "Rejected")
-                            .font(DesktopTheme.monoTiny)
-                            .foregroundStyle(accepted ? DesktopTheme.success : DesktopTheme.danger)
-                            .padding(10)
+                        .padding(.horizontal, 6)
+                        .padding(.bottom, 8)
                     }
                 }
             }
@@ -1497,20 +1467,98 @@ if file.isAccepted == false {
         .background(embedded ? Color.clear : DesktopTheme.panel)
     }
 
-    private func prefix(for kind: DiffLine.Kind) -> String {
-        switch kind {
-        case .add: return "+"
-        case .remove: return "-"
-        case .context: return " "
+}
+
+private struct ChangeFileRow: View {
+    @EnvironmentObject private var agentRun: AgentRunStore
+    @EnvironmentObject private var workspace: WorkspaceStore
+    let file: DiffFile
+    @State private var hovering = false
+
+    var body: some View {
+        let visual = FileVisualStyle.forPath(file.path)
+        HStack(spacing: 9) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(visual.color.opacity(0.13))
+                    Image(systemName: visual.symbol)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(visual.color)
+                }
+                .frame(width: 26, height: 26)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(URL(fileURLWithPath: file.path).lastPathComponent)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(file.isAccepted == false ? DesktopTheme.textMuted : DesktopTheme.textPrimary)
+                        .lineLimit(1)
+                    Text(parentPath)
+                        .font(DesktopTheme.monoTiny)
+                        .foregroundStyle(DesktopTheme.textMuted)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 4)
+
+                if hovering && file.isAccepted != false {
+                    actionButton("arrow.uturn.backward", help: "Discard changes", color: DesktopTheme.danger) {
+                        agentRun.rejectDiff(file.id)
+                    }
+                    actionButton(file.isStaged ? "checkmark.circle.fill" : "plus.circle", help: file.isStaged ? "Staged" : "Stage changes", color: DesktopTheme.success) {
+                        agentRun.stageDiff(file.id)
+                    }
+                    actionButton("arrow.up.forward.square", help: "Open file", color: DesktopTheme.textSecondary) {
+                        openFile()
+                    }
+                } else {
+                    HStack(spacing: 5) {
+                        if file.isStaged {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(DesktopTheme.success)
+                        }
+                        Text("+\(file.additions)")
+                            .foregroundStyle(DesktopTheme.success)
+                        Text("-\(file.deletions)")
+                            .foregroundStyle(DesktopTheme.danger)
+                    }
+                    .font(DesktopTheme.monoTiny)
+                }
         }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(hovering ? DesktopTheme.panelElevated : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture(perform: openFile)
+        .onHover { hovering = $0 }
     }
 
-    private func background(for kind: DiffLine.Kind) -> Color {
-        switch kind {
-        case .add: return DesktopTheme.add
-        case .remove: return DesktopTheme.remove
-        case .context: return .clear
+    private var parentPath: String {
+        let parent = (file.path as NSString).deletingLastPathComponent
+        return parent.isEmpty ? "Project root" : parent
+    }
+
+    private func openFile() {
+        workspace.openFile(at: file.absolutePath ?? file.path)
+    }
+
+    private func actionButton(
+        _ symbol: String,
+        help: String,
+        color: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(color)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(DesktopTheme.background))
         }
+        .buttonStyle(.plain)
+        .help(help)
     }
 }
 

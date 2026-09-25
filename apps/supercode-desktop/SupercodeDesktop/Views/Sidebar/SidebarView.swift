@@ -5,12 +5,27 @@ struct SidebarView: View {
     @EnvironmentObject private var conversations: ConversationStore
     @EnvironmentObject private var workspace: WorkspaceStore
     @EnvironmentObject private var reviewStore: ReviewStore
+    @EnvironmentObject private var agentRun: AgentRunStore
     @State private var showAccountMenu = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Top inset clears traffic lights while sidebar itself spans full window height.
-            Color.clear.frame(height: 42)
+            HStack {
+                Spacer()
+                Button {
+                    agentRun.isSidebarVisible = false
+                } label: {
+                    Image(systemName: "sidebar.left")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(DesktopTheme.textMuted)
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.plain)
+                .help("Hide sidebar (⌘B)")
+            }
+            .frame(height: 42)
+            .padding(.trailing, 8)
 
             VStack(alignment: .leading, spacing: 6) {
                 navRow(title: "Home", systemImage: "house", selected: reviewStore.destination == .home) {

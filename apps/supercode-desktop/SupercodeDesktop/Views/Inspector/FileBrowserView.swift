@@ -112,18 +112,41 @@ struct FileBrowserView: View {
     }
 
     private var headerRow: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "internaldrive")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(DesktopTheme.accent)
-            Text(workspace.displayName)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(DesktopTheme.textPrimary)
-                .lineLimit(1)
-            Spacer()
+        HStack(spacing: 9) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(DesktopTheme.accentSoft)
+                Image(systemName: "folder.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DesktopTheme.accent)
+            }
+            .frame(width: 28, height: 28)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(workspace.displayName)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(DesktopTheme.textPrimary)
+                    .lineLimit(1)
+                if let branch = workspace.gitBranch {
+                    Text(branch)
+                        .font(DesktopTheme.monoTiny)
+                        .foregroundStyle(DesktopTheme.textMuted)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(DesktopTheme.panelElevated.opacity(0.7))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(DesktopTheme.border, lineWidth: 1)
+        )
+        .padding(.horizontal, 4)
+        .padding(.bottom, 4)
     }
 
     private var emptyWorkspace: some View {
@@ -179,7 +202,7 @@ struct FileTreeRow: View {
 
                     Image(systemName: node.systemImage)
                         .font(.system(size: 11))
-                        .foregroundStyle(node.isDirectory ? DesktopTheme.accent : DesktopTheme.textSecondary)
+                        .foregroundStyle(node.isDirectory ? DesktopTheme.accent : FileVisualStyle.forPath(node.path).color)
                         .frame(width: 14)
 
                     Text(node.name)

@@ -18,10 +18,12 @@
 		1C456156B9707A942DCA61C7 /* ConnectionsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1FE0024D8E35BB72C192BEC /* ConnectionsStore.swift */; };
 		1CA9B3B47AEDC538FE16CE9D /* AlertCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6659146FA2AC659EF2FD7249 /* AlertCard.swift */; };
 		257CEE7D1A7A79CF7CD11103 /* SupercodeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6036779459F5FA835E4EBC5F /* SupercodeApp.swift */; };
+		439C45F04E8D178B895394C2 /* VoiceCallStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 488F26DE72A470D15C0918D0 /* VoiceCallStore.swift */; };
 		43ABB723072990CC4D51C61E /* NativeCommandRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5735E0E31BBBB7C295899F43 /* NativeCommandRunner.swift */; };
 		54A7F3F549822BE04665DA9C /* NativeTurnEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = C839AE60B57C4373DD1AA0AA /* NativeTurnEngine.swift */; };
 		5621B8AB4D759C2047C1B620 /* ReviewModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6026BBC1C2F367EB398B963 /* ReviewModels.swift */; };
 		59ED9B7E368E144DC0DCF009 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 489CFF4811023DFC170B98F2 /* SettingsView.swift */; };
+		5C4D5CEC442FC5AE284C9246 /* DesktopVoiceCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51962DD8DBC8B0B4F9176A5D /* DesktopVoiceCapture.swift */; };
 		6461C5F7ECBEDA57895883D4 /* NativeFileTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB4CFB89E80D3FE539E3F4E /* NativeFileTools.swift */; };
 		6CB0538B0B0FE4A368D66086 /* NativeDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7196606CB5FC508F6DF4E960 /* NativeDiscovery.swift */; };
 		70D3DACB93EC6E2CA3D88EDD /* TerminalContract.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCBDDF420D3DD1CCBC47875A /* TerminalContract.swift */; };
@@ -44,6 +46,7 @@
 		F1682CC1D575210A82094948 /* Stores.swift in Sources */ = {isa = PBXBuildFile; fileRef = 648EBE685610AEC0B98FD194 /* Stores.swift */; };
 		F7E0C0765171D8EBDD8D8EBE /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF6FFC2FAFB5235177B7F7B5 /* SidebarView.swift */; };
 		FD8102A33A86A84732B37C2F /* FileViewerPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44ADEE2FDD53593A890F13B5 /* FileViewerPane.swift */; };
+		FF2E4DA2F5DC559814A3B67C /* VoiceCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B5349F4631C3DB558DEEDFB /* VoiceCallView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -63,11 +66,14 @@
 		180C931B5F23A96D0C228FB3 /* NativeFileReferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeFileReferences.swift; sourceTree = "<group>"; };
 		202FDEA6DAE799F1BB5E7AA2 /* ToolCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolCatalog.swift; sourceTree = "<group>"; };
 		2BB4CFB89E80D3FE539E3F4E /* NativeFileTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeFileTools.swift; sourceTree = "<group>"; };
+		3B5349F4631C3DB558DEEDFB /* VoiceCallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCallView.swift; sourceTree = "<group>"; };
 		44ADEE2FDD53593A890F13B5 /* FileViewerPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileViewerPane.swift; sourceTree = "<group>"; };
 		46DEB1E0F20C30D126E0D591 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		488F26DE72A470D15C0918D0 /* VoiceCallStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCallStore.swift; sourceTree = "<group>"; };
 		489CFF4811023DFC170B98F2 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		4AB6DDA04A166E86D5C2223F /* ModelCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelCatalog.swift; sourceTree = "<group>"; };
 		4DCE00B33EFB3052906A1C3D /* LocalToolRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalToolRuntime.swift; sourceTree = "<group>"; };
+		51962DD8DBC8B0B4F9176A5D /* DesktopVoiceCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopVoiceCapture.swift; sourceTree = "<group>"; };
 		559AF6EEE70B7695DED1E5CE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		5735E0E31BBBB7C295899F43 /* NativeCommandRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeCommandRunner.swift; sourceTree = "<group>"; };
 		6036779459F5FA835E4EBC5F /* SupercodeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupercodeApp.swift; sourceTree = "<group>"; };
@@ -106,6 +112,7 @@
 			children = (
 				C537DC7C79C6879C27B8F9F3 /* ChatViews.swift */,
 				44ADEE2FDD53593A890F13B5 /* FileViewerPane.swift */,
+				3B5349F4631C3DB558DEEDFB /* VoiceCallView.swift */,
 			);
 			path = Chat;
 			sourceTree = "<group>";
@@ -123,6 +130,7 @@
 			isa = PBXGroup;
 			children = (
 				C481E55900BB6B7654221E41 /* ComposerCommands.swift */,
+				51962DD8DBC8B0B4F9176A5D /* DesktopVoiceCapture.swift */,
 				74362A177EE73AF8C86414B3 /* KeychainStore.swift */,
 				4DCE00B33EFB3052906A1C3D /* LocalToolRuntime.swift */,
 				4AB6DDA04A166E86D5C2223F /* ModelCatalog.swift */,
@@ -189,6 +197,7 @@
 				D1FE0024D8E35BB72C192BEC /* ConnectionsStore.swift */,
 				1677CB46EDBAD1A2447B93FC /* ReviewStore.swift */,
 				648EBE685610AEC0B98FD194 /* Stores.swift */,
+				488F26DE72A470D15C0918D0 /* VoiceCallStore.swift */,
 			);
 			path = Stores;
 			sourceTree = "<group>";
@@ -377,6 +386,7 @@
 				C77AF9EB8A83D319E7D7094F /* ConnectionsSettingsView.swift in Sources */,
 				1C456156B9707A942DCA61C7 /* ConnectionsStore.swift in Sources */,
 				AB0FEA5579051C994FA6138E /* DesktopTheme.swift in Sources */,
+				5C4D5CEC442FC5AE284C9246 /* DesktopVoiceCapture.swift in Sources */,
 				72A668E728303A541A3C942B /* FileBrowserView.swift in Sources */,
 				FD8102A33A86A84732B37C2F /* FileViewerPane.swift in Sources */,
 				1950B0BA145378C8BC6E98D3 /* KeychainStore.swift in Sources */,
@@ -403,6 +413,8 @@
 				AF27E00019F2C56521F5F71B /* SyntaxHighlighter.swift in Sources */,
 				70D3DACB93EC6E2CA3D88EDD /* TerminalContract.swift in Sources */,
 				7EF5443D36153D58A6B6B95D /* ToolCatalog.swift in Sources */,
+				439C45F04E8D178B895394C2 /* VoiceCallStore.swift in Sources */,
+				FF2E4DA2F5DC559814A3B67C /* VoiceCallView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

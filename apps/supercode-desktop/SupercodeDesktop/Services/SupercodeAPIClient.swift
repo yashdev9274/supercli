@@ -425,6 +425,49 @@ actor SupercodeAPIClient {
         return object
     }
 
+    // MARK: - Voice
+
+    func transcribeVoice(_ wavData: Data) async throws -> String {
+        let payload = try JSONSerialization.data(withJSONObject: [
+            "base64": wavData.base64EncodedString(),
+            "provider": "smallest",
+        ])
+        let (data, http) = try await request("POST", path: "/api/voice/transcribe", body: payload)
+        try Self.requireJSON(http)
+        if http.statusCode == 401 { throw APIError.unauthorized }
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(Self.serverMessage(from: data, statusCode: http.statusCode))
+        }
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let text = object["text"] as? String else {
+            throw APIError.decoding
+        }
+        return text
+    }
+
+    func synthesizeVoice(_ text: String) async throws -> Data {
+        guard let url = URL(string: "/api/voice/tts", relativeTo: baseURL)?.absoluteURL else {
+            throw APIError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        for (key, value) in authHeaders() {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+        request.setValue("audio/mpeg", forHTTPHeaderField: "Accept")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["text": text])
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.server("Invalid voice response")
+        }
+        if http.statusCode == 401 { throw APIError.unauthorized }
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(Self.serverMessage(from: data, statusCode: http.statusCode))
+        }
+        guard !data.isEmpty else { throw APIError.decoding }
+        return data
+    }
+
     // MARK: - NDJSON chat stream
 
 /// Streams NDJSON chat events. `onEvent` is invoked on the cooperative task (caller should hop to MainActor if needed).

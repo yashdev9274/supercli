@@ -49,6 +49,7 @@ targets:
         LSMinimumSystemVersion: "14.0"
         LSApplicationCategoryType: public.app-category.developer-tools
         NSHumanReadableCopyright: "Copyright © Supercode. All rights reserved."
+        NSMicrophoneUsageDescription: "Supercode uses the microphone for voice conversations with your coding agent."
         NSPrincipalClass: NSApplication
         CFBundleURLTypes:
           - CFBundleURLName: ai.supercode.desktop

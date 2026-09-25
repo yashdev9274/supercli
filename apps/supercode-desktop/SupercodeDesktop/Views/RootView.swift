@@ -34,11 +34,13 @@ struct DesktopShellView: View {
     var body: some View {
         // Sidebar spans full window height; title bar only sits over the main/content column.
         HStack(spacing: 0) {
-            SidebarView()
-                .frame(width: sidebarWidth)
-                .frame(maxHeight: .infinity)
+            if agentRun.isSidebarVisible {
+                SidebarView()
+                    .frame(width: sidebarWidth)
+                    .frame(maxHeight: .infinity)
 
-            Divider().overlay(DesktopTheme.border)
+                SidebarResizeHandle(width: $sidebarWidth, range: 210...420, edge: .leading)
+            }
 
             VStack(spacing: 0) {
                 TitleBarView()
@@ -57,7 +59,7 @@ struct DesktopShellView: View {
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         if agentRun.isInspectorVisible {
-                            Divider().overlay(DesktopTheme.border)
+                            SidebarResizeHandle(width: $inspectorWidth, range: 260...520, edge: .trailing)
                             RightSidebarView()
                                 .frame(width: inspectorWidth)
                         }
@@ -95,6 +97,44 @@ struct DesktopShellView: View {
     }
 }
 
+private struct SidebarResizeHandle: View {
+    enum Edge {
+        case leading
+        case trailing
+    }
+
+    @Binding var width: CGFloat
+    let range: ClosedRange<CGFloat>
+    let edge: Edge
+    @State private var initialWidth: CGFloat?
+    @State private var hovering = false
+
+    var body: some View {
+        Rectangle()
+            .fill(hovering ? DesktopTheme.accent.opacity(0.55) : DesktopTheme.border)
+            .frame(width: 5)
+            .contentShape(Rectangle())
+            .onHover { isHovering in
+                hovering = isHovering
+                if isHovering {
+                    NSCursor.resizeLeftRight.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        let start = initialWidth ?? width
+                        initialWidth = start
+                        let delta = edge == .leading ? value.translation.width : -value.translation.width
+                        width = min(max(start + delta, range.lowerBound), range.upperBound)
+                    }
+                    .onEnded { _ in initialWidth = nil }
+            )
+    }
+}
+
 struct TitleBarView: View {
     @EnvironmentObject private var workspace: WorkspaceStore
     @EnvironmentObject private var agentRun: AgentRunStore
@@ -119,6 +159,19 @@ struct TitleBarView: View {
                     .padding(.trailing, 12)
             } else {
             // No logo here — logo lives in empty chat / auth / dock only.
+            if !agentRun.isSidebarVisible {
+                Button {
+                    agentRun.isSidebarVisible = true
+                } label: {
+                    Image(systemName: "sidebar.left")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(DesktopTheme.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .help("Show sidebar (⌘B)")
+                .padding(.leading, 14)
+            }
+
             HStack(spacing: 6) {
                 ForEach(Array(workspace.breadcrumbSegments().enumerated()), id: \.offset) { index, segment in
                     if index > 0 {
