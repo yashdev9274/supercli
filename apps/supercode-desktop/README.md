@@ -44,6 +44,19 @@ Server URL defaults by build configuration:
 
 Override anytime on the sign-in screen or in Settings (Local / Production presets).
 
+## Local OpenCode profile
+
+SuperCode can use models from a user's existing local OpenCode profile alongside Supercode Cloud. Open **Settings → OpenCode** or choose **OpenCode Profile** from the composer model menu. SuperCode starts an app-owned server bound to `127.0.0.1` with a fresh Basic Auth password for connected provider/model discovery, while turns run through the installed `opencode run` CLI. Provider credentials and upstream requests remain under OpenCode's control.
+
+Current requirements and limits:
+
+- OpenCode 1.x must be installed in `~/.opencode/bin`, `/opt/homebrew/bin`, or `/usr/local/bin`.
+- Providers must already be connected in OpenCode; SuperCode does not copy API keys or OAuth tokens.
+- OpenCode-profile turns execute through OpenCode's native agent runtime, including its configured instructions, tools, plugins, provider request metadata, and workspace context. SuperCode consumes the CLI's structured text/reasoning result rather than proxying provider credentials or reconstructing the upstream request.
+- OpenCode owns tool execution and permission policy for these turns. SuperCode does not auto-approve OpenCode permissions; native tool activity is not yet mirrored as individual SuperCode tool cards.
+- Connected Go, Zen (including free models), and third-party models are shown. Access still depends on valid OpenCode credentials, provider entitlements, and the selected model's OpenCode runtime policy.
+- OpenCode V2 has a breaking server API and is rejected until its separate adapter is implemented.
+
 ## DMG packaging
 
 Run from `apps/supercode-desktop`:

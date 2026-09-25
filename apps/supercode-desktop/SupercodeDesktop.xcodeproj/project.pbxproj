@@ -18,6 +18,7 @@
 		1C456156B9707A942DCA61C7 /* ConnectionsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1FE0024D8E35BB72C192BEC /* ConnectionsStore.swift */; };
 		1CA9B3B47AEDC538FE16CE9D /* AlertCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6659146FA2AC659EF2FD7249 /* AlertCard.swift */; };
 		257CEE7D1A7A79CF7CD11103 /* SupercodeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6036779459F5FA835E4EBC5F /* SupercodeApp.swift */; };
+		29D0CEE8E02EA4F41062C0DD /* OpenCodeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57A70137F19E6D02DD76DA88 /* OpenCodeModels.swift */; };
 		439C45F04E8D178B895394C2 /* VoiceCallStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 488F26DE72A470D15C0918D0 /* VoiceCallStore.swift */; };
 		43ABB723072990CC4D51C61E /* NativeCommandRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5735E0E31BBBB7C295899F43 /* NativeCommandRunner.swift */; };
 		54A7F3F549822BE04665DA9C /* NativeTurnEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = C839AE60B57C4373DD1AA0AA /* NativeTurnEngine.swift */; };
@@ -32,6 +33,7 @@
 		7EF5443D36153D58A6B6B95D /* ToolCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202FDEA6DAE799F1BB5E7AA2 /* ToolCatalog.swift */; };
 		835CF4B0B15D14C170BB6EBB /* terminal-contracts.json in Resources */ = {isa = PBXBuildFile; fileRef = BE1EE43CED27AB6E96B482DA /* terminal-contracts.json */; };
 		8F4FCBB0794A58D7EA7973AA /* ServerConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E300378F333F4ECE04AF3D4 /* ServerConfig.swift */; };
+		A44C74B4C2D48830E8258CBA /* OpenCodeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D624A7E4FA9CBB1F14E3406 /* OpenCodeService.swift */; };
 		A4DE95CB7AB60EE3946C2EA3 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB01BE2AB1618BFBC4A09456 /* Models.swift */; };
 		AA834118A8419E523C5E11C6 /* NativeFileReferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 180C931B5F23A96D0C228FB3 /* NativeFileReferences.swift */; };
 		AB0FEA5579051C994FA6138E /* DesktopTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6457828A843C1513090696A8 /* DesktopTheme.swift */; };
@@ -76,6 +78,8 @@
 		51962DD8DBC8B0B4F9176A5D /* DesktopVoiceCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopVoiceCapture.swift; sourceTree = "<group>"; };
 		559AF6EEE70B7695DED1E5CE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		5735E0E31BBBB7C295899F43 /* NativeCommandRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeCommandRunner.swift; sourceTree = "<group>"; };
+		57A70137F19E6D02DD76DA88 /* OpenCodeModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeModels.swift; sourceTree = "<group>"; };
+		5D624A7E4FA9CBB1F14E3406 /* OpenCodeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeService.swift; sourceTree = "<group>"; };
 		6036779459F5FA835E4EBC5F /* SupercodeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupercodeApp.swift; sourceTree = "<group>"; };
 		6182077C7DBF0EF8405C7555 /* SupercodeDesktopTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SupercodeDesktopTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		6457828A843C1513090696A8 /* DesktopTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopTheme.swift; sourceTree = "<group>"; };
@@ -140,6 +144,7 @@
 				2BB4CFB89E80D3FE539E3F4E /* NativeFileTools.swift */,
 				C839AE60B57C4373DD1AA0AA /* NativeTurnEngine.swift */,
 				9237D40C24DD14FBEE8F67F6 /* NativeWebSearch.swift */,
+				5D624A7E4FA9CBB1F14E3406 /* OpenCodeService.swift */,
 				150CB7DC01D1D4F6DC89411B /* PermissionManager.swift */,
 				8E300378F333F4ECE04AF3D4 /* ServerConfig.swift */,
 				D80058CCC966B10C5D98DA08 /* SupercodeAPIClient.swift */,
@@ -247,6 +252,7 @@
 			children = (
 				7C7CD7D156D1692F3E1A9330 /* ConnectionModels.swift */,
 				FB01BE2AB1618BFBC4A09456 /* Models.swift */,
+				57A70137F19E6D02DD76DA88 /* OpenCodeModels.swift */,
 				E6026BBC1C2F367EB398B963 /* ReviewModels.swift */,
 			);
 			path = Models;
@@ -399,6 +405,8 @@
 				6461C5F7ECBEDA57895883D4 /* NativeFileTools.swift in Sources */,
 				54A7F3F549822BE04665DA9C /* NativeTurnEngine.swift in Sources */,
 				018552EEF5F3E695C5BCFC3F /* NativeWebSearch.swift in Sources */,
+				29D0CEE8E02EA4F41062C0DD /* OpenCodeModels.swift in Sources */,
+				A44C74B4C2D48830E8258CBA /* OpenCodeService.swift in Sources */,
 				12AA834243DE6007B29275D5 /* PermissionManager.swift in Sources */,
 				5621B8AB4D759C2047C1B620 /* ReviewModels.swift in Sources */,
 				11BF63AC5C84E1E9D0B9F39A /* ReviewStore.swift in Sources */,

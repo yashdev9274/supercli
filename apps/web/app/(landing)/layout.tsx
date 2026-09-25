@@ -22,7 +22,7 @@ export default function MarketingLayout({
     <div
       className={`${schibstedGrotesk.variable} ${geistMono.variable} landing-fonts`}
     >
-      <LaunchBanner />
+      {/* <LaunchBanner /> */}
       {children}
     </div>
   );

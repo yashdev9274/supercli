@@ -2,11 +2,10 @@
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Check, Copy, Apple, Download } from "lucide-react"
+import { Check, Copy } from "lucide-react"
 
 import Navbar from "@/components/homepage/navbar"
 import Footer from "@/components/homepage/footer"
-import { resolveDesktopDownload } from "@/lib/desktop-download"
 
 const installCommands: Array<{ label: string; cmd: string }> = [
   { label: "curl", cmd: 'curl -fsSL https://supercli.vercel.app/install | bash' },
@@ -15,7 +14,7 @@ const installCommands: Array<{ label: string; cmd: string }> = [
   { label: "brew", cmd: "brew install supercode" },
 ]
 
-const desktopDownload = resolveDesktopDownload(process.env.NEXT_PUBLIC_DESKTOP_DMG_URL)
+const MAC_APP_INSTALL_COMMAND = "brew install --cask yashdev9274/supercode/supercode"
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
@@ -60,7 +59,7 @@ export default function DownloadPage() {
           className="text-center mb-16"
         >
           <h1 className="text-[40px] md:text-[56px] font-semibold tracking-tight mb-4">
-            Download Supercode
+            Download Supercode and Nova
           </h1>
           <p className="text-muted-foreground text-[17px] max-w-[500px] mx-auto">
             Available in Beta for macOS, Windows, and Linux
@@ -86,75 +85,20 @@ export default function DownloadPage() {
         </section>
 
         <section className="mb-20" aria-labelledby="desktop-heading">
-          <h2 id="desktop-heading" className="text-sm font-mono text-muted-foreground uppercase tracking-wider mb-4">
-            [2] Supercode Desktop
+          <h2 id="desktop-heading" className="mb-4 font-mono text-sm uppercase tracking-wider text-muted-foreground">
+            [2] Nova for Mac
           </h2>
-          <div className="max-w-[400px]">
-            <h3 className="mb-3 text-lg text-muted-foreground">Mac</h3>
-            {desktopDownload?.isUnnotarizedBeta ? (
-              <div id="desktop-beta-notice" className="mb-4 rounded-md border border-border bg-muted p-3 text-sm">
-                <p className="font-medium">Unnotarized beta — macOS approval required</p>
-                <p className="mt-1 text-muted-foreground">
-                  This app is ad-hoc signed, not signed with an Apple Developer ID or notarized by Apple.
-                  macOS may block the first launch. Only install it if you trust this download.
-                </p>
-              </div>
-            ) : null}
-            <div className="overflow-hidden rounded-md border border-foreground/60 bg-foreground/80 text-background divide-y divide-background/20">
-              {["Apple Silicon", "Intel"].map((architecture) => {
-                const content = (
-                  <>
-                    <Apple className="size-4 shrink-0 fill-current" aria-hidden="true" />
-                    <span className="font-medium">Mac</span>
-                    <span className="text-background/80">{architecture}</span>
-                    {architecture === "Apple Silicon" ? (
-                      <span className="rounded-sm bg-background/15 px-1.5 py-0.5 font-mono text-[10px] sm:text-xs">
-                        Recommended
-                      </span>
-                    ) : null}
-                    <Download className="ml-auto size-[18px] shrink-0" aria-hidden="true" />
-                  </>
-                )
-                const className = "flex min-h-[54px] w-full items-center gap-2 px-3 text-sm sm:gap-3 sm:px-5 sm:text-base transition-colors hover:bg-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-background disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
-                return desktopDownload ? (
-                  <a
-                    key={architecture}
-                    href={desktopDownload.url}
-                    aria-label={`Download Supercode${desktopDownload.isUnnotarizedBeta ? " unnotarized beta" : ""} for Mac ${architecture} (.dmg)`}
-                    aria-describedby={desktopDownload.isUnnotarizedBeta ? "desktop-beta-notice" : undefined}
-                    className={className}
-                  >
-                    {content}
-                  </a>
-                ) : (
-                  <button key={architecture} disabled className={className} aria-label={`Supercode for Mac ${architecture} — coming soon`}>
-                    {content}
-                  </button>
-                )
-              })}
-            </div>
-            <p className="mt-3 text-xs text-muted-foreground">
-              macOS 14+ · Both options download the same universal .dmg.
+          <div className="rounded-xl border border-border bg-card/40 p-5 sm:p-6">
+            <h3 className="text-lg font-medium text-foreground">Install the macOS app with Homebrew</h3>
+            <p className="mt-2 max-w-[580px] text-sm leading-6 text-muted-foreground">
+              One command installs Nova in Applications and keeps it easy to update. Supports Apple Silicon and Intel Macs.
             </p>
-            {desktopDownload ? (
-              <>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  v{desktopDownload.version}{desktopDownload.isUnnotarizedBeta ? " beta" : ""} · <a href={desktopDownload.checksumUrl} className="underline underline-offset-4">SHA-256 checksum</a>
-                </p>
-                <p className="mt-4 text-sm text-muted-foreground">
-                  Open the DMG, drag Supercode into Applications, eject the DMG, then launch and sign in.
-                </p>
-                {desktopDownload.isUnnotarizedBeta ? (
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    If macOS blocks the app because the developer cannot be verified, open System Settings → Privacy &amp; Security → Open Anyway
-                    after attempting to launch, then confirm. Managed Macs may not allow this.
-                    Do not disable Gatekeeper or override a malware warning.
-                  </p>
-                ) : null}
-              </>
-            ) : (
-              <p className="mt-3 text-sm text-muted-foreground">Coming soon — downloads will be enabled after release verification.</p>
-            )}
+            <div className="mt-5">
+              <InstallCommand label="brew" cmd={MAC_APP_INSTALL_COMMAND} />
+            </div>
+            <p className="mt-4 text-xs text-muted-foreground">
+              Requires Homebrew. After installation, launch Supercode from Applications or Spotlight.
+            </p>
           </div>
         </section>
 

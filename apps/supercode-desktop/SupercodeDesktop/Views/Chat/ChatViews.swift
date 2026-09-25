@@ -768,6 +768,7 @@ struct ComposerBar: View {
     @EnvironmentObject private var agentRun: AgentRunStore
     @EnvironmentObject private var workspace: WorkspaceStore
     @EnvironmentObject private var voiceCall: VoiceCallStore
+    @EnvironmentObject private var openCode: OpenCodeProfileStore
     @State private var draft: String = ""
     @State private var pickerSelection: Int = 0
     @FocusState private var focused: Bool
@@ -1119,11 +1120,49 @@ Section(ModelCatalog.SectionKind.cloud.title) {
                     }
                 }
             }
+
+
+            Section("OpenCode Profile") {
+                if openCode.models.isEmpty {
+                    Button("Connect local OpenCode profile…") {
+                        Task { await openCode.refresh() }
+                    }
+                } else {
+                    ForEach(openCode.providers, id: \.id) { provider in
+                        Menu(provider.name) {
+                            ForEach(openCode.models(providerID: provider.id)) { model in
+                                openCodeModelButton(model)
+                            }
+                        }
+                    }
+                    Divider()
+                    Button("Refresh OpenCode models") {
+                        Task { await openCode.refresh() }
+                    }
+                }
+            }
         } label: {
             chipLabel(session.modelChipLabel, systemImage: "cpu")
         }
         .menuStyle(.borderlessButton)
         .help("Provider · model (CLI-aligned catalog)")
+    }
+
+    @ViewBuilder
+    private func openCodeModelButton(_ model: OpenCodeModel) -> some View {
+        let isCurrent = session.selectedModelSource == .openCode
+            && session.selectedProvider == model.providerID
+            && session.selectedModel == model.modelID
+        Button {
+            session.selectOpenCodeModel(model)
+        } label: {
+            let title = model.supportsReasoning ? "\(model.name)  ·  reasoning" : model.name
+            if isCurrent {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
     }
 
     @ViewBuilder

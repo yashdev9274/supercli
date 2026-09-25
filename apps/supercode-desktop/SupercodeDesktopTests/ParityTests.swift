@@ -1,6 +1,13 @@
 import XCTest
 @testable import Supercode
 
+private actor LiveTextAccumulator {
+    private var text = ""
+
+    func append(_ chunk: String) { text += chunk }
+    func value() -> String { text }
+}
+
 final class ParityTests: XCTestCase {
     func testVoiceWAVEncodingAndSpeechCleanup() {
         let wav = DesktopVoiceCapture.encodeWAV(samples: [0, 0.5, -0.5], sampleRate: 16_000)
@@ -328,5 +335,188 @@ final class ParityTests: XCTestCase {
         }, activity: { _ in }, resultHandler: { _, _ in })
         XCTAssertTrue(childSeen)
         XCTAssertEqual(parentCalls, 2)
+    }
+
+    func testOpenCodeModelProjectionIncludesConnectedActiveAndFreeModels() throws {
+        let response: [String: Any] = [
+            "connected": ["opencode", "opencode-go"],
+            "all": [
+                [
+                    "id": "opencode-go",
+                    "name": "OpenCode Go",
+                    "key": "must-not-be-projected",
+                    "options": ["apiKey": "must-not-be-projected"],
+                    "models": [
+                        "fast": [
+                            "id": "fast",
+                            "name": "Fast Model",
+                            "status": "active",
+                            "capabilities": ["reasoning": true, "toolcall": true],
+                            "variants": ["high": ["reasoningEffort": "high"]],
+                        ],
+                        "space-bunny-free": [
+                            "id": "space-bunny-free",
+                            "name": "Go free model",
+                            "status": "active",
+                            "cost": ["input": 0, "output": 0],
+                        ],
+                        "retired": [
+                            "id": "retired",
+                            "name": "Retired Model",
+                            "status": "deprecated",
+                        ],
+                    ],
+                ],
+                [
+                    "id": "opencode",
+                    "name": "OpenCode Zen",
+                    "models": [
+                        "paid": [
+                            "id": "paid",
+                            "name": "Paid Zen model",
+                            "status": "active",
+                            "cost": ["input": 1, "output": 2],
+                        ],
+                        "big-pickle": [
+                            "id": "big-pickle",
+                            "name": "OpenCode-only free model",
+                            "status": "active",
+                            "cost": ["input": 0, "output": 0],
+                        ],
+                    ],
+                ],
+                [
+                    "id": "not-connected",
+                    "name": "Not Connected",
+                    "models": ["hidden": ["id": "hidden", "name": "Hidden", "status": "active"]],
+                ],
+            ],
+        ]
+
+        let models = OpenCodeAPIClient.parseModels(response)
+        let model = try XCTUnwrap(models.first { $0.modelID == "fast" })
+        XCTAssertEqual(models.count, 4)
+        XCTAssertEqual(model.providerID, "opencode-go")
+        XCTAssertEqual(model.providerName, "OpenCode Go")
+        XCTAssertEqual(model.modelID, "fast")
+        XCTAssertEqual(model.name, "Fast Model")
+        XCTAssertTrue(model.supportsReasoning)
+        XCTAssertTrue(model.supportsTools)
+        XCTAssertEqual(model.variants, ["high"])
+        XCTAssertFalse(String(describing: model).contains("must-not-be-projected"))
+        XCTAssertTrue(models.contains { $0.modelID == "space-bunny-free" })
+        XCTAssertTrue(models.contains { $0.modelID == "paid" })
+        XCTAssertTrue(models.contains { $0.modelID == "big-pickle" })
+    }
+
+    func testOpenCodeNativePromptPreservesStructuredHistory() {
+        let prompt = OpenCodeAPIClient.nativePrompt(history: [
+            ["role": "system", "content": "System instructions"],
+            ["role": "user", "content": "Hello"],
+            ["role": "tool", "tool_call_id": "call-1", "content": "result"],
+        ])
+        XCTAssertTrue(prompt.contains("<system>\nSystem instructions\n</system>"))
+        XCTAssertTrue(prompt.contains("<user>\nHello\n</user>"))
+        XCTAssertTrue(prompt.contains("\"tool_call_id\" : \"call-1\""))
+    }
+
+    func testOpenCodeRunEventDecoding() throws {
+        XCTAssertEqual(
+            OpenCodeAPIClient.decodeRunEvent(#"{"type":"text","part":{"type":"text","text":"hello"}}"#),
+            .text("hello")
+        )
+        XCTAssertEqual(
+            OpenCodeAPIClient.decodeRunEvent(#"{"type":"reasoning","part":{"type":"reasoning","text":"thinking"}}"#),
+            .reasoning("thinking")
+        )
+        guard case .finish(let reason, let usage) = OpenCodeAPIClient.decodeRunEvent(#"{"type":"step_finish","part":{"reason":"stop","tokens":{"input":3,"output":2}}}"#) else {
+            return XCTFail("Expected finish event")
+        }
+        XCTAssertEqual(reason, "stop")
+        XCTAssertEqual(usage?["input"]?.stringValue, "3")
+        XCTAssertNil(OpenCodeAPIClient.decodeRunEvent("not-json"))
+    }
+
+    func testOpenCodeInvalidCredentialIsActionable() {
+        let error = OpenCodeAPIClient.providerError(message: "Invalid API key.", providerID: "opencode-go")
+        XCTAssertEqual(
+            error.localizedDescription,
+            "OpenCode could not authenticate opencode-go: Invalid API key. SuperCode does not read or send this provider credential. Verify the same model in OpenCode, then reconnect the provider with /connect if it also fails there."
+        )
+    }
+
+    @MainActor
+    func testOpenCodeSourcePropagatesToDelegatedTurn() async throws {
+        var childSource: ModelSource?
+        var parentCalls = 0
+        _ = try await NativeTurnEngine.run(
+            history: [["role": "user", "content": "parent"]],
+            context: .init(root: nil, mode: .agent, source: .openCode, provider: "opencode-go", model: "fast"),
+            stream: { history, context, _, event in
+                if history.contains(where: { $0["content"] as? String == "child" }) {
+                    childSource = context.source
+                    await event(.text("child result"))
+                } else {
+                    parentCalls += 1
+                    if parentCalls == 1 {
+                        await event(.toolCall(id: "delegate", name: "delegate", args: ["task": AnyCodable("child"), "agent": AnyCodable("explore")]))
+                    } else {
+                        await event(.text("parent result"))
+                    }
+                }
+            },
+            activity: { _ in },
+            resultHandler: { _, _ in }
+        )
+        XCTAssertEqual(childSource, .openCode)
+    }
+
+    @MainActor
+    func testInstalledOpenCodeProfileDiscovery() async throws {
+        let candidates = [
+            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".opencode/bin/opencode").path,
+            "/opt/homebrew/bin/opencode",
+            "/usr/local/bin/opencode",
+        ]
+        guard candidates.contains(where: FileManager.default.isExecutableFile(atPath:)) else {
+            throw XCTSkip("OpenCode is not installed on this test machine")
+        }
+
+        let client = try await OpenCodeServiceManager.shared.ensureClient()
+        defer { OpenCodeServiceManager.shared.stop() }
+        let models = try await client.models()
+        let version = await client.version
+        XCTAssertFalse(version.isEmpty)
+        XCTAssertFalse(models.isEmpty)
+    }
+
+    @MainActor
+    func testLiveOpenCodeModelTurnWhenEnabled() async throws {
+        guard ProcessInfo.processInfo.environment["NOVA_OPENCODE_LIVE_TEST"] == "1" else {
+            throw XCTSkip("Set NOVA_OPENCODE_LIVE_TEST=1 to run a real free-model turn")
+        }
+        let client = try await OpenCodeServiceManager.shared.ensureClient()
+        defer { OpenCodeServiceManager.shared.stop() }
+        let models = try await client.models()
+        guard let model = models.first(where: {
+            $0.providerID == "opencode-go" && $0.modelID == "gpt-5.6-luna"
+        }) else {
+            throw XCTSkip("The OpenCode Go smoke-test model is not connected")
+        }
+
+        let output = LiveTextAccumulator()
+        try await client.generate(
+            history: [
+                ["role": "system", "content": "Follow the user's formatting instruction exactly."],
+                ["role": "user", "content": "Reply with exactly NOVA_OK"],
+            ],
+            providerID: model.providerID,
+            modelID: model.modelID,
+            workspace: nil
+        ) { event in
+            if case .text(let chunk) = event { await output.append(chunk) }
+        }
+        let text = await output.value()
+        XCTAssertEqual(text.trimmingCharacters(in: .whitespacesAndNewlines), "NOVA_OK")
     }
 }
