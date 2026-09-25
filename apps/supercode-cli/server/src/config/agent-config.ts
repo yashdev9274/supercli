@@ -39,37 +39,37 @@ export function createAppAgent(model: LanguageModel, systemPrompt?: string) {
     tools: {
       write_file: tool({
         description: writeFileTool.description,
-        inputSchema: writeFileTool.parameters,
+        inputSchema: writeFileTool.sdk.inputSchema,
         execute: async (input: any) => writeFileTool.execute(input),
       }),
       run_command: tool({
         description: runCommandTool.description,
-        inputSchema: runCommandTool.parameters,
+        inputSchema: runCommandTool.sdk.inputSchema,
         execute: async (input: any) => runCommandTool.execute(input),
       }),
       firecrawl_search: tool({
         description: firecrawlSearchTool.description,
-        inputSchema: firecrawlSearchTool.parameters,
+        inputSchema: firecrawlSearchTool.sdk.inputSchema,
         execute: async (input: any) => firecrawlSearchTool.execute(input),
       }),
       firecrawl_scrape: tool({
         description: firecrawlScrapeTool.description,
-        inputSchema: firecrawlScrapeTool.parameters,
+        inputSchema: firecrawlScrapeTool.sdk.inputSchema,
         execute: async (input: any) => firecrawlScrapeTool.execute(input),
       }),
       firecrawl_map: tool({
         description: firecrawlMapTool.description,
-        inputSchema: firecrawlMapTool.parameters,
+        inputSchema: firecrawlMapTool.sdk.inputSchema,
         execute: async (input: any) => firecrawlMapTool.execute(input),
       }),
       exa_search: tool({
         description: exaSearchTool.description,
-        inputSchema: exaSearchTool.parameters,
+        inputSchema: exaSearchTool.sdk.inputSchema,
         execute: async (input: any) => exaSearchTool.execute(input),
       }),
       exa_fetch: tool({
         description: exaFetchTool.description,
-        inputSchema: exaFetchTool.parameters,
+        inputSchema: exaFetchTool.sdk.inputSchema,
         execute: async (input: any) => exaFetchTool.execute(input),
       }),
     },

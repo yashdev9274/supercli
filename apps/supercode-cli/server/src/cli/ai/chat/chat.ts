@@ -80,6 +80,7 @@ import {
   modeColors,
   modeDisplay,
   MODES,
+  type ChatMode,
   assembleStreamSystemPrompt,
   buildToolsForTurn,
 } from "./lib/index.ts"
@@ -767,7 +768,7 @@ let streamAbort: AbortController | null = null
 let activeChain: { thoughts: { body: string; collapsed: boolean; endTime: number | null; subThoughts: { collapsed: boolean }[] }[]; togglePrinted: (i: number) => void; reprintThought: (i: number) => void } | null = null
 let stdinInput = ""
 let stdinCursor = 0
-let stdinMode = "chat"
+let stdinMode: ChatMode = "chat"
 let stdinResolve: ((value: { input: string; mode: string }) => void) | null = null
 let stdinPromptLen = 0
 let stdinPrevWrapLines = 1
@@ -1645,7 +1646,9 @@ function stripToolCallXml(chunk: string): string {
 }
 
 async function chatInput(currentMode: string): Promise<{ input: string; mode: string }> {
-  stdinMode = MODES.includes(currentMode) ? currentMode : "chat"
+  stdinMode = (MODES as readonly string[]).includes(currentMode)
+    ? (currentMode as ChatMode)
+    : "chat"
   applyModePermissions(stdinMode)
   // If voice capture or skill load just populated stdinInput, preserve it.
   // Otherwise reset to empty as usual.

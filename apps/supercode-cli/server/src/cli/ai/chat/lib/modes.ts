@@ -23,7 +23,7 @@ export const modeDisplay: Record<string, string> = {
 }
 
 /** Map chat-loop mode → agent name (or undefined for plain chat). */
-export function agentForMode(mode: string): string | undefined {
+export function agentForMode(mode: ChatMode): string | undefined {
   if (mode === "agent") return "build"
   if (mode === "plan") return "plan"
   return undefined
@@ -35,7 +35,7 @@ export function agentForMode(mode: string): string | undefined {
  * - plan → plan agent
  * - chat → default rules
  */
-export function applyModePermissions(mode: string): void {
+export function applyModePermissions(mode: ChatMode): void {
   permissionManager.setSessionLevel(mode === "agent" ? "allow" : null)
   setCurrentAgent(agentForMode(mode))
 }

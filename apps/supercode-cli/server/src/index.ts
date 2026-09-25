@@ -644,7 +644,6 @@ res.status(200)
     res.setHeader("Cache-Control", "no-cache, no-transform")
     res.setHeader("X-Accel-Buffering", "no")
     res.setHeader("Connection", "keep-alive")
-    // @ts-expect-error Node flush exists on ServerResponse
     if (typeof (res as any).flushHeaders === "function") (res as any).flushHeaders()
     try {
       // Disable Nagle so tiny NDJSON status lines leave the socket immediately.
@@ -655,7 +654,6 @@ res.status(200)
       try {
         const line = JSON.stringify({ type: "status", phase, message: message || phase }) + "\n"
         res.write(line)
-        // @ts-expect-error flush is available on some Node response wrappers
         if (typeof (res as any).flush === "function") (res as any).flush()
         // Force the kernel to push the write even when the chunk is tiny.
         try {

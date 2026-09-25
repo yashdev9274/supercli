@@ -359,8 +359,8 @@ async function pollForToken(
 
 export const loginCommand = new Command("login")
   .description("Authenticate with the Supercode server")
-  .option("--server-url <url>", "The URL of the Supercode server", URL)
-  .option("--client-id <id>", "The client ID of the Supercode server", CLIENT_ID)
+  .option("--server-url <url>", "The URL of the Supercode server")
+  .option("--client-id <id>", "The client ID of the Supercode server")
   .action(async () => {
     await loginAction({})
   })
