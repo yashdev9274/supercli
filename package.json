@@ -30,6 +30,7 @@
     "typecheck": "turbo typecheck",
     "postinstall": "bun run scripts/postinstall.ts",
     "check": "bun run lint && bun run typecheck && bun test",
+    "db:generate": "bun run --cwd apps/supercode-cli/server db:generate && bun run --cwd packages/superdesign-db db:generate",
     "dev:web": "turbo dev --filter=web",
     "db:generate:terminal": "bun run --cwd packages/db-terminal db:generate",
     "db:studio:terminal": "bun run --cwd packages/db-terminal db:studio",

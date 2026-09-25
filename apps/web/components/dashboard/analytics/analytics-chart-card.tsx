@@ -20,7 +20,7 @@ interface AnalyticsChartCardProps {
   title: string
   filters?: Filter[]
   chartType: "bar" | "line" | "area"
-  data: Record<string, any>[]
+  data: Array<Record<string, string | number>>
   dataKey: string
   xAxisKey?: string
   config: ChartConfig

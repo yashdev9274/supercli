@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 
 interface Particle {
   id: number
@@ -12,28 +12,31 @@ interface Particle {
   opacity: number
 }
 
+function generateParticles(): Particle[] {
+  const particles: Particle[] = []
+  for (let i = 0; i < 50; i++) {
+    particles.push({
+      id: i,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: Math.random() * 4 + 1,
+      speedX: (Math.random() - 0.5) * 0.3,
+      speedY: (Math.random() - 0.5) * 0.3,
+      opacity: Math.random() * 0.5 + 0.1,
+    })
+  }
+  return particles
+}
+
 export function ParticleBackground() {
-  const [particles, setParticles] = useState<Particle[]>([])
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-    const newParticles: Particle[] = []
-    const particleCount = 50
-
-    for (let i = 0; i < particleCount; i++) {
-      newParticles.push({
-        id: i,
-        x: Math.random() * 100,
-        y: Math.random() * 100,
-        size: Math.random() * 4 + 1,
-        speedX: (Math.random() - 0.5) * 0.3,
-        speedY: (Math.random() - 0.5) * 0.3,
-        opacity: Math.random() * 0.5 + 0.1,
-      })
-    }
-    setParticles(newParticles)
-  }, [])
+  const [particles, setParticles] = useState<Particle[]>(generateParticles)
+  // true on the client, false during SSR/hydration so the canvas never
+  // renders mismatched random values.
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  )
 
   useEffect(() => {
     if (!mounted) return

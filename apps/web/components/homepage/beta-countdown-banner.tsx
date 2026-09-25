@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { useMounted } from "@/hooks/use-mounted"
 
 type Time = {
   hours: number
@@ -8,6 +9,9 @@ type Time = {
   seconds: number
   total: number
 }
+
+// July 10, 2026 — Product Hunt launch
+const LAUNCH_TARGET = new Date("2026-07-10T00:00:00").getTime()
 
 function getTimeRemaining(target: number): Time {
   const diff = Math.max(0, target - Date.now())
@@ -28,44 +32,31 @@ export default function BetaCountdownBanner({
 }: {
   onVisibilityChange?: (visible: boolean) => void
 }) {
-  const [visible, setVisible] = useState(false)
-  const [targetTime, setTargetTime] = useState<number | null>(null)
-  const [time, setTime] = useState<Time>({ total: 48 * 60 * 60 * 1000, hours: 48, minutes: 0, seconds: 0 })
-  const [expired, setExpired] = useState(false)
+  const mounted = useMounted()
+  const [dismissed, setDismissed] = useState(false)
+  const [expired, setExpired] = useState(() => isExpired(LAUNCH_TARGET))
+  const [time, setTime] = useState<Time>(() => getTimeRemaining(LAUNCH_TARGET))
 
   useEffect(() => {
-    // July 10, 2026 — Product Hunt launch
-    const target = new Date("2026-07-10T00:00:00").getTime()
-
-    if (isExpired(target)) {
-      setExpired(true)
-      return
-    }
-
-    setTargetTime(target)
-    setTime(getTimeRemaining(target))
-    setVisible(true)
-  }, [])
-
-  useEffect(() => {
-    if (!targetTime || expired) return
+    if (expired) return
     const interval = setInterval(() => {
-      const remaining = getTimeRemaining(targetTime)
+      const remaining = getTimeRemaining(LAUNCH_TARGET)
       setTime(remaining)
       if (remaining.total <= 0) {
         setExpired(true)
-        setVisible(false)
       }
     }, 1000)
     return () => clearInterval(interval)
-  }, [targetTime, expired])
+  }, [expired])
+
+  const visible = mounted && !dismissed && !expired
 
   useEffect(() => {
     onVisibilityChange?.(visible)
   }, [visible, onVisibilityChange])
 
   const handleDismiss = useCallback(() => {
-    setVisible(false)
+    setDismissed(true)
   }, [])
 
   if (!visible) return null

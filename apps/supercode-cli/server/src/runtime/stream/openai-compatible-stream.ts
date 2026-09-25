@@ -209,8 +209,7 @@ const embedded = parseStreamedContent({
           message: `waiting for model tokens · ${hbTicks * Math.round(heartbeatMs / 1000)}s`,
         }) + "\n",
       )
-      // @ts-expect-error flush exists on some Node response wrappers
-      if (typeof (res as any).flush === "function") (res as any).flush()
+      if (typeof (res as unknown as { flush?: unknown }).flush === "function") (res as unknown as { flush: () => void }).flush()
     } catch {
       /* response closed */
     }

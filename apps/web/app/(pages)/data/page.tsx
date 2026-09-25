@@ -668,7 +668,7 @@ function BarList({
   reduce,
 }: {
   label: string
-  data: any[]
+  data: Array<Record<string, string | number>>
   valueKey: string
   color: string
   max: number
@@ -1272,7 +1272,7 @@ function ChartTooltip({
   label,
 }: {
   active?: boolean
-  payload?: any[]
+  payload?: Array<{ color?: string; fill?: string; value?: string | number; name?: string; dataKey?: string | number }>
   label?: string | number
 }) {
   if (!active || !payload || payload.length === 0) return null

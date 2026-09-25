@@ -64,7 +64,7 @@ export function ContributionGraph() {
                         React.cloneElement(block, {
                           "data-tooltip-id": "contribution-tooltip",
                           "data-tooltip-content": `${activity.count} contributions on ${activity.date}`,
-                        } as any)
+                        } as React.HTMLAttributes<SVGRectElement>)
                       }
                 />
                 </div>
