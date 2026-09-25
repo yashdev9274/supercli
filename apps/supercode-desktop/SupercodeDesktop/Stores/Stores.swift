@@ -15,6 +15,7 @@ final class AppSessionStore: ObservableObject {
     @Published var deviceUserCode: String?
     @Published var verificationURL: URL?
 @Published var serverURL: String
+    @Published var selectedModelSource: ModelSource
     @Published var selectedProvider: String
     @Published var selectedModel: String
     @Published var selectedEffort: EffortLevel = .low
@@ -25,6 +26,7 @@ final class AppSessionStore: ObservableObject {
 
     private let providerDefaultsKey = "selectedProvider"
     private let modelDefaultsKey = "selectedModel"
+    private let modelSourceDefaultsKey = "selectedModelSource"
     private let effortDefaultsKey = "selectedEffort"
 
     private init() {
@@ -40,9 +42,16 @@ final class AppSessionStore: ObservableObject {
             ?? ModelCatalog.defaultProvider.rawValue
         let storedModel = UserDefaults.standard.string(forKey: modelDefaultsKey)
             ?? ModelCatalog.defaultModelId
-        let resolved = ModelCatalog.resolve(provider: storedProvider, model: storedModel)
-        selectedProvider = resolved.0.rawValue
-        selectedModel = resolved.1.id
+        let storedSource = ModelSource(rawValue: UserDefaults.standard.string(forKey: modelSourceDefaultsKey) ?? "") ?? .supercode
+        selectedModelSource = storedSource
+        if storedSource == .openCode {
+            selectedProvider = storedProvider
+            selectedModel = storedModel
+        } else {
+            let resolved = ModelCatalog.resolve(provider: storedProvider, model: storedModel)
+            selectedProvider = resolved.0.rawValue
+            selectedModel = resolved.1.id
+        }
 
         if let effortRaw = UserDefaults.standard.string(forKey: effortDefaultsKey),
            let effort = EffortLevel(rawValue: effortRaw) {
@@ -58,17 +67,30 @@ final class AppSessionStore: ObservableObject {
 
     /// Select a catalog model — updates both provider and model and persists.
     func selectModel(_ entry: ModelCatalog.ModelEntry) {
+        selectedModelSource = .supercode
         selectedProvider = entry.provider.rawValue
         selectedModel = entry.id
+        UserDefaults.standard.set(selectedModelSource.rawValue, forKey: modelSourceDefaultsKey)
         UserDefaults.standard.set(selectedProvider, forKey: providerDefaultsKey)
         UserDefaults.standard.set(selectedModel, forKey: modelDefaultsKey)
     }
 
     func selectProvider(_ provider: ModelCatalog.Provider) {
+        selectedModelSource = .supercode
         selectedProvider = provider.rawValue
         if ModelCatalog.find(provider: provider.rawValue, model: selectedModel) == nil {
             selectedModel = provider.defaultModelId
         }
+        UserDefaults.standard.set(selectedProvider, forKey: providerDefaultsKey)
+        UserDefaults.standard.set(selectedModel, forKey: modelDefaultsKey)
+        UserDefaults.standard.set(selectedModelSource.rawValue, forKey: modelSourceDefaultsKey)
+    }
+
+    func selectOpenCodeModel(_ model: OpenCodeModel) {
+        selectedModelSource = .openCode
+        selectedProvider = model.providerID
+        selectedModel = model.modelID
+        UserDefaults.standard.set(selectedModelSource.rawValue, forKey: modelSourceDefaultsKey)
         UserDefaults.standard.set(selectedProvider, forKey: providerDefaultsKey)
         UserDefaults.standard.set(selectedModel, forKey: modelDefaultsKey)
     }
@@ -78,7 +100,12 @@ final class AppSessionStore: ObservableObject {
     }
 
     var modelChipLabel: String {
-        ModelCatalog.displayChip(provider: selectedProvider, model: selectedModel)
+        if selectedModelSource == .openCode {
+            return OpenCodeProfileStore.shared.models.first {
+                $0.providerID == selectedProvider && $0.modelID == selectedModel
+            }?.chipLabel ?? "OpenCode · \(selectedModel)"
+        }
+        return ModelCatalog.displayChip(provider: selectedProvider, model: selectedModel)
     }
 
     func persistEffort(_ level: EffortLevel) {
@@ -176,6 +203,7 @@ let me = try await SupercodeAPIClient.shared.getCurrentUser()
 
 func signOut() {
         AgentRunStore.shared.stop()
+        OpenCodeProfileStore.shared.stop()
         KeychainStore.clearAuth()
         user = nil
         isAuthenticated = false
@@ -932,7 +960,13 @@ if lower.contains("plan_limit")
         let conversations = ConversationStore.shared
         let workspace = WorkspaceStore.shared
         let session = AppSessionStore.shared
-        let context = NativeTurnEngine.Context(root: workspace.path, mode: conversations.mode, provider: session.selectedProvider, model: session.selectedModel)
+        let context = NativeTurnEngine.Context(
+            root: workspace.path,
+            mode: conversations.mode,
+            source: session.selectedModelSource,
+            provider: session.selectedProvider,
+            model: session.selectedModel
+        )
         let system = ToolCatalog.systemPrompt(mode: context.mode, workspacePath: context.root, gitBranch: workspace.gitBranch, effort: session.selectedEffort)
         workspace.showChatPane()
         runTask = Task {

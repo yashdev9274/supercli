@@ -11,6 +11,7 @@ struct SupercodeApp: App {
     @StateObject private var permissions = PermissionManager.shared
     @StateObject private var connections = ConnectionsStore.shared
     @StateObject private var voiceCall = VoiceCallStore.shared
+    @StateObject private var openCode = OpenCodeProfileStore.shared
 
     var body: some Scene {
         WindowGroup {
@@ -23,6 +24,7 @@ struct SupercodeApp: App {
                 .environmentObject(permissions)
                 .environmentObject(connections)
                 .environmentObject(voiceCall)
+                .environmentObject(openCode)
                 .frame(minWidth: 1100, minHeight: 680)
                 .background(DesktopTheme.background)
                 .preferredColorScheme(.dark)
@@ -101,6 +103,7 @@ struct SupercodeApp: App {
                 .environmentObject(session)
                 .environmentObject(workspace)
                 .environmentObject(connections)
+                .environmentObject(openCode)
         }
     }
 }
@@ -121,6 +124,10 @@ func application(_ application: NSApplication, open urls: [URL]) {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        OpenCodeProfileStore.shared.stop()
     }
 }
 
