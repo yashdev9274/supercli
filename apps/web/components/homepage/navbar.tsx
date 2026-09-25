@@ -162,8 +162,25 @@ const mobileProducts = [
 
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const pathname = usePathname();
   const onLandingPage = pathname === "/";
+
+  useEffect(() => {
+    const updateScrolledState = () => {
+      const nextIsScrolled = window.scrollY > 24;
+      setIsScrolled((currentIsScrolled) =>
+        currentIsScrolled === nextIsScrolled
+          ? currentIsScrolled
+          : nextIsScrolled,
+      );
+    };
+
+    updateScrolledState();
+    window.addEventListener("scroll", updateScrolledState, { passive: true });
+
+    return () => window.removeEventListener("scroll", updateScrolledState);
+  }, []);
 
   useEffect(() => {
     if (menuOpen) {
@@ -188,7 +205,7 @@ const Navbar = () => {
       external: true,
     },
     // { label: "Partnerships", href: "/partnerships" },
-    { label: "Compare", href: "/compare" },
+    // { label: "Compare", href: "/compare" },
     { label: "Docs", href: DOCS_URL, external: true },
     { label: "Changelog", href: "/changelog" },
     { label: "Blog", href: "/blog" },
@@ -198,9 +215,21 @@ const Navbar = () => {
   return (
     <>
       <header
-        className={`fixed left-0 right-0 z-100 ${onLandingPage ? "top-9 sm:top-10" : "top-0"}`}
+        className={`fixed left-0 right-0 z-100 transition-[top] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] ${
+          isScrolled
+            ? "top-3"
+            : onLandingPage
+              ? "top-9 sm:top-10"
+              : "top-0"
+        }`}
       >
-        <div className="bg-background/95 backdrop-blur-sm transition-[background,backdrop-filter,border] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]">
+        <div
+          className={`mx-auto border transition-[width,max-width,border-color,border-radius,background-color,box-shadow,backdrop-filter] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] ${
+            isScrolled
+              ? "w-[calc(100%-24px)] max-w-[1320px] rounded-2xl border-white/12 bg-background/80 shadow-[0_18px_60px_rgba(0,0,0,0.28)] backdrop-blur-xl"
+              : "w-full max-w-none rounded-none border-transparent bg-background/95 backdrop-blur-sm"
+          }`}
+        >
           <div className="relative h-[70px] flex items-center px-5 md:px-12 max-w-[1400px] mx-auto w-full">
             <div className="flex items-center gap-4 shrink-0">
               <button
@@ -263,7 +292,7 @@ const Navbar = () => {
             </nav>
 
             <div className="flex items-center gap-4 ml-auto">
-              <Link href="/download">
+              {/* <Link href="/download">
                 <Button className="group bg-white text-black hover:bg-white/90 active:scale-[0.97] cursor-pointer transition-[transform,background-color] ease-[cubic-bezier(0.23,1,0.32,1)] rounded-lg">
                   <svg
                     className="w-4 h-4 transition-transform duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]"
@@ -280,14 +309,14 @@ const Navbar = () => {
                   </svg>
                   Download
                 </Button>
-              </Link>
+              </Link> */}
               <a
-                href="https://cal.com/yash-dewasthale/talk-to-founder"
+                href="https://supercodeai.vercel.app/login"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group hidden md:inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-[13px] font-medium bg-white text-black hover:bg-white/90 transition-[transform,background-color,border-color] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]"
               >
-                Talk to founder
+                Supercode Review
                 <svg
                   className="w-3.5 h-3.5 transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
                   viewBox="0 0 24 24"
@@ -306,8 +335,12 @@ const Navbar = () => {
         </div>
 
         <div
-          className={`fixed inset-0 z-40 transition-opacity duration-400 ease-[cubic-bezier(0.23,1,0.32,1)] ${
-            onLandingPage ? "top-[106px] sm:top-[110px]" : "top-[70px]"
+          className={`fixed inset-0 z-40 transition-[top,opacity] duration-400 ease-[cubic-bezier(0.23,1,0.32,1)] ${
+            isScrolled
+              ? "top-[82px]"
+              : onLandingPage
+                ? "top-[106px] sm:top-[110px]"
+                : "top-[70px]"
           } ${
             menuOpen
               ? "opacity-100 pointer-events-auto"
