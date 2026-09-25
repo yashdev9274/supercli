@@ -105,6 +105,9 @@ export default function BetaCountdownBanner({
         <div
           className="flex items-baseline gap-1 sm:gap-1.5 select-none"
           style={{ fontVariantNumeric: "tabular-nums" }}
+          // Digits derive from Date.now(): server HTML and the client's first
+          // render can differ by a second; the 1s interval corrects instantly.
+          suppressHydrationWarning
         >
           <DigitPairMobile value={pad(time.hours)} />
           <span className="text-primary/50 text-[12px] sm:text-[14px] font-light leading-none -mt-[1px] sm:-mt-[2px] animate-pulse">
