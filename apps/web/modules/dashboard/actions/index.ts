@@ -24,7 +24,9 @@ export async function getDashboardStats() {
 
         const {data: user} = await octokit.rest.users.getAuthenticated()
 
-        const totalRepos= 5
+        const totalRepos = await prisma.repository.count({
+            where: { userId: session.user.id },
+        })
 
         const calendar = await fetchUserContribution(token, user.login)
         const totalCommits = calendar?.totalContributions || 0
@@ -36,7 +38,12 @@ export async function getDashboardStats() {
 
         const totalPRs = prs.total_count
 
-        const toatalReviews = 50
+        const toatalReviews = await prisma.review.count({
+            where: {
+                repository: { userId: session.user.id },
+                status: "completed",
+            },
+        })
 
         return{
             totalCommits,
@@ -463,46 +470,6 @@ export async function getReviews(repoFullName?: string): Promise<ReviewItem[]> {
                 })
             }
 
-            // Auto-queue open unreviewed PRs. reviewPullRequest returns immediately
-            // (Inngest or next/server after()) so the list stays fast.
-            // Cap concurrent queues per list load to avoid stampeding LLM spend.
-            const toQueue = items
-                .filter(
-                    (item) =>
-                        item.prState === "open" &&
-                        item.status === "unreviewed",
-                )
-                .slice(0, repoFullName ? 5 : 2)
-
-            if (toQueue.length > 0) {
-                const queuedKeys = new Set<string>()
-                await Promise.allSettled(
-                    toQueue.map(async (item) => {
-                        const key = `${item.repository.fullName}#${item.prNumber}`
-                        if (queuedKeys.has(key)) return
-                        queuedKeys.add(key)
-                        try {
-                            await reviewPullRequest(
-                                item.repository.owner,
-                                item.repository.name,
-                                item.prNumber,
-                                {
-                                    userId: session.user.id,
-                                    prTitle: item.prTitle,
-                                },
-                            )
-                            item.status = "pending"
-                            item.summary = item.summary ?? "AI review queued…"
-                        } catch (error) {
-                            console.error(
-                                `[getReviews] auto-queue failed for ${key}:`,
-                                error,
-                            )
-                        }
-                    }),
-                )
-            }
-
             return items.sort(
                 (a, b) =>
                     new Date(b.updatedAt ?? b.createdAt).getTime() -
@@ -865,11 +832,12 @@ export async function queueReview(id: string): Promise<{ success: boolean; messa
         prNumber = parsed.prNumber
     }
 
-    // Async by default: Inngest when configured, otherwise next/server after().
-    // Detail page polls until status becomes completed/failed.
+    // Keep the server action alive until the manual review reaches a terminal
+    // state. Post-response callbacks can be interrupted and leave rows pending.
     const result = await reviewPullRequest(owner, repo, prNumber, {
         userId: session.user.id,
         source: "dashboard",
+        wait: true,
     })
     return {
         success: Boolean(result.success),

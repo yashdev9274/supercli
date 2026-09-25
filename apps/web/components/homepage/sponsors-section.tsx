@@ -24,10 +24,10 @@ const SponsorsSection = () => {
     <section className="py-20 md:py-24 px-6 border-t border-border">
       <div className="max-w-[1100px] mx-auto text-center">
         <div className="mb-10 md:mb-12">
-          <h2 className="text-[13px] font-mono uppercase tracking-[0.15em] text-primary mb-4">
+          <h2 className="text-lg font-semibold text-primary uppercase mb-4">
             $ Our Sponsors
           </h2>
-          <h3 className="text-[28px] md:text-[36px] text-[#A1A1AA] font-semibold tracking-tight max-w-[520px] mx-auto leading-[1.15]">
+          <h3 className="text-[28px] md:text-[36px] text-[#A1A1AA] font-medium tracking-tighter max-w-[520px] mx-auto leading-[1.15]">
             Backed by the builders of the web
           </h3>
         </div>
@@ -40,12 +40,12 @@ const SponsorsSection = () => {
             aria-label="Vercel Open Source Program"
             className="group inline-flex items-center gap-3 px-2 py-1 transition-opacity duration-200 hover:opacity-80"
           >
-            <VercelMark className="h-5 w-6 text-foreground" />
+            <VercelMark className="h-10 w-10 text-foreground" />
             <span className="flex flex-col items-start gap-0.5 text-left">
-              <span className="text-[15px] font-semibold tracking-tight text-foreground group-hover:text-primary transition-colors">
+              <span className="text-base font-medium tracking-tighter text-white group-hover:text-primary transition-colors">
                 Vercel
               </span>
-              <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-muted-foreground">
+              <span className="text-xs uppercase tracking-tight font-medium text-[#A1A1AA]">
                 Open Source
               </span>
             </span>

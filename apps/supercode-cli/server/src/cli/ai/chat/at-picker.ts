@@ -1,3 +1,6 @@
+/**
+ * @-file picker overlay + drag-drop path tracker for chalk chat input.
+ */
 import chalk from "chalk"
 import { theme } from "src/cli/utils/tui.ts"
 import {

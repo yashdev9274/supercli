@@ -1,18 +1,27 @@
 #!/usr/bin/env bun
 
-const DATABASE_URL = process.env.DATABASE_URL
+/**
+ * Monorepo postinstall.
+ * Always generate Prisma clients into stable package outputs so Vercel/bun
+ * do not depend on which @prisma/client hash got the default engine.
+ */
+import { execSync } from "node:child_process"
 
 console.log("Running postinstall...")
 
-if (DATABASE_URL && DATABASE_URL !== "postgresql://...") {
-  console.log("  Generating Prisma clients...")
-  const { execSync } = require("node:child_process")
-  execSync("bun run --cwd packages/db db:generate", { stdio: "inherit" })
-  execSync("bun run --cwd packages/db-terminal db:generate", { stdio: "inherit" })
-  console.log("  Prisma clients generated")
-} else {
-  console.log("  No DATABASE_URL configured — skipping Prisma client generation")
-  console.log("  To generate later: bun run db:generate")
+const steps: Array<{ label: string; cwd: string; cmd: string }> = [
+  { label: "@super/db", cwd: "packages/db", cmd: "bun run db:generate" },
+  { label: "@super/db-terminal", cwd: "packages/db-terminal", cmd: "bun run db:generate" },
+]
+
+for (const step of steps) {
+  try {
+    console.log(`  Generating Prisma client (${step.label})...`)
+    execSync(step.cmd, { cwd: step.cwd, stdio: "inherit", env: process.env })
+  } catch (err) {
+    console.warn(`  Warning: failed to generate ${step.label} — build scripts may regenerate.`)
+    console.warn(`  ${err instanceof Error ? err.message : String(err)}`)
+  }
 }
 
 console.log("postinstall complete")

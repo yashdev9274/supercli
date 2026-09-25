@@ -28,7 +28,7 @@ export function PRsReviewedCard({ data }: PRsReviewedCardProps) {
 
   return (
     <AnalyticsChartCard
-      title="PRs Reviewed by Greptile"
+      title="PRs Reviewed by Supercode"
       chartType="bar"
       data={chartData}
       dataKey="prs"

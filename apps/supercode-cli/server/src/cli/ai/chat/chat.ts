@@ -1,8 +1,13 @@
+/**
+ * Chalk TUI chat loop — main interactive session.
+ *
+ * Pure helpers live in ./lib/*; this file owns stdin/stream coordination
+ * and the public entrypoints startChat / initConversation / clearSkill.
+ */
 import chalk from "chalk"
 import * as readline from "readline"
-import { getStoredToken } from "src/lib/token.ts"
+import type { ModelMessage } from "ai"
 import {
-  getCurrentUser,
   getOrCreateConversation,
   getMessages,
   addMessage,
@@ -10,34 +15,13 @@ import {
   updateConversationTitle,
   formatMessagesForAI,
 } from "src/lib/api-client.ts"
-import type { ModelMessage } from "ai"
 import { createProvider, type ModelProvider, type AIProvider } from "src/cli/ai/provider.ts"
 import { checkPlanGate } from "src/lib/plan-gate"
-
-/** Rough token estimate of the conversation context (chars / 4). */
-function estimateContextTokens(messages: ModelMessage[]): number {
-  try {
-    return Math.ceil(JSON.stringify(messages).length / 4)
-  } catch {
-    return 0
-  }
-}
-
-/** Loads the conversation transcript and estimates its token count. */
-async function loadContextTokens(conversationId: string): Promise<number> {
-  try {
-    const msgs = await getMessages(conversationId)
-    return estimateContextTokens(msgs as unknown as ModelMessage[])
-  } catch {
-    return 0
-  }
-}
+import { createThinkSplitter, finalizeAnswerVsProcess } from "src/lib/split-think-content"
 import {
   permissionManager,
-  setCurrentAgent,
   type PermissionPromptReply,
 } from "src/tools/permission-manager.ts"
-import { agentService, loadPrompt } from "src/agent/index.ts"
 export type { ModelProvider } from "src/cli/ai/provider.ts"
 import {
   theme,
@@ -56,29 +40,16 @@ import {
 } from "src/cli/utils/tui.ts"
 import { ThinkingDisplay, TurnTracker, toolLabel, ThoughtChain, extractToolArg } from "./thinking.ts"
 import { StepStatusRow } from "./step-status-row.ts"
+import { AnalysisActivity, renderReferenceActivity } from "src/cli/utils/reference-activity"
+import { ToolTranscript, renderToolBlock } from "src/cli/utils/tool-presentation"
+import { sanitizeTerminalText } from "src/cli/utils/terminal-text"
 import { MarkdownStream } from "src/cli/utils/markdown-stream.ts"
 import { getContextWindow } from "src/cli/ai/context-windows.ts"
 import type { WorkspaceInfo } from "src/cli/workspace/scanner.ts"
-import { buildSystemPrompt } from "src/cli/workspace/context.ts"
-import { tools } from "src/tools/registry.ts"
-import { setDelegateRuntime } from "src/tools/definitions/delegate.ts"
-import { getMcpManager } from "src/mcp/mcp-manager"
+import { setDelegateRuntime } from "src/agents/tools/delegate.ts"
 import { CitationTracker } from "src/lib/citation-tracker.ts"
-import { loadEnvOnce } from "src/lib/load-env"
 import { renderWorkspaceBanner } from "src/cli/workspace/format.ts"
 import { handleSlashCommand, isSlashCommand, COMMANDS } from "src/cli/commands/slashCommands/index.ts"
-import {
-  renderWriteSnapshot,
-  renderEditSnapshot,
-  renderCommandSnapshot,
-  renderReadSnapshot,
-  renderSearchSnapshot,
-  renderGlobSnapshot,
-  renderWebSearchSnapshot,
-  formatBytes,
-  diffLines,
-  countDiff,
-} from "src/cli/utils/tool-snapshot.ts"
 import { renderContextBreakdown } from "src/cli/commands/slashCommands/context-window.ts"
 import { saveCliConfig } from "src/lib/cli-config"
 import {
@@ -95,59 +66,34 @@ import {
   resolveFileReferences,
 } from "src/lib/file-search.ts"
 
+// Modular chat helpers
+import {
+  getUserFromToken,
+  setCurrentChatUser,
+  getCurrentChatUser,
+  isYashDewasthale,
+  getUserPlanTier,
+  estimateContextTokens,
+  loadContextTokens,
+  agentForMode,
+  applyModePermissions,
+  modeColors,
+  modeDisplay,
+  MODES,
+  assembleStreamSystemPrompt,
+  buildToolsForTurn,
+} from "./lib/index.ts"
 
-async function getUserFromToken() {
-  const token = await getStoredToken()
-  if (!token?.access_token) {
-    console.log(chalk.hex(theme.red)("Not authenticated. Please login first."))
-    process.exit(1)
-  }
-
-  const thinking = createThinking("authenticating")
-  const result = await getCurrentUser()
-  if (!result.ok) {
-    thinking.fail("Session expired or server unreachable")
-    throw new Error("Authentication failed. Run supercode login to re-authenticate.")
-  }
-
-  thinking.succeed(`Welcome, ${result.user.name}`)
-  return result.user
-}
-
-// Store the current user for feature gating
-let currentUser: { id: string; name: string | null; email: string } | null = null
-
-// Check if the current user is Yash Dewasthale (for feature gating)
-function isYashDewasthale(): boolean {
-  if (!currentUser) return false
-  const name = currentUser.name?.toLowerCase() ?? ""
-  const email = currentUser.email?.toLowerCase() ?? ""
-  return (
-    name.includes("yash") && name.includes("dewasthale") ||
-    email === "yashdev.yvd@gmail.com" ||
-    email === "yash@supercode.ai"
-  )
-}
-
-// Get user's plan tier for display
-async function getUserPlanTier(): Promise<string> {
-  if (!currentUser) return ""
-  try {
-    const prisma = (await import("src/lib/prisma")).default
-    const subscription = await prisma.subscription.findFirst({
-      where: {
-        userId: currentUser.id,
-        status: { in: ["active", "trialing"] },
-      },
-      include: { plan: true },
-      orderBy: { createdAt: "desc" },
-    })
-    if (!subscription?.plan) return ""
-    return subscription.plan.tier
-  } catch {
-    return ""
-  }
-}
+// Skill state (shared with system-prompt assembler) — re-exported for public API
+import {
+  loadedSkillName,
+  clearSkill,
+  getLoadedSkillContent,
+  setLoadedSkill,
+  consumeSkillJustLoaded,
+  isSkillJustLoaded,
+} from "./lib/skill-state.ts"
+export { loadedSkillName, clearSkill, setLoadedSkill } from "./lib/skill-state.ts"
 
 export async function initConversation(userId: string, conversationId: string | null = null, mode = "chat") {
   const thinking = createThinking("loading conversation")
@@ -168,158 +114,6 @@ export async function initConversation(userId: string, conversationId: string | 
   return conversation
 }
 
-/**
- * Render a code/diff/stdout snapshot under the tool row for file-changing
- * tools. Mirrors OpenCode's behavior (https://github.com/anomalyco/opencode):
- *   • write_file → code block of new contents
- *   • edit_file  → unified diff of the change
- *   • run_command→ fenced stdout/stderr with exit code
- *
- * For edit_file we rebuild the diff from the args (oldText/newText) — we don't
- * need to read the file again because the args already contain the exact
- * substring that was replaced.
- *
- * Tolerant: skips rendering on any parse failure so a malformed result can
- * never break the live chat scrollback.
- *
- * Returns captured snapshot lines (with RAIL prefix) or empty array.
- */
-function captureToolSnapshot(toolName: string, args: unknown, resultRaw: string): string[] {
-  try {
-    if (toolName === "write_file") {
-      const a = (args ?? {}) as { path?: string; content?: string }
-      if (typeof a.path === "string" && typeof a.content === "string") {
-        const meta = `${formatBytes(a.content.length)} · written`
-        return renderWriteSnapshot(a.path, a.content, meta)
-      }
-      return []
-    }
-
-    if (toolName === "edit_file") {
-      const a = (args ?? {}) as { path?: string; oldText?: string; newText?: string }
-      if (typeof a.path === "string" && typeof a.oldText === "string" && typeof a.newText === "string") {
-        const diff = diffLines(a.oldText, a.newText)
-        const { adds, dels } = countDiff(diff)
-        const meta = `${formatBytes(a.newText.length)} · +${adds} / −${dels}`
-        return renderEditSnapshot(a.path, a.oldText, a.newText, meta)
-      }
-      return []
-    }
-
-    if (toolName === "run_command") {
-      const a = (args ?? {}) as { command?: string }
-      const parsed = (() => {
-        try {
-          return JSON.parse(resultRaw)
-        } catch {
-          return null
-        }
-      })()
-      if (parsed && typeof parsed === "object") {
-        const result = (parsed as any).success === true && (parsed as any).data && typeof (parsed as any).data === "object"
-          ? (parsed as any).data
-          : parsed
-        const stdout = typeof (result as any).stdout === "string" ? (result as any).stdout : ""
-        const stderr = typeof (result as any).stderr === "string" ? (result as any).stderr : ""
-        const exitCode = typeof (result as any).exitCode === "number" ? (result as any).exitCode : 0
-        return renderCommandSnapshot(a.command ?? "", stdout, stderr, exitCode)
-      }
-      return []
-    }
-
-    if (toolName === "read_file") {
-      const a = (args ?? {}) as { path?: string }
-      if (typeof a.path === "string" && resultRaw.trim()) {
-        // read_file returns the file content directly as a string
-        return renderReadSnapshot(a.path, resultRaw)
-      }
-      return []
-    }
-
-    if (toolName === "search_files") {
-      const a = (args ?? {}) as { pattern?: string }
-      try {
-        const parsed = JSON.parse(resultRaw)
-        if (Array.isArray(parsed)) {
-          return renderSearchSnapshot(
-            a.pattern ?? "",
-            parsed.map((r: any) => ({
-              file: typeof r.file === "string" ? r.file : String(r.file ?? ""),
-              line: typeof r.line === "number" ? r.line : 0,
-              content: typeof r.content === "string" ? r.content : String(r.content ?? ""),
-            })),
-            parsed.length,
-          )
-        }
-      } catch { /* best-effort */ }
-      return []
-    }
-
-    if (toolName === "glob") {
-      const a = (args ?? {}) as { pattern?: string }
-      try {
-        const parsed = JSON.parse(resultRaw)
-        if (Array.isArray(parsed)) {
-          return renderGlobSnapshot(a.pattern ?? "", parsed.map(String))
-        }
-      } catch { /* best-effort */ }
-      return []
-    }
-
-    if (toolName === "web_search") {
-      const a = (args ?? {}) as { query?: string }
-      try {
-        const parsed = JSON.parse(resultRaw)
-        const results = Array.isArray(parsed) ? parsed : (parsed as any)?.results ?? []
-        if (Array.isArray(results)) {
-          return renderWebSearchSnapshot(
-            a.query ?? "",
-            results.map((r: any) => ({
-              title: typeof r.title === "string" ? r.title : String(r.title ?? ""),
-              url: typeof r.url === "string" ? r.url : undefined,
-            })),
-          )
-        }
-      } catch { /* best-effort */ }
-      return []
-    }
-
-    if (toolName === "firecrawl_search" || toolName === "firecrawl_scrape" || toolName === "firecrawl_map") {
-      const a = (args ?? {}) as { query?: string; url?: string }
-      try {
-        const parsed = JSON.parse(resultRaw)
-        const results = Array.isArray(parsed) ? parsed : (parsed as any)?.data ?? (parsed as any)?.results ?? []
-        if (Array.isArray(results)) {
-          return renderWebSearchSnapshot(
-            a.query ?? a.url ?? "",
-            results.map((r: any) => ({
-              title: typeof r.title === "string" ? r.title : typeof r.url === "string" ? r.url : String(r ?? ""),
-              url: typeof r.url === "string" ? r.url : undefined,
-            })),
-          )
-        }
-      } catch { /* best-effort */ }
-      return []
-    }
-
-    if (toolName === "url_fetch") {
-      const a = (args ?? {}) as { url?: string }
-      try {
-        const parsed = JSON.parse(resultRaw)
-        return renderReadSnapshot(
-          a.url ?? "",
-          typeof parsed === "string" ? parsed : (parsed as any)?.content ?? (parsed as any)?.markdown ?? JSON.stringify(parsed),
-        )
-      } catch {
-        return renderReadSnapshot(a.url ?? "", resultRaw)
-      }
-    }
-  } catch {
-    // Snapshot is best-effort. Never let a render bug break the chat loop.
-  }
-  return []
-}
-
 async function streamAIResponse(
   provider: AIProvider,
   conversationId: string,
@@ -327,6 +121,7 @@ async function streamAIResponse(
   workspaceInfo?: WorkspaceInfo,
   statusBar?: PersistentStatusBar,
   extraContext?: string,
+  referenceActivity?: { transcript: ToolTranscript; files: string[] },
 ): Promise<{
   content: string
   elapsed: number
@@ -340,55 +135,17 @@ async function streamAIResponse(
 
   if (workspaceInfo) {
     process.env.SUPERCODE_WORKSPACE_ROOT = workspaceInfo.workspaceRoot
-    const hasTools = mode === "agent" || mode === "chat" || mode === "plan"
-    const basePrompt = buildSystemPrompt(workspaceInfo, hasTools)
-
-    // Resolve the agent that matches the current mode (Phase 2):
-    // - "agent"  → build agent
-    // - "plan"   → plan agent
-    // - "chat"   → no agent prompt (chat has its own tail note)
-    const agentForMode =
-      mode === "agent"
-        ? agentService.get("build")
-        : mode === "plan"
-          ? agentService.get("plan")
-          : undefined
-
-    let agentPrompt: string | undefined
-    if (agentForMode?.info.prompt) {
-      agentPrompt = await loadPrompt(agentForMode.info.prompt)
-    }
-
-    let promptContent = basePrompt
-    if (agentPrompt) {
-      promptContent += `\n\n## ${agentForMode!.info.name} agent\n\n${agentPrompt}\n`
-    }
-
-    if (mode === "chat") {
-      promptContent += `\n\n## Chat Mode Note\n\nYou are in chat mode. You have access to read,\nsearch, and web tools (read_file, search_files, url_fetch, firecrawl, exa, etc.).\nRead-only shell commands (git status/log/diff, ls, cat, pwd, find, grep) and\nread-only git commands are auto-allowed without prompting.\n\nTools that modify state — write_file, edit_file, git push, git commit, git reset,\nnpm install, rm, mkdir, and any other write/delete command — require explicit\nper-user approval. If the user's task genuinely needs many such operations\nwithout interruptions, call the \`switch_to_agent_mode\` tool ONCE with a clear\nreason; the system will ask for user approval. Do NOT attempt write/exec tools\nin the same response where you call switch_to_agent_mode.\n\n## Tool Use (Mandatory)\n\nWhen the user's request is an action on their repo or workspace — review staged\nchanges, show diff, run a command, read a file, find something, check status,\nfix a file, etc. — you MUST invoke the appropriate tool (run_command,\nread_file, search_files, etc.) BEFORE you respond. Do not just describe what\nyou would do. Do not answer conversationally when the user asked you to do\nsomething. If your first response contains only reasoning or text and no tool\ncall, the system will count the turn as incomplete and the user will not see\nany action taken. Call the tool first, then summarize the result.`
-    }
-
-    if (mode === "plan") {
-      promptContent += `\n\n## Plan Mode Note\n\nYou are in plan mode. You MUST NOT write files, run commands, or execute code. Produce a structured plan and stop. The user will review with /plan execute.`
-    }
-
-    // Applied to all modes — encourage concise, user-facing progress updates.
-    // These are not hidden chain-of-thought; they are short status messages
-    // like "I’m checking the request parser before changing the chat loop."
-    promptContent += `\n\n## Progress Display\n\nWhile working, share brief first-person progress updates when they help the user follow along. Write them as plain prose, not hidden reasoning: one or two concrete sentences about what you are checking, what you learned, or what you are changing. Do not expose private chain-of-thought. Before using tools, state the next practical step when possible. After tool results reveal an important finding, summarize that finding before continuing.`
-
-    if (extraContext) {
-      promptContent += `\n\n## Referenced Files\n\nFiles marked with @ in the user message have been read and included below. Do not re-read them with tools.\n\n${extraContext}\n`
-    }
-
-    if (loadedSkillContent) {
-      promptContent += `\n\n## Loaded Skill: ${loadedSkillName || "unknown"}\n\n${loadedSkillContent}\n`
-    }
-
+    const promptContent = await assembleStreamSystemPrompt({
+      workspaceInfo,
+      mode,
+      extraContext,
+    })
     aiMessages = [
       { role: "system", content: promptContent },
       ...aiMessages,
     ]
+  } else if (extraContext) {
+    aiMessages = [{ role: "system", content: extraContext }, ...aiMessages]
   }
 
   let fullResponse = ""
@@ -399,13 +156,43 @@ async function streamAIResponse(
   const startTime = Date.now()
 
   const thinking = new ThinkingDisplay()
-  thinking.start("thinking")
+  // StepStatusRow owns the live TTY status bar. ThinkingDisplay still tracks
+  // the ThoughtChain + non-TTY fallback labels, but we do NOT start its
+  // spinner on TTY — two spinners fighting for the same cursor row is what
+  // made turns look stuck on "Thinking" while real phases never appeared.
+  const statusRow = new StepStatusRow()
+  const agentName = mode === "plan" ? "plan" : (mode === "chat" ? "chat" : "build")
+  statusRow.start(agentName, provider.modelName, provider.connectionType)
+  statusRow.setStatus("preparing turn")
+  if (!process.stdout.isTTY) {
+    thinking.start("preparing turn")
+  }
 
-  // Per-step live chain — ThinkingDisplay owns the spinner; we use the chain
-  // directly here for per-step block rendering. Each AI step opens a
-  // `▼ Thought: 0.0s` block, appends `┃   → Read foo.ts` rows as tools
+  // Per-step live chain — we use the chain for per-step block rendering.
+  // Each AI step opens a `▼ Thought: 0.0s` block, appends tool rows as tools
   // fire, then auto-collapses to `+ Thought: N.Ns` when the step finishes.
-  const chain = thinking.getChain()
+  const chain = new ThoughtChain(true)
+  const transcript = referenceActivity?.transcript ?? new ToolTranscript()
+  activeTranscript = transcript
+  const analysis = new AnalysisActivity(referenceActivity?.files ?? [], (text) => process.stdout.write(text), process.stdout.columns ?? 80)
+  const beginAnalysis = () => {
+    if (transcript.calls.some((call) => call.status === "running")) return
+    emitHeader()
+    analysis.nextPhase()
+    analysis.start()
+    const label = analysis.status()
+    if (label) statusBar?.setStatusMessage(label)
+  }
+  let committedTextLength = 0
+  const printTool = (call: ReturnType<ToolTranscript["start"]>, completionOnly = false) => {
+    statusBar?.setStatusMessage(`${call.category} · ${call.status} · ${(Math.max(0, (call.endedAt ?? Date.now()) - call.startedAt) / 1000).toFixed(1)}s`)
+    process.stdout.write(renderToolBlock(call, { width: process.stdout.columns, interactive: !!process.stdout.isTTY, completionOnly }))
+  }
+  const finishReasoning = () => {
+    const entry = chain.current
+    chain.finishAndPrint({ autoCollapse: true })
+    if (entry?.body.trim()) process.stdout.write(`  Thinking · ${((entry.endTime! - entry.startTime) / 1000).toFixed(1)}s${process.stdout.isTTY ? " [Ctrl+T details]" : ""}\n`)
+  }
   activeChain = chain
   // Buffered sub-chain for delegate/task subagent tool calls. Created when a
   // delegate/task tool starts, fed by the delegate onToolCall, finalized when
@@ -414,29 +201,33 @@ async function streamAIResponse(
   let currentSubChain: ThoughtChain | null = null
   // Task name extracted from delegate/task args (e.g. "Find BUILTIN_CONNECTORS").
   let currentSubChainTaskName = ""
-  // Live status row above the input prompt — shows model name, current
-  // step, current tool, and elapsed time. Replaces the on-input
-  // ThinkingDisplay spinner pattern (kept for non-TTY fallback) and the
-  // previous noisy per-tool debug lines.
-  const statusRow = new StepStatusRow()
-  const agentName = mode === "plan" ? "plan" : (mode === "chat" ? "chat" : "build")
-  statusRow.start(agentName, provider.modelName, provider.connectionType)
   // Publish to the module-scoped slot so the persistent footer's resize
   // handler can notify us too — StepStatusRow reserves no row of its own,
   // but its render math depends on the current terminal width.
   activeStatusRow = statusRow
 
+  const setTurnStatus = (label: string) => {
+    statusRow.setStatus(label)
+    thinking.setStatus(label)
+  }
+
   // Per-turn tool result tracker. Used to detect "all tools returned empty"
   // (the hallucination precursor) and to render empty tool calls in red.
   const turnTracker = new TurnTracker()
+  const referenceCallCount = transcript.calls.length
 
   // Phase 7: citation tracker — records every URL/file/search the model
   // uses so we can flag uncited factual claims in the response.
   const citationTracker = new CitationTracker()
+  for (const file of referenceActivity?.files ?? []) citationTracker.recordFromToolCall("read_file", { path: file })
 
   // Incremental markdown renderer. Buffers chunks and emits styled
-  // terminal output (headings bold, lists bulleted, etc.) via marked-terminal.
-  const md = new MarkdownStream()
+  // terminal output (headings, lists, tables, code) under a Result rail.
+  const md = new MarkdownStream().withResultHeader(true)
+  // Defense in depth: even if a provider path leaks CoT into the text
+  // channel (DeepSeek <think>, MiniMax </mm:think>, bare orphan closes),
+  // peel it into the Thinking stream so Result stays user-facing only.
+  const thinkSplit = createThinkSplitter()
 
   // Drive the persistent status bar during streaming
   let elapsedInterval: ReturnType<typeof setInterval> | undefined
@@ -445,6 +236,12 @@ async function streamAIResponse(
     statusBar.update({ isStreaming: true, elapsed: 0 })
     elapsedInterval = setInterval(() => {
       statusBar.setElapsed(Date.now() - startTime)
+      const running = transcript.calls.findLast((call) => call.status === "running")
+      if (running) statusBar.setStatusMessage(`${running.category} · running · ${((Date.now() - running.startedAt) / 1000).toFixed(1)}s · Esc cancel`)
+      else {
+        const label = analysis?.status()
+        if (label) statusBar.setStatusMessage(label)
+      }
     }, 250)
   }
 
@@ -452,86 +249,10 @@ async function streamAIResponse(
   let modeSwitchRequest: { requested: boolean; reason?: string } = { requested: false }
 
   if (workspaceInfo) {
-    toolsToUse = { ...tools }
-    // Merge MCP tools from any connected servers
-    const mcpManager = getMcpManager()
-    if (mcpManager.isStarted) {
-      const mcpTools = await mcpManager.getAllTools()
-      if (mcpTools && Object.keys(mcpTools).length > 0) {
-        Object.assign(toolsToUse, mcpTools)
-      }
-    }
-    // Ensure .env vars are loaded (Bun only auto-loads .env from CWD, which
-    // may not be the server directory when launched from elsewhere).
-    loadEnvOnce()
-
-    // Determine what tools MergeDev provides. When connected, its Exa/Firecrawl
-    // MCP tools already overwrote our built-in ones via Object.assign above.
-    // Only delete our local Exa/Firecrawl tools if neither MergeDev nor local
-    // API keys can serve them — avoids the AI calling dead tools.
-    const isMergeDevConnected = mcpManager.connectedServers.includes("mergedev")
-    const mergedevTools = isMergeDevConnected
-      ? await mcpManager.getTools("mergedev")
-      : {}
-    const mcpProvided = new Set(Object.keys(mergedevTools))
-
-    delete (toolsToUse as Record<string, unknown>).web_search
-
-    // Determine whether Exa search is available (via local key or MergeDev)
-    const hasExaSearch = !!process.env.EXA_API_KEY || mcpProvided.has("exa_search")
-
-    // Determine whether Firecrawl search is available (via local key or MergeDev)
-    const hasFirecrawlSearch = !!process.env.FIRECRAWL_API_KEY || mcpProvided.has("firecrawl_search")
-
-    // Exa is preferred for web search. When Exa is available, remove
-    // firecrawl_search to avoid redundancy — keep firecrawl_scrape and
-    // firecrawl_map for URL scraping and site mapping (different use cases).
-    if (hasExaSearch && hasFirecrawlSearch) {
-      delete (toolsToUse as Record<string, unknown>).firecrawl_search
-    }
-
-    if (!hasFirecrawlSearch) {
-      delete (toolsToUse as Record<string, unknown>).firecrawl_search
-      delete (toolsToUse as Record<string, unknown>).firecrawl_scrape
-      delete (toolsToUse as Record<string, unknown>).firecrawl_map
-    }
-
-    if (!hasExaSearch) {
-      delete (toolsToUse as Record<string, unknown>).exa_search
-      delete (toolsToUse as Record<string, unknown>).exa_fetch
-    }
-
-    // Build a prompt hint block for tool preference guidance
-    const preferenceHints: string[] = []
-
-    if (hasExaSearch) {
-      preferenceHints.push(
-        "For general web search, use `exa_search` — it is preferred. " +
-        "Use `firecrawl_scrape` when the user asks for deep websearch or webscraping (extracting full page content, " +
-        "following links, or fetching structured data from a page). " +
-        "Use `firecrawl_map` to discover URLs on a site." +
-        (isMergeDevConnected ? " These tools are routed through MergeDev's connectors." : "")
-      )
-    } else if (hasFirecrawlSearch) {
-      preferenceHints.push(
-        "For web search, use `firecrawl_search`. For scraping a specific URL use `firecrawl_scrape`, " +
-        "and for discovering URLs on a site use `firecrawl_map`." +
-        (isMergeDevConnected ? " These tools are routed through MergeDev's connectors." : "")
-      )
-    }
-
-    if (Object.keys(toolsToUse).some((k) => k.startsWith("mcp_composio_"))) {
-      preferenceHints.push(
-        "Composio-connected MCP tools are available (prefixed with mcp_composio_). " +
-        "These provide direct access to services like GitHub, Linear, Slack, etc. " +
-        "When a user's request can be satisfied using these MCP tools, prefer them over running commands " +
-        "via run_command or other built-in tools. For example, use mcp_composio_github_* tools for GitHub " +
-        "operations instead of running gh CLI commands."
-      )
-    }
-
-    if (preferenceHints.length > 0 && aiMessages[0]) {
-      aiMessages[0].content += `\n\n## Tool Preference\n\n${preferenceHints.join("\n\n")}`
+    const built = await buildToolsForTurn(setTurnStatus)
+    toolsToUse = built.tools
+    if (built.preferenceHints.length > 0 && aiMessages[0]) {
+      aiMessages[0].content += `\n\n## Tool Preference\n\n${built.preferenceHints.join("\n\n")}`
     }
 
     // Wire the subagent runtime so the `delegate` tool can spawn focused subtasks.
@@ -539,15 +260,29 @@ async function streamAIResponse(
       model: (provider as any).model ?? null,
       allTools: toolsToUse,
       onChunk: (chunk) => {
+        if (chunk == null) return
+        // Think-split first so <|thinking|> tags aren't eaten by tool-XML strip.
+        const split = thinkSplit.push(String(chunk))
+        if (split.reasoning) {
+          beginAnalysis()
+          fullReasoning += split.reasoning
+          if (!chain.isOpen) chain.beginAndPrint()
+          chain.append(sanitizeTerminalText(split.reasoning))
+          thinking.showReasoning(split.reasoning)
+        }
+        const filtered = split.text ? stripToolCallXml(split.text) : ""
+        if (!filtered) return
+        beginAnalysis()
         if (isFirstChunk && !hasOutputHeader) {
           emitHeader()
           isFirstChunk = false
         }
-        md.push(chunk)
-        fullResponse += chunk
+        md.push(filtered)
+        fullResponse += filtered
       },
-      onToolCall: ({ toolName, args }) => {
+      onToolCall: ({ toolName, args, id }) => {
         if (!hasOutputHeader) emitHeader()
+        printTool(transcript.start(toolName, args, id))
         // Route subagent tool calls to the buffered sub-chain so they're
         // stored as subThoughts for post-hoc Ctrl+X toggling.
         if (currentSubChain) {
@@ -556,16 +291,19 @@ async function streamAIResponse(
           }
           currentSubChain.printToolRow(toolName, args)
         }
-        // Sub-agent tool calls are tracked internally in the sub-chain
-        // for Ctrl+X toggle — no live printing to keep the terminal clean.
+        // Also retain the nested reasoning view alongside chronological blocks.
         statusRow.setCurrentTool(toolName, args)
         verbosePrint(toolName, args, provider.modelName, Date.now())
         if (statusBar) statusBar.incTools()
       },
+      onToolResult: ({ toolName, args, result, id }) => {
+        printTool(transcript.finish(toolName, args, result, id), true)
+        citationTracker.recordFromToolCall(toolName, args)
+      },
     })
   }
 
-  pendingModeSwitch: { requested: false }
+  // modeSwitchRequest tracks switch_to_agent_mode tool results for this turn
 
   function emitHeader() {
     if (hasOutputHeader) return
@@ -589,35 +327,48 @@ async function streamAIResponse(
   }
 
   try {
+    setTurnStatus(
+      provider.connectionType === "proxy"
+        ? "sending via cloud · waiting for first token"
+        : "sending request · waiting for first token",
+    )
     const result = await provider.sendMessage(
       aiMessages as ModelMessage[],
       (chunk) => {
         if (chunk == null) return
+        // Peel embedded CoT / think tags out of the text channel FIRST so
+        // Result only gets the user-facing answer (Thinking gets process).
+        // Must run before stripToolCallXml — that path also drops <|…|> tokens
+        // and would otherwise leave CoT body in Result without its tags.
+        const split = thinkSplit.push(String(chunk))
+        if (split.reasoning) {
+          beginAnalysis()
+          fullReasoning += split.reasoning
+          if (!chain.isOpen) chain.beginAndPrint()
+          chain.append(sanitizeTerminalText(split.reasoning))
+          thinking.showReasoning(split.reasoning)
+          if (!hasOutputHeader) setTurnStatus("model reasoning")
+        }
+        // Filter raw tool call XML markup from the visible answer only.
+        const filtered = split.text ? stripToolCallXml(split.text) : ""
+        if (!filtered) return
+        beginAnalysis()
         if (isFirstChunk && !hasOutputHeader) {
           emitHeader()
           isFirstChunk = false
           statusRow.setStreaming()
         }
-        // Filter raw tool call XML markup from streaming text output.
-        // Some providers emit raw <|tool_calls_section_begin|>... XML in the
-        // text stream alongside structured tool calls. Strip it to prevent
-        // leakage to the terminal.
-        const filtered = stripToolCallXml(chunk)
-        if (filtered) {
-          md.push(filtered)
-          fullResponse += filtered
-        }
+        md.push(filtered)
+        fullResponse += filtered
       },
       toolsToUse,
-      async ({ toolName, args }: { toolName: string; args?: unknown }) => {
+      async ({ toolName, args, id }: { toolName: string; args?: unknown; id?: string }) => {
         if (!hasOutputHeader) emitHeader()
-        thinking.showToolCall(toolName, args)
-        // Open a fresh block only on the first tool call of a step;
-        // consecutive calls append to the same open block.
-        if (!chain.isOpen) {
-          chain.beginAndPrint()
-        }
-        chain.printToolRow(toolName, args)
+        finishReasoning()
+        analysis?.end("completed")
+        md.flush()
+        committedTextLength = fullResponse.length
+        printTool(transcript.start(toolName, args, id))
         // When the main agent calls delegate/task, create a buffered sub-chain
         // so subagent tool calls are captured as a nested "Explore Task" section.
         // The first entry is created lazily when the first subagent tool fires.
@@ -642,67 +393,42 @@ async function streamAIResponse(
         if (statusBar) statusBar.incTools()
       },
       abortController.signal,
-      (reasoningChunk) => {
+(reasoningChunk) => {
+        // Server status heartbeats arrive as `[status] …` via onReasoning so
+        // the live bar can show connecting / plan-gate / upstream without
+        // waiting for first model token.
+        if (typeof reasoningChunk === "string" && reasoningChunk.startsWith("[status] ")) {
+          const label = reasoningChunk.slice("[status] ".length).trim() || "cloud working"
+          if (!hasOutputHeader) setTurnStatus(label)
+          return
+        }
+        beginAnalysis()
         fullReasoning += reasoningChunk
+        // Keep process text on the thought chain (Thinking dropdown), never
+        // push it into the Result markdown stream.
+        if (!chain.isOpen) {
+          chain.beginAndPrint()
+        }
+        chain.append(sanitizeTerminalText(reasoningChunk))
         thinking.showReasoning(reasoningChunk)
+        // Surface that the model is actually reasoning — not stuck idle.
+        if (!hasOutputHeader) {
+          setTurnStatus("model reasoning")
+        }
       },
-      async ({ toolName, args, result, stepNumber }: { toolName: string; args?: unknown; result: unknown; stepNumber?: number }) => {
+      async ({ toolName, args, result, id }: { toolName: string; args?: unknown; result: unknown; id?: string }) => {
         // Capture tool result for the post-turn warning + tracker.
-        const entry = turnTracker.recordCall(toolName, args, result as string)
+        turnTracker.recordCall(toolName, args, typeof result === "string" ? result : JSON.stringify(result ?? null))
+        printTool(transcript.finish(toolName, args, result, id), true)
 
         // Phase 7: record the source as a citation if it's a research tool.
         citationTracker.recordFromToolCall(toolName, args)
-
-        // Empty/denied → mark the live Thought block's last tool row so the
-        // expanded view shows a red ✗ and finishAndPrint keeps the block open.
-        if (entry.empty || entry.permissionDenied) {
-          chain.markLastToolFlagged()
-        }
-
-        // Capture a snapshot/diff under the tool row for file-changing tools
-        // and store it on the last tool in the current thought entry. The
-        // snapshot is rendered only when the thought block is expanded.
-        if (!entry.empty && !entry.permissionDenied && process.stdout.isTTY) {
-          const snap = captureToolSnapshot(toolName, args, result as string)
-          if (snap.length > 0) {
-            const lastTool = chain.current?.tools?.[chain.current.tools.length - 1]
-            if (lastTool) lastTool.snapshot = snap
-          }
-        }
 
         // Finalize the buffered sub-chain for delegate/task. Only keep
         // entries that have at least one tool call — empty entries from the
         // initial begin() are discarded.
         if (currentSubChain && (toolName === "delegate" || toolName === "task")) {
           currentSubChain.finish()
-          // Print a collapsed "Explore Task" summary for the sub-agent
-          if (process.stdout.isTTY) {
-            const rail = chalk.hex(theme.greenDim)("┃")
-            const subIndent = `${rail}   ${rail}`
-            const elapsed = currentSubChain.elapsed
-            const elapsedStr =
-              elapsed < 1000 ? `${elapsed}ms` : `${(elapsed / 1000).toFixed(1)}s`
-            const hadFailures = currentSubChain.thoughts.some(
-              (t) => t.tools.some((tt) => tt.flagged),
-            )
-            const toggle = hadFailures
-              ? chalk.hex(theme.greenGlow)("+")
-              : chalk.hex("#5ec27e")("✓")
-            const taskDesc = currentSubChainTaskName
-              ? ` ${chalk.hex(theme.greenDim)("—")} ${chalk.hex(theme.white)(currentSubChainTaskName)}`
-              : ""
-            process.stdout.write(
-              `${subIndent} ${toggle} ${chalk.hex(theme.greenMute)("Explore Task")}${taskDesc} ${chalk.hex(theme.greenDim)("·")} ${elapsedStr}\n`,
-            )
-            const toolCount = currentSubChain.thoughts.reduce(
-              (n, t) => n + t.tools.length, 0,
-            )
-            if (toolCount > 0) {
-              process.stdout.write(
-                `${subIndent}   ${chalk.hex(theme.greenDim)("↳")} ${chalk.hex(theme.greenMute)(`${toolCount} toolcall${toolCount === 1 ? "" : "s"} · ${elapsedStr}`)}\n`,
-              )
-            }
-          }
           const lastEntry = chain.thoughts[chain.thoughts.length - 1]
           if (lastEntry) {
             const nonEmpty = currentSubChain.thoughts.filter(
@@ -741,8 +467,9 @@ async function streamAIResponse(
       // status row. This is the OpenCode-style render: each step writes
       // its expanded tool list then auto-collapses to "+ Thought: N.Ns".
       ({ stepNumber }) => {
-        chain.finishAndPrint({ autoCollapse: true })
+        finishReasoning()
         statusRow.setPhase("thinking")
+        setTurnStatus("waiting for next model step")
         const step = stepNumber ?? chain.thoughts.length
         statusRow.setStepCount(step)
         thinking.setStepCount(step)
@@ -755,6 +482,7 @@ async function streamAIResponse(
       },
     )
 
+    for (const call of transcript.settle(abortController.signal.aborted ? "cancelled" : "failed")) printTool(call, true)
     const elapsed = Date.now() - startTime
     const usage = await result.usage
     // Only stop the thinking display if we never emitted the header —
@@ -770,7 +498,7 @@ async function streamAIResponse(
     if (chain.thoughts.length > 0) {
       const last = chain.thoughts[chain.thoughts.length - 1]!
       if (last.endTime === null) {
-        chain.finishAndPrint({ autoCollapse: true })
+        finishReasoning()
       }
     }
 
@@ -779,16 +507,88 @@ async function streamAIResponse(
     // end-of-turn dump.
     statusRow.stop()
     activeStatusRow = null
-    activeChain = null
+    // Retain reasoning and tool details until the next turn.
 
-    // Flush any trailing markdown — finalizes the open block with a
-    // typing animation so the user sees content appear progressively.
-    // Set fallback content from fullResponse in case the buffer is empty
-    // but the model did generate text (edge case where chunks weren't pushed).
-    if (fullResponse.trim().length > 0) {
-      md.setFallback(fullResponse)
+    // If pure reasoning arrived with no tools/text steps closed yet, fold it
+    // into the Thinking block so process never leaks into Result.
+    if (fullReasoning.trim().length > 0 && chain.thoughts.length > 0) {
+      const last = chain.thoughts[chain.thoughts.length - 1]!
+      if (!last.body.trim()) {
+        last.body = sanitizeTerminalText(fullReasoning.trim())
+      } else if (!last.body.includes(fullReasoning.trim().slice(0, 40))) {
+        last.body = sanitizeTerminalText(`${last.body.trim()}\n${fullReasoning.trim()}`)
+      }
+      if (last.endTime === null) {
+        finishReasoning()
+      }
+    } else if (fullReasoning.trim().length > 0 && chain.thoughts.length === 0) {
+      chain.begin()
+      chain.append(sanitizeTerminalText(fullReasoning.trim()))
+      finishReasoning()
     }
-    await md.end()
+
+    // Flush any partial think-tag held across the last chunk boundary.
+    {
+      const tail = thinkSplit.flush()
+      if (tail.reasoning) {
+        fullReasoning += tail.reasoning
+        if (!chain.isOpen) chain.beginAndPrint()
+        chain.append(sanitizeTerminalText(tail.reasoning))
+        thinking.showReasoning(tail.reasoning)
+      }
+      if (tail.text) {
+        md.push(tail.text)
+        fullResponse += tail.text
+      }
+    }
+
+    // Final gate for ALL providers/models: peel untagged process monologue
+    // ("Need provide query… Use web_search twice…") out of Result even when
+    // no <think> tags were present. Applies after streaming so every path
+    // (proxy, concentrate, openrouter, google, minimax, …) is covered.
+    {
+      const cleaned = finalizeAnswerVsProcess(fullResponse.slice(committedTextLength), fullReasoning)
+      if (cleaned.reasoning && cleaned.reasoning !== fullReasoning.trim()) {
+        const extra = cleaned.reasoning.startsWith(fullReasoning.trim())
+          ? cleaned.reasoning.slice(fullReasoning.trim().length).trim()
+          : cleaned.reasoning
+        if (extra) {
+          fullReasoning = cleaned.reasoning
+          // Rebuild / fold into Thinking so process isn't lost.
+          if (chain.thoughts.length === 0) {
+            chain.begin()
+            chain.append(sanitizeTerminalText(extra))
+            finishReasoning()
+          } else {
+            const last = chain.thoughts[chain.thoughts.length - 1]!
+            if (!last.body.includes(extra.slice(0, Math.min(40, extra.length)))) {
+              last.body = sanitizeTerminalText(`${last.body.trim()}\n${extra}`.trim())
+            }
+          }
+        }
+      }
+      fullResponse = fullResponse.slice(0, committedTextLength) + cleaned.text
+      // Replace the markdown buffer so Result never prints process scratch.
+      md.reset()
+      if (cleaned.text.trim()) {
+        md.push(cleaned.text)
+        md.setFallback(cleaned.text)
+      }
+    }
+
+    finishReasoning()
+    analysis?.end(abortController.signal.aborted ? "cancelled" : "completed")
+    statusBar?.setStatusMessage("")
+
+    // Flush final answer markdown under the Result rail only.
+    if (fullResponse.trim().length > 0) {
+      md.setFallback(fullResponse.slice(committedTextLength))
+    }
+    if (md.hasContent) {
+      console.log()
+      await md.end()
+      console.log()
+    }
 
     // If tools ran but the model produced no analysis text, show a minimal
     // marker so the turn doesn't end with a dangling thought block.
@@ -796,7 +596,7 @@ async function streamAIResponse(
       const w = process.stdout.columns ?? 80
       const dim = (s: string) => chalk.hex(theme.greenDim)(s)
       console.log(` ${chalk.hex(theme.green)("┃")} ${chalk.hex(theme.green).bold("Result")} ${dim("─".repeat(Math.max(0, w - 15)))}`)
-      console.log(` ${chalk.hex(theme.green)("┃")} ${chalk.hex(theme.muted)("Tools completed — no analysis text returned.")}`)
+      console.log(` ${chalk.hex(theme.green)("┃")} ${chalk.hex(theme.muted)("Tool activity ended — no analysis text returned.")}`)
     }
 
     // Update the persistent status bar with final turn state
@@ -816,7 +616,8 @@ async function streamAIResponse(
     //   (b) "all empty"  — at least one tool succeeded but returned empty
     //       content, OR a tool returned success:false without being denied.
     //       This is the hallucination precursor. Show as red.
-    if (turnTracker.allResultsEmpty() && turnTracker.hasAnyToolCalls()) {
+    const modelCalls = transcript.calls.slice(referenceCallCount)
+    if (turnTracker.allResultsEmpty() && modelCalls.length > 0 && modelCalls.every((call) => call.status !== "completed")) {
       const calls = turnTracker.allCalls()
       const allDenied = calls.every((c) => c.permissionDenied)
       const empty = turnTracker.emptyCount()
@@ -899,23 +700,27 @@ async function streamAIResponse(
       content: fullResponse,
       elapsed,
       usage,
+      aborted: abortController.signal.aborted,
       modeSwitchRequested: modeSwitchRequest.requested,
       modeSwitchReason: modeSwitchRequest.reason,
     }
   } catch (error: any) {
+    analysis?.end(error?.name === "AbortError" || abortController.signal.aborted ? "cancelled" : "failed")
     cleanupStreamingTicker()
+    for (const call of transcript.settle(error?.name === "AbortError" || abortController.signal.aborted ? "cancelled" : "failed")) printTool(call, true)
+    statusBar?.setStatusMessage("")
     if (error?.name === "AbortError" || abortController.signal.aborted) {
       thinking.stop()
       // Close any in-progress per-step block so the live chat log stays clean.
       if (chain && chain.thoughts.length > 0) {
         const last = chain.thoughts[chain.thoughts.length - 1]!
         if (last.endTime === null) {
-          chain.finishAndPrint({ autoCollapse: true })
+          finishReasoning()
         }
       }
       statusRow.stop()
       activeStatusRow = null
-      if (fullResponse.trim().length > 0) md.setFallback(fullResponse)
+      if (fullResponse.trim().length > 0) md.setFallback(fullResponse.slice(committedTextLength))
       await md.end()
       if (statusBar) statusBar.update({ isStreaming: false, elapsed: 0 })
       console.log()
@@ -930,7 +735,7 @@ async function streamAIResponse(
     statusRow.stop()
     activeStatusRow = null
     activeChain = null
-    if (fullResponse.trim().length > 0) md.setFallback(fullResponse)
+    if (fullResponse.trim().length > 0) md.setFallback(fullResponse.slice(committedTextLength))
     await md.end()
     if (statusBar) statusBar.update({ isStreaming: false, elapsed: 0 })
     throw error
@@ -954,48 +759,12 @@ interface Conversation {
   updatedAt: Date
 }
 
-const modes = ["chat", "plan", "agent"]
-const modeColors: Record<string, string> = {
-  chat: theme.green,
-  plan: theme.greenDim,
-  agent: theme.amber,
-}
-const modeDisplay: Record<string, string> = {
-  chat: "chat",
-  plan: "plan",
-  agent: "agent",
-}
-
-/**
- * Map a chat-loop mode to its agent name (or undefined for chat).
- * Drives `setCurrentAgent` so the permission manager scopes its
- * ruleset correctly when the chat loop is the top-level caller.
- */
-function agentForMode(mode: string): string | undefined {
-  if (mode === "agent") return "build"
-  if (mode === "plan") return "plan"
-  return undefined
-}
-
-/**
- * Apply both pieces of permission state for a given mode:
- *   - sessionLevel: "allow" for agent mode, null otherwise
- *   - currentAgent: "build" for agent mode, "plan" for plan mode,
- *     undefined for chat mode (so DEFAULT rules apply)
- *
- * Call this whenever the mode changes (Tab, /plan, /plan execute, etc.).
- */
-function applyModePermissions(mode: string): void {
-  permissionManager.setSessionLevel(mode === "agent" ? "allow" : null)
-  setCurrentAgent(agentForMode(mode))
-}
-
-// Persistent stdin state
+let activeTranscript: ToolTranscript | null = null
 let streamAbort: AbortController | null = null
 // The currently-streaming ThoughtChain (or null between turns). Exposed at
 // module scope so the stdin keypress handler can hit Ctrl+T without
 // threading the chain through every helper.
-let activeChain: { thoughts: { endTime: number | null; subThoughts: { collapsed: boolean }[] }[]; togglePrinted: (i: number) => void; reprintThought: (i: number) => void } | null = null
+let activeChain: { thoughts: { body: string; collapsed: boolean; endTime: number | null; subThoughts: { collapsed: boolean }[] }[]; togglePrinted: (i: number) => void; reprintThought: (i: number) => void } | null = null
 let stdinInput = ""
 let stdinCursor = 0
 let stdinMode = "chat"
@@ -1011,22 +780,6 @@ let voiceJustCaptured = false
 // the reply back once the assistant turn finishes. Consumed at most once.
 let voiceAutoSubmitted = false
 
-// Loaded skill context — injected as a system message so the AI uses it
-// without pasting the full text into the user's input.
-export let loadedSkillName: string | undefined
-let loadedSkillContent: string | undefined
-let skillJustLoaded = false
-
-export function clearSkill() {
-  loadedSkillName = undefined
-  loadedSkillContent = undefined
-  skillJustLoaded = false
-}
-
-// When true, prints the legacy ─ toolName · model · N.Ns · esc interrupt
-// debug lines on top of the new per-step UI. Used by /verbose for power users
-// debugging supercode's TUI itself. Default off because the new live
-// Thought blocks + StepStatusRow already convey the same info in context.
 let verboseMode = false
 
 // Emit one legacy debug line per tool call when verbose mode is on. Reuses
@@ -1274,13 +1027,34 @@ function stdinKeypress(_str: string, key: any) {
     return
   }
 
+  if (key.ctrl && (key.name === "o" || key.name === "t") && process.stdout.isTTY) {
+    process.stdout.write("\n")
+    if (key.name === "o") {
+      const latest = activeTranscript?.calls.at(-1)
+      if (latest) process.stdout.write("TOOL DETAILS (append-only)\n" + renderToolBlock(latest, { width: process.stdout.columns, expanded: true }))
+    } else if (activeChain) {
+      const index = activeChain.thoughts.length - 1
+      const thought = activeChain.thoughts[index]
+      if (thought) {
+        thought.collapsed = !thought.collapsed
+        process.stdout.write("REASONING DETAILS (append-only)\n" + (thought.collapsed ? "Collapsed\n" : sanitizeTerminalText(thought.body) + "\n"))
+      }
+    }
+    if (stdinResolve) {
+      stdinPrevWrapLines = 1
+      slashListLines = atListLines = ddListLines = 0
+      renderInput()
+    }
+    return
+  }
+
   // No input handler active
   if (!stdinResolve) return
 
-  // Tab to cycle modes
+  // Tab to cycle MODES
   if (key.name === "tab") {
-    const idx = modes.indexOf(stdinMode)
-    stdinMode = modes[(idx + 1) % modes.length]!
+    const idx = MODES.indexOf(stdinMode)
+    stdinMode = MODES[(idx + 1) % MODES.length]!
     applyModePermissions(stdinMode)
     if (activeFooter) activeFooter.setMode(stdinMode)
     renderInput()
@@ -1367,21 +1141,6 @@ function stdinKeypress(_str: string, key: any) {
 
   if (key.ctrl && key.name === "c") {
     process.exit(0)
-    return
-  }
-
-  // Ctrl+T — toggle the most recently printed Thought block (collapsed ↔ expanded).
-  // Cheap in-place redraw: clear the line at the current cursor, rewrite the
-  // chevron + body in the new state, then move the cursor back down. Only
-  // works on a TTY because the rendered Thought blocks live in ANSI scrollback.
-  if (key.ctrl && key.name === "t" && process.stdout.isTTY && activeChain) {
-    const thoughts = activeChain.thoughts
-    if (thoughts.length > 0) {
-      const last = thoughts[thoughts.length - 1]!
-      if (last.endTime !== null) {
-        activeChain.togglePrinted(thoughts.length - 1)
-      }
-    }
     return
   }
 
@@ -1882,18 +1641,16 @@ function stripToolCallXml(chunk: string): string {
   // This handles the Kimi K2-6 pattern:
   //   <|tool_calls_section_begin|><|tool_call_begin|>functions.read_file:0<|tool_call_argument_begin|>...
   if (/<\|tool_calls_section_begin\|>/.test(chunk)) return ""
-  const stripped = out.replace(/<function>[^<]*<\/function>/g, "").trim()
-  if (!stripped) return ""
-  return stripped
+  return out.replace(/<function>[^<]*<\/function>/g, "")
 }
 
 async function chatInput(currentMode: string): Promise<{ input: string; mode: string }> {
-  stdinMode = modes.includes(currentMode) ? currentMode : "chat"
+  stdinMode = MODES.includes(currentMode) ? currentMode : "chat"
   applyModePermissions(stdinMode)
   // If voice capture or skill load just populated stdinInput, preserve it.
   // Otherwise reset to empty as usual.
-  if (skillJustLoaded) {
-    skillJustLoaded = false
+  if (isSkillJustLoaded()) {
+    consumeSkillJustLoaded()
     // keep stdinInput as-is, just re-render
   } else if (!voiceJustCaptured) {
     stdinInput = ""
@@ -2189,8 +1946,7 @@ export async function chatLoop(
           }
         } else if (result?.type === "skills") {
           if (result.skillName && result.message) {
-            loadedSkillName = result.skillName
-            loadedSkillContent = result.message
+            setLoadedSkill(result.skillName, result.message)
 
             if (result.trigger) {
               // /{name} directly — send trigger message to AI
@@ -2222,7 +1978,6 @@ export async function chatLoop(
                 `\r\n ${chalk.hex(theme.green)("◆")} ${chalk.hex(theme.greenGlow).bold(result.skillName)} ${chalk.hex(theme.muted)("loaded — type your message and press Enter")}\r\n\n`,
               )
               stdinInput = `/${result.skillName} `
-              skillJustLoaded = true
             }
           }
         } else if (result?.type === "verbose") {
@@ -2290,8 +2045,7 @@ export async function chatLoop(
           process.stdout.write(`\r\n ${chalk.hex(theme.red)("◆")} unknown slash command: ${trimmed.split(" ")[0]}\r\n\n`)
         } else if (result?.type === "message" && result.message) {
           if (result.skillContent) {
-            loadedSkillName = result.skillName || ""
-            loadedSkillContent = result.skillContent
+            setLoadedSkill(result.skillName || "", result.skillContent)
             const taggedMsg = `[${result.skillName}]\n\n${result.message}`
             userMessage(taggedMsg)
             messageCount++
@@ -2332,7 +2086,7 @@ export async function chatLoop(
       // Strip @ refs from AI message — file content is already in system prompt
       const cleanInput = unquoted.replace(/@\S+/g, (m) => m.slice(1))
 
-      if (loadedSkillContent) {
+      if (getLoadedSkillContent()) {
         // Skill instructions are injected as system context for this turn.
         // Keep the transcript and persisted user message focused on the user's request.
         const taggedMsg = `[${loadedSkillName}]\n\n${cleanInput}`
@@ -2346,43 +2100,34 @@ export async function chatLoop(
         await trySetAutoTitle(conversation.id, cleanInput, messageCount)
       }
 
-      // Resolve referenced files (@ + drag-drop) into extra context
+      // File-context preparation is part of the visible turn, not a hidden preflight.
+      const referenceTranscript = new ToolTranscript()
+      activeTranscript = referenceTranscript
+      activeChain = null
+      const referenceRoot = workspaceInfo?.workspaceRoot ?? process.cwd()
       const resolved = await resolveFileReferences(
         unquoted,
         workspaceInfo?.workspaceRoot,
         [...ddTracker.detectedFiles],
+        (event) => {
+          footer.setStatusMessage(`${event.phase === "lookup" ? "FILE LOOKUP" : "READ"} · ${event.state === "start" ? "running" : event.result?.success ? "completed" : "failed"}`)
+          process.stdout.write(renderReferenceActivity(referenceTranscript, event, process.stdout.columns, !!process.stdout.isTTY))
+        },
       )
+      footer.setStatusMessage("")
       const loadedPaths = Object.keys(resolved.content)
       const fileContext =
         loadedPaths.length > 0
           ? Object.entries(resolved.content)
               .map(([filePath, content]) => {
                 const rel = path.relative(
-                  workspaceInfo!.workspaceRoot,
+                  referenceRoot,
                   filePath,
                 )
                 return `<file path="${rel}">\n${content}\n</file>`
               })
               .join("\n\n")
           : undefined
-
-      if (loadedPaths.length > 0) {
-        process.stdout.write("\n")
-        for (const fp of loadedPaths) {
-          const rel = path.relative(workspaceInfo!.workspaceRoot, fp)
-          process.stdout.write(
-            ` ${chalk.hex(theme.green)("📄")} ${chalk.hex(theme.green)(rel)} loaded\n`,
-          )
-        }
-        process.stdout.write("\n")
-      }
-      if (resolved.unresolved.length > 0) {
-        for (const fp of resolved.unresolved) {
-          process.stdout.write(
-            ` ${chalk.hex(theme.amber)("⚠")} ${chalk.hex(theme.amber)(fp)} not found\n`,
-          )
-        }
-      }
 
       try {
         const totalTokens = await loadContextTokens(conversation.id)
@@ -2392,7 +2137,7 @@ export async function chatLoop(
           footer.renderLine()
           continue
         }
-        const result = await streamAIResponse(provider, conversation.id, conversation.mode, workspaceInfo, footer, fileContext)
+        const result = await streamAIResponse(provider, conversation.id, conversation.mode, workspaceInfo, footer, fileContext, { transcript: referenceTranscript, files: loadedPaths.map((fp) => path.relative(referenceRoot, fp)) })
 
         if (result.aborted) {
           if (result.content && result.content !== "(cancelled)") {
@@ -2546,7 +2291,7 @@ export async function startChat(
     console.log()
 
     const user = await getUserFromToken()
-    currentUser = user
+    setCurrentChatUser(user)
     const conversation = await initConversation(user.id, conversationId, initialMode)
 
     await chatLoop(aiProvider, conversation, workspaceInfo)

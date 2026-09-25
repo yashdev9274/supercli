@@ -2,7 +2,15 @@ import { resolve } from "path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@super/auth", "@super/db", "@super/db-terminal"],
+  transpilePackages: ["@super/auth", "@super/db", "@super/db-terminal", "@super/embeddings-sdk"],
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "img.youtube.com",
+      },
+    ],
+  },
   turbopack: {
     root: resolve("../../")
   },

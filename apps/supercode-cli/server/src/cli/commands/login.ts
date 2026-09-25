@@ -35,7 +35,7 @@ import {
   keyValue,
 } from "../utils/tui"
 
-const URL = process.env.SUPERCODE_SERVER_URL || "https://supercode-8w7e.onrender.com"
+import { getSupercodeServerUrl } from "src/lib/load-env"
 const CLIENT_ID = process.env.GITHUB_CLIENT_ID
 export const CONFIG_DIR = path.join(os.homedir(), ".better-auth")
 export const TOKEN_FILE = path.join(CONFIG_DIR, "token.json")
@@ -83,7 +83,7 @@ export async function loginAction(opts: Record<string, unknown>) {
 
   const options = schema.parse(opts)
 
-  const serverUrl = options.serverUrl || URL
+const serverUrl = options.serverUrl || getSupercodeServerUrl()
   const clientId = options.clientId || CLIENT_ID || ""
 
   console.clear()

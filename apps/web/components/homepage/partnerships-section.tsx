@@ -13,16 +13,16 @@ const PartnershipsSection = () => {
       <div className="max-w-[1100px] mx-auto">
         <div className="flex items-end justify-between mb-12">
           <div>
-            <h2 className="text-[13px] font-mono uppercase tracking-[0.15em] text-primary mb-4">
+            <h2 className="text-lg font-semibold text-primary uppercase mb-4">
               $ Partnerships
             </h2>
-            <h3 className="text-[28px] md:text-[36px] text-[#A1A1AA] font-semibold tracking-tight max-w-[500px] leading-[1.15]">
+            <h3 className="text-[28px] md:text-[36px] text-[#A1A1AA] font-medium tracking-tighter max-w-[500px] leading-[1.15]">
               Built together
             </h3>
           </div>
           <Link
             href="/partnerships"
-            className="hidden md:inline-flex text-[#A1A1AA] items-center gap-2 text-[14px] text-muted-foreground hover:text-foreground transition-colors group"
+            className="hidden md:inline-flex items-center gap-2 text-sm text-[#A1A1AA] hover:text-foreground transition-colors group"
           >
             <span>View all</span>
             <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
@@ -36,26 +36,27 @@ const PartnershipsSection = () => {
               href={`/partnerships/${partner.slug}`}
               className="group border text-[#A1A1AA] border-border rounded-lg p-6 hover:border-primary/40 transition-colors duration-200 bg-card/30 hover:bg-card/60"
             >
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-primary font-bold font-mono text-[16px] mb-4 ${partner.slug === "mergedev" || partner.slug === "concentrateai" || partner.slug === "dodopayments" || partner.slug === "orcarouter" ? "bg-black/40" : "bg-primary/10"}`}>
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-primary font-bold text-base mb-4 ${partner.slug === "mergedev" || partner.slug === "concentrateai" || partner.slug === "dodopayments" || partner.slug === "orcarouter" ? "bg-black/40" : "bg-primary/10"}`}>
                 {partner.logoSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={partner.logoSrc} alt={partner.name} className={`w-6 h-6 ${partner.slug !== "mergedev" && partner.slug !== "dodopayments" && partner.slug !== "orcarouter" ? "brightness-0 invert" : ""}`} />
                 ) : (
                   partner.logo
                 )}
               </div>
 
-              <h4 className="text-[17px] font-semibold tracking-tight mb-2 group-hover:text-primary transition-colors">
+              <h4 className="text-[17px] text-white font-medium tracking-tighter mb-2 group-hover:text-primary transition-colors">
                 {partner.name}
               </h4>
-              <p className="text-[13px] text-muted-foreground leading-relaxed mb-5 line-clamp-2">
+              <p className="text-sm text-[#A1A1AA] font-medium mb-5 line-clamp-2">
                 {partner.description}
               </p>
 
               <div className="border-t border-border pt-4">
-                <div className="text-[22px] font-bold text-primary font-mono tracking-tight">
+                <div className="text-[22px] font-bold text-primary tracking-tight">
                   {partner.stat.value}
                 </div>
-                <div className="text-[12px] text-muted-foreground mt-0.5">
+                <div className="text-sm text-[#A1A1AA] font-medium mt-0.5">
                   {partner.stat.label}
                 </div>
               </div>
@@ -66,7 +67,7 @@ const PartnershipsSection = () => {
         <div className="mt-8 text-center md:hidden">
           <Link
             href="/partnerships"
-            className="inline-flex items-center gap-2 text-[14px] text-muted-foreground hover:text-foreground transition-colors group"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group"
           >
             <span>View all partnerships</span>
             <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />

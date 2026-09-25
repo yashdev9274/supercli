@@ -92,9 +92,6 @@
   --sidebar-accent-foreground: oklch(0.8109 0 0);
   --sidebar-border: oklch(0.2520 0 0);
   --sidebar-ring: oklch(0.7214 0.1337 49.9802);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  --font-serif: serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
   --radius: 0.75rem;
   --shadow-x: 0px;
   --shadow-y: 1px;
@@ -170,6 +167,22 @@
   --tracking-wide: calc(var(--tracking-normal) + 0.025em);
   --tracking-wider: calc(var(--tracking-normal) + 0.05em);
   --tracking-widest: calc(var(--tracking-normal) + 0.1em);
+}
+
+/* Landing page typography (the `(marketing)` route group, i.e. `/` only).
+   Schibsted Grotesk for text, Geist Mono for code, nav and labels. The
+   variables are rebound here rather than in :root so every other route keeps
+   the system stack. System fonts stay on as fallbacks.
+   Do not re-declare --font-* on any ancestor inside this subtree (e.g. on
+   `.dark`): a local re-declaration shadows the inherited value for
+   `font-mono` / `font-sans` utilities even though `font-family` still
+   inherits. */
+.landing-fonts {
+  --font-sans: var(--font-schibsted-grotesk), ui-sans-serif, system-ui,
+    -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo,
+    Monaco, Consolas, "Liberation Mono", monospace;
+  font-family: var(--font-sans);
 }
 
 body {

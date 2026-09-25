@@ -1,3 +1,7 @@
+/**
+ * Thinking / ThoughtChain / TurnTracker display for chalk chat.
+ * Public API: ThinkingDisplay, ThoughtChain, TurnTracker, toolLabel, extractToolArg, renderReasoningBlock.
+ */
 import chalk from "chalk"
 import { stripAnsi, theme } from "src/cli/utils/tui"
 
@@ -22,6 +26,7 @@ export function extractToolArg(toolName: string, args: unknown): string | undefi
   if (typeof fileKey === "string") return fileKey
   const url = a.url ?? a.uri ?? a.href
   if (typeof url === "string") return url
+  if (typeof a.query === "string") return a.query
   if (a.command) return String(a.command)
   if (a.prompt) return String(a.prompt).slice(0, 60)
   if (a.task) return String(a.task).slice(0, 60)
@@ -78,6 +83,8 @@ export function categorizeTool(name: string): ToolCategory {
       return "edit"
     case "web_search":
     case "url_fetch":
+    case "exa_search":
+    case "exa_fetch":
     case "firecrawl_search":
     case "firecrawl_scrape":
     case "firecrawl_map":
@@ -115,6 +122,10 @@ function describeTool(toolName: string, arg?: string): { verb: string; color: st
       return { verb: arg ? `Fetch ${arg}` : "Fetch URL", color: "#7a8a82" }
     case "web_search":
       return { verb: arg ? `Search web for ${arg}` : "Search web", color: "#5ec27e" }
+    case "exa_search":
+      return { verb: arg ? `Search ${arg}` : "Search (Exa)", color: "#5ec27e" }
+    case "exa_fetch":
+      return { verb: arg ? `Fetch ${arg}` : "Fetch (Exa)", color: "#5ec27e" }
     case "firecrawl_search":
       return { verb: arg ? `Search ${arg}` : "Search", color: "#5ec27e" }
     case "firecrawl_scrape":
@@ -240,6 +251,8 @@ function codexToolLine(tool: ThoughtTool): string {
       return `${chalk.hex(CATEGORY_COLORS.edit)("Write")} ${chalk.hex(theme.greenMute)(path)}${marker}`
     }
     case "web_search":
+    case "exa_search":
+    case "exa_fetch":
     case "firecrawl_search":
     case "firecrawl_scrape":
     case "firecrawl_map":
@@ -323,7 +336,7 @@ export function renderReasoningBlock(reasoning: string, elapsedMs: number): stri
   const elapsed = elapsedMs < 1000 ? `${elapsedMs}ms` : `${(elapsedMs / 1000).toFixed(1)}s`
   const indent = chalk.hex(theme.greenDim)("┃")
   const toggle = chalk.hex(theme.greenGlow)("▼")
-      const label = chalk.hex(theme.greenMute)("Thoughts")
+      const label = chalk.hex(theme.greenMute)("Thinking")
       const time = chalk.hex(theme.greenDim)(`· ${elapsed}`)
       return `${indent} ${toggle} ${label} ${time}`
 }
@@ -388,9 +401,11 @@ export class ThinkingDisplay {
     this.currentToolArgs = undefined
     this.toolCount = 0
     this.headerEmitted = false
+    this.statusOverride = ""
   }
 
   start(label: string) {
+    this.statusOverride = label
     this.currentLabel = label
     if (this.running) return
     this.running = true
@@ -421,6 +436,19 @@ export class ThinkingDisplay {
     if (this.running) this.refreshLabel()
   }
 
+  /**
+   * Override the live status label (e.g. "loading tools", "sending request").
+   * Elapsed time is still appended by refreshLabel while the spinner runs.
+   */
+  setStatus(label: string) {
+    this.currentPhase = "reasoning"
+    this.statusOverride = label
+    this.currentLabel = label
+    if (this.running) this.renderSpinner()
+  }
+
+  private statusOverride = ""
+
   private refreshLabel() {
     if (!this.running) return
     const elapsed = Date.now() - this.thoughtStartTime
@@ -430,6 +458,8 @@ export class ThinkingDisplay {
       : ""
     if (this.currentPhase === "tool") {
       this.currentLabel = `${stepStr}${this.currentToolName} · ${time}`
+    } else if (this.statusOverride) {
+      this.currentLabel = `${stepStr}${this.statusOverride} · ${time}`
     } else {
       this.currentLabel = `${stepStr}Waiting for model · ${time}`
     }
@@ -507,6 +537,7 @@ export class ThinkingDisplay {
 
     // Update the spinner label so the user sees which tool is running,
     // without leaking the full tool-call line into the output scroll.
+    this.statusOverride = ""
     this.currentToolName = toolName
     this.currentToolArgs = args
     this.currentPhase = "tool"
@@ -515,14 +546,23 @@ export class ThinkingDisplay {
     }
   }
 
-  showReasoning(content: string) {
+showReasoning(content: string) {
     const summary = reasoningSummary(content)
     const title = summary.title || "thinking"
     // Only restart the spinner if we haven't already emitted the header.
     // After emitHeader() (i.e. after first tool call or first text chunk),
     // the spinner stays off — otherwise it would re-anchor on a new row
     // every reasoning delta and scroll the terminal.
+    //
+    // On TTY, StepStatusRow owns the live status bar — do not start the
+    // ThinkingDisplay spinner here or it will overwrite the status row and
+    // look like a stuck "Thinking" wait with no phase labels.
     if (this.headerEmitted) {
+      return
+    }
+    if (process.stdout.isTTY) {
+      this.statusOverride = `think: ${title}`
+      this.currentLabel = `think: ${title}`
       return
     }
     if (!this.running) {
@@ -748,7 +788,7 @@ export class ThoughtChain {
         this.writeCollapsedSummary(entry, indent, elapsedStr)
       } else {
         const toggle = chalk.hex(theme.greenGlow)("▼")
-        const label = chalk.hex(theme.greenMute)("Thoughts")
+        const label = chalk.hex(theme.greenMute)("Thinking")
         const time = chalk.hex(theme.greenDim)(elapsedStr)
         process.stdout.write(
           `${indent} ${toggle} ${label} ${chalk.hex(theme.greenDim)("·")} ${time}\n`,
@@ -762,12 +802,26 @@ export class ThoughtChain {
 
   private writeCollapsedSummary(entry: ThoughtEntry, indent: string, elapsedStr: string): void {
     const subCount = entry.subThoughts.length
+    const hasBody = entry.body.trim().length > 0
     if (entry.tools.length === 0 && subCount === 0) {
-      process.stdout.write(`${indent} ${chalk.hex(theme.greenDim)(`Thoughts · ${elapsedStr}`)}\n`)
+      // Pure reasoning — collapsed Thinking dropdown bookmark
+      const toggle = chalk.hex(theme.greenGlow)("▶")
+      const label = chalk.hex(theme.greenMute)("Thinking")
+      const preview = hasBody
+        ? chalk.hex(theme.greenDim)(` · ${truncateStr(entry.body.trim().replace(/\s+/g, " "), 56)}`)
+        : ""
+      process.stdout.write(`${indent} ${toggle} ${label} ${chalk.hex(theme.greenDim)(`· ${elapsedStr}`)}${preview} ${chalk.hex(theme.greenDim)("[Ctrl+T]")}\n`)
       return
     }
 
     process.stdout.write(`\n${codexDivider()}\n\n`)
+    // Thinking header when reasoning accompanied tools
+    if (hasBody) {
+      const toggle = chalk.hex(theme.greenGlow)("▶")
+      process.stdout.write(
+        `${indent} ${toggle} ${chalk.hex(theme.greenMute)("Thinking")} ${chalk.hex(theme.greenDim)(`· ${elapsedStr}`)} ${chalk.hex(theme.greenDim)("[Ctrl+T]")}\n`,
+      )
+    }
 
     if (entry.tools.length > 0) {
       const groups = groupToolsByCategory(entry.tools)
@@ -835,6 +889,21 @@ export class ThoughtChain {
   }
 
   private writeExpandedDetail(entry: ThoughtEntry, indent: string): void {
+    // Reasoning body first — this is the Thinking dropdown content
+    const body = entry.body.trim()
+    if (body) {
+      for (const bl of body.split("\n")) {
+        const trimmed = bl.trimEnd()
+        if (!trimmed) {
+          process.stdout.write(`${indent}\n`)
+          continue
+        }
+        for (const wrapped of wrapVisible(trimmed, terminalWidth() - 6, "    ")) {
+          process.stdout.write(`${indent}   ${chalk.hex(theme.greenMute)(wrapped)}\n`)
+        }
+      }
+      if (entry.tools.length > 0 || entry.subThoughts.length > 0) process.stdout.write("\n")
+    }
     // Tool rows grouped by category
     const groups = groupToolsByCategory(entry.tools)
     let groupIdx = 0
@@ -987,7 +1056,7 @@ export class ThoughtChain {
     const toggleIcon = entry.collapsed
       ? chalk.hex(theme.greenDim)("▶")
       : chalk.hex(theme.greenGlow)("▼")
-    const header = `${toggleIcon} ${chalk.hex(theme.greenMute)("Thoughts")}${chalk.hex(theme.greenDim)(":")} ${chalk.hex(theme.greenGlow)(elapsed)}`
+    const header = `${toggleIcon} ${chalk.hex(theme.greenMute)("Thinking")}${chalk.hex(theme.greenDim)(":")} ${chalk.hex(theme.greenGlow)(elapsed)}`
     const indent = chalk.hex(theme.greenDim)("┃")
 
     const lines: string[] = []

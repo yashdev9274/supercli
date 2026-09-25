@@ -4,6 +4,14 @@ import {
   runGeneratePrReview,
 } from "@/modules/ai/lib/generate-pr-review"
 
+function reviewDebouncePeriod(): `${number}s` {
+  const configured = Number.parseInt(process.env.PR_REVIEW_DEBOUNCE_SECONDS ?? "5", 10)
+  const seconds = Number.isFinite(configured)
+    ? Math.min(Math.max(configured, 1), 30)
+    : 5
+  return `${seconds}s`
+}
+
 /**
  * Background AI PR review worker.
  * Triggered by `pr.review.requested` from GitHub webhooks, dashboard, or
@@ -20,10 +28,10 @@ export const generateReview = inngest.createFunction(
       },
       { limit: 5 },
     ],
-    // Rapid synchronize events → one review on the latest head.
+    // Collapse synchronize bursts without imposing a fixed 30-second wait.
     debounce: {
       key: "event.data.owner + '/' + event.data.repo + '#' + event.data.prNumber",
-      period: "30s",
+      period: reviewDebouncePeriod(),
     },
     retries: 2,
     onFailure: async ({ event, error }) => {
@@ -115,6 +123,7 @@ export const generateReview = inngest.createFunction(
         prNumber: result.prNumber,
         files: result.files,
         commentPosted: result.commentPosted,
+        descriptionUpdated: result.descriptionUpdated ?? false,
         linearNotified: result.linearNotified ?? false,
         linearIssueId: result.linearIssueId ?? null,
         linearSkippedReason: result.linearSkippedReason ?? null,

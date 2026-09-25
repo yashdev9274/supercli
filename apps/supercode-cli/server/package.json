@@ -1,6 +1,6 @@
 {
   "name": "supercode-cli",
-  "version": "0.1.99",
+  "version": "0.1.103",
   "description": "AI-powered coding agent CLI",
   "main": "dist/main.js",
   "bin": {
@@ -11,11 +11,14 @@
     "dev:cli": "bun src/cli/main.ts",
     "start": "bun src/index.ts",
     "build": "bun run build:cli",
-    "build:cli": "bun build --target node --packages bundle --outdir dist --entry ./src/cli/main.ts --external '@modelcontextprotocol/sdk' && sed -i '' 's|#!/usr/bin/env bun|#!/usr/bin/env node|' dist/main.js",
+    "build:cli": "bun build --target node --packages bundle --outdir dist --entry ./src/cli/main.ts --external '@modelcontextprotocol/sdk' --external '@opentui/core' --external '@opentui/react' --external 'react' && sed -i '' 's|#!/usr/bin/env bun|#!/usr/bin/env node|' dist/main.js",
     "test": "bun test",
+    "desktop:contracts": "bun scripts/export-desktop-contracts.ts",
+    "desktop:contracts:check": "bun scripts/export-desktop-contracts.ts --check",
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",
-    "prepublishOnly": "bun run build:cli"
+    "prepublishOnly": "bun run build:cli",
+    "dev:tui": "SUPERCODE_TUI=opentui bun src/cli/main.ts init --tui opentui"
   },
   "type": "module",
   "files": [
@@ -49,6 +52,8 @@
     "@ai-sdk/openai-compatible": "^2.0.48",
     "@composio/core": "^0.13.1",
     "@modelcontextprotocol/sdk": "^1.9.0",
+    "@opentui/core": "^0.5.11",
+    "@opentui/react": "^0.5.11",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@prisma/client-runtime-utils": "^7.8.0",
@@ -65,6 +70,7 @@
     "marked": "^18.0.4",
     "marked-terminal": "^7.3.0",
     "open": "^11.0.0",
+    "react": "^19.2.8",
     "vercel-minimax-ai-provider": "^0.0.2",
     "yocto-spinner": "^1.2.0",
     "zod": "3.25",
@@ -79,6 +85,7 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",
+    "@types/react": "19.2.7",
     "dotenv": "^17.3.1",
     "prisma": "^7.4.2",
     "typescript": "^5.7.0"

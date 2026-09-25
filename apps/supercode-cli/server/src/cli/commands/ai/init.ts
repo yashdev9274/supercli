@@ -1,124 +1,50 @@
 import { Command } from "commander"
-import { version } from "../../../../package.json"
-import { getStoredToken } from "src/lib/token"
-import { getCurrentUser } from "src/lib/api-client"
 import { startChat, type ModelProvider } from "src/cli/ai/chat/chat"
 import { startAgentChat } from "src/cli/ai/chat/chatAgent"
-import { getMcpManager } from "src/mcp/mcp-manager"
-import { composioSessionManager } from "src/mcp/composio"
-import { mergeConnectorManager } from "src/connectors"
-import { createThinking, errorBox } from "src/cli/utils/tui"
-import { renderWelcome } from "src/cli/utils/welcome"
-import { scanWorkspace } from "src/cli/workspace/scanner.ts"
-import { getCliConfig, saveCliConfig, applyStoredApiKeys } from "src/lib/cli-config"
-import { checkForUpdate } from "src/cli/utils/auto-update"
-import { checkPaidTierInterest } from "src/cli/utils/paid-tier-check"
-import { CLOUD_MODELS } from "src/cli/commands/slashCommands/model"
+import { bootstrapSession } from "src/cli/session/bootstrap.ts"
 
-export const wakeUpAction = async (resumeId: string | null = null) => {
-  renderWelcome(version)
+/** True when user opted into OpenTUI via env or CLI flag. */
+function wantsOpenTui(opts?: { tui?: string | boolean }): boolean {
+  const env = (process.env.SUPERCODE_TUI || "").trim().toLowerCase()
+  if (env === "opentui" || env === "1" || env === "true") return true
+  if (opts?.tui === true) return true
+  if (typeof opts?.tui === "string") {
+    const v = opts.tui.trim().toLowerCase()
+    return v === "opentui" || v === "1" || v === "true"
+  }
+  return false
+}
 
-  const token = await getStoredToken()
-
-  if (!token?.access_token) {
-    console.log()
-    console.log(errorBox("Not authenticated. Run supercode login first"))
-    console.log()
+export const wakeUpAction = async (
+  resumeId: string | null = null,
+  opts: { tui?: string | boolean } = {},
+) => {
+  // OpenTUI is Bun + native FFI — load only when requested so Node dist stays chalk-safe.
+  if (wantsOpenTui(opts)) {
+    const { launchOpenTuiHello } = await import("src/cli/tui/launch.ts")
+    await launchOpenTuiHello(resumeId ? `resume ${resumeId}` : undefined)
     return
   }
 
-  const thinking = createThinking("authenticating")
-  const result = await getCurrentUser()
+  const boot = await bootstrapSession(resumeId)
+  if (!boot.ok) return
 
-  if (!result.ok) {
-    const msg = result.reason === "unauthorized"
-      ? "Session expired. Run supercode login to re-authenticate"
-      : "Server was inactive and is waking up. Wait a minute, then run supercode init again"
-    thinking.fail(msg)
-    return
+  if (boot.resumeId && boot.mode === "agent") {
+    await startAgentChat(
+      boot.provider as ModelProvider,
+      boot.model,
+      boot.resumeId,
+      boot.workspaceInfo ?? undefined,
+    )
+  } else {
+    await startChat(
+      boot.provider as ModelProvider,
+      boot.model,
+      boot.resumeId,
+      boot.workspaceInfo ?? undefined,
+      "chat",
+    )
   }
-
-  const user = result.user
-  thinking.succeed(`Welcome, ${user.name}`)
-
-  await checkForUpdate()
-  await checkPaidTierInterest()
-
-  const wsThinking = createThinking("scanning workspace")
-  let workspaceInfo = null
-  try {
-    workspaceInfo = await scanWorkspace()
-    wsThinking.succeed()
-  } catch (err) {
-    wsThinking.fail("Could not scan workspace")
-  }
-
-  const stored = await getCliConfig()
-  await applyStoredApiKeys()
-
-  // Auto-restore composio MCP session — try server-side first, then local SDK
-  try {
-    const info = await composioSessionManager.createSessionFromServer()
-    await getMcpManager().start({
-      composio: { url: info.url, headers: info.headers },
-    })
-  } catch {
-    if (composioSessionManager.isConfigured) {
-      try {
-        const info = await composioSessionManager.createSession("supercode-cli")
-        await getMcpManager().start({
-          composio: { url: info.url, headers: info.headers },
-        })
-      } catch {
-        // composio auto-reconnect failed — user can use /mcp to reconnect
-      }
-    }
-  }
-
-  // Auto-connect Merge Agent Handler (silent — no user-facing output)
-  if (mergeConnectorManager.isConfigured) {
-    mergeConnectorManager.loadConfigFromEnv()
-    const mcpConfig = mergeConnectorManager.getMcpConfig()
-    if (mcpConfig) {
-      try {
-        await getMcpManager().start({ mergedev: mcpConfig })
-      } catch {
-        // Merge AH auto-connect failed — tools degrade gracefully
-      }
-    }
-  }
-
-  if (stored) {
-    // session-only BYOK providers can't persist across restarts — fall back to cloud
-    const BYOK_PROVIDER_VARS: Record<string, string[]> = {
-      concentrateai: ["CONCENTRATE_BYOK_PROD_KEY", "CONCENTRATE_BYOK_DEV_KEY"],
-      mergedev: ["MERGE_DEV_BYOK_PROD_KEY", "MERGE_DEV_BYOK_DEV_KEY"],
-      google: ["GOOGLE_BYOK_PROD_KEY", "GOOGLE_BYOK_DEV_KEY"],
-      openrouter: ["OPENROUTER_BYOK_PROD_KEY", "OPENROUTER_BYOK_DEV_KEY"],
-      nvidia: ["NVIDIA_BYOK_PROD_KEY", "NVIDIA_BYOK_DEV_KEY"],
-    }
-    const CLOUD_MODEL_NAMES = new Set(CLOUD_MODELS.map((m) => m.value))
-    const sp = stored.provider
-    const byokVars = sp && BYOK_PROVIDER_VARS[sp]
-    if (byokVars && !byokVars.some((v) => process.env[v])) {
-      stored.model = CLOUD_MODEL_NAMES.has(stored.model) ? stored.model : "deepseek-v4-flash"
-      stored.provider = "supercode"
-      await saveCliConfig({ provider: "supercode", model: stored.model })
-    } else if (sp === "supercode" && !CLOUD_MODEL_NAMES.has(stored.model)) {
-      stored.model = "deepseek-v4-flash"
-      await saveCliConfig({ model: stored.model })
-    }
-
-    if (resumeId && stored.mode === "agent") {
-      await startAgentChat(stored.provider, stored.model, resumeId, workspaceInfo ?? undefined)
-    } else {
-      await startChat(stored.provider, stored.model, resumeId, workspaceInfo ?? undefined, "chat")
-    }
-    return
-  }
-
-  const defaults = await saveCliConfig({})
-  await startChat(defaults.provider, defaults.model, resumeId, workspaceInfo ?? undefined, "chat")
 }
 
 export const supercodeInit = new Command("init")
@@ -127,6 +53,10 @@ export const supercodeInit = new Command("init")
     "--resume <conversationId>",
     "Resume a previous conversation by ID",
   )
-  .action(async (opts: { resume?: string }) => {
-    await wakeUpAction(opts.resume ?? null)
+  .option(
+    "--tui [engine]",
+    "Use OpenTUI shell (opentui). Env SUPERCODE_TUI=opentui also enables it. Requires Bun.",
+  )
+  .action(async (opts: { resume?: string; tui?: string | boolean }) => {
+    await wakeUpAction(opts.resume ?? null, { tui: opts.tui })
   })
