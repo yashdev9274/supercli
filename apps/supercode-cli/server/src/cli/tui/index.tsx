@@ -39,8 +39,8 @@ export async function startOpenTui(options: OpenTuiLaunchOptions = {}): Promise<
       })
 
       rootRef = createRoot(renderer)
-      const root = rootRef
-      rootRef.render(
+      const root: Root = rootRef
+      root.render(
         <App
           subtitle={options.subtitle}
           session={options.session}
@@ -49,7 +49,6 @@ export async function startOpenTui(options: OpenTuiLaunchOptions = {}): Promise<
           mode={options.mode}
         />,
       )
-      void root
     } catch (err) {
       if (!settled) {
         settled = true
