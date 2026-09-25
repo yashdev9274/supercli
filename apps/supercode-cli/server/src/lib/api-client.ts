@@ -1,7 +1,11 @@
 import { getStoredToken } from "src/lib/token"
+import { getSupercodeServerUrl } from "src/lib/load-env"
 
-const BASE_URL = process.env.SUPERCODE_SERVER_URL || "https://supercode-8w7e.onrender.com"
 const FETCH_TIMEOUT = 15_000
+
+function baseUrl(): string {
+  return getSupercodeServerUrl()
+}
 
 async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
   const controller = new AbortController()
@@ -31,7 +35,7 @@ export type GetUserResult =
 export async function getCurrentUser(): Promise<GetUserResult> {
   try {
     const headers = await getAuthHeaders()
-    const res = await fetchWithTimeout(`${BASE_URL}/api/user/me`, { headers })
+const res = await fetchWithTimeout(`${baseUrl()}/api/user/me`, { headers })
     if (!res.ok) return { ok: false, reason: "unauthorized" }
     const user = await res.json() as { id: string; name: string | null; email: string }
     return { ok: true, user }
@@ -45,7 +49,7 @@ export async function getOrCreateConversation(
   mode = "chat",
 ): Promise<any> {
   const headers = await getAuthHeaders()
-  const res = await fetchWithTimeout(`${BASE_URL}/api/conversations`, {
+const res = await fetchWithTimeout(`${baseUrl()}/api/conversations`, {
     method: "POST",
     headers,
     body: JSON.stringify({ id: conversationId, mode }),
@@ -56,7 +60,7 @@ export async function getOrCreateConversation(
 
 export async function getMessages(conversationId: string): Promise<any[]> {
   const headers = await getAuthHeaders()
-  const res = await fetchWithTimeout(`${BASE_URL}/api/conversations/${conversationId}/messages`, {
+const res = await fetchWithTimeout(`${baseUrl()}/api/conversations/${conversationId}/messages`, {
     headers,
   })
   if (!res.ok) throw new Error("Failed to get messages")
@@ -74,7 +78,7 @@ export async function addMessage(
 ): Promise<any> {
   const headers = await getAuthHeaders()
   const contentStr = typeof content === "string" ? content : JSON.stringify(content)
-  const res = await fetchWithTimeout(`${BASE_URL}/api/conversations/${conversationId}/messages`, {
+const res = await fetchWithTimeout(`${baseUrl()}/api/conversations/${conversationId}/messages`, {
     method: "POST",
     headers,
     body: JSON.stringify({ role, content: contentStr }),
@@ -85,7 +89,7 @@ export async function addMessage(
 
 export async function updateConversationMode(conversationId: string, mode: string) {
   const headers = await getAuthHeaders()
-  await fetchWithTimeout(`${BASE_URL}/api/conversations/${conversationId}/mode`, {
+await fetchWithTimeout(`${baseUrl()}/api/conversations/${conversationId}/mode`, {
     method: "PUT",
     headers,
     body: JSON.stringify({ mode }),
@@ -94,7 +98,7 @@ export async function updateConversationMode(conversationId: string, mode: strin
 
 export async function updateConversationTitle(conversationId: string, title: string) {
   const headers = await getAuthHeaders()
-  await fetchWithTimeout(`${BASE_URL}/api/conversations/${conversationId}/title`, {
+await fetchWithTimeout(`${baseUrl()}/api/conversations/${conversationId}/title`, {
     method: "PUT",
     headers,
     body: JSON.stringify({ title }),

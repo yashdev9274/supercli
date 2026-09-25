@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 import { pineconeIndex } from "@/lib/pinecone/pinecone"
-import { gateway } from "@/lib/gateway"
+import { embeddingModel, embeddingProvider } from "@/lib/gateway"
 import { embed } from "ai"
 
 // Pinecone metadata values must stay under ~40KB; keep content snippets small.
@@ -20,8 +20,15 @@ function vectorId(repoId: string, path: string): string {
 }
 
 export async function generateEmbedding(text: string): Promise<number[]> {
+  const provider = embeddingProvider()
+  if (!provider) {
+    throw new Error(
+      "Embeddings unavailable: configure OPENAI_API_KEY or EMBEDDING_PROVIDER with a paid gateway",
+    )
+  }
+
   const { embedding } = await embed({
-    model: gateway.embeddingModel("openai/text-embedding-3-small"),
+    model: embeddingModel("openai/text-embedding-3-small", provider),
     value: text,
   })
   return embedding as number[]
@@ -61,6 +68,11 @@ export async function indexCodebase(
     files.length,
     "files",
   )
+
+  if (!embeddingProvider()) {
+    console.warn("[pinecone] indexing skipped: no embedding provider configured")
+    return 0
+  }
 
   const usable = files.filter((file) => file.content?.trim())
 
@@ -119,6 +131,8 @@ export async function retrieveContext(
   repoId: string,
   topK: number = 5,
 ) {
+  if (!embeddingProvider()) return []
+
   const embedding = await generateEmbedding(query)
 
   const results = await pineconeIndex.query({

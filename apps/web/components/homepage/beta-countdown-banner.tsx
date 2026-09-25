@@ -85,15 +85,15 @@ export default function BetaCountdownBanner({
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
           </span>
-          <span className="text-[10px] sm:text-[11px] font-mono text-primary font-semibold tracking-[0.15em] uppercase">
+          <span className="text-[10px] sm:text-[11px] text-primary font-semibold tracking-[0.15em] uppercase">
             <span className="sm:hidden">Beta</span>
             <span className="hidden sm:inline">Beta Live</span>
           </span>
           <span className="text-[#222] text-[12px] sm:text-[14px] font-light select-none">|</span>
-          <span className="text-[9px] sm:text-[10px] font-mono text-muted-foreground/60 uppercase tracking-[0.1em] sm:tracking-[0.12em]">
+          <span className="text-[9px] sm:text-[10px] text-muted-foreground/60 uppercase tracking-[0.1em] sm:tracking-[0.12em]">
             T-MINUS
           </span>
-          <span className="text-[9px] sm:text-[10px] font-mono text-muted-foreground/40 uppercase tracking-[0.08em] ml-1 hidden md:inline">
+          <span className="text-[9px] sm:text-[10px] text-muted-foreground/40 uppercase tracking-[0.08em] ml-1 hidden md:inline">
             jul 10
           </span>
         </div>
@@ -112,7 +112,7 @@ export default function BetaCountdownBanner({
             :
           </span>
           <DigitPairMobile value={pad(time.seconds)} />
-          <span className="text-[8px] sm:text-[9px] font-mono text-muted-foreground/30 uppercase tracking-[0.1em] ml-0.5 sm:ml-1 hidden sm:inline">
+          <span className="text-[8px] sm:text-[9px] text-muted-foreground/30 uppercase tracking-[0.1em] ml-0.5 sm:ml-1 hidden sm:inline">
             remain
           </span>
         </div>
@@ -143,7 +143,7 @@ function DigitPairMobile({ value }: { value: string }) {
       {value.split("").map((digit, i) => (
         <span
           key={i}
-          className="w-[12px] sm:w-[15px] text-center text-[14px] sm:text-[17px] font-mono font-bold text-primary leading-none"
+          className="w-[12px] sm:w-[15px] text-center text-[14px] sm:text-[17px] font-bold text-primary leading-none"
           style={{ textShadow: "0 0 8px rgba(217,157,50,0.15)" }}
         >
           {digit}

@@ -53,10 +53,10 @@ const FAQSection = () => {
     <section className="py-24 px-6 border-t border-border">
       <div className="max-w-[700px] mx-auto">
         <div className="mb-12">
-          <h2 className="text-[13px] font-mono uppercase tracking-[0.15em] text-primary mb-4">
+          <h2 className="text-lg font-semibold text-primary uppercase mb-4">
             {"// faq"}
           </h2>
-          <h3 className="text-[28px] md:text-[36px] text-[#A1A1AA] font-semibold tracking-tight leading-[1.15]">
+          <h3 className="text-[28px] md:text-[36px] text-[#A1A1AA] font-medium tracking-tighter leading-[1.15]">
             frequently asked questions
           </h3>
         </div>
@@ -68,11 +68,11 @@ const FAQSection = () => {
               value={`item-${i}`}
               className="border border-border rounded-lg bg-card/20 data-[state=open]:bg-card/40 transition-colors duration-200"
             >
-              <AccordionTrigger className="px-5 py-4 text-[14px] font-mono text-foreground hover:no-underline hoverable:hover:text-primary transition-colors duration-150">
+              <AccordionTrigger className="px-5 py-4 text-sm text-foreground hover:no-underline hoverable:hover:text-primary transition-colors duration-150">
                 {item.q}
               </AccordionTrigger>
               <AccordionContent className="px-5 pb-4">
-                <p className="text-[13px] text-muted-foreground leading-relaxed">
+                <p className="text-sm text-muted-foreground leading-relaxed">
                   {item.a}
                 </p>
               </AccordionContent>

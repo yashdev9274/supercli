@@ -1,0 +1,672 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		018552EEF5F3E695C5BCFC3F /* NativeWebSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9237D40C24DD14FBEE8F67F6 /* NativeWebSearch.swift */; };
+		0585A244E26A2F479525E9EE /* ChatViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C537DC7C79C6879C27B8F9F3 /* ChatViews.swift */; };
+		0C69616CF761F4F79B38358A /* ParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB2067F079F210E94AA21C70 /* ParityTests.swift */; };
+		100520978CFB0635BAD35722 /* ReviewWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFF314A94E1617F615AC3575 /* ReviewWorkspaceView.swift */; };
+		11BF63AC5C84E1E9D0B9F39A /* ReviewStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1677CB46EDBAD1A2447B93FC /* ReviewStore.swift */; };
+		12AA834243DE6007B29275D5 /* PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 150CB7DC01D1D4F6DC89411B /* PermissionManager.swift */; };
+		14A59837FCF00FBEA89E5C13 /* ComposerCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = C481E55900BB6B7654221E41 /* ComposerCommands.swift */; };
+		1950B0BA145378C8BC6E98D3 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74362A177EE73AF8C86414B3 /* KeychainStore.swift */; };
+		1C456156B9707A942DCA61C7 /* ConnectionsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1FE0024D8E35BB72C192BEC /* ConnectionsStore.swift */; };
+		1CA9B3B47AEDC538FE16CE9D /* AlertCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6659146FA2AC659EF2FD7249 /* AlertCard.swift */; };
+		257CEE7D1A7A79CF7CD11103 /* SupercodeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6036779459F5FA835E4EBC5F /* SupercodeApp.swift */; };
+		439C45F04E8D178B895394C2 /* VoiceCallStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 488F26DE72A470D15C0918D0 /* VoiceCallStore.swift */; };
+		43ABB723072990CC4D51C61E /* NativeCommandRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5735E0E31BBBB7C295899F43 /* NativeCommandRunner.swift */; };
+		54A7F3F549822BE04665DA9C /* NativeTurnEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = C839AE60B57C4373DD1AA0AA /* NativeTurnEngine.swift */; };
+		5621B8AB4D759C2047C1B620 /* ReviewModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6026BBC1C2F367EB398B963 /* ReviewModels.swift */; };
+		59ED9B7E368E144DC0DCF009 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 489CFF4811023DFC170B98F2 /* SettingsView.swift */; };
+		5C4D5CEC442FC5AE284C9246 /* DesktopVoiceCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51962DD8DBC8B0B4F9176A5D /* DesktopVoiceCapture.swift */; };
+		6461C5F7ECBEDA57895883D4 /* NativeFileTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB4CFB89E80D3FE539E3F4E /* NativeFileTools.swift */; };
+		6CB0538B0B0FE4A368D66086 /* NativeDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7196606CB5FC508F6DF4E960 /* NativeDiscovery.swift */; };
+		70D3DACB93EC6E2CA3D88EDD /* TerminalContract.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCBDDF420D3DD1CCBC47875A /* TerminalContract.swift */; };
+		72A668E728303A541A3C942B /* FileBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CC0D4AC530DE68CD8EB221E /* FileBrowserView.swift */; };
+		750274B1D6EFA975103F6D60 /* ConnectionLogoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C34C20C576D0814DF423DB66 /* ConnectionLogoView.swift */; };
+		7EF5443D36153D58A6B6B95D /* ToolCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202FDEA6DAE799F1BB5E7AA2 /* ToolCatalog.swift */; };
+		835CF4B0B15D14C170BB6EBB /* terminal-contracts.json in Resources */ = {isa = PBXBuildFile; fileRef = BE1EE43CED27AB6E96B482DA /* terminal-contracts.json */; };
+		8F4FCBB0794A58D7EA7973AA /* ServerConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E300378F333F4ECE04AF3D4 /* ServerConfig.swift */; };
+		A4DE95CB7AB60EE3946C2EA3 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB01BE2AB1618BFBC4A09456 /* Models.swift */; };
+		AA834118A8419E523C5E11C6 /* NativeFileReferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 180C931B5F23A96D0C228FB3 /* NativeFileReferences.swift */; };
+		AB0FEA5579051C994FA6138E /* DesktopTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6457828A843C1513090696A8 /* DesktopTheme.swift */; };
+		AF27E00019F2C56521F5F71B /* SyntaxHighlighter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C09AD1F3F36A1C10C05027E7 /* SyntaxHighlighter.swift */; };
+		B5045C4263D17EC2ECC876E7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B78C4A8D225A6DA70EBF7335 /* Assets.xcassets */; };
+		B6ECFB65F06EB00C7C3AA36A /* ModelCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AB6DDA04A166E86D5C2223F /* ModelCatalog.swift */; };
+		C3FB741D8C4EF5C968AFCDD4 /* LocalToolRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DCE00B33EFB3052906A1C3D /* LocalToolRuntime.swift */; };
+		C77AF9EB8A83D319E7D7094F /* ConnectionsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 084956AA9D5F42E4F0048DEE /* ConnectionsSettingsView.swift */; };
+		D218764D12707F643CA8990D /* SupercodeAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80058CCC966B10C5D98DA08 /* SupercodeAPIClient.swift */; };
+		ED1EF08E1733AA0E54989056 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46DEB1E0F20C30D126E0D591 /* RootView.swift */; };
+		F054048A6A05A35F28666185 /* ConnectionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C7CD7D156D1692F3E1A9330 /* ConnectionModels.swift */; };
+		F1682CC1D575210A82094948 /* Stores.swift in Sources */ = {isa = PBXBuildFile; fileRef = 648EBE685610AEC0B98FD194 /* Stores.swift */; };
+		F7E0C0765171D8EBDD8D8EBE /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF6FFC2FAFB5235177B7F7B5 /* SidebarView.swift */; };
+		FD8102A33A86A84732B37C2F /* FileViewerPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44ADEE2FDD53593A890F13B5 /* FileViewerPane.swift */; };
+		FF2E4DA2F5DC559814A3B67C /* VoiceCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B5349F4631C3DB558DEEDFB /* VoiceCallView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		029C199B668082D7C38FF348 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DAE67D97EFC4387F107B7832 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 62C34F5B696D4E016755F281;
+			remoteInfo = SupercodeDesktop;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		084956AA9D5F42E4F0048DEE /* ConnectionsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionsSettingsView.swift; sourceTree = "<group>"; };
+		150CB7DC01D1D4F6DC89411B /* PermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionManager.swift; sourceTree = "<group>"; };
+		1677CB46EDBAD1A2447B93FC /* ReviewStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewStore.swift; sourceTree = "<group>"; };
+		180C931B5F23A96D0C228FB3 /* NativeFileReferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeFileReferences.swift; sourceTree = "<group>"; };
+		202FDEA6DAE799F1BB5E7AA2 /* ToolCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolCatalog.swift; sourceTree = "<group>"; };
+		2BB4CFB89E80D3FE539E3F4E /* NativeFileTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeFileTools.swift; sourceTree = "<group>"; };
+		3B5349F4631C3DB558DEEDFB /* VoiceCallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCallView.swift; sourceTree = "<group>"; };
+		44ADEE2FDD53593A890F13B5 /* FileViewerPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileViewerPane.swift; sourceTree = "<group>"; };
+		46DEB1E0F20C30D126E0D591 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		488F26DE72A470D15C0918D0 /* VoiceCallStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCallStore.swift; sourceTree = "<group>"; };
+		489CFF4811023DFC170B98F2 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		4AB6DDA04A166E86D5C2223F /* ModelCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelCatalog.swift; sourceTree = "<group>"; };
+		4DCE00B33EFB3052906A1C3D /* LocalToolRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalToolRuntime.swift; sourceTree = "<group>"; };
+		51962DD8DBC8B0B4F9176A5D /* DesktopVoiceCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopVoiceCapture.swift; sourceTree = "<group>"; };
+		559AF6EEE70B7695DED1E5CE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		5735E0E31BBBB7C295899F43 /* NativeCommandRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeCommandRunner.swift; sourceTree = "<group>"; };
+		6036779459F5FA835E4EBC5F /* SupercodeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupercodeApp.swift; sourceTree = "<group>"; };
+		6182077C7DBF0EF8405C7555 /* SupercodeDesktopTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SupercodeDesktopTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		6457828A843C1513090696A8 /* DesktopTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopTheme.swift; sourceTree = "<group>"; };
+		648EBE685610AEC0B98FD194 /* Stores.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stores.swift; sourceTree = "<group>"; };
+		6659146FA2AC659EF2FD7249 /* AlertCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertCard.swift; sourceTree = "<group>"; };
+		7196606CB5FC508F6DF4E960 /* NativeDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeDiscovery.swift; sourceTree = "<group>"; };
+		74362A177EE73AF8C86414B3 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
+		7C7CD7D156D1692F3E1A9330 /* ConnectionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionModels.swift; sourceTree = "<group>"; };
+		826863BA7FB539D734C8FCB5 /* SupercodeDesktop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SupercodeDesktop.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8CC0D4AC530DE68CD8EB221E /* FileBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileBrowserView.swift; sourceTree = "<group>"; };
+		8E300378F333F4ECE04AF3D4 /* ServerConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConfig.swift; sourceTree = "<group>"; };
+		9237D40C24DD14FBEE8F67F6 /* NativeWebSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeWebSearch.swift; sourceTree = "<group>"; };
+		9FBDA7F0E84B4528945409F0 /* SupercodeDesktop.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SupercodeDesktop.entitlements; sourceTree = "<group>"; };
+		B78C4A8D225A6DA70EBF7335 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		BCBDDF420D3DD1CCBC47875A /* TerminalContract.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalContract.swift; sourceTree = "<group>"; };
+		BE1EE43CED27AB6E96B482DA /* terminal-contracts.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "terminal-contracts.json"; sourceTree = "<group>"; };
+		C09AD1F3F36A1C10C05027E7 /* SyntaxHighlighter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntaxHighlighter.swift; sourceTree = "<group>"; };
+		C34C20C576D0814DF423DB66 /* ConnectionLogoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionLogoView.swift; sourceTree = "<group>"; };
+		C481E55900BB6B7654221E41 /* ComposerCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposerCommands.swift; sourceTree = "<group>"; };
+		C537DC7C79C6879C27B8F9F3 /* ChatViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViews.swift; sourceTree = "<group>"; };
+		C839AE60B57C4373DD1AA0AA /* NativeTurnEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeTurnEngine.swift; sourceTree = "<group>"; };
+		CB2067F079F210E94AA21C70 /* ParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParityTests.swift; sourceTree = "<group>"; };
+		CF6FFC2FAFB5235177B7F7B5 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		CFF314A94E1617F615AC3575 /* ReviewWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewWorkspaceView.swift; sourceTree = "<group>"; };
+		D1FE0024D8E35BB72C192BEC /* ConnectionsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionsStore.swift; sourceTree = "<group>"; };
+		D80058CCC966B10C5D98DA08 /* SupercodeAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupercodeAPIClient.swift; sourceTree = "<group>"; };
+		E6026BBC1C2F367EB398B963 /* ReviewModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewModels.swift; sourceTree = "<group>"; };
+		FB01BE2AB1618BFBC4A09456 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		278115EF5B52F34D5AC638FF /* Chat */ = {
+			isa = PBXGroup;
+			children = (
+				C537DC7C79C6879C27B8F9F3 /* ChatViews.swift */,
+				44ADEE2FDD53593A890F13B5 /* FileViewerPane.swift */,
+				3B5349F4631C3DB558DEEDFB /* VoiceCallView.swift */,
+			);
+			path = Chat;
+			sourceTree = "<group>";
+		};
+		2826BDF8450BDD9AF4618479 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				6659146FA2AC659EF2FD7249 /* AlertCard.swift */,
+				6457828A843C1513090696A8 /* DesktopTheme.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		31126419E2ECB9F312867F0E /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				C481E55900BB6B7654221E41 /* ComposerCommands.swift */,
+				51962DD8DBC8B0B4F9176A5D /* DesktopVoiceCapture.swift */,
+				74362A177EE73AF8C86414B3 /* KeychainStore.swift */,
+				4DCE00B33EFB3052906A1C3D /* LocalToolRuntime.swift */,
+				4AB6DDA04A166E86D5C2223F /* ModelCatalog.swift */,
+				5735E0E31BBBB7C295899F43 /* NativeCommandRunner.swift */,
+				7196606CB5FC508F6DF4E960 /* NativeDiscovery.swift */,
+				180C931B5F23A96D0C228FB3 /* NativeFileReferences.swift */,
+				2BB4CFB89E80D3FE539E3F4E /* NativeFileTools.swift */,
+				C839AE60B57C4373DD1AA0AA /* NativeTurnEngine.swift */,
+				9237D40C24DD14FBEE8F67F6 /* NativeWebSearch.swift */,
+				150CB7DC01D1D4F6DC89411B /* PermissionManager.swift */,
+				8E300378F333F4ECE04AF3D4 /* ServerConfig.swift */,
+				D80058CCC966B10C5D98DA08 /* SupercodeAPIClient.swift */,
+				C09AD1F3F36A1C10C05027E7 /* SyntaxHighlighter.swift */,
+				BCBDDF420D3DD1CCBC47875A /* TerminalContract.swift */,
+				202FDEA6DAE799F1BB5E7AA2 /* ToolCatalog.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		366B4EC309B4A75368D02E85 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				6036779459F5FA835E4EBC5F /* SupercodeApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		46308710F1E30403CB333F5A /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				C34C20C576D0814DF423DB66 /* ConnectionLogoView.swift */,
+				084956AA9D5F42E4F0048DEE /* ConnectionsSettingsView.swift */,
+				489CFF4811023DFC170B98F2 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		51BC0598F68967CDF2C74B09 = {
+			isa = PBXGroup;
+			children = (
+				86802EBB4A8CDC5F123EA919 /* SupercodeDesktop */,
+				CAB81C94A0AEAD4399D68974 /* SupercodeDesktopTests */,
+				FF1D3F0726A113B0870C9DBA /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		52CDA06538A48CB456956580 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				278115EF5B52F34D5AC638FF /* Chat */,
+				908875901983131B5F0DE52F /* Inspector */,
+				E680D8AAD2AF4015289FCD78 /* Review */,
+				46308710F1E30403CB333F5A /* Settings */,
+				2826BDF8450BDD9AF4618479 /* Shared */,
+				832761A70BF953954C112928 /* Sidebar */,
+				46DEB1E0F20C30D126E0D591 /* RootView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		60E8D2E14A6CBBD2D286579C /* Stores */ = {
+			isa = PBXGroup;
+			children = (
+				D1FE0024D8E35BB72C192BEC /* ConnectionsStore.swift */,
+				1677CB46EDBAD1A2447B93FC /* ReviewStore.swift */,
+				648EBE685610AEC0B98FD194 /* Stores.swift */,
+				488F26DE72A470D15C0918D0 /* VoiceCallStore.swift */,
+			);
+			path = Stores;
+			sourceTree = "<group>";
+		};
+		832761A70BF953954C112928 /* Sidebar */ = {
+			isa = PBXGroup;
+			children = (
+				CF6FFC2FAFB5235177B7F7B5 /* SidebarView.swift */,
+			);
+			path = Sidebar;
+			sourceTree = "<group>";
+		};
+		86802EBB4A8CDC5F123EA919 /* SupercodeDesktop */ = {
+			isa = PBXGroup;
+			children = (
+				366B4EC309B4A75368D02E85 /* App */,
+				C3361CEE1AFC6F56514B8CDF /* Models */,
+				92A541986EC651F942546B75 /* Resources */,
+				31126419E2ECB9F312867F0E /* Services */,
+				60E8D2E14A6CBBD2D286579C /* Stores */,
+				52CDA06538A48CB456956580 /* Views */,
+				559AF6EEE70B7695DED1E5CE /* Info.plist */,
+				9FBDA7F0E84B4528945409F0 /* SupercodeDesktop.entitlements */,
+			);
+			path = SupercodeDesktop;
+			sourceTree = "<group>";
+		};
+		908875901983131B5F0DE52F /* Inspector */ = {
+			isa = PBXGroup;
+			children = (
+				8CC0D4AC530DE68CD8EB221E /* FileBrowserView.swift */,
+			);
+			path = Inspector;
+			sourceTree = "<group>";
+		};
+		92A541986EC651F942546B75 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				B78C4A8D225A6DA70EBF7335 /* Assets.xcassets */,
+				BE1EE43CED27AB6E96B482DA /* terminal-contracts.json */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		C3361CEE1AFC6F56514B8CDF /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				7C7CD7D156D1692F3E1A9330 /* ConnectionModels.swift */,
+				FB01BE2AB1618BFBC4A09456 /* Models.swift */,
+				E6026BBC1C2F367EB398B963 /* ReviewModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		CAB81C94A0AEAD4399D68974 /* SupercodeDesktopTests */ = {
+			isa = PBXGroup;
+			children = (
+				CB2067F079F210E94AA21C70 /* ParityTests.swift */,
+			);
+			path = SupercodeDesktopTests;
+			sourceTree = "<group>";
+		};
+		E680D8AAD2AF4015289FCD78 /* Review */ = {
+			isa = PBXGroup;
+			children = (
+				CFF314A94E1617F615AC3575 /* ReviewWorkspaceView.swift */,
+			);
+			path = Review;
+			sourceTree = "<group>";
+		};
+		FF1D3F0726A113B0870C9DBA /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				826863BA7FB539D734C8FCB5 /* SupercodeDesktop.app */,
+				6182077C7DBF0EF8405C7555 /* SupercodeDesktopTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		62C34F5B696D4E016755F281 /* SupercodeDesktop */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9A617D420B5001304BB12001 /* Build configuration list for PBXNativeTarget "SupercodeDesktop" */;
+			buildPhases = (
+				1DD6E5CA88AF8ABE2CB5006E /* Sources */,
+				91B2319DB845DD653C8BF30C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SupercodeDesktop;
+			packageProductDependencies = (
+			);
+			productName = SupercodeDesktop;
+			productReference = 826863BA7FB539D734C8FCB5 /* SupercodeDesktop.app */;
+			productType = "com.apple.product-type.application";
+		};
+		EA4A15255E04430671EEB551 /* SupercodeDesktopTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7F8069E29263BC8554A579D0 /* Build configuration list for PBXNativeTarget "SupercodeDesktopTests" */;
+			buildPhases = (
+				1184950C2E92146A868F5921 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				56D1E9B2376F6443D11D33B6 /* PBXTargetDependency */,
+			);
+			name = SupercodeDesktopTests;
+			packageProductDependencies = (
+			);
+			productName = SupercodeDesktopTests;
+			productReference = 6182077C7DBF0EF8405C7555 /* SupercodeDesktopTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		DAE67D97EFC4387F107B7832 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					62C34F5B696D4E016755F281 = {
+						ProvisioningStyle = Automatic;
+					};
+					EA4A15255E04430671EEB551 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 6C9B205DDBF941DB96296153 /* Build configuration list for PBXProject "SupercodeDesktop" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 51BC0598F68967CDF2C74B09;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = FF1D3F0726A113B0870C9DBA /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				62C34F5B696D4E016755F281 /* SupercodeDesktop */,
+				EA4A15255E04430671EEB551 /* SupercodeDesktopTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		91B2319DB845DD653C8BF30C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B5045C4263D17EC2ECC876E7 /* Assets.xcassets in Resources */,
+				835CF4B0B15D14C170BB6EBB /* terminal-contracts.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1184950C2E92146A868F5921 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0C69616CF761F4F79B38358A /* ParityTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1DD6E5CA88AF8ABE2CB5006E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1CA9B3B47AEDC538FE16CE9D /* AlertCard.swift in Sources */,
+				0585A244E26A2F479525E9EE /* ChatViews.swift in Sources */,
+				14A59837FCF00FBEA89E5C13 /* ComposerCommands.swift in Sources */,
+				750274B1D6EFA975103F6D60 /* ConnectionLogoView.swift in Sources */,
+				F054048A6A05A35F28666185 /* ConnectionModels.swift in Sources */,
+				C77AF9EB8A83D319E7D7094F /* ConnectionsSettingsView.swift in Sources */,
+				1C456156B9707A942DCA61C7 /* ConnectionsStore.swift in Sources */,
+				AB0FEA5579051C994FA6138E /* DesktopTheme.swift in Sources */,
+				5C4D5CEC442FC5AE284C9246 /* DesktopVoiceCapture.swift in Sources */,
+				72A668E728303A541A3C942B /* FileBrowserView.swift in Sources */,
+				FD8102A33A86A84732B37C2F /* FileViewerPane.swift in Sources */,
+				1950B0BA145378C8BC6E98D3 /* KeychainStore.swift in Sources */,
+				C3FB741D8C4EF5C968AFCDD4 /* LocalToolRuntime.swift in Sources */,
+				B6ECFB65F06EB00C7C3AA36A /* ModelCatalog.swift in Sources */,
+				A4DE95CB7AB60EE3946C2EA3 /* Models.swift in Sources */,
+				43ABB723072990CC4D51C61E /* NativeCommandRunner.swift in Sources */,
+				6CB0538B0B0FE4A368D66086 /* NativeDiscovery.swift in Sources */,
+				AA834118A8419E523C5E11C6 /* NativeFileReferences.swift in Sources */,
+				6461C5F7ECBEDA57895883D4 /* NativeFileTools.swift in Sources */,
+				54A7F3F549822BE04665DA9C /* NativeTurnEngine.swift in Sources */,
+				018552EEF5F3E695C5BCFC3F /* NativeWebSearch.swift in Sources */,
+				12AA834243DE6007B29275D5 /* PermissionManager.swift in Sources */,
+				5621B8AB4D759C2047C1B620 /* ReviewModels.swift in Sources */,
+				11BF63AC5C84E1E9D0B9F39A /* ReviewStore.swift in Sources */,
+				100520978CFB0635BAD35722 /* ReviewWorkspaceView.swift in Sources */,
+				ED1EF08E1733AA0E54989056 /* RootView.swift in Sources */,
+				8F4FCBB0794A58D7EA7973AA /* ServerConfig.swift in Sources */,
+				59ED9B7E368E144DC0DCF009 /* SettingsView.swift in Sources */,
+				F7E0C0765171D8EBDD8D8EBE /* SidebarView.swift in Sources */,
+				F1682CC1D575210A82094948 /* Stores.swift in Sources */,
+				D218764D12707F643CA8990D /* SupercodeAPIClient.swift in Sources */,
+				257CEE7D1A7A79CF7CD11103 /* SupercodeApp.swift in Sources */,
+				AF27E00019F2C56521F5F71B /* SyntaxHighlighter.swift in Sources */,
+				70D3DACB93EC6E2CA3D88EDD /* TerminalContract.swift in Sources */,
+				7EF5443D36153D58A6B6B95D /* ToolCatalog.swift in Sources */,
+				439C45F04E8D178B895394C2 /* VoiceCallStore.swift in Sources */,
+				FF2E4DA2F5DC559814A3B67C /* VoiceCallView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		56D1E9B2376F6443D11D33B6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 62C34F5B696D4E016755F281 /* SupercodeDesktop */;
+			targetProxy = 029C199B668082D7C38FF348 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		04817FB3E3E5D723EF26FF8D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SupercodeDesktop/SupercodeDesktop.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SupercodeDesktop/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ai.supercode.desktop;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
+			};
+			name = Debug;
+		};
+		52D0E32EB8C5B68805F6FB6C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ai.supercode.SupercodeDesktopTests;
+				PRODUCT_MODULE_NAME = SupercodeDesktopTests;
+				PRODUCT_NAME = SupercodeDesktopTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Supercode.app/Contents/MacOS/Supercode";
+			};
+			name = Release;
+		};
+		7C839D66C7756FB5A5AB0F37 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ai.supercode.SupercodeDesktopTests;
+				PRODUCT_MODULE_NAME = SupercodeDesktopTests;
+				PRODUCT_NAME = SupercodeDesktopTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Supercode.app/Contents/MacOS/Supercode";
+			};
+			name = Debug;
+		};
+		7D0BC7F4A458FEB8EB9DED06 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = Supercode;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		8617C3450C31D6F723540895 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SupercodeDesktop/SupercodeDesktop.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SupercodeDesktop/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ai.supercode.desktop;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
+			};
+			name = Release;
+		};
+		AC5E24E9D12D84E1B6F424E5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = Supercode;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		6C9B205DDBF941DB96296153 /* Build configuration list for PBXProject "SupercodeDesktop" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AC5E24E9D12D84E1B6F424E5 /* Debug */,
+				7D0BC7F4A458FEB8EB9DED06 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		7F8069E29263BC8554A579D0 /* Build configuration list for PBXNativeTarget "SupercodeDesktopTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7C839D66C7756FB5A5AB0F37 /* Debug */,
+				52D0E32EB8C5B68805F6FB6C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9A617D420B5001304BB12001 /* Build configuration list for PBXNativeTarget "SupercodeDesktop" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				04817FB3E3E5D723EF26FF8D /* Debug */,
+				8617C3450C31D6F723540895 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = DAE67D97EFC4387F107B7832 /* Project object */;
+}

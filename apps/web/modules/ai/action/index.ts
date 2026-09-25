@@ -158,14 +158,20 @@ export async function reviewPullRequest(
       payload.source === "manual"
 
     if (options?.wait) {
-      await runGeneratePrReview(payload)
-      console.log(
-        `[reviewPullRequest] completed blocking in-process review for ${owner}/${repo}#${prNumber}`,
-      )
-      return {
-        success: true,
-        message: "Review completed",
-        mode: "blocking" as const,
+      try {
+        await runGeneratePrReview(payload)
+        console.log(
+          `[reviewPullRequest] completed blocking in-process review for ${owner}/${repo}#${prNumber}`,
+        )
+        return {
+          success: true,
+          message: "Review completed",
+          mode: "blocking" as const,
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown Error"
+        await markReviewFailed(payload, message)
+        throw error
       }
     }
 

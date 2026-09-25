@@ -1,134 +1,36 @@
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
-import { streamText, type FinishReason, type ModelMessage, type LanguageModel } from "ai"
+import type { ModelMessage } from "ai"
 import { nvidiaConfig } from "../../config/nvidia.config.ts"
-import chalk from "chalk"
-import { recordUsage } from "../../lib/track-usage"
-import { computeCost } from "../../lib/pricing"
-import { executeToolLoop } from "./tool-executor.ts"
-import { stripOrphanToolCalls } from "./sanitize-messages"
+import { OpenAICompatibleAdapter } from "./adapters/openai-compatible.ts"
 
+/**
+ * NVIDIA NIM — thin wrapper over the shared OpenAI-compatible adapter.
+ */
 export class NvidiaService {
-  model: LanguageModel
+  private adapter: OpenAICompatibleAdapter
+  sendMessage: any
   readonly modelName: string
-
-  constructor(modelName?: string) {
-    if (!nvidiaConfig.apiKey) {
-      throw new Error("NVIDIA NIM is not configured.\n\n  Set NVIDIA_API_KEY in your environment:\n    export NVIDIA_API_KEY=<your-key>\n\n  Get free credits at: https://build.nvidia.com")
-    }
-
-    this.modelName = modelName || nvidiaConfig.model
-
-    const nim = createOpenAICompatible({
-      name: "nim",
-      baseURL: nvidiaConfig.baseUrl,
-      headers: {
-        Authorization: `Bearer ${nvidiaConfig.apiKey}`,
-      },
-    })
-
-    this.model = nim.chatModel(this.modelName)
+  get model() {
+    return this.adapter.model
   }
 
-  async sendMessage(
-    messages: ModelMessage[],
-    onChunk?: (chunk: string) => void,
-    tools?: any,
-    onToolCall?: any,
-    signal?: AbortSignal,
-    onReasoning?: (chunk: string) => void,
-    onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void,
-    onStepFinish?: (params: { stepNumber: number; toolCalls: Array<{ toolName: string; args: unknown }>; toolResults: Array<{ toolName: string; args: unknown; result: string }> }) => void,
-  ) {
-    try {
-      // Drop orphan tool_calls — see sanitize-messages.ts.
-      const sanitized = stripOrphanToolCalls(messages)
-      const systemMessages = sanitized.filter(m => m.role === "system")
-      const nonSystemMessages = sanitized.filter(m => m.role !== "system")
-      const system = systemMessages.map(m => m.content).join("\n")
-
-      const hasTools = tools && Object.keys(tools).length > 0
-
-      if (!hasTools) {
-        const result = streamText({
-          model: this.model,
-          messages: nonSystemMessages,
-          system,
-          abortSignal: signal,
-        })
-
-        let fullResponse = ""
-        for await (const chunk of result.textStream) {
-          fullResponse += chunk
-          onChunk?.(chunk)
-        }
-
-        const [finishReason, usage] = await Promise.all([
-          result.finishReason,
-          result.usage,
-        ])
-
-        recordUsage({
-          provider: "nvidia",
-          model: this.modelName,
-          inputTokens: usage.inputTokens ?? 0,
-          outputTokens: usage.outputTokens ?? 0,
-          cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
-          totalTokens: usage.totalTokens ?? 0,
-          costUsd: computeCost(this.modelName, usage.inputTokens ?? 0, usage.outputTokens ?? 0, usage.inputTokenDetails?.cacheReadTokens ?? 0),
-          durationMs: null,
-        })
-
-        return {
-          content: fullResponse,
-          finishReason,
-          usage,
-        }
-      }
-
-      const {content, usage} = await executeToolLoop(
-        this.model,
-        nonSystemMessages,
-        system,
-        tools,
-        {
-          onChunk,
-          onToolCall,
-          onReasoning,
-          onToolResult,
-          onStepFinish,
-          signal,
-        },
-      )
-      const resolved = await usage
-
-      recordUsage({
-        provider: "nvidia",
-        model: this.modelName,
-        inputTokens: resolved.inputTokens ?? 0,
-        outputTokens: resolved.outputTokens ?? 0,
-        cachedInputTokens: resolved.inputTokenDetails?.cacheReadTokens ?? 0,
-        totalTokens: resolved.totalTokens ?? 0,
-        costUsd: computeCost(this.modelName, resolved.inputTokens ?? 0, resolved.outputTokens ?? 0, resolved.inputTokenDetails?.cacheReadTokens ?? 0),
-        durationMs: null,
-      })
-
-      return {
-        content,
-        finishReason: "stop" as FinishReason,
-        usage: resolved,
-      }
-    } catch (error: any) {
-      if (error?.name === "AbortError") throw error
-      console.error(chalk.red("NVIDIA Service Error:"), error instanceof Error ? error.message : String(error))
-      throw error
-    }
+  constructor(modelName?: string) {
+    this.adapter = new OpenAICompatibleAdapter({
+      providerId: "nvidia",
+      providerLabel: "NVIDIA",
+      clientName: "nim",
+      baseURL: nvidiaConfig.baseUrl,
+      apiKey: nvidiaConfig.apiKey,
+      modelName: modelName || nvidiaConfig.model,
+      missingKeyError:
+        "NVIDIA NIM is not configured.\n\n  Set NVIDIA_API_KEY in your environment:\n    export NVIDIA_API_KEY=<your-key>\n\n  Get free credits at: https://build.nvidia.com",
+      toolLoop: "execute",
+      streamTimeoutMs: 0,
+    })
+    this.modelName = this.adapter.modelName
+    this.sendMessage = this.adapter.sendMessage.bind(this.adapter)
   }
 
   async getMessage(messages: ModelMessage[], tools?: any) {
-    let fullResponse = ""
-    const result = await this.sendMessage(messages, (chunk) => {
-      fullResponse += chunk
-    })
-    return result.content
+    return this.adapter.getMessage(messages, tools)
   }
 }

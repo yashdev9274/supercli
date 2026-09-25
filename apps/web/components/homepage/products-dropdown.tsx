@@ -1,9 +1,7 @@
 "use client"
 
-import React, { useState, useRef, useCallback } from "react"
 import Link from "next/link"
-
-const EASE = "cubic-bezier(0.23,1,0.32,1)"
+import React, { useState, useRef, useCallback } from "react"
 
 interface ProductItem {
   label: string
@@ -77,14 +75,14 @@ function ProductRow({ item, index, isVisible }: { item: ProductItem; index: numb
       }`}
       style={{ transitionDelay: isVisible ? `${index * 40}ms` : "0ms" }}
     >
-      <div className="mt-0.5 text-muted-foreground/60 group-hover:text-foreground/80 transition-colors duration-150">
+      <div className="mt-1 text-white">
         {item.icon}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-[13px] font-mono text-foreground/90 group-hover:text-foreground transition-colors duration-150">
+        <div className="text-sm text-white">
           {item.label}
         </div>
-        <div className="text-[11px] font-mono text-muted-foreground/50 group-hover:text-muted-foreground/70 transition-colors duration-150 mt-0.5 leading-relaxed">
+        <div className="text-xs text-white/80 mt-0.5 leading-relaxed">
           {item.description}
         </div>
       </div>
@@ -166,7 +164,7 @@ export default function ProductsDropdown() {
       onMouseLeave={handleMouseLeave}
     >
       <button
-        className="relative text-[15px] font-mono text-white after:absolute after:bottom-[-3px] after:left-0 after:h-px after:w-0 after:bg-foreground after:transition-[width] after:duration-200 hover:text-foreground hover:after:w-full transition-colors ease-[cubic-bezier(0.23,1,0.32,1)] flex items-center gap-1"
+        className="relative text-[15px] text-white font-medium after:absolute after:bottom-[-3px] after:left-0 after:h-px after:w-0 after:bg-foreground after:transition-[width] after:duration-200 hover:text-foreground hover:after:w-full transition-colors ease-[cubic-bezier(0.23,1,0.32,1)] flex items-center gap-1"
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
@@ -194,7 +192,7 @@ export default function ProductsDropdown() {
         onMouseLeave={handleMenuMouseLeave}
       >
         <div
-          className={`w-[320px] rounded-xl border border-white/[0.08] bg-[#0a0a0a]/95 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] origin-top ${
+          className={`w-[320px] rounded-xl border border-white/8 bg-[#0a0a0a] backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] origin-top ${
             isOpen
               ? "opacity-100 scale-100 translate-y-0"
               : "opacity-0 scale-[0.97] -translate-y-1"
@@ -202,7 +200,7 @@ export default function ProductsDropdown() {
         >
           <div className="p-2">
             <div className="px-3 py-1.5">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground/40">
+              <span className="text-sm uppercase tracking-tight font-medium text-white/80">
                 Products
               </span>
             </div>
@@ -212,10 +210,10 @@ export default function ProductsDropdown() {
               ))}
             </div>
 
-            <div className="my-1.5 mx-3 h-px bg-white/[0.06]" />
+            <div className="my-1.5 mx-3 h-px bg-white/6" />
 
             <div className="px-3 py-1.5">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground/40">
+              <span className="text-sm uppercase tracking-tight font-medium text-white/80">
                 Developer
               </span>
             </div>

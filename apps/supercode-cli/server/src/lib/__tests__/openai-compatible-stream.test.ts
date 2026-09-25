@@ -118,16 +118,20 @@ describe("streamOpenAICompatibleChat — content and events", () => {
     expect(result.fullContent).toBe("split here")
   })
 
-  it("surfaces reasoning events and falls back to text when no visible content", async () => {
+  it("surfaces reasoning events and keeps them off the text channel", async () => {
     const { result, events } = await runStream([
       sse({ choices: [{ delta: { reasoning_content: "thinking hard" } }] }),
       sse({ choices: [{ delta: { reasoning_details: [{ text: " and more" }] } }] }),
     ])
+    // The runtime keeps CoT on the reasoning stream only: copying it into
+    // Result duplicated the scratch pad as the visible answer. Reasoning-only
+    // turns therefore surface the soft empty-response hint, not silent text.
     expect(result.reasoningContent).toBe("thinking hard and more")
-    // Empty-visible response: reasoning is emitted as text, never an error.
-    expect(result.fullContent).toBe(result.reasoningContent)
-    expect(events.some((e) => e.type === "error")).toBe(false)
-    expect(events.filter((e) => e.type === "text").pop()?.content).toBe(result.reasoningContent)
+    expect(result.fullContent).toBe("")
+    expect(events.filter((e) => e.type === "reasoning").map((e) => e.content).join("")).toBe(
+      "thinking hard and more",
+    )
+    expect(events.some((e) => e.type === "error")).toBe(true)
   })
 
   it("emits the empty-response error when nothing came back", async () => {

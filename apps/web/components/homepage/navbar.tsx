@@ -1,35 +1,32 @@
-"use client"
+"use client";
 
-import React, { useEffect, useState, useCallback } from "react"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import BetaCountdownBanner from "./beta-countdown-banner"
-import ProductsDropdown from "./products-dropdown"
-import { Button } from "../ui/button"
+import Link from "next/link";
+import { Button } from "../ui/button";
+import { usePathname } from "next/navigation";
+import ProductsDropdown from "./products-dropdown";
+import { useEffect, useState } from "react";
 
 const DOCS_URL =
-  process.env.NEXT_PUBLIC_DOCS_URL || "http://localhost:3001/docs/intro"
+  process.env.NEXT_PUBLIC_DOCS_URL || "http://localhost:3001/docs/intro";
 
 function GithubStars() {
-  const [stars, setStars] = useState<number | null>(null)
+  const [stars, setStars] = useState<number | null>(null);
 
   useEffect(() => {
     fetch("https://api.github.com/repos/yashdev9274/superCli")
       .then((res) => res.json())
       .then((data) => setStars(data.stargazers_count))
-      .catch(() => {})
-  }, [])
+      .catch(() => {});
+  }, []);
 
-  if (stars === null) return null
+  if (stars === null) return null;
 
   return (
-    <span className="ml-1.5 text-[15px] text-muted-foreground/60 font-mono">
+    <span className="ml-1.5 text-[15px] text-[#A1A1AA]">
       [{stars >= 1000 ? `${(stars / 1000).toFixed(1)}k` : stars}]
     </span>
-  )
+  );
 }
-
-const EASE = "cubic-bezier(0.23,1,0.32,1)"
 
 const PixelLogo = () => (
   <svg
@@ -137,260 +134,319 @@ const PixelLogo = () => (
     <rect x="101" y="12" width="3" height="3" fill="#52525b" />
     <rect x="104" y="12" width="3" height="3" fill="#52525b" />
   </svg>
-)
+);
 
 const mobileProducts = [
-  { label: "Supercode Agent", description: "AI pair programmer that ships code with you", href: "/download" },
-  { label: "Supercode Review", description: "Automated code review on every pull request", href: "/code-review" },
-  { label: "Supercode Voice Agent", description: "Control your system with your voice", href: "/download" },
-  { label: "Cortex SDK", description: "Build custom AI tooling on top of Supercode", href: "https://github.com/yashdev9274/superCli", external: true },
-]
+  {
+    label: "Supercode Agent",
+    description: "AI pair programmer that ships code with you",
+    href: "/download",
+  },
+  {
+    label: "Supercode Review",
+    description: "Automated code review on every pull request",
+    href: "/code-review",
+  },
+  {
+    label: "Supercode Voice Agent",
+    description: "Control your system with your voice",
+    href: "/download",
+  },
+  {
+    label: "Cortex SDK",
+    description: "Build custom AI tooling on top of Supercode",
+    href: "https://github.com/yashdev9274/superCli",
+    external: true,
+  },
+];
 
 const Navbar = () => {
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [bannerVisible, setBannerVisible] = useState(false)
-  const pathname = usePathname()
-  const hideBanner = pathname === "/code-review"
-
-  const handleBannerChange = useCallback((visible: boolean) => {
-    setBannerVisible(visible)
-  }, [])
+  const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = usePathname();
+  const onLandingPage = pathname === "/";
 
   useEffect(() => {
     if (menuOpen) {
-      document.body.style.overflow = "hidden"
+      document.body.style.overflow = "hidden";
     } else {
-      document.body.style.overflow = ""
+      document.body.style.overflow = "";
     }
     return () => {
-      document.body.style.overflow = ""
-    }
-  }, [menuOpen])
+      document.body.style.overflow = "";
+    };
+  }, [menuOpen]);
 
-  const navItems: Array<{ label: string; href: string; external?: boolean; accent?: boolean }> = [
-    { label: "GitHub", href: "https://github.com/yashdev9274/superCli", external: true },
+  const navItems: Array<{
+    label: string;
+    href: string;
+    external?: boolean;
+    accent?: boolean;
+  }> = [
+    {
+      label: "GitHub",
+      href: "https://github.com/yashdev9274/superCli",
+      external: true,
+    },
     // { label: "Partnerships", href: "/partnerships" },
     { label: "Compare", href: "/compare" },
     { label: "Docs", href: DOCS_URL, external: true },
     { label: "Changelog", href: "/changelog" },
     { label: "Blog", href: "/blog" },
     // { label: "Waitlist", href: "/waitlist", accent: true },
-  ]
+  ];
 
   return (
     <>
-    <header className={`fixed left-0 right-0 z-[100] ${hideBanner ? "top-0" : "top-[36px] sm:top-[40px]"}`}>
-      <BetaCountdownBanner onVisibilityChange={handleBannerChange} />
-      <div className={`bg-background/95 backdrop-blur-sm transition-[background,backdrop-filter,border] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] ${bannerVisible ? "border-t-0" : ""}`}>
-        <div className="relative h-[70px] flex items-center px-5 md:px-12 max-w-[1400px] mx-auto w-full">
-        <div className="flex items-center gap-4 shrink-0">
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="md:hidden relative w-8 h-8 flex items-center justify-center text-foreground/80 hover:text-foreground transition-colors"
-            aria-label={menuOpen ? "Close menu" : "Open menu"}
-          >
-            <div className="relative w-5 h-4">
-              <span
-                className={`absolute left-0 block w-5 h-[1.5px] bg-current rounded-full transition-[transform,top] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] ${
-                  menuOpen ? "top-1/2 -translate-y-1/2 rotate-45" : "top-0"
-                }`}
-              />
-              <span
-                className={`absolute left-0 block w-5 h-[1.5px] bg-current rounded-full transition-[opacity,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] ${
-                  menuOpen ? "opacity-0 translate-x-2" : "top-1/2 -translate-y-1/2 opacity-100"
-                }`}
-              />
-              <span
-                className={`absolute left-0 block w-5 h-[1.5px] bg-current rounded-full transition-[transform,top] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] ${
-                  menuOpen ? "top-1/2 -translate-y-1/2 -rotate-45" : "bottom-0"
-                }`}
-              />
-            </div>
-          </button>
-          <Link href="/" className="flex items-center shrink-0">
-            <PixelLogo />
-          </Link>
-        </div>
-
-        <nav className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-8">
-          <ProductsDropdown />
-          {navItems.map((item) => {
-            const baseClasses = "relative text-[15px] font-mono text-white after:absolute after:bottom-[-3px] after:left-0 after:h-px after:w-0 after:bg-foreground after:transition-[width] after:duration-200 hover:text-foreground hover:after:w-full"
-            
-            return item.external ? (
-              <a
-                key={item.label}
-                href={item.href}
-                className={`${baseClasses} transition-colors ease-[cubic-bezier(0.23,1,0.32,1)]`}
-              >
-                {item.label}
-                {item.label === "GitHub" && <GithubStars />}
-              </a>
-            ) : (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={`${baseClasses} transition-colors ease-[cubic-bezier(0.23,1,0.32,1)]`}
-              >
-                {item.label}
-              </Link>
-            )
-          })}
-        </nav>
-
-        <div className="flex items-center gap-4 ml-auto">
-          <Link href="/download">
-            <Button className="group bg-white text-black hover:bg-white/90 active:scale-[0.97] cursor-pointer transition-[transform,background-color] ease-[cubic-bezier(0.23,1,0.32,1)]">
-              <svg className="w-4 h-4 transition-transform duration-[160ms] ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:translate-y-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              Download
-            </Button>
-          </Link>
-          <a
-            href="https://cal.com/yash-dewasthale/talk-to-founder"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group hidden md:inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-[13px] font-medium font-mono bg-white/10 text-foreground hover:bg-white/15 border border-white/10 transition-[transform,background-color,border-color] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]"
-          >
-            Talk to founder
-            <svg className="w-3.5 h-3.5 transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M7 7h10v10" />
-              <path d="M17 7 7 17" />
-            </svg>
-          </a>
-        </div>
-      </div>
-      </div>
-
-      <div
-        className={`fixed inset-0 z-40 transition-[opacity] duration-[400ms] ease-[cubic-bezier(0.23,1,0.32,1)] ${
-          hideBanner
-            ? "top-[70px]"
-            : bannerVisible ? "top-[150px] sm:top-[150px]" : "top-[106px] sm:top-[110px]"
-        } ${
-          menuOpen
-            ? "opacity-100 pointer-events-auto"
-            : "opacity-0 pointer-events-none"
-        }`}
+      <header
+        className={`fixed left-0 right-0 z-100 ${onLandingPage ? "top-9 sm:top-10" : "top-0"}`}
       >
-        <div className="absolute inset-0 bg-background/70 backdrop-blur-xl" />
-
-        <nav className="relative z-10 flex flex-col items-center justify-center h-full px-6">
-          <div className="w-full max-w-sm space-y-1">
-            <div className={`transition-[opacity,transform] duration-[400ms] ease-[cubic-bezier(0.23,1,0.32,1)] ${
-              menuOpen ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-            }`} style={{ transitionDelay: menuOpen ? "0ms" : "0ms" }}>
-              <div className="px-5 py-2">
-                <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground/40">
-                  Products
-                </span>
-              </div>
+        <div className="bg-background/95 backdrop-blur-sm transition-[background,backdrop-filter,border] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]">
+          <div className="relative h-[70px] flex items-center px-5 md:px-12 max-w-[1400px] mx-auto w-full">
+            <div className="flex items-center gap-4 shrink-0">
+              <button
+                onClick={() => setMenuOpen(!menuOpen)}
+                className="md:hidden relative w-8 h-8 flex items-center justify-center text-foreground/80 hover:text-foreground transition-colors after:absolute after:-inset-1.5 after:content-['']"
+                aria-label={menuOpen ? "Close menu" : "Open menu"}
+              >
+                <div className="relative w-5 h-4">
+                  <span
+                    className={`absolute left-0 block w-5 h-[1.5px] bg-current rounded-full transition-[transform,top] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] ${
+                      menuOpen ? "top-1/2 -translate-y-1/2 rotate-45" : "top-0"
+                    }`}
+                  />
+                  <span
+                    className={`absolute left-0 block w-5 h-[1.5px] bg-current rounded-full transition-[opacity,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] ${
+                      menuOpen
+                        ? "opacity-0 translate-x-2"
+                        : "top-1/2 -translate-y-1/2 opacity-100"
+                    }`}
+                  />
+                  <span
+                    className={`absolute left-0 block w-5 h-[1.5px] bg-current rounded-full transition-[transform,top] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] ${
+                      menuOpen
+                        ? "top-1/2 -translate-y-1/2 -rotate-45"
+                        : "bottom-0"
+                    }`}
+                  />
+                </div>
+              </button>
+              <Link href="/" className="flex items-center shrink-0">
+                <PixelLogo />
+              </Link>
             </div>
 
-            {mobileProducts.map((item, i) => (
-              <div
-                key={item.label}
-                className={`transition-[opacity,transform] duration-[400ms] ease-[cubic-bezier(0.23,1,0.32,1)] ${
-                  menuOpen
-                    ? "opacity-100 translate-y-0"
-                    : "opacity-0 translate-y-4"
-                }`}
-                style={{
-                  transitionDelay: menuOpen ? `${(i + 1) * 60}ms` : "0ms",
-                }}
-              >
-                {item.external ? (
+            <nav className="hidden md:flex absolute left-1/2 -translate-x-1/2 pr-16 items-center gap-8">
+              <ProductsDropdown />
+              {navItems.map((item) => {
+                const baseClasses =
+                  "relative text-[15px] font-medium text-white after:absolute after:bottom-[-3px] after:left-0 after:h-px after:w-0 after:bg-foreground after:transition-[width] after:duration-200 hover:text-foreground hover:after:w-full";
+
+                return item.external ? (
                   <a
+                    key={item.label}
                     href={item.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-3 px-5 py-3 rounded-xl text-[15px] font-mono text-foreground/80 hover:text-foreground hover:bg-accent/30 transition-[background-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]"
+                    className={`${baseClasses} transition-colors ease-[cubic-bezier(0.23,1,0.32,1)]`}
                   >
-                    <span className="text-primary/60 font-mono text-sm w-5">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <div>
-                      <div>{item.label}</div>
-                      <div className="text-[11px] text-muted-foreground/50 mt-0.5">{item.description}</div>
-                    </div>
-                    <span className="ml-auto text-muted-foreground/40 text-sm">↗</span>
+                    {item.label}
+                    {item.label === "GitHub" && <GithubStars />}
                   </a>
                 ) : (
                   <Link
+                    key={item.label}
                     href={item.href}
-                    onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-3 px-5 py-3 rounded-xl text-[15px] font-mono text-foreground/80 hover:text-foreground hover:bg-accent/30 transition-[background-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]"
+                    className={`${baseClasses} transition-colors ease-[cubic-bezier(0.23,1,0.32,1)]`}
                   >
-                    <span className="text-primary/60 font-mono text-sm w-5">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <div>
-                      <div>{item.label}</div>
-                      <div className="text-[11px] text-muted-foreground/50 mt-0.5">{item.description}</div>
-                    </div>
+                    {item.label}
                   </Link>
-                )}
-              </div>
-            ))}
+                );
+              })}
+            </nav>
 
-            <div className={`my-2 mx-5 h-px bg-white/[0.06] transition-opacity duration-300 ${
-              menuOpen ? "opacity-100" : "opacity-0"
-            }`} style={{ transitionDelay: menuOpen ? "300ms" : "0ms" }} />
-
-            {navItems.map((item, i) => (
-              <div
-                key={item.label}
-                className={`transition-[opacity,transform] duration-[400ms] ease-[cubic-bezier(0.23,1,0.32,1)] ${
-                  menuOpen
-                    ? "opacity-100 translate-y-0"
-                    : "opacity-0 translate-y-4"
-                }`}
-                style={{
-                  transitionDelay: menuOpen ? `${(mobileProducts.length + i + 1) * 60}ms` : "0ms",
-                }}
+            <div className="flex items-center gap-4 ml-auto">
+              <Link href="/download">
+                <Button className="group bg-white text-black hover:bg-white/90 active:scale-[0.97] cursor-pointer transition-[transform,background-color] ease-[cubic-bezier(0.23,1,0.32,1)] rounded-lg">
+                  <svg
+                    className="w-4 h-4 transition-transform duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Download
+                </Button>
+              </Link>
+              <a
+                href="https://cal.com/yash-dewasthale/talk-to-founder"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group hidden md:inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-[13px] font-medium bg-white text-black hover:bg-white/90 transition-[transform,background-color,border-color] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]"
               >
-                {item.external ? (
-                  <a
-                    href={item.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-3 px-5 py-4 rounded-xl text-[17px] font-mono text-foreground/80 hover:text-foreground hover:bg-accent/30 transition-[background-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]"
-                  >
-                    <span className="text-primary/60 font-mono text-sm w-5">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    {item.label}
-                    <span className="ml-auto text-muted-foreground/40 text-sm">↗</span>
-                  </a>
-                ) : (
-                  <Link
-                    href={item.href}
-                    onClick={() => setMenuOpen(false)}
-                    className={`flex items-center gap-3 px-5 py-4 rounded-xl text-[17px] font-mono transition-[background-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] ${
-                      item.accent
-                        ? "text-primary bg-primary/5 hover:bg-primary/10"
-                        : "text-foreground/80 hover:text-foreground hover:bg-accent/30"
-                    }`}
-                  >
-                    <span className="text-primary/60 font-mono text-sm w-5">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    {item.label}
-                  </Link>
-                )}
-              </div>
-            ))}
+                Talk to founder
+                <svg
+                  className="w-3.5 h-3.5 transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M7 7h10v10" />
+                  <path d="M17 7 7 17" />
+                </svg>
+              </a>
+            </div>
           </div>
-        </nav>
-      </div>
-    </header>
+        </div>
 
-    {/* <div className="fixed top-[114px] left-0 right-0 z-50 flex items-center justify-center px-4">
+        <div
+          className={`fixed inset-0 z-40 transition-opacity duration-400 ease-[cubic-bezier(0.23,1,0.32,1)] ${
+            onLandingPage ? "top-[106px] sm:top-[110px]" : "top-[70px]"
+          } ${
+            menuOpen
+              ? "opacity-100 pointer-events-auto"
+              : "opacity-0 pointer-events-none"
+          }`}
+        >
+          <div className="absolute inset-0 bg-background/70 backdrop-blur-xl" />
+
+          <nav className="relative z-10 flex flex-col items-center justify-center h-full px-6">
+            <div className="w-full max-w-sm space-y-1">
+              <div
+                className={`transition-[opacity,transform] duration-400 ease-[cubic-bezier(0.23,1,0.32,1)] ${
+                  menuOpen
+                    ? "opacity-100 translate-y-0"
+                    : "opacity-0 translate-y-4"
+                }`}
+                style={{ transitionDelay: menuOpen ? "0ms" : "0ms" }}
+              >
+                <div className="px-5 py-2">
+                  <span className="text-sm uppercase tracking-tight font-medium text-muted-foreground">
+                    Products
+                  </span>
+                </div>
+              </div>
+
+              {mobileProducts.map((item, i) => (
+                <div
+                  key={item.label}
+                  className={`transition-[opacity,transform] duration-400 ease-[cubic-bezier(0.23,1,0.32,1)] ${
+                    menuOpen
+                      ? "opacity-100 translate-y-0"
+                      : "opacity-0 translate-y-4"
+                  }`}
+                  style={{
+                    transitionDelay: menuOpen ? `${(i + 1) * 60}ms` : "0ms",
+                  }}
+                >
+                  {item.external ? (
+                    <a
+                      href={item.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-3 px-5 py-3 rounded-xl text-[15px] text-foreground/80 hover:text-foreground hover:bg-accent/30 transition-[background-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]"
+                    >
+                      <span className="text-primary/60 text-sm w-5">
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      <div>
+                        <div>{item.label}</div>
+                        <div className="text-xs text-muted-foreground/50 mt-0.5">
+                          {item.description}
+                        </div>
+                      </div>
+                      <span className="ml-auto text-muted-foreground/40 text-sm">
+                        ↗
+                      </span>
+                    </a>
+                  ) : (
+                    <Link
+                      href={item.href}
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-3 px-5 py-3 rounded-xl text-[15px] text-foreground/80 hover:text-foreground hover:bg-accent/30 transition-[background-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]"
+                    >
+                      <span className="text-primary/60 text-sm w-5">
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      <div>
+                        <div>{item.label}</div>
+                        <div className="text-xs text-muted-foreground/50 mt-0.5">
+                          {item.description}
+                        </div>
+                      </div>
+                    </Link>
+                  )}
+                </div>
+              ))}
+
+              <div
+                className={`my-2 mx-5 h-px bg-white/6 transition-opacity duration-300 ${
+                  menuOpen ? "opacity-100" : "opacity-0"
+                }`}
+                style={{ transitionDelay: menuOpen ? "300ms" : "0ms" }}
+              />
+
+              {navItems.map((item, i) => (
+                <div
+                  key={item.label}
+                  className={`transition-[opacity,transform] duration-400 ease-[cubic-bezier(0.23,1,0.32,1)] ${
+                    menuOpen
+                      ? "opacity-100 translate-y-0"
+                      : "opacity-0 translate-y-4"
+                  }`}
+                  style={{
+                    transitionDelay: menuOpen
+                      ? `${(mobileProducts.length + i + 1) * 60}ms`
+                      : "0ms",
+                  }}
+                >
+                  {item.external ? (
+                    <a
+                      href={item.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-3 px-5 py-4 rounded-xl text-[17px] text-foreground/80 hover:text-foreground hover:bg-accent/30 transition-[background-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]"
+                    >
+                      <span className="text-primary/60 text-sm w-5">
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      {item.label}
+                      <span className="ml-auto text-muted-foreground/40 text-sm">
+                        ↗
+                      </span>
+                    </a>
+                  ) : (
+                    <Link
+                      href={item.href}
+                      onClick={() => setMenuOpen(false)}
+                      className={`flex items-center gap-3 px-5 py-4 rounded-xl text-[17px] transition-[background-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] ${
+                        item.accent
+                          ? "text-primary bg-primary/5 hover:bg-primary/10"
+                          : "text-foreground/80 hover:text-foreground hover:bg-accent/30"
+                      }`}
+                    >
+                      <span className="text-primary/60 text-sm w-5">
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      {item.label}
+                    </Link>
+                  )}
+                </div>
+              ))}
+            </div>
+          </nav>
+        </div>
+      </header>
+
+      {/* <div className="fixed top-[114px] left-0 right-0 z-50 flex items-center justify-center px-4">
       <div className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[13px] font-mono animate-in fade-in slide-in-from-top-2 duration-500">
         <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
         <span>
@@ -402,7 +458,7 @@ const Navbar = () => {
       </div>
     </div> */}
     </>
-  )
-}
+  );
+};
 
-export default Navbar
+export default Navbar;

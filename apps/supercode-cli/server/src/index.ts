@@ -36,6 +36,7 @@ import {
   serializeChatContent,
 } from "./lib/openai-compatible-stream"
 import { stripOrphanToolCalls } from "./cli/ai/sanitize-messages"
+import { registerComposioRoutes } from "./routes/composio"
 
 function toolParams(fn: any): object {
   const raw = fn.parameters ?? fn.inputSchema
@@ -43,6 +44,78 @@ function toolParams(fn: any): object {
     return { type: "object", properties: {} }
   }
   return raw
+}
+
+/**
+ * Desktop (and OpenAI clients) send tools as:
+ *   [{ type: "function", function: { name, description, parameters } }, ...]
+ * CLI / AI SDK paths send a name→def map:
+ *   { read_file: { description, parameters|inputSchema }, ... }
+ *
+ * Several provider branches used Object.entries(tools) and treated the key as
+ * the tool name. On an array that yields "0", "1", … so the model is taught
+ * tools named "0"/"1" while the desktop runtime only knows "read_file".
+ * Result: every tool call comes back as Unknown tool.
+ *
+ * Normalize both shapes into a stable name→def map before any provider use.
+ */
+function normalizeToolsMap(tools: any): Record<string, any> | undefined {
+  if (!tools) return undefined
+  if (Array.isArray(tools)) {
+    const out: Record<string, any> = {}
+    for (const item of tools) {
+      if (!item || typeof item !== "object") continue
+      const fn = (item as any).function ?? item
+      const name =
+        typeof fn?.name === "string"
+          ? fn.name
+          : typeof (item as any).name === "string"
+            ? (item as any).name
+            : undefined
+      if (!name) continue
+      out[name] = {
+        description: fn.description ?? (item as any).description ?? "",
+        parameters: fn.parameters ?? (item as any).parameters ?? fn.inputSchema ?? { type: "object", properties: {} },
+        inputSchema: fn.inputSchema ?? (item as any).inputSchema,
+      }
+    }
+    return Object.keys(out).length > 0 ? out : undefined
+  }
+  if (typeof tools === "object") {
+    // Already a map — but tolerate values that are still OpenAI function wrappers.
+    const out: Record<string, any> = {}
+    for (const [key, val] of Object.entries(tools as Record<string, any>)) {
+      if (!val || typeof val !== "object") {
+        out[key] = val
+        continue
+      }
+      const fn = (val as any).function
+      if (fn && typeof fn === "object" && typeof fn.name === "string") {
+        out[fn.name] = {
+          description: fn.description ?? "",
+          parameters: fn.parameters ?? fn.inputSchema ?? { type: "object", properties: {} },
+          inputSchema: fn.inputSchema,
+        }
+      } else {
+        out[key] = val
+      }
+    }
+    return out
+  }
+  return undefined
+}
+
+function toolsToOpenAIFunctions(tools: any): Array<{ type: "function"; function: { name: string; description: string; parameters: object } }> {
+  const map = normalizeToolsMap(tools)
+  if (!map) return []
+  return Object.entries(map).map(([name, fn]: [string, any]) => ({
+    type: "function" as const,
+    function: {
+      name,
+      description: fn?.description || "",
+      parameters: toolParams(fn),
+    },
+  }))
 }
 
 // ── Aggressive tool-definition compression for context-limited models ───
@@ -116,8 +189,24 @@ function isStealthModel(model: string): boolean {
 }
 
 function knownToolsFromRequest(tools: any): Set<string> {
-  if (!tools || typeof tools !== "object") return mergeKnownTools()
-  return mergeKnownTools(Object.keys(tools))
+  const map = normalizeToolsMap(tools)
+  if (!map) return mergeKnownTools()
+  return mergeKnownTools(Object.keys(map))
+}
+
+/** After NDJSON headers are sent, never call res.status().json — write error+finish. */
+function endChatStreamError(res: any, message: string) {
+  try {
+    if (!res.headersSent) {
+      res.status(200)
+      res.setHeader("Content-Type", "application/x-ndjson")
+    }
+    res.write(JSON.stringify({ type: "error", message }) + "\n")
+    res.write(JSON.stringify({ type: "finish", reason: "error" }) + "\n")
+    res.end()
+  } catch {
+    try { res.end() } catch { /* ignore */ }
+  }
 }
 
 loadEnvOnce()
@@ -161,6 +250,31 @@ function getModelMaxTokens(model: string): number {
 // streaming body read. A stalled/frozen upstream would otherwise hang the
 // turn indefinitely (the "worked for 60s+ then nothing" symptom).
 const UPSTREAM_TIMEOUT_MS = Number(process.env.SUPERCODE_UPSTREAM_TIMEOUT_MS) || 120_000
+
+// Client aborts after ~45s without status/model events. While we await
+// Concentrate (headers only after the provider starts streaming), keep
+// sending NDJSON status heartbeats so the CLI body-stall timer resets.
+const UPSTREAM_HEARTBEAT_MS = Number(process.env.SUPERCODE_UPSTREAM_HEARTBEAT_MS) || 12_000
+
+async function awaitWithStatusHeartbeats<T>(
+  work: Promise<T>,
+  writeStatus: (phase: string, message?: string) => void,
+  phase: string,
+  label: string,
+  intervalMs = UPSTREAM_HEARTBEAT_MS,
+): Promise<T> {
+  let ticks = 0
+  const id = setInterval(() => {
+    ticks += 1
+    const secs = Math.round((ticks * intervalMs) / 1000)
+    writeStatus(phase, `${label} · ${secs}s`)
+  }, intervalMs)
+  try {
+    return await work
+  } finally {
+    clearInterval(id)
+  }
+}
 
 // Models allowed through the server proxy without a user-provided API key
 const CLOUD_ALLOWED_MODELS = new Set([
@@ -274,6 +388,61 @@ async function getUserFromBearer(req: express.Request) {
   }
 }
 
+registerComposioRoutes(app, getUserFromBearer)
+
+async function proxyDesktopReview(req: express.Request, res: express.Response) {
+  const user = await getUserFromBearer(req)
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" })
+    return
+  }
+
+  const dashboardUrl = (
+    process.env.SUPERCODE_DASHBOARD_API_URL ||
+    process.env.SUPERCODE_APP_URL ||
+    (process.env.NODE_ENV === "production"
+      ? "https://supercodeai.vercel.app"
+      : "http://localhost:3001")
+  ).replace(/\/$/, "")
+  const suffix = req.originalUrl.replace(/^\/api\/reviews/, "")
+
+  try {
+    const response = await fetch(`${dashboardUrl}/api/desktop/reviews${suffix}`, {
+      method: req.method,
+      headers: {
+        Authorization: req.headers.authorization!,
+        Accept: "application/json",
+        ...(req.method !== "GET" ? { "Content-Type": "application/json" } : {}),
+      },
+      ...(req.method !== "GET" ? { body: JSON.stringify(req.body ?? {}) } : {}),
+      signal: AbortSignal.timeout(120_000),
+    })
+    const contentType = response.headers.get("content-type") || ""
+    const body = await response.text()
+    if (!contentType.toLowerCase().includes("application/json")) {
+      console.error(
+        `[reviews/proxy] Dashboard returned ${response.status} as ${contentType || "unknown content type"} from ${dashboardUrl}`,
+      )
+      res.status(response.ok ? 502 : response.status).json({
+        error:
+          response.status === 404
+            ? "The configured dashboard server does not provide the desktop review API"
+            : "The dashboard returned an invalid response",
+      })
+      return
+    }
+    res.status(response.status).type("application/json").send(body)
+  } catch (error) {
+    console.error("[reviews/proxy]", error)
+    res.status(502).json({ error: "Supercode Review is temporarily unavailable" })
+  }
+}
+
+app.get("/api/reviews", proxyDesktopReview)
+app.get("/api/reviews/:id", proxyDesktopReview)
+app.get("/api/reviews/:id/files", proxyDesktopReview)
+app.post("/api/reviews/:id/trigger", proxyDesktopReview)
+
 app.get("/api/user/me", async (req, res) => {
   try {
     const user = await getUserFromBearer(req)
@@ -323,6 +492,32 @@ app.post("/api/user/paid-tier-interest", async (req, res) => {
     res.json({ ok: true })
   } catch (error) {
     res.status(500).json({ error: "Failed to save paid tier interest" })
+  }
+})
+
+app.get("/api/conversations", async (req, res) => {
+  try {
+    const user = await getUserFromBearer(req)
+    if (!user) {
+      res.status(401).json({ error: "Unauthorized" })
+      return
+    }
+    const conversations = await prisma.conversation.findMany({
+      where: { userId: user.id },
+      orderBy: { updatedAt: "desc" },
+      take: 100,
+      select: {
+        id: true,
+        title: true,
+        mode: true,
+        updatedAt: true,
+        createdAt: true,
+      },
+    })
+    res.json(conversations)
+  } catch (error) {
+    console.error("[conversations/list] Error:", error)
+    res.status(500).json({ error: "Failed to list conversations" })
   }
 })
 
@@ -424,7 +619,9 @@ app.post("/api/ai/chat", async (req, res) => {
       return
     }
 
-    const { messages: rawMessages, provider, model: modelParam, tools } = req.body
+    const { messages: rawMessages, provider, model: modelParam, tools: rawTools } = req.body
+    // Accept both OpenAI tool arrays (desktop) and name→def maps (CLI).
+    const tools = normalizeToolsMap(rawTools)
     if (!rawMessages || !Array.isArray(rawMessages)) {
       res.status(400).json({ error: "Messages array is required" })
       return
@@ -439,28 +636,73 @@ app.post("/api/ai/chat", async (req, res) => {
     // so we never propagate them to the upstream provider.
     const messages = stripOrphanToolCalls(rawMessages as any)
 
+    // Open the NDJSON stream IMMEDIATELY so the client sees first-byte activity
+    // before plan-gate / budget / upstream work. Without this, a slow gate or
+    // cold Concentrate call looks like a silent hang until the 45s client abort.
+res.status(200)
+    res.setHeader("Content-Type", "application/x-ndjson")
+    res.setHeader("Cache-Control", "no-cache, no-transform")
+    res.setHeader("X-Accel-Buffering", "no")
+    res.setHeader("Connection", "keep-alive")
+    if (typeof (res as unknown as { flushHeaders?: unknown }).flushHeaders === "function") (res as unknown as { flushHeaders: () => void }).flushHeaders()
+    try {
+      // Disable Nagle so tiny NDJSON status lines leave the socket immediately.
+      res.socket?.setNoDelay?.(true)
+      res.socket?.setTimeout?.(0)
+    } catch { /* ignore */ }
+    const writeStatus = (phase: string, message?: string) => {
+      try {
+        const line = JSON.stringify({ type: "status", phase, message: message || phase }) + "\n"
+        res.write(line)
+        if (typeof (res as unknown as { flush?: unknown }).flush === "function") (res as unknown as { flush: () => void }).flush()
+        // Force the kernel to push the write even when the chunk is tiny.
+        try {
+          res.socket?.cork?.()
+          res.socket?.uncork?.()
+        } catch { /* ignore */ }
+      } catch { /* response already closed */ }
+    }
+    writeStatus("accepted", "request accepted")
+
     // Paid-tier enforcement: subscription → model access → request cap → credits
+    writeStatus("plan_gate", "checking plan limits")
     const gate = await checkPlanGate(user.id, modelParam ?? "deepseek-v4-flash")
     if (!gate.allowed) {
-      res.status(403).json({ error: "plan_limit_exceeded", message: gate.message })
+      res.write(JSON.stringify({
+        type: "error",
+        message: gate.message || "plan_limit_exceeded",
+      }) + "\n")
+      res.write(JSON.stringify({ type: "finish", reason: "error" }) + "\n")
+      res.end()
       return
     }
 
     const isByok = provider === "concentrateai" && !!req.body.concentrateAiKey
     if (!isByok) {
-      await checkDailyTokenBudget(user.id)
+      writeStatus("budget", "checking daily budget")
+      try {
+        await checkDailyTokenBudget(user.id)
+      } catch (budgetErr: any) {
+        res.write(JSON.stringify({
+          type: "error",
+          message: budgetErr?.message || String(budgetErr),
+        }) + "\n")
+        res.write(JSON.stringify({ type: "finish", reason: "error" }) + "\n")
+        res.end()
+        return
+      }
     }
 
     const systemMessages = messages.filter((m: any) => m.role === "system")
     const nonSystemMessages = messages.filter((m: any) => m.role !== "system")
     const system = systemMessages.map((m: any) => m.content).join("\n")
 
-    res.setHeader("Content-Type", "application/x-ndjson")
+    writeStatus("provider", `routing to ${provider || "unknown"}`)
 
     switch (provider) {
       case "google": {
         const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY
-        if (!apiKey) { res.status(500).json({ error: "Google Gemini not configured on server" }); return }
+        if (!apiKey) { endChatStreamError(res, "Google Gemini not configured on server"); return }
         const modelName = modelParam || "gemini-2.5-flash"
         const googleStart = Date.now()
         const { createGoogleGenerativeAI } = await import("@ai-sdk/google")
@@ -530,7 +772,7 @@ app.post("/api/ai/chat", async (req, res) => {
       }
       case "openrouter": {
         const apiKey = process.env.OPENROUTER_API_KEY
-        if (!apiKey) { res.status(500).json({ error: "OpenRouter not configured on server" }); return }
+        if (!apiKey) { endChatStreamError(res, "OpenRouter not configured on server"); return }
         const modelName = modelParam || process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free"
         const orStart = Date.now()
         const bodyObj: any = {
@@ -553,14 +795,7 @@ app.post("/api/ai/chat", async (req, res) => {
           bodyObj.messages = [{ role: "system", content: system }, ...bodyObj.messages]
         }
         if (tools && !isStealthModel(modelName)) {
-          bodyObj.tools = Object.entries(tools).map(([name, fn]: [string, any]) => ({
-            type: "function",
-            function: {
-              name,
-              description: fn.description || "",
-              parameters: toolParams(fn),
-            },
-          }))
+          bodyObj.tools = toolsToOpenAIFunctions(tools)
         }
         // Retry on 429 with exponential backoff (up to 3 attempts)
         let response: Response | null = null
@@ -579,11 +814,11 @@ app.post("/api/ai/chat", async (req, res) => {
         }
         if (!response || !response.ok) {
           const errText = await response!.text().catch(() => "unknown error")
-          res.status(response!.status).json({ error: `OpenRouter API ${response!.status}: ${errText}` })
+          endChatStreamError(res, `OpenRouter API ${response!.status}: ${errText}`);
           return
         }
         const reader = response.body?.getReader()
-        if (!reader) { res.status(500).json({ error: "No response body" }); return }
+        if (!reader) { endChatStreamError(res, "No response body"); return }
         const streamed = await streamOpenAICompatibleChat({ res, reader, knownTools: knownToolsFromRequest(tools) })
         const inputTokens = streamed.usage.inputTokens
         const outputTokens = streamed.usage.outputTokens
@@ -601,7 +836,7 @@ app.post("/api/ai/chat", async (req, res) => {
       }
       case "minimax": {
         const apiKey = process.env.MINIMAX_API_KEY
-        if (!apiKey) { res.status(500).json({ error: "MiniMax not configured on server" }); return }
+        if (!apiKey) { endChatStreamError(res, "MiniMax not configured on server"); return }
         const modelName = modelParam || "MiniMax-M2"
         const mmStart = Date.now()
         const { createMinimax } = await import("vercel-minimax-ai-provider")
@@ -677,7 +912,7 @@ app.post("/api/ai/chat", async (req, res) => {
       }
       case "nvidia": {
         const apiKey = process.env.NVIDIA_API_KEY
-        if (!apiKey) { res.status(500).json({ error: "NVIDIA not configured on server" }); return }
+        if (!apiKey) { endChatStreamError(res, "NVIDIA not configured on server"); return }
         const modelName = modelParam || process.env.NVIDIA_MODEL || "minimaxai/minimax-m3"
         const nvidiaStart = Date.now()
         const baseUrl = process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1"
@@ -701,10 +936,7 @@ app.post("/api/ai/chat", async (req, res) => {
           bodyObj.messages = [{ role: "system", content: system }, ...bodyObj.messages]
         }
         if (tools) {
-          bodyObj.tools = Object.entries(tools).map(([name, fn]: [string, any]) => ({
-            type: "function",
-            function: { name, description: fn.description || "", parameters: toolParams(fn) },
-          }))
+          bodyObj.tools = toolsToOpenAIFunctions(tools)
         }
         const response = await fetch(`${baseUrl}/chat/completions`, {
           method: "POST",
@@ -713,11 +945,11 @@ app.post("/api/ai/chat", async (req, res) => {
         })
         if (!response.ok) {
           const errText = await response.text().catch(() => "unknown error")
-          res.status(response.status).json({ error: `NVIDIA API ${response.status}: ${errText}` })
+          endChatStreamError(res, `NVIDIA API ${response.status}: ${errText}`);
           return
         }
         const reader = response.body?.getReader()
-        if (!reader) { res.status(500).json({ error: "No response body" }); return }
+        if (!reader) { endChatStreamError(res, "No response body"); return }
         const streamed = await streamOpenAICompatibleChat({ res, reader, knownTools: knownToolsFromRequest(tools) })
         const inputTokens = streamed.usage.inputTokens
         const outputTokens = streamed.usage.outputTokens
@@ -735,7 +967,7 @@ app.post("/api/ai/chat", async (req, res) => {
       }
       case "mergedev": {
         const apiKey = process.env.MERGE_DEV_API_KEY
-        if (!apiKey) { res.status(500).json({ error: "Merge Dev not configured on server" }); return }
+        if (!apiKey) { endChatStreamError(res, "Merge Dev not configured on server"); return }
         const modelName = modelParam || "anthropic/claude-opus-4-8"
         const mdStart = Date.now()
         const bodyObj: any = {
@@ -756,10 +988,7 @@ app.post("/api/ai/chat", async (req, res) => {
           bodyObj.messages = [{ role: "system", content: system }, ...bodyObj.messages]
         }
         if (tools) {
-          bodyObj.tools = Object.entries(tools).map(([name, fn]: [string, any]) => ({
-            type: "function",
-            function: { name, description: fn.description || "", parameters: toolParams(fn) },
-          }))
+          bodyObj.tools = toolsToOpenAIFunctions(tools)
         }
         const response = await fetch("https://api-gateway.merge.dev/v1/openai/chat/completions", {
           method: "POST",
@@ -768,11 +997,11 @@ app.post("/api/ai/chat", async (req, res) => {
         })
         if (!response.ok) {
           const errText = await response.text().catch(() => "unknown error")
-          res.status(response.status).json({ error: `Merge Dev API ${response.status}: ${errText}` })
+          endChatStreamError(res, `Merge Dev API ${response.status}: ${errText}`);
           return
         }
         const reader = response.body?.getReader()
-        if (!reader) { res.status(500).json({ error: "No response body" }); return }
+        if (!reader) { endChatStreamError(res, "No response body"); return }
         const streamed = await streamOpenAICompatibleChat({ res, reader, knownTools: knownToolsFromRequest(tools) })
         const inputTokens = streamed.usage.inputTokens
         const outputTokens = streamed.usage.outputTokens
@@ -790,7 +1019,7 @@ app.post("/api/ai/chat", async (req, res) => {
       }
       case "orcarouter": {
         const apiKey = process.env.ORCAROUTER_API_KEY
-        if (!apiKey) { res.status(500).json({ error: "OrcaRouter not configured on server" }); return }
+        if (!apiKey) { endChatStreamError(res, "OrcaRouter not configured on server"); return }
         const modelName = modelParam || "openai/gpt-4o-mini"
         const orStart = Date.now()
         const bodyObj: any = {
@@ -812,10 +1041,7 @@ app.post("/api/ai/chat", async (req, res) => {
           bodyObj.messages = [{ role: "system", content: system }, ...bodyObj.messages]
         }
         if (tools) {
-          bodyObj.tools = Object.entries(tools).map(([name, fn]: [string, any]) => ({
-            type: "function",
-            function: { name, description: fn.description || "", parameters: toolParams(fn) },
-          }))
+          bodyObj.tools = toolsToOpenAIFunctions(tools)
         }
         const response = await fetch("https://api.orcarouter.ai/v1/chat/completions", {
           method: "POST",
@@ -824,11 +1050,11 @@ app.post("/api/ai/chat", async (req, res) => {
         })
         if (!response.ok) {
           const errText = await response.text().catch(() => "unknown error")
-          res.status(response.status).json({ error: `OrcaRouter API ${response.status}: ${errText}` })
+          endChatStreamError(res, `OrcaRouter API ${response.status}: ${errText}`);
           return
         }
         const reader = response.body?.getReader()
-        if (!reader) { res.status(500).json({ error: "No response body" }); return }
+        if (!reader) { endChatStreamError(res, "No response body"); return }
         const streamed = await streamOpenAICompatibleChat({ res, reader, knownTools: knownToolsFromRequest(tools) })
         const inputTokens = streamed.usage.inputTokens
         const outputTokens = streamed.usage.outputTokens
@@ -847,13 +1073,13 @@ app.post("/api/ai/chat", async (req, res) => {
       case "concentrateai": {
         const { concentrateAiKey: forwardedKey } = req.body
         const apiKey = forwardedKey || process.env.CONCENTRATEAI_API_KEY
-        if (!apiKey) { res.status(500).json({ error: "ConcentrateAI not configured on server" }); return }
+if (!apiKey) { endChatStreamError(res, "ConcentrateAI not configured on server"); return }
         const modelName = modelParam || "deepseek-v4-flash"
         if (!forwardedKey && !CLOUD_ALLOWED_MODELS.has(modelName)) {
-          res.status(403).json({ error: `Bring your own API key to use ${modelName}` })
+          endChatStreamError(res, `Bring your own API key to use ${modelName}`)
           return
         }
-        const caStart = Date.now()
+const caStart = Date.now()
         const bodyObj: any = {
           model: modelName,
           messages: nonSystemMessages.map((m: any) => {
@@ -874,25 +1100,41 @@ app.post("/api/ai/chat", async (req, res) => {
           bodyObj.messages = [{ role: "system", content: system }, ...bodyObj.messages]
         }
         if (tools) {
-          bodyObj.tools = Object.entries(tools).map(([name, fn]: [string, any]) => ({
-            type: "function",
-            function: { name, description: fn.description || "", parameters: toolParams(fn) },
-          }))
+          bodyObj.tools = toolsToOpenAIFunctions(tools)
         }
-        const response = await fetch("https://api.concentrate.ai/v1/chat/completions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify(bodyObj),
-          signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-        })
+        writeStatus("upstream", `calling concentrate · ${modelName}`)
+        const response = await awaitWithStatusHeartbeats(
+          fetch("https://api.concentrate.ai/v1/chat/completions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify(bodyObj),
+            signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+          }),
+          writeStatus,
+          "upstream",
+          `waiting on concentrate · ${modelName}`,
+        )
         if (!response.ok) {
           const errText = await response.text().catch(() => "unknown error")
-          res.status(response.status).json({ error: `ConcentrateAI API ${response.status}: ${errText}` })
+          res.write(JSON.stringify({
+            type: "error",
+            message: `ConcentrateAI API ${response.status}: ${errText}`,
+          }) + "\n")
+          res.write(JSON.stringify({ type: "finish", reason: "error" }) + "\n")
+          res.end()
           return
         }
+        writeStatus("streaming", "model stream open")
         const reader = response.body?.getReader()
-        if (!reader) { res.status(500).json({ error: "No response body" }); return }
-        let streamed = await streamOpenAICompatibleChat({ res, reader, knownTools: knownToolsFromRequest(tools) })
+if (!reader) { endChatStreamError(res, "No response body"); return }
+        // suppressEmptyError: we retry non-streaming below; don't race a hard
+        // empty-response error before that recovery path runs.
+        let streamed = await streamOpenAICompatibleChat({
+          res,
+          reader,
+          knownTools: knownToolsFromRequest(tools),
+          suppressEmptyError: true,
+        })
         let fullContent = streamed.fullContent
         let reasoningContent = streamed.reasoningContent
         let emittedToolCalls = streamed.emittedToolCalls
@@ -926,12 +1168,18 @@ app.post("/api/ai/chat", async (req, res) => {
           if (system && nonSystemMessages.length > 0) {
             fbBody.messages = [{ role: "system", content: system }, ...fbBody.messages]
           }
-          const fbRes = await fetch("https://api.concentrate.ai/v1/chat/completions", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify(fbBody),
-            signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-          })
+          writeStatus("fallback", "retrying non-stream · concentrate")
+          const fbRes = await awaitWithStatusHeartbeats(
+            fetch("https://api.concentrate.ai/v1/chat/completions", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify(fbBody),
+              signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+            }),
+            writeStatus,
+            "fallback",
+            `waiting on concentrate fallback · ${modelName}`,
+          )
           if (fbRes.ok) {
             const fbData: any = await fbRes.json()
             const fbMsg = fbData?.choices?.[0]?.message ?? {}
@@ -943,8 +1191,8 @@ app.post("/api/ai/chat", async (req, res) => {
           }
         }
 
-        // Last resort: surface reasoning-as-text, or an explicit error so the
-        // turn is never a silent blank line.
+        // Last resort: surface reasoning-as-text, or a soft retry hint so the
+        // turn is never a silent blank line (and never races the fallback).
         if (!fullContent.trim() && !emittedToolCalls) {
           if (reasoningContent.trim()) {
             fullContent = reasoningContent
@@ -952,7 +1200,7 @@ app.post("/api/ai/chat", async (req, res) => {
           } else {
             res.write(JSON.stringify({
               type: "error",
-              message: "The model returned an empty response (no text, reasoning, or tool calls). Please retry.",
+              message: "Model returned an empty response. Try again or switch models with /model.",
             }) + "\n")
           }
         }
@@ -970,10 +1218,10 @@ app.post("/api/ai/chat", async (req, res) => {
       }
       case "supercode": {
         const apiKey = process.env.CONCENTRATEAI_API_KEY
-        if (!apiKey) { res.status(500).json({ error: "Supercode Cloud not configured on server" }); return }
+        if (!apiKey) { endChatStreamError(res, "Supercode Cloud not configured on server"); return }
         const modelName = modelParam || "deepseek-v4-flash"
         if (!CLOUD_ALLOWED_MODELS.has(modelName)) {
-          res.status(403).json({ error: `Bring your own API key to use ${modelName}` })
+          endChatStreamError(res, `Bring your own API key to use ${modelName}`)
           return
         }
         const scStart = Date.now()
@@ -997,25 +1245,35 @@ app.post("/api/ai/chat", async (req, res) => {
           bodyObj.messages = [{ role: "system", content: system }, ...bodyObj.messages]
         }
         if (tools) {
-          bodyObj.tools = Object.entries(tools).map(([name, fn]: [string, any]) => ({
-            type: "function",
-            function: { name, description: fn.description || "", parameters: toolParams(fn) },
-          }))
+          bodyObj.tools = toolsToOpenAIFunctions(tools)
         }
-        const response = await fetch("https://api.concentrate.ai/v1/chat/completions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify(bodyObj),
-          signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-        })
+        writeStatus("upstream", `calling supercode cloud · ${modelName}`)
+        const response = await awaitWithStatusHeartbeats(
+          fetch("https://api.concentrate.ai/v1/chat/completions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify(bodyObj),
+            signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+          }),
+          writeStatus,
+          "upstream",
+          `waiting on supercode cloud · ${modelName}`,
+        )
         if (!response.ok) {
           const errText = await response.text().catch(() => "unknown error")
-          res.status(response.status).json({ error: `Supercode Cloud API ${response.status}: ${errText}` })
+          endChatStreamError(res, `Supercode Cloud API ${response.status}: ${errText}`);
           return
         }
+        writeStatus("streaming", "model stream open")
         const reader = response.body?.getReader()
-        if (!reader) { res.status(500).json({ error: "No response body" }); return }
-        let streamed = await streamOpenAICompatibleChat({ res, reader, knownTools: knownToolsFromRequest(tools) })
+        if (!reader) { endChatStreamError(res, "No response body"); return }
+        // suppressEmptyError: non-stream retry below owns the empty message.
+        let streamed = await streamOpenAICompatibleChat({
+          res,
+          reader,
+          knownTools: knownToolsFromRequest(tools),
+          suppressEmptyError: true,
+        })
         let fullContent = streamed.fullContent
         let reasoningContent = streamed.reasoningContent
         let emittedToolCalls = streamed.emittedToolCalls
@@ -1049,12 +1307,18 @@ app.post("/api/ai/chat", async (req, res) => {
           if (system && nonSystemMessages.length > 0) {
             fbBody.messages = [{ role: "system", content: system }, ...fbBody.messages]
           }
-          const fbRes = await fetch("https://api.concentrate.ai/v1/chat/completions", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify(fbBody),
-            signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-          })
+          writeStatus("fallback", "retrying non-stream · supercode cloud")
+          const fbRes = await awaitWithStatusHeartbeats(
+            fetch("https://api.concentrate.ai/v1/chat/completions", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify(fbBody),
+              signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+            }),
+            writeStatus,
+            "fallback",
+            `waiting on supercode cloud fallback · ${modelName}`,
+          )
           if (fbRes.ok) {
             const fbData: any = await fbRes.json()
             const fbMsg = fbData?.choices?.[0]?.message ?? {}
@@ -1066,8 +1330,7 @@ app.post("/api/ai/chat", async (req, res) => {
           }
         }
 
-        // Last resort: surface reasoning-as-text, or an explicit error so the
-        // turn is never a silent blank line.
+        // Last resort after non-stream retry — single soft empty message.
         if (!fullContent.trim() && !emittedToolCalls) {
           if (reasoningContent.trim()) {
             fullContent = reasoningContent
@@ -1075,7 +1338,7 @@ app.post("/api/ai/chat", async (req, res) => {
           } else {
             res.write(JSON.stringify({
               type: "error",
-              message: "The model returned an empty response (no text, reasoning, or tool calls). Please retry.",
+              message: "Model returned an empty response. Try again or switch models with /model.",
             }) + "\n")
           }
         }
@@ -1092,17 +1355,24 @@ app.post("/api/ai/chat", async (req, res) => {
         break
       }
       default: {
-        res.status(400).json({ error: `Unknown provider: ${provider}` })
+        endChatStreamError(res, `Unknown provider: ${provider}`)
       }
     }
-  } catch (error) {
+} catch (error) {
     const msg = String(error)
+    let out = msg
     if (msg.includes("insufficient balance") || msg.includes("402")) {
-      res.status(402).json({ error: "MiniMax API: insufficient balance. Top up at https://platform.minimax.ai" })
+      out = "MiniMax API: insufficient balance. Top up at https://platform.minimax.ai"
+    }
+    // Headers may already be NDJSON — finish via stream events when possible.
+    if (res.headersSent) {
+      endChatStreamError(res, out)
+    } else if (msg.includes("insufficient balance") || msg.includes("402")) {
+      res.status(402).json({ error: out })
     } else if (msg.includes("daily limit of")) {
-      res.status(429).json({ error: msg })
+      res.status(429).json({ error: out })
     } else {
-      res.status(500).json({ error: msg })
+      res.status(500).json({ error: out })
     }
   }
 })
@@ -1585,103 +1855,6 @@ app.post("/api/tools/exa-fetch", async (req, res) => {
     res.status(response.status).json(data)
   } catch (error: any) {
     res.status(500).json({ error: error.message || "Exa fetch proxy failed" })
-  }
-})
-
-// ── Composio session proxy (server-side API key) ──
-
-app.post("/api/composio/session", async (req, res) => {
-  try {
-    const user = await getUserFromBearer(req)
-    if (!user) { res.status(401).json({ error: "Unauthorized" }); return }
-
-    const apiKey = process.env.COMPOSIO_API_KEY
-    if (!apiKey) { res.status(500).json({ error: "Composio not configured on server" }); return }
-
-    const { Composio } = await import("@composio/core")
-    const composio = new Composio({ apiKey })
-
-    const connectedRes = await (composio.connectedAccounts as any).list({})
-    const connectedIds: Record<string, string> = {}
-    for (const acct of (connectedRes.items ?? [])) {
-      if (acct.status === "ACTIVE") {
-        connectedIds[acct.toolkit?.slug] = acct.id
-      }
-    }
-
-    const s = await composio.sessions.create(`user_${user.id}`, {
-      mcp: true,
-      connectedAccounts: connectedIds,
-    })
-
-    res.json({
-      url: (s as any).mcp.url as string,
-      headers: (s as any).mcp.headers as Record<string, string>,
-      sessionId: (s as any).session_id as string,
-      apiKey,
-    })
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || "Composio session creation failed" })
-  }
-})
-
-app.post("/api/composio/apps", async (req, res) => {
-  try {
-    const user = await getUserFromBearer(req)
-    if (!user) { res.status(401).json({ error: "Unauthorized" }); return }
-
-    const apiKey = process.env.COMPOSIO_API_KEY
-    if (!apiKey) { res.status(500).json({ error: "Composio not configured on server" }); return }
-
-    const { Composio } = await import("@composio/core")
-    const composio = new Composio({ apiKey })
-
-    const [authConfigs, toolkits, connectedRes] = await Promise.all([
-      (composio as any).authConfigs.list({}),
-      (composio.toolkits as any).get(),
-      (composio.connectedAccounts as any).list({}),
-    ])
-
-    const configuredSlugs = new Set<string>(
-      (authConfigs.items ?? []).map((ac: any) => ac.toolkit?.slug).filter(Boolean),
-    )
-
-    const connectedMap = new Map<string, string>()
-    for (const acct of connectedRes.items ?? []) {
-      const slug: string = acct.toolkit?.slug
-      if (slug && acct.status === "ACTIVE") {
-        connectedMap.set(slug, acct.id)
-      }
-    }
-
-    const toolkitMap = new Map<string, any>()
-    for (const tk of toolkits) {
-      toolkitMap.set(tk.slug, tk)
-    }
-
-    const apps: any[] = []
-    for (const slug of configuredSlugs) {
-      const tk = toolkitMap.get(slug)
-      if (!tk) continue
-      const conn = connectedMap.get(slug)
-      apps.push({
-        slug: tk.slug,
-        name: tk.name,
-        description: tk.meta?.description ?? "",
-        logo: tk.meta?.logo,
-        connected: !!conn,
-        connectedAccountId: conn ?? null,
-      })
-    }
-
-    apps.sort((a, b) => {
-      if (a.connected !== b.connected) return a.connected ? -1 : 1
-      return a.name.localeCompare(b.name)
-    })
-
-    res.json({ apps })
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || "Composio list apps failed" })
   }
 })
 

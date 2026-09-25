@@ -33,11 +33,13 @@ export async function checkPlanGate(
 ): Promise<PlanGateResult> {
   const plan = await getSubscriptionPlan(userId)
 
-  if (!plan) {
+if (!plan) {
+    // getSubscriptionPlan now auto-provisions Spark; this path is only hit if
+    // both DB and fail-open fallbacks are unavailable.
     return {
       allowed: false,
       message:
-        "You don't have an active subscription. Run /upgrade to subscribe to Spark Premium ($1/mo) and start using the CLI.",
+        "Unable to verify your plan right now. Retry in a moment, or run /upgrade if this persists.",
     }
   }
 

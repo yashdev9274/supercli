@@ -11,7 +11,7 @@
     }
   },
   "scripts": {
-    "build": "echo 'db-terminal build pending'",
+    "build": "bun run db:generate",
     "lint": "echo 'db-terminal lint pending'",
     "typecheck": "echo 'db-terminal typecheck pending'",
     "postinstall": "bun run db:generate",

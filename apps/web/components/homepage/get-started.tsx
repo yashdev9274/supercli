@@ -19,13 +19,13 @@ const commands: CommandLine[] = [
   { type: "info", text: "start shipping with supercode" },
 ]
 
-const reduceMotion =
-  typeof window !== "undefined"
-    ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    : false
-
 const GetStartedSection = () => {
   const [visible, setVisible] = useState(false)
+  const [reduceMotion] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  )
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const sectionRef = useRef<HTMLElement>(null)
 
@@ -84,7 +84,7 @@ const GetStartedSection = () => {
       `}</style>
 
       <div className="max-w-[1100px] mx-auto">
-        <h2 className="text-[13px] font-mono uppercase tracking-[0.15em] text-primary mb-6">
+        <h2 className="text-lg font-semibold text-primary uppercase mb-6">
           $ Get started with Supercode
         </h2>
 
@@ -131,7 +131,7 @@ const GetStartedSection = () => {
                     </span>
                     <button
                       onClick={() => handleCopy(cmd.text, i)}
-                      className="ml-4 p-1 rounded-[4px] text-muted-foreground opacity-0 group-hover:opacity-100 hoverable:group-hover:opacity-100 transition-opacity duration-150 ease-out active:scale-[0.93]"
+                      className="relative ml-4 p-1 rounded-[4px] text-muted-foreground opacity-0 group-hover:opacity-100 hoverable:group-hover:opacity-100 transition-opacity duration-150 ease-out active:scale-[0.93] after:absolute after:-inset-3 after:content-['']"
                     >
                       {copiedIndex === i ? (
                         <Check className="w-3.5 h-3.5 text-primary" />

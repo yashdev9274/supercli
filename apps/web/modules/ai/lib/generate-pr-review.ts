@@ -1,13 +1,189 @@
 import prisma from "@super/db"
-import { getPullRequestDiff, postReviewComment } from "@/modules/github/lib/github"
+import {
+  getPullRequestDiff,
+  postReviewComment,
+  updatePullRequestSummary,
+} from "@/modules/github/lib/github"
 import { retrieveContext } from "@/modules/pinecone/rag"
 import { generateText } from "ai"
-import { gateway } from "@/lib/gateway"
+import {
+  chatModel,
+  gatewayProviderChain,
+  providerSupportsModel,
+  type GatewayProviderName,
+} from "@/lib/gateway"
 
 /** Soft caps so huge PRs stay within gateway/model limits. */
 const MAX_DIFF_CHARS = 120_000
 const MAX_CONTEXT_CHARS = 24_000
 const MAX_DESCRIPTION_CHARS = 8_000
+
+/**
+ * Routing order (see lib/gateway.ts):
+ * Vercel AI Gateway → Merge → direct OPENAI/ANTHROPIC/GOOGLE keys.
+ *
+ * Prefer free-tier-friendly Vercel models first, then quality models that
+ * work on direct keys when gateways are rate-limited.
+ *
+ * REVIEW_MODEL / AI_GATEWAY_MODEL / MERGE_GATEWAY_MODEL accept comma lists.
+ */
+const DEFAULT_REVIEW_MODELS = [
+  // Vercel free-tier models that currently accept traffic (verified live).
+  // Flagship Claude/GPT/Gemini often 403/429 on free credits.
+  "openai/gpt-5.4-nano",
+  "openai/gpt-oss-120b",
+  "google/gemma-4-31b-it",
+  "openai/gpt-5.4-mini",
+  "google/gemini-2.5-flash",
+  "openai/gpt-4.1-mini",
+  "openai/gpt-4o-mini",
+  // Direct-key quality targets (OPENAI/ANTHROPIC) when gateways are capped
+  "anthropic/claude-sonnet-4.5",
+  "openai/gpt-4.1",
+  // Merge-only last resorts
+  "google/gemini-2.5-flash-lite",
+  "default_routing",
+] as const
+
+function parseModelList(raw: string | undefined): string[] {
+  if (!raw?.trim()) return []
+  return raw
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean)
+}
+
+function resolveReviewModels(): string[] {
+  const fromEnv = [
+    ...parseModelList(process.env.REVIEW_MODEL),
+    ...parseModelList(process.env.AI_GATEWAY_MODEL),
+    ...parseModelList(process.env.MERGE_GATEWAY_MODEL),
+  ]
+  const seen = new Set<string>()
+  const ordered: string[] = []
+  for (const model of [...fromEnv, ...DEFAULT_REVIEW_MODELS]) {
+    if (seen.has(model)) continue
+    seen.add(model)
+    ordered.push(model)
+  }
+  return ordered
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === "string") return error
+  return "Unknown gateway error"
+}
+
+function isQuotaOrPolicyError(error: unknown): boolean {
+  const lower = errorMessage(error).toLowerCase()
+  return (
+    lower.includes("free_tier_model_not_allowed") ||
+    lower.includes("free_tier_daily_limit") ||
+    lower.includes("free tier") ||
+    lower.includes("blocked_by_policy") ||
+    lower.includes("model_not_allowed") ||
+    lower.includes("restrictedmodelserror") ||
+    lower.includes("do not have access to this model") ||
+    lower.includes("payment method") ||
+    lower.includes("upgrade to paid") ||
+    lower.includes("rate_limit") ||
+    lower.includes("rate limit") ||
+    lower.includes("too many requests") ||
+    lower.includes("gatewayratelimiterror") ||
+    lower.includes("quota") ||
+    /\b403\b/.test(lower) ||
+    /\b429\b/.test(lower)
+  )
+}
+
+function isNotFoundModelError(error: unknown): boolean {
+  const lower = errorMessage(error).toLowerCase()
+  return (
+    lower.includes("not found") ||
+    lower.includes("does not exist") ||
+    lower.includes("invalid model") ||
+    lower.includes("model_not_found")
+  )
+}
+
+async function generateReviewText(prompt: string): Promise<string> {
+  const models = resolveReviewModels()
+  const errors: string[] = []
+  let attempt = 0
+
+  // Skip remaining models on a provider once its free-tier daily/global cap is hit.
+  const providerExhausted = new Set<GatewayProviderName>()
+
+  for (const modelId of models) {
+    const providers = gatewayProviderChain(modelId).filter(
+      (p) => !providerExhausted.has(p) && providerSupportsModel(p, modelId),
+    )
+
+    for (const provider of providers) {
+      attempt += 1
+      const label = `${provider}:${modelId}`
+      try {
+        const result = await generateText({
+          model: chatModel(modelId, provider),
+          prompt,
+          maxOutputTokens: 8192,
+          // Don't burn free-tier quotas with SDK internal retries on 429/403.
+          maxRetries: 0,
+        })
+        if (attempt > 1) {
+          console.warn(
+            `[generate-pr-review] used fallback ${label} after earlier failures`,
+          )
+        } else {
+          console.log(`[generate-pr-review] model ${label}`)
+        }
+        return result.text
+      } catch (error) {
+        const message = errorMessage(error)
+        errors.push(`${label}: ${message}`)
+
+        if (isQuotaOrPolicyError(error)) {
+          // Merge daily 15-req cap / Vercel free-tier rate limit: leave this provider.
+          if (
+            message.toLowerCase().includes("free_tier_daily_limit") ||
+            message.toLowerCase().includes("15 requests per day") ||
+            message.toLowerCase().includes("requests per day")
+          ) {
+            providerExhausted.add(provider)
+            console.warn(
+              `[generate-pr-review] ${provider} daily/free cap hit; skipping provider`,
+            )
+          } else {
+            console.warn(
+              `[generate-pr-review] ${label} policy/rate-limited; trying next:`,
+              message,
+            )
+          }
+          continue
+        }
+
+        if (isNotFoundModelError(error)) {
+          console.warn(
+            `[generate-pr-review] ${label} model missing; trying next:`,
+            message,
+          )
+          continue
+        }
+
+        console.warn(
+          `[generate-pr-review] ${label} failed; trying next:`,
+          message,
+        )
+      }
+    }
+  }
+
+  console.error("[generate-pr-review] all models/providers failed:", errors)
+  throw new Error(
+    `AI gateway error: all review models failed (${errors.join(" | ")})`,
+  )
+}
 
 function truncate(text: string, max: number, label: string) {
   if (text.length <= max) return text
@@ -87,6 +263,9 @@ ${diff}
 ### Summary
 2–4 sentences on what this PR does and why it matters.
 
+### PR description summary
+A concise changelog for the PR description. Group bullets under only the relevant plain-text category headings, such as \`New Features\`, \`Bug Fixes\`, \`Documentation\`, \`Tests\`, \`Refactoring\`, or \`Infrastructure\`. Put each heading on its own line, followed by short Markdown bullets. Do not use \`#\` heading markers in this section. Omit empty categories.
+
 ### Walkthrough
 Bullet list of the main changes by area/file. Keep it scannable.
 
@@ -123,6 +302,14 @@ A cleaned-up PR body the author could paste, with:
 Do not include a poem. Do not wrap the whole response in a single code fence.`
 }
 
+function extractPrDescriptionSummary(review: string): string | null {
+  const match = review.match(
+    /(?:^|\n)###\s+PR description summary\s*\n([\s\S]*?)(?=\n###\s|$)/i,
+  )
+  const summary = match?.[1]?.trim()
+  return summary || null
+}
+
 export type GeneratePrReviewInput = {
   owner: string
   repo: string
@@ -137,6 +324,7 @@ export type GeneratePrReviewResult = {
   prNumber: number
   files: number
   commentPosted: boolean
+  descriptionUpdated?: boolean
   review: string
   linearNotified?: boolean
   linearIssueId?: string | null
@@ -294,19 +482,28 @@ export async function runGeneratePrReview(
 ): Promise<GeneratePrReviewResult> {
   const { owner, repo, prNumber } = input
   const repoId = `${owner}/${repo}`
+  const pipelineStartedAt = Date.now()
+  const timings: Record<string, number> = {}
+  const measure = async <T>(stage: string, work: () => Promise<T>): Promise<T> => {
+    const startedAt = Date.now()
+    try {
+      return await work()
+    } finally {
+      timings[stage] = Date.now() - startedAt
+    }
+  }
 
   // Resolve token first so we can bind the review to a real connected user
   // even when the Inngest payload carries a bad/stale userId.
-  const { accessToken, userId } = await resolveGithubAccessToken(input)
+  const { accessToken, userId } = await measure("tokenMs", () =>
+    resolveGithubAccessToken(input),
+  )
   const resolvedInput = { ...input, userId }
 
-  await markReviewPending(resolvedInput)
+  await measure("pendingMs", () => markReviewPending(resolvedInput))
 
-  const prData = await getPullRequestDiff(
-    accessToken,
-    owner,
-    repo,
-    prNumber,
+  const prData = await measure("githubFetchMs", () =>
+    getPullRequestDiff(accessToken, owner, repo, prNumber),
   )
 
   let context: string[] = []
@@ -319,7 +516,7 @@ export async function runGeneratePrReview(
       .filter(Boolean)
       .join("\n")
 
-    context = await retrieveContext(query, repoId, 6)
+    context = await measure("contextMs", () => retrieveContext(query, repoId, 6))
   } catch (error) {
     console.error("[generate-pr-review] retrieveContext failed:", error)
     context = []
@@ -349,23 +546,7 @@ export async function runGeneratePrReview(
     diff: prData.diff,
   })
 
-  let text: string
-  try {
-    const result = await generateText({
-      // Use chat completions path via Merge AI SDK shim (see lib/gateway.ts).
-      // Default gateway(modelId) hits /responses with OpenAI Responses shape;
-      // chat() is more portable across gateways.
-      model: gateway.chat("anthropic/claude-sonnet-4-6"),
-      prompt,
-      maxOutputTokens: 8192,
-    })
-    text = result.text
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unknown gateway error"
-    console.error("[generate-pr-review] generateText failed:", error)
-    throw new Error(`AI gateway error: ${message}`)
-  }
+  const text = await measure("generationMs", () => generateReviewText(prompt))
 
   if (!text?.trim()) {
     throw new Error("Model returned empty review")
@@ -374,11 +555,14 @@ export async function runGeneratePrReview(
   const review = text
   const prUrl = `https://github.com/${owner}/${repo}/pull/${prNumber}`
 
-  const repository = await findRepository(owner, repo, userId)
   let reviewId: string | null = null
-  if (!repository) {
-    console.warn(`[generate-pr-review] repository ${repoId} missing when saving`)
-  } else {
+  await measure("persistenceMs", async () => {
+    const repository = await findRepository(owner, repo, userId)
+    if (!repository) {
+      console.warn(`[generate-pr-review] repository ${repoId} missing when saving`)
+      return
+    }
+
     const saved = await prisma.review.upsert({
       where: {
         repositoryId_prNumber: {
@@ -403,107 +587,142 @@ export async function runGeneratePrReview(
       select: { id: true },
     })
     reviewId = saved.id
-  }
+  })
 
   // Persist completed review first so the dashboard is correct even if GitHub
-  // commenting fails. Sticky PR comment is best-effort after that — do not
-  // fail the whole job (Inngest onFailure would flip status back to failed).
+  // writes fail. The sticky comment and PR-body summary are independent and
+  // best-effort, so run them concurrently without failing the review.
   let commentPosted = false
-  try {
-    await postReviewComment(
-      accessToken,
-      owner,
-      repo,
-      prNumber,
-      review,
-      { headSha: prData.headSha, event: "COMMENT" },
-    )
-    commentPosted = true
-  } catch (error) {
-    console.error(
-      `[generate-pr-review] postReviewComment failed for ${repoId}#${prNumber} (review still saved):`,
-      error,
-    )
-  }
+  let descriptionUpdated = false
+  const descriptionSummary = extractPrDescriptionSummary(review)
 
-  // Push review into connected Linear workspace (Supercode AI project).
-  // Best-effort — never fail the review job if Linear/Composio is down.
+  await Promise.all([
+    measure("githubCommentMs", async () => {
+      try {
+        await postReviewComment(accessToken, owner, repo, prNumber, review, {
+          headSha: prData.headSha,
+          event: "COMMENT",
+        })
+        commentPosted = true
+      } catch (error) {
+        console.error(
+          `[generate-pr-review] postReviewComment failed for ${repoId}#${prNumber} (review still saved):`,
+          error,
+        )
+      }
+    }),
+    measure("githubDescriptionMs", async () => {
+      if (!descriptionSummary) {
+        console.warn(
+          `[generate-pr-review] PR description summary missing for ${repoId}#${prNumber}`,
+        )
+        return
+      }
+      try {
+        await updatePullRequestSummary(
+          accessToken,
+          owner,
+          repo,
+          prNumber,
+          descriptionSummary,
+        )
+        descriptionUpdated = true
+      } catch (error) {
+        console.error(
+          `[generate-pr-review] updatePullRequestSummary failed for ${repoId}#${prNumber} (review still saved):`,
+          error,
+        )
+      }
+    }),
+  ])
+
+  // Optional notifications are independent. Run them concurrently so their
+  // latency is the slower of the two integrations rather than the sum.
   let linearNotified = false
   let linearIssueId: string | null = null
   let linearSkippedReason: string | null = null
-  try {
-    const { notifyLinearOfCompletedReview } = await import(
-      "@/modules/integrations/lib/linear"
-    )
-    const linearResult = await notifyLinearOfCompletedReview({
-      userId,
-      owner,
-      repo,
-      prNumber,
-      prTitle: prData.title,
-      prUrl,
-      prDescription: prData.description || "",
-      reviewMarkdown: review,
-      reviewId,
-    })
-    if (linearResult.skipped) {
-      linearSkippedReason = linearResult.reason ?? "skipped"
-      console.log(
-        `[generate-pr-review] linear notify skipped for ${repoId}#${prNumber}: ${linearSkippedReason}`,
-      )
-    } else {
-      linearNotified = true
-      linearIssueId = linearResult.issueId ?? null
-      console.log(
-        `[generate-pr-review] linear notify ok for ${repoId}#${prNumber} issue=${linearIssueId ?? "?"} updated=${Boolean(linearResult.updated)} project=${linearResult.projectId ?? "?"}`,
-      )
-    }
-  } catch (error) {
-    console.error(
-      `[generate-pr-review] linear notify failed for ${repoId}#${prNumber} (review still saved):`,
-      error,
-    )
-  }
-
-  // Email the connected Supercode user a review summary (Resend).
-  // Best-effort — never fail the review job if email delivery fails.
   let emailNotified = false
   let emailId: string | null = null
   let emailSkippedReason: string | null = null
-  try {
-    const { notifyUserOfCompletedReview } = await import(
-      "@/modules/email/pr-review-email"
-    )
-    const emailResult = await notifyUserOfCompletedReview({
-      userId,
-      owner,
-      repo,
-      prNumber,
-      prTitle: prData.title,
-      prUrl,
-      prAuthor: prData.author,
-      prDescription: prData.description || "",
-      reviewMarkdown: review,
-      reviewId,
-    })
-    if (emailResult.skipped) {
-      emailSkippedReason = emailResult.reason
-      console.log(
-        `[generate-pr-review] email notify skipped for ${repoId}#${prNumber}: ${emailSkippedReason}`,
-      )
-    } else {
-      emailNotified = true
-      emailId = emailResult.emailId
-      console.log(
-        `[generate-pr-review] email notify ok for ${repoId}#${prNumber} id=${emailId ?? "?"}`,
-      )
-    }
-  } catch (error) {
-    console.error(
-      `[generate-pr-review] email notify failed for ${repoId}#${prNumber} (review still saved):`,
-      error,
-    )
-  }
+
+  await Promise.all([
+    measure("linearMs", async () => {
+      try {
+        const { notifyLinearOfCompletedReview } = await import(
+          "@/modules/integrations/lib/linear"
+        )
+        const linearResult = await notifyLinearOfCompletedReview({
+          userId,
+          owner,
+          repo,
+          prNumber,
+          prTitle: prData.title,
+          prUrl,
+          prDescription: prData.description || "",
+          reviewMarkdown: review,
+          reviewId,
+        })
+        if (linearResult.skipped) {
+          linearSkippedReason = linearResult.reason ?? "skipped"
+          console.log(
+            `[generate-pr-review] linear notify skipped for ${repoId}#${prNumber}: ${linearSkippedReason}`,
+          )
+        } else {
+          linearNotified = true
+          linearIssueId = linearResult.issueId ?? null
+          console.log(
+            `[generate-pr-review] linear notify ok for ${repoId}#${prNumber} issue=${linearIssueId ?? "?"} updated=${Boolean(linearResult.updated)} project=${linearResult.projectId ?? "?"}`,
+          )
+        }
+      } catch (error) {
+        console.error(
+          `[generate-pr-review] linear notify failed for ${repoId}#${prNumber} (review still saved):`,
+          error,
+        )
+      }
+    }),
+    measure("emailMs", async () => {
+      try {
+        const { notifyUserOfCompletedReview } = await import(
+          "@/modules/email/pr-review-email"
+        )
+        const emailResult = await notifyUserOfCompletedReview({
+          userId,
+          owner,
+          repo,
+          prNumber,
+          prTitle: prData.title,
+          prUrl,
+          prAuthor: prData.author,
+          prDescription: prData.description || "",
+          reviewMarkdown: review,
+          reviewId,
+        })
+        if (emailResult.skipped) {
+          emailSkippedReason = emailResult.reason
+          console.log(
+            `[generate-pr-review] email notify skipped for ${repoId}#${prNumber}: ${emailSkippedReason}`,
+          )
+        } else {
+          emailNotified = true
+          emailId = emailResult.emailId
+          console.log(
+            `[generate-pr-review] email notify ok for ${repoId}#${prNumber} id=${emailId ?? "?"}`,
+          )
+        }
+      } catch (error) {
+        console.error(
+          `[generate-pr-review] email notify failed for ${repoId}#${prNumber} (review still saved):`,
+          error,
+        )
+      }
+    }),
+  ])
+
+  timings.totalMs = Date.now() - pipelineStartedAt
+  console.log(
+    `[generate-pr-review] timings ${repoId}#${prNumber} ${JSON.stringify(timings)}`,
+  )
 
   return {
     success: true,
@@ -512,6 +731,7 @@ export async function runGeneratePrReview(
     prNumber,
     files: prData.changedFiles.length,
     commentPosted,
+    descriptionUpdated,
     review,
     linearNotified,
     linearIssueId,

@@ -7,7 +7,7 @@ import prisma from "@super/db"
 /**
  * POST /api/reviews/trigger
  * Body: { owner, repo, prNumber }
- * Manually queue an AI review for a connected repo (useful when webhooks can't reach localhost).
+ * Manually run an AI review for a connected repo (useful when webhooks can't reach localhost).
  */
 export async function POST(req: NextRequest) {
   try {
@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
     const result = await reviewPullRequest(owner, repo, prNumber, {
       userId: session.user.id,
       source: "api_trigger",
+      wait: true,
     })
     return NextResponse.json(result)
   } catch (error) {

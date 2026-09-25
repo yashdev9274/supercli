@@ -1,0 +1,121 @@
+name: Desktop DMG
+
+on:
+  pull_request:
+    paths:
+      - "apps/supercode-desktop/**"
+      - ".github/workflows/desktop-release.yml"
+  push:
+    tags: ["desktop-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-dmg-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: brew install xcodegen shellcheck
+      - name: Validate scripts and generate project
+        run: |
+          shellcheck apps/supercode-desktop/scripts/*.sh
+          bash apps/supercode-desktop/scripts/generate.sh
+      - name: Native tests (Debug and Release defaults)
+        run: |
+          for config in Debug Release; do
+            xcodebuild -project apps/supercode-desktop/SupercodeDesktop.xcodeproj \
+              -scheme SupercodeDesktop -configuration "$config" \
+              -destination 'platform=macOS' -derivedDataPath "$RUNNER_TEMP/tests-$config" \
+              CODE_SIGNING_ALLOWED=NO ENABLE_TESTABILITY=YES test
+          done
+      - name: Universal development packaging smoke test
+        run: |
+          bash apps/supercode-desktop/scripts/package-dmg.sh development 0.1.0 1 "$RUNNER_TEMP/development-dmg"
+          python3 apps/supercode-desktop/scripts/verify-dmg.py \
+            "$RUNNER_TEMP/development-dmg/Supercode-0.1.0-universal-development.dmg" 0.1.0 1
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/desktop-v') && github.event_name != 'pull_request'
+    needs: validate
+    runs-on: macos-14
+    timeout-minutes: 90
+    environment: desktop-production
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate release tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^desktop-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Configure temporary signing keychain
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.DESKTOP_CERTIFICATE_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.DESKTOP_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.DESKTOP_APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.DESKTOP_APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.DESKTOP_APPLE_APP_PASSWORD }}
+        run: |
+          set +x
+          umask 077
+          for name in CERTIFICATE_BASE64 CERTIFICATE_PASSWORD APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD; do
+            [[ -n "${!name}" ]] || { printf 'Missing required secret: %s\n' "$name" >&2; exit 1; }
+          done
+          export SIGNING_KEYCHAIN="$RUNNER_TEMP/desktop-signing.keychain-db"
+          export KEYCHAIN_PASSWORD
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 32)
+          python3 - <<'PY'
+          import base64, os, pathlib
+          pathlib.Path(os.environ["RUNNER_TEMP"], "desktop-signing.p12").write_bytes(
+              base64.b64decode(os.environ["CERTIFICATE_BASE64"], validate=True)
+          )
+          PY
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$SIGNING_KEYCHAIN"
+          security set-keychain-settings -lut 7200 "$SIGNING_KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$SIGNING_KEYCHAIN"
+          security import "$RUNNER_TEMP/desktop-signing.p12" -k "$SIGNING_KEYCHAIN" \
+            -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
+            -k "$KEYCHAIN_PASSWORD" "$SIGNING_KEYCHAIN" >/dev/null
+          xcrun notarytool store-credentials desktop-notary --keychain "$SIGNING_KEYCHAIN" \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" >/dev/null
+          rm -f "$RUNNER_TEMP/desktop-signing.p12"
+      - name: Build, sign, notarize and verify production DMG
+        env:
+          DEVELOPER_ID_APPLICATION: ${{ secrets.DESKTOP_DEVELOPER_ID_APPLICATION }}
+          NOTARY_PROFILE: desktop-notary
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          export SIGNING_KEYCHAIN="$RUNNER_TEMP/desktop-signing.keychain-db"
+          bash apps/supercode-desktop/scripts/package-dmg.sh production \
+            "${RELEASE_TAG#desktop-v}" "$GITHUB_RUN_NUMBER" "$RUNNER_TEMP/release-dmg"
+          python3 apps/supercode-desktop/scripts/verify-dmg.py \
+            "$RUNNER_TEMP/release-dmg/Supercode-${RELEASE_TAG#desktop-v}-universal.dmg" \
+            "${RELEASE_TAG#desktop-v}" "$GITHUB_RUN_NUMBER"
+      - name: Create draft release for clean-install review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" "$RUNNER_TEMP/release-dmg/"*.dmg "$RUNNER_TEMP/release-dmg/"*.sha256 \
+            --verify-tag --draft --latest=false --title "Supercode Desktop ${RELEASE_TAG#desktop-v}" \
+            --notes $'Universal macOS 14+ DMG (Apple Silicon and Intel).\n\nInstall: open the DMG, drag Supercode to Applications, then launch and sign in.\n\nRelease gate: verify a browser-downloaded clean install, production login, model streaming and a permitted local tool before publishing. Keep this desktop release separate from the CLI latest release.\n\nCo-Authored-By: Warp <agent@warp.dev>'
+      - name: Remove signing material
+        if: always()
+        run: |
+          if [[ -f "$RUNNER_TEMP/desktop-signing.keychain-db" ]]; then
+            security delete-keychain "$RUNNER_TEMP/desktop-signing.keychain-db"
+          fi
+          rm -f "$RUNNER_TEMP/desktop-signing.p12"
