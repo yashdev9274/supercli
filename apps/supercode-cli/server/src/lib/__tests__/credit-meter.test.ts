@@ -6,7 +6,7 @@ type UpdateFn = (args: unknown) => Promise<unknown>
 const findFirstMock = mock<FindFirstFn>(async () => null)
 const updateMock = mock<UpdateFn>(async () => ({}))
 
-;(mock as any).module("../prisma", () => ({
+mock.module("../prisma", () => ({
   default: {
     creditBalance: {
       findFirst: findFirstMock,

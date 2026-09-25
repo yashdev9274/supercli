@@ -62,12 +62,20 @@ function mergeProps<T extends HTMLElement>(
 // render never constructs components. The element type is only known at render
 // time and framer-motion has no non-creating API for it, so the one creation
 // site is intentionally excluded from the purity rule.
+// Element types in a Next.js app are a small stable set, but cap the cache
+// anyway so a pathological dynamic-type stream can't grow it without bound
+// in long-lived SSR workers.
+const MAX_MOTION_COMPONENT_CACHE_SIZE = 256;
 const motionComponentCache = new Map<React.ElementType, React.ElementType>();
 
 function getMotionComponent(type: React.ElementType): React.ElementType {
   let cached = motionComponentCache.get(type);
   if (!cached) {
     cached = motion.create(type);
+    if (motionComponentCache.size >= MAX_MOTION_COMPONENT_CACHE_SIZE) {
+      const oldest = motionComponentCache.keys().next();
+      if (!oldest.done) motionComponentCache.delete(oldest.value);
+    }
     motionComponentCache.set(type, cached);
   }
   return cached;

@@ -6,9 +6,11 @@ import {
   stripForSpeech,
 } from "../speech"
 
-// Point ffmpeg at a binary that accepts "--version" (any arg) so the
+// Point ffmpeg at a binary that exits 0 on "--version" (any arg) so the
 // SMALLEST_API_KEY branch of canVoiceCapture is reachable on every host.
-const FFMPEG_STUB = "/bin/echo"
+// CI runs ubuntu-latest only; fall back to the current runtime binary on
+// Windows where /bin/echo does not exist.
+const FFMPEG_STUB = process.platform === "win32" ? process.execPath : "/bin/echo"
 
 describe("canVoiceCapture", () => {
   const origEnv: Record<string, string | undefined> = {}
