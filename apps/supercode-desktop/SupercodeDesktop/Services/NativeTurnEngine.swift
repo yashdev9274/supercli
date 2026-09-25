@@ -5,8 +5,17 @@ final class NativeTurnEngine {
     struct Context {
         let root: String?
         let mode: AgentMode
+        let source: ModelSource
         let provider: String
         let model: String?
+
+        init(root: String?, mode: AgentMode, source: ModelSource = .supercode, provider: String, model: String?) {
+            self.root = root
+            self.mode = mode
+            self.source = source
+            self.provider = provider
+            self.model = model
+        }
     }
     struct Outcome {
         let history: [[String: Any]]
@@ -21,7 +30,21 @@ final class NativeTurnEngine {
     typealias ResultHandler = (ToolExecutionResult, String) -> Void
     typealias Stream = ([[String: Any]], Context, [[String: Any]], @escaping @Sendable (StreamEvent) async -> Void) async throws -> Void
     nonisolated static let liveStream: Stream = { history, context, tools, event in
-        try await SupercodeAPIClient.shared.streamChat(messages: history, provider: context.provider, model: context.model, tools: tools, onEvent: event)
+        switch context.source {
+        case .supercode:
+            try await SupercodeAPIClient.shared.streamChat(messages: history, provider: context.provider, model: context.model, tools: tools, onEvent: event)
+        case .openCode:
+            guard let model = context.model else { throw OpenCodeError.invalidResponse }
+            let client = try await OpenCodeServiceManager.shared.ensureClient()
+            try await client.generate(
+                history: history,
+                providerID: context.provider,
+                modelID: model,
+                workspace: context.root,
+                agent: context.mode == .plan ? "plan" : "build",
+                onEvent: event
+            )
+        }
     }
 
     static func run(history: [[String: Any]], context: Context, budget: Int = 24, depth: Int = 0,
@@ -147,7 +170,7 @@ final class NativeTurnEngine {
                 do {
                     try Task.checkCancellation()
                     let mode: AgentMode = item["agent"] as? String == "general" && [.tools, .agent].contains(context.mode) ? context.mode : .chat
-                    let childContext = Context(root: context.root, mode: mode, provider: context.provider, model: context.model)
+                    let childContext = Context(root: context.root, mode: mode, source: context.source, provider: context.provider, model: context.model)
                     let history: [[String: Any]] = [
                         ["role": "system", "content": ToolCatalog.systemPrompt(mode: mode, workspacePath: context.root, gitBranch: nil, effort: .medium)],
                         ["role": "user", "content": item["task"] as? String ?? ""],
