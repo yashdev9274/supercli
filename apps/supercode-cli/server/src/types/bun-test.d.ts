@@ -39,6 +39,15 @@ declare module "bun:test" {
   export function mock<T extends (...args: any[]) => any>(impl?: T): Mock<T>
   export function mock(): Mock<() => void>
 
+  // `mock` doubles as a namespace carrying `mock.module` in Bun's runtime
+  // types; model it here so `mock.module(...)` typechecks through this shim.
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  export namespace mock {
+    export function module(specifier: string, factory: () => unknown): void
+    export function restore(): void
+    export function clearAllMocks(): void
+  }
+
   export function spyOn<T extends object, K extends keyof T>(
     obj: T,
     method: K,
