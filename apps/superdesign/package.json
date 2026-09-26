@@ -21,7 +21,7 @@
     "nanoid": "^5.0.0",
     "next": "16.1.1",
     "react": "19.2.3",
-    "react-dom": "19.2.3",
+    "react-dom": "19.2.8",
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
