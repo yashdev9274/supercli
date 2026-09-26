@@ -9,6 +9,7 @@ const EMPTY_SENTINEL_GUARDED = new Set([
   "web_search",
   "firecrawl_search",
   "exa_search",
+  "youcom_search",
   "read_file",
   "search_files",
   "read_instructions",
