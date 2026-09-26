@@ -4,8 +4,6 @@ import Link from "next/link"
 import { useTheme } from "next-themes"
 import { useQuery } from "@tanstack/react-query"
 import {
-  Gift,
-  Lightbulb,
   LogOut,
   Monitor,
   Moon,
@@ -99,14 +97,6 @@ export function DashboardHeader() {
       </div>
 
       <div className="ml-auto flex items-center gap-3">
-        <button
-          type="button"
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-muted/10 text-muted-foreground/60 transition-all hover:bg-muted/30 hover:text-foreground"
-          aria-label="Tips"
-        >
-          <Lightbulb className="h-4 w-4" />
-        </button>
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -167,13 +157,6 @@ export function DashboardHeader() {
               <Link href="/dashboard/settings" className="flex items-center gap-2.5">
                 <Settings className="size-4 text-muted-foreground" />
                 <span>Profile Settings</span>
-              </Link>
-            </DropdownMenuItem>
-
-            <DropdownMenuItem asChild className="cursor-pointer rounded-xl px-2.5 py-2 text-sm">
-              <Link href="/dashboard/refer" className="flex items-center gap-2.5">
-                <Gift className="size-4 text-muted-foreground" />
-                <span>Refer and Earn</span>
               </Link>
             </DropdownMenuItem>
 

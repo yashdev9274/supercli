@@ -61,10 +61,12 @@ export function ContributionGraph() {
                         dark: ['#1d1b22', '#f97316']
                     }}
                     renderBlock={(block, activity) =>
+                        // react-activity-calendar's renderBlock + react-tooltip's data-* attrs
+                        // have no clean typed surface; the attrs are inert for the chart.
                         React.cloneElement(block, {
                           "data-tooltip-id": "contribution-tooltip",
                           "data-tooltip-content": `${activity.count} contributions on ${activity.date}`,
-                        } as any)
+                        } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
                       }
                 />
                 </div>

@@ -7,6 +7,10 @@
  */
 import { execSync } from "node:child_process"
 
+// Generation only embeds the connection URL, so a fallback is safe here;
+// typecheck and dev then work without a live database.
+process.env.DATABASE_URL ||= "postgresql://postgres:postgres@localhost:5432/supercode"
+
 console.log("Running postinstall...")
 
 const steps: Array<{ label: string; cwd: string; cmd: string }> = [

@@ -140,17 +140,19 @@ export function chatModel(
   }
   if (provider === "merge") {
     // chat() is more portable across OpenAI-compatible shims than Responses.
-    return mergeGateway.chat(modelId)
+    // Providers resolve their own @ai-sdk/provider copy; cast across the
+    // duplicate LanguageModelV4 declarations.
+    return mergeGateway.chat(modelId) as unknown as LanguageModel
   }
   if (provider === "openai") {
     // Prefer chat completions for broad model support.
-    return openaiDirect.chat(bareModelId(modelId))
+    return openaiDirect.chat(bareModelId(modelId)) as unknown as LanguageModel
   }
   if (provider === "anthropic") {
-    return anthropicDirect(bareModelId(modelId))
+    return anthropicDirect(bareModelId(modelId)) as unknown as LanguageModel
   }
   // google
-  return googleDirect(bareModelId(modelId))
+  return googleDirect(bareModelId(modelId)) as unknown as LanguageModel
 }
 
 export function embeddingProvider(): "vercel" | "merge" | "openai" | null {

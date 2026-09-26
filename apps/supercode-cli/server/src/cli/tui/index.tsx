@@ -1,5 +1,5 @@
 import { createCliRenderer } from "@opentui/core"
-import { createRoot } from "@opentui/react"
+import { createRoot, type Root } from "@opentui/react"
 import { App } from "./app.tsx"
 import type { SessionController } from "src/cli/session/session-controller.ts"
 
@@ -31,7 +31,7 @@ export async function startOpenTui(options: OpenTuiLaunchOptions = {}): Promise<
     }
 
     try {
-      let rootRef: { unmount: () => void; render: (node: unknown) => void } | undefined
+      let rootRef: Root | undefined
       const renderer = await createCliRenderer({
         exitOnCtrlC: true,
         targetFps: 30,
@@ -39,7 +39,8 @@ export async function startOpenTui(options: OpenTuiLaunchOptions = {}): Promise<
       })
 
       rootRef = createRoot(renderer)
-      rootRef.render(
+      const root: Root = rootRef
+      root.render(
         <App
           subtitle={options.subtitle}
           session={options.session}

@@ -4,9 +4,7 @@ import React from "react"
 import Link from "next/link"
 import { Github, Twitter, Mail, ArrowUpRight } from "lucide-react"
 import { motion } from "framer-motion"
-
-const DOCS_URL =
-  process.env.NEXT_PUBLIC_DOCS_URL || "http://localhost:3001/docs/intro"
+import { DOCS_URL } from "@/lib/constants"
 
 const PIXEL_FONT: Record<string, number[][]> = {
   S: [

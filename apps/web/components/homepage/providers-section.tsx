@@ -22,16 +22,14 @@ const providers = [
   "LiteLLM",
 ]
 
+const reduceMotion =
+  typeof window !== "undefined"
+    ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    : false
+
 const ProvidersSection = () => {
   const [visible, setVisible] = useState(false)
-  const [reduceMotion, setReduceMotion] = useState(false)
   const sectionRef = useRef<HTMLElement>(null)
-
-  useEffect(() => {
-    setReduceMotion(
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-    )
-  }, [])
 
   useEffect(() => {
     const el = sectionRef.current
@@ -74,24 +72,17 @@ const ProvidersSection = () => {
       <div className="max-w-[1100px] mx-auto">
         <div className="flex items-end justify-between mb-12">
           <div>
-            <h2 className="text-lg font-semibold text-primary uppercase mb-4">
-              // providers
+            <h2 className="text-[13px] font-mono uppercase tracking-[0.15em] text-primary mb-4">
+              {"// providers"}
             </h2>
-            <h3 className="text-[28px] md:text-[36px] text-[#A1A1AA] font-medium tracking-tighter leading-[1.15]">
+            <h3 className="text-[28px] md:text-[36px] text-[#A1A1AA] font-semibold tracking-tight leading-[1.15]">
               bring your own model.
             </h3>
-            <p className="text-sm md:text-base text-white/60 mt-3 max-w-[500px] tracking-tight">
+            <p className="text-[14px] md:text-[15px] text-muted-foreground mt-3 max-w-[500px] leading-relaxed">
               one agent, every backend. wire a provider once and switch models
               mid-session.
             </p>
           </div>
-          <Link
-            href="/docs/providers"
-            className="hidden md:inline-flex items-center gap-2 text-sm text-[#A1A1AA] hover:text-foreground transition-colors group"
-          >
-            <span>See all providers</span>
-            <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-          </Link>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -112,9 +103,9 @@ const ProvidersSection = () => {
                       }
                     : { opacity: 0, transform: "translateY(6px)" }
                 }
-                className="border border-border rounded-lg px-5 py-4 text-center hover:border-primary/30 transition-colors duration-200 bg-card/20 hover:bg-card/50"
+                className="border border-border rounded-lg px-5 py-4 hover:border-primary/30 transition-colors duration-200 bg-card/20 hover:bg-card/50"
               >
-                <span className="text-base text-[#A1A1AA] hoverable:hover:text-foreground transition-colors duration-150">
+                <span className="text-[13px] font-mono text-muted-foreground hoverable:hover:text-foreground transition-colors duration-150">
                   {name}
                 </span>
               </div>
@@ -122,12 +113,12 @@ const ProvidersSection = () => {
           })}
         </div>
 
-        <div className="mt-8 text-center md:hidden">
+        <div className="mt-8">
           <Link
             href="/docs/providers"
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group"
+            className="inline-flex items-center gap-2 text-[13px] font-mono text-muted-foreground hover:text-foreground transition-colors group"
           >
-            <span>See all providers</span>
+            <span>see all providers</span>
             <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-200" />
           </Link>
         </div>

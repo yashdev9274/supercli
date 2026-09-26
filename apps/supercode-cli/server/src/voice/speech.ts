@@ -53,10 +53,10 @@ export function canVoiceCapture(): {
   ok: boolean
   reason?: string
 } {
-  if (!isFfmpegAvailable()) return { ok: false, reason: `ffmpeg not found at ${getFfmpegPath()}` }
-
   if (!process.env.SMALLEST_API_KEY && !process.env.SUPERCODE_SERVER_URL)
     return { ok: false, reason: "SMALLEST_API_KEY not set and no server proxy configured" }
+
+  if (!isFfmpegAvailable()) return { ok: false, reason: `ffmpeg not found at ${getFfmpegPath()}` }
 
   return { ok: true }
 }
