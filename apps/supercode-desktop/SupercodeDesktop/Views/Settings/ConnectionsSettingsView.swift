@@ -20,7 +20,7 @@ struct ConnectionsSettingsView: View {
                     Text("Connections")
                         .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(DesktopTheme.textPrimary)
-                    Text("Connect external services and use their MCP tools in Supercode Desktop.")
+                    Text("Install Nova in company apps and separately connect delegated tools.")
                         .font(.system(size: 13))
                         .foregroundStyle(DesktopTheme.textSecondary)
                 }
@@ -42,9 +42,9 @@ struct ConnectionsSettingsView: View {
                 Image(systemName: "sparkles")
                     .foregroundStyle(DesktopTheme.accent)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Connected tools are available to the agent")
+                    Text("Nova and delegated tools")
                         .font(.system(size: 12, weight: .semibold))
-                    Text("\(connections.connectedCount) services · \(connections.availableToolCount) tools")
+                    Text("\(connections.readyNovaConnectorCount) Nova apps ready · \(connections.connectedCount) tool accounts · \(connections.availableToolCount) tools")
                         .font(.system(size: 11))
                         .foregroundStyle(DesktopTheme.textSecondary)
                 }
@@ -68,8 +68,9 @@ struct ConnectionsSettingsView: View {
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
-                    connectionSection("Connected", apps: filteredApps.filter(\.connected))
-                    connectionSection("Available", apps: filteredApps.filter { !$0.connected })
+                    novaConnectorSection
+                    connectionSection("Delegated tool accounts — connected", apps: filteredApps.filter(\.connected))
+                    connectionSection("Delegated tool accounts — available", apps: filteredApps.filter { !$0.connected })
                 }
             }
         }
@@ -95,6 +96,70 @@ struct ConnectionsSettingsView: View {
         } message: {
             Text("Supercode will no longer be able to use this service's tools.")
         }
+    }
+
+    @ViewBuilder
+    private var novaConnectorSection: some View {
+        let connectors = connections.novaConnectors.filter {
+            searchText.isEmpty || $0.provider.displayName.localizedCaseInsensitiveContains(searchText)
+        }
+        if !connectors.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("NOVA BOT INSTALLATIONS")
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(0.8)
+                    .foregroundStyle(DesktopTheme.textMuted)
+                Text("Install Nova's native identity so teammates can mention or assign it. This does not grant mutation or local execution permission.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(DesktopTheme.textSecondary)
+                VStack(spacing: 0) {
+                    ForEach(Array(connectors.enumerated()), id: \.element.id) { index, connector in
+                        novaConnectorRow(connector)
+                        if index < connectors.count - 1 {
+                            Divider().overlay(DesktopTheme.border).padding(.leading, 58)
+                        }
+                    }
+                }
+                .background(DesktopTheme.panelElevated, in: RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(DesktopTheme.border))
+            }
+        }
+    }
+
+    private func novaConnectorRow(_ connector: NovaConnectorStatus) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: connector.provider.systemImage)
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(DesktopTheme.accent)
+                .frame(width: 34, height: 34)
+                .background(DesktopTheme.accentSoft, in: RoundedRectangle(cornerRadius: 8))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Nova for \(connector.provider.displayName)")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(DesktopTheme.textPrimary)
+                Text(connector.statusMessage ?? connector.stateLabel)
+                    .font(.system(size: 11))
+                    .foregroundStyle(connector.ready ? DesktopTheme.success : DesktopTheme.textSecondary)
+                    .lineLimit(2)
+            }
+            Spacer()
+            if connections.installingNovaProvider == connector.provider {
+                ProgressView().controlSize(.small)
+            } else if connector.ready {
+                Label("Ready", systemImage: "checkmark.circle.fill")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(DesktopTheme.success)
+            } else {
+                Button(connector.botInstallation == nil ? "Install" : "Reconnect") {
+                    connections.installNova(connector)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(DesktopTheme.accent)
+                .disabled(connector.authorizeUrl == nil)
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(minHeight: 64)
     }
 
     @ViewBuilder

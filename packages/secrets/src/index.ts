@@ -25,7 +25,7 @@ export async function loadSecrets(options: LoadSecretsOptions): Promise<void> {
     )
   }
 
-  const sdk = getClient(app)
+  const sdk = await getClient(app)
   const { secrets } = await sdk.secrets().listSecrets({
     environment: env,
     projectId,
