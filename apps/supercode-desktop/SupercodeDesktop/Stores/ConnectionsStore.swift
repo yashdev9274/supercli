@@ -6,7 +6,6 @@ final class ConnectionsStore: ObservableObject {
     static let shared = ConnectionsStore()
 
     @Published private(set) var apps: [ConnectedApp] = []
-    @Published private(set) var novaConnectors: [NovaConnectorStatus] = []
     @Published private(set) var novaSessions: [NovaSessionSummary] = []
     @Published private(set) var novaMessages: [String: [NovaSessionMessage]] = [:]
     @Published private(set) var novaActivities: [String: [NovaSessionActivity]] = [:]
@@ -15,7 +14,6 @@ final class ConnectionsStore: ObservableObject {
     @Published private(set) var decidingApprovalId: String?
     @Published private(set) var isLoading = false
     @Published private(set) var connectingSlug: String?
-    @Published private(set) var installingNovaProvider: NovaConnectorProvider?
     @Published private(set) var disconnectingSlug: String?
     @Published var errorMessage: String?
 
@@ -25,7 +23,6 @@ final class ConnectionsStore: ObservableObject {
     private var novaCursors: [String: Int] = [:]
 
     var connectedCount: Int { apps.filter(\.connected).count }
-    var readyNovaConnectorCount: Int { novaConnectors.filter(\.ready).count }
     var availableToolCount: Int { tools.count }
     var selectedNovaSession: NovaSessionSummary? {
         guard let selectedNovaSessionId else { return nil }
@@ -53,12 +50,10 @@ final class ConnectionsStore: ObservableObject {
         errorMessage = nil
         defer { isLoading = false }
         do {
-            async let novaRequest = SupercodeAPIClient.shared.listNovaConnectors()
             async let sessionsRequest = SupercodeAPIClient.shared.listNovaSessions()
             async let approvalsRequest = SupercodeAPIClient.shared.listNovaApprovals()
             async let appsRequest = SupercodeAPIClient.shared.listConnectedApps()
             async let toolsRequest = SupercodeAPIClient.shared.listComposioTools()
-            novaConnectors = try await novaRequest
             novaSessions = try await sessionsRequest
             novaApprovals = try await approvalsRequest
             if let selectedNovaSessionId,
@@ -142,40 +137,6 @@ final class ConnectionsStore: ObservableObject {
 
     func refreshNovaApprovals() async throws {
         novaApprovals = try await SupercodeAPIClient.shared.listNovaApprovals()
-    }
-
-    func installNova(_ connector: NovaConnectorStatus) {
-        guard installingNovaProvider == nil else { return }
-        guard let url = connector.authorizeUrl else {
-            errorMessage = "Nova \(connector.provider.displayName) installation is not configured on the server."
-            return
-        }
-        connectionTask?.cancel()
-        installingNovaProvider = connector.provider
-        errorMessage = nil
-        NSWorkspace.shared.open(url)
-        connectionTask = Task {
-            defer { installingNovaProvider = nil }
-            do {
-                let deadline = Date().addingTimeInterval(180)
-                while !Task.isCancelled && Date() < deadline {
-                    try await Task.sleep(for: .seconds(2))
-                    let updated = try await SupercodeAPIClient.shared.listNovaConnectors()
-                    novaConnectors = updated
-                    if let current = updated.first(where: { $0.provider == connector.provider }),
-                       current.ready || current.botInstallation != nil {
-                        return
-                    }
-                }
-                if !Task.isCancelled {
-                    errorMessage = "Installation is still pending. Finish it in your browser, then refresh."
-                }
-            } catch is CancellationError {
-                return
-            } catch {
-                errorMessage = error.localizedDescription
-            }
-        }
     }
 
     func connect(_ app: ConnectedApp) {
@@ -279,7 +240,6 @@ final class ConnectionsStore: ObservableObject {
         connectionTask?.cancel()
         connectionTask = nil
         apps = []
-        novaConnectors = []
         novaSessions = []
         novaMessages = [:]
         novaActivities = [:]
@@ -290,7 +250,6 @@ final class ConnectionsStore: ObservableObject {
         tools = []
         hasLoadedTools = false
         connectingSlug = nil
-        installingNovaProvider = nil
         disconnectingSlug = nil
         errorMessage = nil
     }

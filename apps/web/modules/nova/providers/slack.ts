@@ -1,5 +1,4 @@
 import { NOVA_CONTRACT_VERSION, type NormalizedInboundEvent } from "@super/nova"
-import { getCredential } from "@super/secrets"
 
 import { connectorCallbackUrl } from "@/modules/nova/connectors/config"
 
@@ -133,32 +132,4 @@ export function normalizeSlackEvent(input: {
       threadTimestamp: rootTimestamp,
     },
   }
-}
-
-export async function postSlackReply(input: {
-  credentialRef: string
-  channelId: string
-  threadTimestamp: string
-  text: string
-}): Promise<string> {
-  const credential = await getCredential<SlackCredential>(input.credentialRef)
-  if (!credential.accessToken) throw new Error("Slack credential is missing an access token")
-  const response = await fetch("https://slack.com/api/chat.postMessage", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${credential.accessToken}`,
-      "Content-Type": "application/json; charset=utf-8",
-    },
-    body: JSON.stringify({
-      channel: input.channelId,
-      thread_ts: input.threadTimestamp,
-      text: input.text,
-    }),
-    cache: "no-store",
-  })
-  const result = await response.json() as { ok?: boolean; error?: string; ts?: string }
-  if (!response.ok || !result.ok || !result.ts) {
-    throw new Error(`Slack reply failed: ${result.error ?? response.status}`)
-  }
-  return result.ts
 }

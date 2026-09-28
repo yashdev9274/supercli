@@ -171,6 +171,7 @@ export const conversationalMutationToolSchema = z.enum([
 const mutationBaseArgumentsSchema = z.object({
   surfaceId: z.string().min(1),
   text: z.string().trim().min(1).max(8_000),
+  connectedAccountId: z.string().min(1),
 })
 
 export const slackReplyArgumentsSchema = mutationBaseArgumentsSchema.extend({
@@ -180,6 +181,7 @@ export const slackReplyArgumentsSchema = mutationBaseArgumentsSchema.extend({
 
 export const linearReplyArgumentsSchema = mutationBaseArgumentsSchema.extend({
   agentSessionId: z.string().min(1),
+  issueId: z.string().min(1),
 }).strict()
 
 export const githubCommentArgumentsSchema = mutationBaseArgumentsSchema.extend({
@@ -202,7 +204,7 @@ export const mutationPreviewSchema = z.discriminatedUnion("tool", [
   z.object({
     tool: z.literal("linear.reply"),
     text: z.string(),
-    target: z.object({ agentSessionId: z.string() }),
+    target: z.object({ agentSessionId: z.string(), issueId: z.string() }),
   }),
   z.object({
     tool: z.literal("github.comment"),

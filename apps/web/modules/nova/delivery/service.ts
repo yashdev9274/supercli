@@ -1,9 +1,11 @@
 import prisma from "@super/db"
 
 import { inngest } from "@/inngest/client"
-import { postGitHubReply } from "@/modules/nova/providers/github"
-import { postLinearReply } from "@/modules/nova/providers/linear"
-import { postSlackReply } from "@/modules/nova/providers/slack"
+import {
+  postGitHubReplyViaComposio,
+  postLinearReplyViaComposio,
+  postSlackReplyViaComposio,
+} from "@/modules/nova/providers/composio"
 
 const DELIVERY_PROVIDERS = new Set(["slack", "linear", "github"])
 const DELIVERY_LEASE_MS = 5 * 60 * 1000
@@ -78,13 +80,6 @@ export async function reconcileActivityDeliveryOutbox(limit = 100): Promise<{
     }
   }
   return { published, failed }
-}
-
-function linearActivityType(type: string): "thought" | "elicitation" | "response" | "error" {
-  if (type === "acknowledgement" || type === "plan" || type === "action") return "thought"
-  if (type === "approval_request") return "elicitation"
-  if (type === "error") return "error"
-  return "response"
 }
 
 function deliveryText(activity: { title: string | null; body: string | null }): string | null {
@@ -202,6 +197,7 @@ export async function deliverActivity(activityId: string): Promise<{
   const activity = await prisma.agentActivity.findUnique({
     where: { id: activityId },
     include: {
+      agentSession: { select: { organizationId: true } },
       surface: {
         include: { installation: true },
       },
@@ -215,8 +211,8 @@ export async function deliverActivity(activityId: string): Promise<{
   if (!text || !surface || !installation || !DELIVERY_PROVIDERS.has(surface.provider)) {
     return { delivered: 0, ignored: 1 }
   }
-  if (!installation.credentialRef || installation.status === "revoked") {
-    throw new Error("Nova installation has no active credential reference")
+  if (installation.status === "revoked") {
+    throw new Error("Nova installation is revoked")
   }
 
   const idempotencyKey = `activity:${activity.id}:${surface.provider}:${surface.id}`
@@ -257,18 +253,18 @@ export async function deliverActivity(activityId: string): Promise<{
     if (surface.provider === "slack") {
       const separator = surface.externalSurfaceId.indexOf(":")
       if (separator < 1) throw new Error("Slack surface is missing its thread identity")
-      externalId = await postSlackReply({
-        credentialRef: installation.credentialRef,
+      externalId = await postSlackReplyViaComposio({
+        organizationId: activity.agentSession.organizationId,
         channelId: surface.externalSurfaceId.slice(0, separator),
         threadTimestamp: surface.externalSurfaceId.slice(separator + 1),
         text,
       })
     } else if (surface.provider === "linear") {
-      externalId = await postLinearReply({
-        credentialRef: installation.credentialRef,
-        agentSessionId: surface.externalSurfaceId,
+      if (!surface.externalContainerId) throw new Error("Linear surface is missing its issue identity")
+      externalId = await postLinearReplyViaComposio({
+        organizationId: activity.agentSession.organizationId,
+        issueId: surface.externalContainerId,
         text,
-        type: linearActivityType(activity.type),
       })
     } else {
       const separator = surface.externalSurfaceId.lastIndexOf("#")
@@ -276,8 +272,8 @@ export async function deliverActivity(activityId: string): Promise<{
       if (separator < 1 || !Number.isSafeInteger(issueNumber) || issueNumber <= 0) {
         throw new Error("GitHub surface is missing its issue identity")
       }
-      externalId = await postGitHubReply({
-        credentialRef: installation.credentialRef,
+      externalId = await postGitHubReplyViaComposio({
+        organizationId: activity.agentSession.organizationId,
         repository: surface.externalSurfaceId.slice(0, separator),
         issueNumber,
         text,

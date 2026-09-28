@@ -1,5 +1,4 @@
 import prisma from "@super/db"
-import { putCredential } from "@super/secrets"
 import { NextRequest, NextResponse } from "next/server"
 
 import { connectorDefinition } from "@/modules/nova/connectors/config"
@@ -40,11 +39,6 @@ export async function GET(request: NextRequest) {
         ? actual !== "read" && actual !== "write"
         : actual !== "write"
     })
-    const credentialRef = await putCredential({
-      namespace: "nova_github",
-      id: `${state.organizationId}_${installationId}`,
-      credential: { installationId },
-    })
     await prisma.externalInstallation.upsert({
       where: {
         organizationId_provider_externalAccountId: {
@@ -63,7 +57,6 @@ export async function GET(request: NextRequest) {
         grantedScopes,
         missingScopes,
         webhookStatus: "pending",
-        credentialRef,
         config: {
           canReceiveMessages: true,
           canReplyAsNova: true,
@@ -79,7 +72,6 @@ export async function GET(request: NextRequest) {
         grantedScopes,
         missingScopes,
         webhookStatus: "pending",
-        credentialRef,
         config: {
           canReceiveMessages: true,
           canReplyAsNova: true,

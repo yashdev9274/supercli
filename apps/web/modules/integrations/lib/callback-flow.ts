@@ -4,8 +4,19 @@ import {
   getComposioConnectedAccount,
 } from "./composio"
 import { upsertComposioIntegration } from "../actions"
+import { ensureUserOrganization } from "./org"
 import type { IntegrationProvider } from "../actions/schema"
 import { NextResponse } from "next/server"
+
+function completionUrl(returnTo: "desktop" | "web", provider: IntegrationProvider, error?: string) {
+  if (returnTo === "desktop") {
+    const url = new URL("supercode://composio/connected")
+    url.searchParams.set("provider", provider)
+    if (error) url.searchParams.set("error", error)
+    return url
+  }
+  return getIntegrationsSettingsUrl(error ? { error } : { connected: provider })
+}
 
 /**
  * Handle Composio redirect back to our app after OAuth.
@@ -54,20 +65,20 @@ export async function handleComposioCallback(params: {
     searchParams.get("connectedAccountID")
 
   if (!connectedAccountId) {
-    return NextResponse.redirect(
-      getIntegrationsSettingsUrl({ error: "missing_connected_account" }),
-    )
+    return NextResponse.redirect(getIntegrationsSettingsUrl({ error: "missing_connected_account" }))
   }
 
   try {
     const account = await getComposioConnectedAccount(connectedAccountId)
-    if (account && account.status !== "ACTIVE" && account.status !== "INITIATED") {
-      // INITIATED may still settle; store anyway if id present
-      if (account.status === "FAILED" || account.status === "EXPIRED") {
-        return NextResponse.redirect(
-          getIntegrationsSettingsUrl({ error: `${provider}_connection_inactive` }),
-        )
-      }
+    const organizationId = await ensureUserOrganization(verified.userId)
+    const expectedEntityId = `org_${organizationId}`
+    if (
+      !account ||
+      account.status !== "ACTIVE" ||
+      account.toolkitSlug !== provider ||
+      (account.userId && account.userId !== expectedEntityId)
+    ) {
+      return NextResponse.redirect(completionUrl(verified.returnTo, provider, `${provider}_connection_invalid`))
     }
 
     await upsertComposioIntegration({
@@ -77,13 +88,9 @@ export async function handleComposioCallback(params: {
       teamName: account?.displayName ?? null,
     })
 
-    return NextResponse.redirect(
-      getIntegrationsSettingsUrl({ connected: provider }),
-    )
+    return NextResponse.redirect(completionUrl(verified.returnTo, provider))
   } catch (err) {
     console.error(`Composio ${provider} callback failed:`, err)
-    return NextResponse.redirect(
-      getIntegrationsSettingsUrl({ error: `${provider}_connect_failed` }),
-    )
+    return NextResponse.redirect(completionUrl(verified.returnTo, provider, `${provider}_connect_failed`))
   }
 }

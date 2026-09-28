@@ -16,9 +16,9 @@ import {
 import { inngest } from "@/inngest/client"
 import { createResponseActivity } from "@/modules/nova/delivery/service"
 import {
-  readGitHubPullRequest,
-  type GitHubPullRequestContext,
-} from "@/modules/nova/providers/github"
+  readGitHubPullRequestViaComposio,
+} from "@/modules/nova/providers/composio"
+import type { GitHubPullRequestContext } from "@/modules/nova/providers/github"
 import {
   buildNovaPrompt,
   MAX_NOVA_CONTEXT_ENTRIES,
@@ -378,26 +378,13 @@ export async function gatherRunPrompt(
   )
   let workContext: string | null = null
   if (target) {
-    const installation = await prisma.externalInstallation.findFirst({
-      where: {
+    try {
+      workContext = formatPullRequestContext(await readGitHubPullRequestViaComposio({
         organizationId: session.organizationId,
-        provider: "github",
-        status: "active",
-        credentialRef: { not: null },
-      },
-      select: { credentialRef: true },
-    })
-    if (installation?.credentialRef) {
-      try {
-        workContext = formatPullRequestContext(await readGitHubPullRequest({
-          credentialRef: installation.credentialRef,
-          ...target,
-        }))
-      } catch {
-        workContext = `Nova could not access ${target.repository}#${target.pullNumber} through this organization's GitHub installation.`
-      }
-    } else {
-      workContext = "No active GitHub installation is available for this organization."
+        ...target,
+      }))
+    } catch {
+      workContext = `Nova could not access ${target.repository}#${target.pullNumber} through this organization's GitHub Composio connection.`
     }
   }
   return buildNovaPrompt({

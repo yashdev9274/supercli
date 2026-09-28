@@ -1,5 +1,4 @@
 import { NOVA_CONTRACT_VERSION, type NormalizedInboundEvent } from "@super/nova"
-import { getCredential } from "@super/secrets"
 
 import { connectorCallbackUrl } from "@/modules/nova/connectors/config"
 
@@ -159,36 +158,4 @@ export function normalizeLinearEvent(input: {
       issueId,
     },
   }
-}
-
-export async function postLinearReply(input: {
-  credentialRef: string
-  agentSessionId: string
-  text: string
-  type?: "thought" | "elicitation" | "response" | "error"
-}): Promise<string> {
-  const credential = await getCredential<LinearCredential>(input.credentialRef)
-  if (!credential.accessToken) throw new Error("Linear credential is missing an access token")
-  const result = await linearGraphql<{
-    data?: { agentActivityCreate?: { success?: boolean; agentActivity?: { id?: string } } }
-  }>(
-    credential.accessToken,
-    `mutation NovaAgentActivity($input: AgentActivityCreateInput!) {
-      agentActivityCreate(input: $input) {
-        success
-        agentActivity { id }
-      }
-    }`,
-    {
-      input: {
-        agentSessionId: input.agentSessionId,
-        content: { type: input.type ?? "response", body: input.text },
-      },
-    },
-  )
-  const activity = result.data?.agentActivityCreate
-  if (!activity?.success || !activity.agentActivity?.id) {
-    throw new Error("Linear did not create the Nova agent activity")
-  }
-  return activity.agentActivity.id
 }

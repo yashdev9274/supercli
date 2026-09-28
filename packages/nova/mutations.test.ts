@@ -32,6 +32,7 @@ describe("typed mutation arguments", () => {
   test("parses and previews the exact approved GitHub comment", () => {
     const args = parseMutationArguments("github.comment", {
       surfaceId: "surface_1",
+      connectedAccountId: "account_1",
       repository: "acme/api",
       issueNumber: 42,
       text: "Review complete",
@@ -43,22 +44,40 @@ describe("typed mutation arguments", () => {
     })
   })
 
+  test("binds approval hashes to the Composio connected account", () => {
+    const base = {
+      surfaceId: "surface_1",
+      connectedAccountId: "account_1",
+      repository: "acme/api",
+      issueNumber: 42,
+      text: "Review complete",
+    }
+    expect(normalizedArgsHash(base)).not.toBe(normalizedArgsHash({
+      ...base,
+      connectedAccountId: "account_2",
+    }))
+  })
+
   test("rejects cross-tool, unsafe, and unknown arguments", () => {
     expect(() => parseMutationArguments("slack.reply", {
       surfaceId: "surface_1",
+      connectedAccountId: "account_1",
       repository: "acme/api",
       issueNumber: 42,
       text: "Wrong target",
     })).toThrow()
     expect(() => parseMutationArguments("github.comment", {
       surfaceId: "surface_1",
+      connectedAccountId: "account_1",
       repository: "acme/api",
       issueNumber: Number.MAX_SAFE_INTEGER + 1,
       text: "Unsafe issue number",
     })).toThrow()
     expect(() => parseMutationArguments("linear.reply", {
       surfaceId: "surface_1",
+      connectedAccountId: "account_1",
       agentSessionId: "agent_session_1",
+      issueId: "issue_1",
       text: "Hello",
       unexpected: true,
     })).toThrow()

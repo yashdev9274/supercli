@@ -1,5 +1,4 @@
 import prisma from "@super/db"
-import { putCredential } from "@super/secrets"
 import { NextResponse } from "next/server"
 
 import { connectorDefinition, type NativeConnectorProvider } from "./config"
@@ -33,11 +32,6 @@ export async function handleNativeConnectorCallback(
     const oauth = provider === "slack"
       ? await exchangeSlackCode(code)
       : await exchangeLinearCode(code)
-    const credentialRef = await putCredential({
-      namespace: `nova_${provider}`,
-      id: `${state.organizationId}_${oauth.externalAccountId}`,
-      credential: oauth.credential,
-    })
     const definition = connectorDefinition(provider)!
     const missingScopes = definition.requiredConversationScopes.filter(
       (scope) => !oauth.scopes.includes(scope),
@@ -60,7 +54,6 @@ export async function handleNativeConnectorCallback(
         grantedScopes: oauth.scopes,
         missingScopes,
         webhookStatus: "pending",
-        credentialRef,
         config: { canReceiveMessages: true, canReplyAsNova: true },
         installedAt: new Date(),
       },
@@ -71,7 +64,6 @@ export async function handleNativeConnectorCallback(
         grantedScopes: oauth.scopes,
         missingScopes,
         webhookStatus: "pending",
-        credentialRef,
         config: { canReceiveMessages: true, canReplyAsNova: true },
         installedAt: new Date(),
       },

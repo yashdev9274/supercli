@@ -80,7 +80,7 @@ export function mutationPreview(
     return {
       tool,
       text: linear.text,
-      target: { agentSessionId: linear.agentSessionId },
+      target: { agentSessionId: linear.agentSessionId, issueId: linear.issueId },
     }
   }
   const github = githubCommentArgumentsSchema.parse(args)

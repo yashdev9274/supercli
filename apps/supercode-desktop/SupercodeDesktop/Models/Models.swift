@@ -451,6 +451,8 @@ enum DeepLinkRouter {
                 guard !sessionId.isEmpty else { continue }
                 ReviewStore.shared.showNova()
                 Task { await ConnectionsStore.shared.selectNovaSession(sessionId) }
+            case "composio":
+                Task { await ConnectionsStore.shared.refresh() }
             default:
                 if host.isEmpty, path.hasPrefix("conversation/") {
                     let id = String(path.dropFirst("conversation/".count))

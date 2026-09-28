@@ -9,9 +9,11 @@ import {
 } from "@super/nova"
 
 import { inngest } from "@/inngest/client"
-import { postGitHubReply } from "@/modules/nova/providers/github"
-import { postLinearReply } from "@/modules/nova/providers/linear"
-import { postSlackReply } from "@/modules/nova/providers/slack"
+import {
+  postGitHubReplyViaComposio,
+  postLinearReplyViaComposio,
+  postSlackReplyViaComposio,
+} from "@/modules/nova/providers/composio"
 
 const APPROVAL_TTL_MS = 30 * 60 * 1000
 
@@ -32,6 +34,7 @@ function argumentsForSurface(input: {
     externalSurfaceId: string
     externalContainerId: string | null
   }
+  connectedAccountId: string
 }): MutationArguments {
   const policy = TOOL_POLICY[input.proposal.tool]
   if (input.surface.provider !== policy.provider) {
@@ -43,15 +46,21 @@ function argumentsForSurface(input: {
     if (separator < 1) throw new Error("Slack surface is missing its thread identity")
     return parseMutationArguments(input.proposal.tool, {
       surfaceId: input.surface.id,
+      connectedAccountId: input.connectedAccountId,
       channelId: input.surface.externalSurfaceId.slice(0, separator),
       threadTimestamp: input.surface.externalSurfaceId.slice(separator + 1),
       text: input.proposal.text,
     })
   }
   if (input.proposal.tool === "linear.reply") {
+    if (!input.surface.externalContainerId) {
+      throw new Error("Linear surface is missing its issue identity")
+    }
     return parseMutationArguments(input.proposal.tool, {
       surfaceId: input.surface.id,
+      connectedAccountId: input.connectedAccountId,
       agentSessionId: input.surface.externalSurfaceId,
+      issueId: input.surface.externalContainerId,
       text: input.proposal.text,
     })
   }
@@ -60,6 +69,7 @@ function argumentsForSurface(input: {
   if (!match) throw new Error("GitHub surface is missing its repository issue identity")
   return parseMutationArguments(input.proposal.tool, {
     surfaceId: input.surface.id,
+    connectedAccountId: input.connectedAccountId,
     repository: match[1],
     issueNumber: Number(match[2]),
     text: input.proposal.text,
@@ -102,7 +112,23 @@ export async function persistMutationProposal(input: {
     })
     if (!surface) throw new Error("Nova mutation surface is not active")
 
-    const args = argumentsForSurface({ proposal: input.proposal, surface })
+    const integration = await tx.integration.findUnique({
+      where: {
+        organizationId_provider: {
+          organizationId: run.agentSession.organizationId,
+          provider: policy.provider,
+        },
+      },
+      select: { isActive: true, composioConnectedAccountId: true },
+    })
+    if (!integration?.isActive || !integration.composioConnectedAccountId) {
+      throw new Error(`Connect ${policy.provider} through Composio before proposing this action`)
+    }
+    const args = argumentsForSurface({
+      proposal: input.proposal,
+      surface,
+      connectedAccountId: integration.composioConnectedAccountId,
+    })
     const argsHash = normalizedArgsHash(args)
     const invocation = await tx.toolInvocation.upsert({
       where: { idempotencyKey: `run:${input.runId}:proposal` },
@@ -364,20 +390,17 @@ export async function executeApprovedMutation(approvalId: string): Promise<{
       agentSessionId: approval.run.agentSessionId,
       provider: policy.provider,
       status: "active",
-      installation: {
-        organizationId: approval.run.agentSession.organizationId,
-        status: { not: "revoked" },
-        credentialRef: { not: null },
-      },
+      installation: { organizationId: approval.run.agentSession.organizationId, status: { not: "revoked" } },
     },
     include: { installation: true },
   })
-  if (!surface?.installation?.credentialRef) {
+  if (!surface?.installation) {
     throw new Error("Nova mutation target is no longer authorized")
   }
   const reboundArgs = argumentsForSurface({
     proposal: { kind: "mutation_proposal", tool, text: args.text, summary: "Revalidation" },
     surface,
+    connectedAccountId: args.connectedAccountId,
   })
   if (normalizedArgsHash(reboundArgs) !== approval.normalizedArgsHash) {
     throw new Error("Nova mutation target changed after approval")
@@ -420,23 +443,26 @@ export async function executeApprovedMutation(approvalId: string): Promise<{
   try {
     if (tool === "slack.reply") {
       const slackArgs = parseMutationArguments("slack.reply", invocation.arguments)
-      resultId = await postSlackReply({
-        credentialRef: surface.installation.credentialRef,
+      resultId = await postSlackReplyViaComposio({
+        organizationId: approval.run.agentSession.organizationId,
+        connectedAccountId: slackArgs.connectedAccountId,
         channelId: slackArgs.channelId,
         threadTimestamp: slackArgs.threadTimestamp,
         text: slackArgs.text,
       })
     } else if (tool === "linear.reply") {
       const linearArgs = parseMutationArguments("linear.reply", invocation.arguments)
-      resultId = await postLinearReply({
-        credentialRef: surface.installation.credentialRef,
-        agentSessionId: linearArgs.agentSessionId,
+      resultId = await postLinearReplyViaComposio({
+        organizationId: approval.run.agentSession.organizationId,
+        connectedAccountId: linearArgs.connectedAccountId,
+        issueId: linearArgs.issueId,
         text: linearArgs.text,
       })
     } else {
       const githubArgs = parseMutationArguments("github.comment", invocation.arguments)
-      resultId = await postGitHubReply({
-        credentialRef: surface.installation.credentialRef,
+      resultId = await postGitHubReplyViaComposio({
+        organizationId: approval.run.agentSession.organizationId,
+        connectedAccountId: githubArgs.connectedAccountId,
         repository: githubArgs.repository,
         issueNumber: githubArgs.issueNumber,
         text: githubArgs.text,

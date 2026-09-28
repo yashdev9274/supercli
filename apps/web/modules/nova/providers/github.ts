@@ -1,11 +1,6 @@
 import { createSign } from "node:crypto"
 
 import { NOVA_CONTRACT_VERSION, type NormalizedInboundEvent } from "@super/nova"
-import { getCredential } from "@super/secrets"
-
-export type GitHubAppCredential = {
-  installationId: number
-}
 
 type GitHubWebhookEnvelope = {
   action?: string
@@ -38,34 +33,6 @@ type GitHubInstallation = {
   account?: { id?: number; login?: string }
   permissions?: Record<string, string>
   repository_selection?: string
-}
-
-type GitHubPullRequest = {
-  number?: number
-  title?: string
-  body?: string | null
-  html_url?: string
-  state?: string
-  draft?: boolean
-  user?: { login?: string }
-  base?: { ref?: string; sha?: string }
-  head?: { ref?: string; sha?: string }
-  changed_files?: number
-  additions?: number
-  deletions?: number
-}
-
-type GitHubPullFile = {
-  filename?: string
-  status?: string
-  additions?: number
-  deletions?: number
-  changes?: number
-  patch?: string
-}
-
-type GitHubCheckRuns = {
-  check_runs?: Array<{ name?: string; status?: string; conclusion?: string | null; html_url?: string }>
 }
 
 export type GitHubPullRequestContext = {
@@ -134,73 +101,6 @@ export async function getGitHubInstallation(installationId: number): Promise<Git
   })
 }
 
-async function installationAccessToken(credentialRef: string): Promise<string> {
-  const credential = await getCredential<GitHubAppCredential>(credentialRef)
-  if (!Number.isSafeInteger(credential.installationId)) {
-    throw new Error("GitHub credential is missing an installation ID")
-  }
-  const result = await githubRequest<{ token?: string }>(
-    `https://api.github.com/app/installations/${credential.installationId}/access_tokens`,
-    { method: "POST", token: githubAppJwt() },
-  )
-  if (!result.token) throw new Error("GitHub did not return an installation access token")
-  return result.token
-}
-
-export async function readGitHubPullRequest(input: {
-  credentialRef: string
-  repository: string
-  pullNumber: number
-}): Promise<GitHubPullRequestContext> {
-  const [owner, repo, extra] = input.repository.split("/")
-  if (!owner || !repo || extra || !Number.isSafeInteger(input.pullNumber) || input.pullNumber <= 0) {
-    throw new Error("GitHub pull request target is invalid")
-  }
-  const token = await installationAccessToken(input.credentialRef)
-  const root = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`
-  const pull = await githubRequest<GitHubPullRequest>(
-    `${root}/pulls/${input.pullNumber}`,
-    { method: "GET", token },
-  )
-  if (!pull.head?.sha || !pull.title) throw new Error("GitHub returned an incomplete pull request")
-  const [files, checks] = await Promise.all([
-    githubRequest<GitHubPullFile[]>(
-      `${root}/pulls/${input.pullNumber}/files?per_page=50`,
-      { method: "GET", token },
-    ),
-    githubRequest<GitHubCheckRuns>(
-      `${root}/commits/${encodeURIComponent(pull.head.sha)}/check-runs?per_page=50`,
-      { method: "GET", token },
-    ),
-  ])
-  return {
-    repository: input.repository,
-    number: input.pullNumber,
-    title: pull.title,
-    body: pull.body?.slice(0, 8_000) ?? "",
-    url: pull.html_url ?? null,
-    state: pull.state ?? "unknown",
-    draft: pull.draft ?? false,
-    author: pull.user?.login ?? null,
-    baseBranch: pull.base?.ref ?? null,
-    headBranch: pull.head.ref ?? null,
-    headSha: pull.head.sha,
-    changedFiles: files.slice(0, 50).map((file) => ({
-      path: file.filename ?? "unknown",
-      status: file.status ?? "unknown",
-      additions: file.additions ?? 0,
-      deletions: file.deletions ?? 0,
-      patch: file.patch?.slice(0, 4_000) ?? null,
-    })),
-    checks: (checks.check_runs ?? []).slice(0, 50).map((check) => ({
-      name: check.name ?? "unknown",
-      status: check.status ?? "unknown",
-      conclusion: check.conclusion ?? null,
-      url: check.html_url ?? null,
-    })),
-  }
-}
-
 export function parseGitHubEnvelope(input: unknown): GitHubWebhookEnvelope | null {
   return input && typeof input === "object" && !Array.isArray(input)
     ? input as GitHubWebhookEnvelope
@@ -265,21 +165,4 @@ export function normalizeGitHubEvent(input: {
       isPullRequest: Boolean(envelope.issue?.pull_request || envelope.pull_request),
     },
   }
-}
-
-export async function postGitHubReply(input: {
-  credentialRef: string
-  repository: string
-  issueNumber: number
-  text: string
-}): Promise<string> {
-  const [owner, repo] = input.repository.split("/")
-  if (!owner || !repo) throw new Error("GitHub surface has an invalid repository")
-  const token = await installationAccessToken(input.credentialRef)
-  const result = await githubRequest<{ id?: number }>(
-    `https://api.github.com/repos/${owner}/${repo}/issues/${input.issueNumber}/comments`,
-    { method: "POST", token, body: JSON.stringify({ body: input.text }) },
-  )
-  if (!result.id) throw new Error("GitHub did not create the Nova reply")
-  return String(result.id)
 }
