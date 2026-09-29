@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto"
-import { pineconeIndex } from "@/lib/pinecone/pinecone"
 import { embeddingModel, embeddingProvider } from "@/lib/gateway"
+import { pineconeIndex } from "@/lib/pinecone/pinecone"
 import { embed } from "ai"
+
+import { permanentEmbeddingFailureReason } from "./errors"
 
 // Pinecone metadata values must stay under ~40KB; keep content snippets small.
 const MAX_EMBED_CHARS = 8000
@@ -19,7 +21,10 @@ function vectorId(repoId: string, path: string): string {
   return `${repoId.slice(0, 80)}:${hash}`
 }
 
-export async function generateEmbedding(text: string): Promise<number[]> {
+export async function generateEmbedding(
+  text: string,
+  options: { maxRetries?: number } = {},
+): Promise<number[]> {
   const provider = embeddingProvider()
   if (!provider) {
     throw new Error(
@@ -30,6 +35,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   const { embedding } = await embed({
     model: embeddingModel("openai/text-embedding-3-small", provider),
     value: text,
+    maxRetries: options.maxRetries,
   })
   return embedding as number[]
 }
@@ -133,7 +139,17 @@ export async function retrieveContext(
 ) {
   if (!embeddingProvider()) return []
 
-  const embedding = await generateEmbedding(query)
+  let embedding: number[]
+  try {
+    // Context is optional, so do not spend seconds retrying a failed query embedding.
+    embedding = await generateEmbedding(query, { maxRetries: 0 })
+  } catch (error) {
+    const reason = permanentEmbeddingFailureReason(error)
+    if (!reason) throw error
+
+    console.warn(`[pinecone] context retrieval skipped: ${reason}`)
+    return []
+  }
 
   const results = await pineconeIndex.query({
     vector: embedding,
