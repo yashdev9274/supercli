@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-export const integrationProviderSchema = z.enum(["slack", "linear"])
+export const integrationProviderSchema = z.enum(["slack", "linear", "github"])
 
 export type IntegrationProvider = z.infer<typeof integrationProviderSchema>
 

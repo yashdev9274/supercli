@@ -48,6 +48,9 @@ struct DesktopShellView: View {
                 if reviewStore.destination == .review {
                     ReviewWorkspaceView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if reviewStore.destination == .nova {
+                    NovaSessionView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     HStack(spacing: 0) {
                         Group {
@@ -76,6 +79,7 @@ struct DesktopShellView: View {
             if workspace.path != nil && workspace.rootNodes.isEmpty {
                 workspace.reloadTree()
             }
+            Task { await ConnectionsStore.shared.refresh() }
         }
     }
 
@@ -143,20 +147,9 @@ struct TitleBarView: View {
     var body: some View {
         HStack(spacing: 12) {
             if reviewStore.destination == .review {
-                HStack(spacing: 7) {
-                    Image(systemName: "arrow.triangle.pull")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(DesktopTheme.accent)
-                    Text("Supercode Review")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(DesktopTheme.textPrimary)
-                }
-                .padding(.leading, 16)
-                Spacer()
-                Text("AI code review")
-                    .font(DesktopTheme.monoTiny)
-                    .foregroundStyle(DesktopTheme.textMuted)
-                    .padding(.trailing, 12)
+                destinationTitle(symbol: "arrow.triangle.pull", title: "Supercode Review", detail: "AI code review")
+            } else if reviewStore.destination == .nova {
+                destinationTitle(symbol: "sparkles", title: "Nova", detail: "Company agent")
             } else {
             // No logo here — logo lives in empty chat / auth / dock only.
             if !agentRun.isSidebarVisible {
@@ -225,6 +218,7 @@ Spacer()
             }
 
             Button {
+                ReviewStore.shared.showHome()
                 Task { await ConversationStore.shared.clearSessionAndStartNew() }
             } label: {
                 HStack(spacing: 4) {
@@ -263,5 +257,248 @@ Spacer()
         }
         .frame(height: 42)
         .background(DesktopTheme.panel)
+    }
+
+    private func destinationTitle(symbol: String, title: String, detail: String) -> some View {
+        HStack(spacing: 7) {
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(DesktopTheme.accent)
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(DesktopTheme.textPrimary)
+            Spacer()
+            Text(detail)
+                .font(DesktopTheme.monoTiny)
+                .foregroundStyle(DesktopTheme.textMuted)
+        }
+        .padding(.horizontal, 16)
+    }
+}
+
+private enum NovaTimelineItem: Identifiable {
+    case message(NovaSessionMessage)
+    case activity(NovaSessionActivity)
+
+    var id: String {
+        switch self {
+        case .message(let value): return "message:\(value.id)"
+        case .activity(let value): return "activity:\(value.id)"
+        }
+    }
+
+    var sequence: Int {
+        switch self {
+        case .message(let value): return value.sequence
+        case .activity(let value): return value.sequence
+        }
+    }
+}
+
+struct NovaSessionView: View {
+    @EnvironmentObject private var connections: ConnectionsStore
+
+    private var timeline: [NovaTimelineItem] {
+        guard let id = connections.selectedNovaSessionId else { return [] }
+        let messages = (connections.novaMessages[id] ?? []).map(NovaTimelineItem.message)
+        let activities = (connections.novaActivities[id] ?? []).map(NovaTimelineItem.activity)
+        return (messages + activities).sorted { $0.sequence < $1.sequence }
+    }
+
+    var body: some View {
+        Group {
+            if let session = connections.selectedNovaSession {
+                VStack(spacing: 0) {
+                    header(session)
+                    Divider().overlay(DesktopTheme.border)
+                    let approvals = connections.approvals(for: session.id)
+                    if !approvals.isEmpty {
+                        approvalInbox(approvals)
+                        Divider().overlay(DesktopTheme.border)
+                    }
+                    if timeline.isEmpty {
+                        ContentUnavailableView(
+                            "Waiting for Nova",
+                            systemImage: "sparkles",
+                            description: Text("Messages and activity from connected surfaces will appear here.")
+                        )
+                    } else {
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 14) {
+                                ForEach(timeline) { item in
+                                    row(item)
+                                }
+                            }
+                            .padding(24)
+                        }
+                    }
+                    if let error = connections.errorMessage {
+                        Text(error)
+                            .font(DesktopTheme.monoTiny)
+                            .foregroundStyle(.red)
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            } else {
+                ContentUnavailableView(
+                    "Select a Nova session",
+                    systemImage: "sparkles",
+                    description: Text("Choose a company session in the sidebar or create a new one.")
+                )
+            }
+        }
+        .foregroundStyle(DesktopTheme.textSecondary)
+        .background(DesktopTheme.background)
+        .task(id: connections.selectedNovaSessionId) {
+            guard let id = connections.selectedNovaSessionId else { return }
+            while !Task.isCancelled {
+                await connections.syncNovaSession(id)
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+            }
+        }
+    }
+
+    private func header(_ session: NovaSessionSummary) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(session.objective)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(DesktopTheme.textPrimary)
+                    .textSelection(.enabled)
+                HStack(spacing: 8) {
+                    Text(session.status.capitalized)
+                        .font(DesktopTheme.monoTiny)
+                        .foregroundStyle(DesktopTheme.accent)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(DesktopTheme.accentSoft))
+                    if !session.sourceLabel.isEmpty {
+                        Text(session.sourceLabel)
+                            .font(DesktopTheme.monoTiny)
+                            .foregroundStyle(DesktopTheme.textMuted)
+                    }
+                }
+            }
+            Spacer()
+            ForEach(session.surfaces) { surface in
+                if let url = surface.externalUrl {
+                    Link(destination: url) {
+                        Image(systemName: "arrow.up.right.square")
+                    }
+                    .help("Open \(surface.provider.capitalized)")
+                }
+            }
+            Button {
+                Task { await connections.syncNovaSession(session.id) }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.plain)
+            .help("Sync now")
+        }
+        .padding(20)
+        .background(DesktopTheme.panel)
+    }
+
+    private func approvalInbox(_ approvals: [NovaApproval]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Approval required", systemImage: "checkmark.shield")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(DesktopTheme.textPrimary)
+
+            ForEach(approvals) { approval in
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(approval.capability.replacingOccurrences(of: "_", with: " ").capitalized)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(DesktopTheme.textPrimary)
+                        if let mutation = approval.mutation {
+                            Text(mutation.target.description)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(DesktopTheme.textSecondary)
+                            Text(mutation.text)
+                                .font(.system(size: 12))
+                                .foregroundStyle(DesktopTheme.textPrimary)
+                                .lineLimit(4)
+                                .textSelection(.enabled)
+                        }
+                        Text("Run \(approval.runId.prefix(8)) · Expires \(approval.expiresAt)")
+                            .font(DesktopTheme.monoTiny)
+                            .foregroundStyle(DesktopTheme.textMuted)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    Button("Deny", role: .destructive) {
+                        Task { await connections.decideNovaApproval(approval, decision: "denied") }
+                    }
+                    .disabled(connections.decidingApprovalId != nil)
+                    Button("Approve") {
+                        Task { await connections.decideNovaApproval(approval, decision: "approved") }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(DesktopTheme.accent)
+                    .disabled(connections.decidingApprovalId != nil)
+                }
+                .padding(10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(DesktopTheme.panelElevated)
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(DesktopTheme.border))
+                )
+            }
+        }
+        .padding(16)
+        .background(DesktopTheme.panel)
+    }
+
+    @ViewBuilder
+    private func row(_ item: NovaTimelineItem) -> some View {
+        switch item {
+        case .message(let message):
+            HStack {
+                if message.role == "user" { Spacer(minLength: 80) }
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(message.role == "assistant" ? "Nova" : message.role.capitalized)
+                        .font(DesktopTheme.monoTiny)
+                        .foregroundStyle(message.role == "assistant" ? DesktopTheme.accent : DesktopTheme.textMuted)
+                    Text(message.content)
+                        .font(.system(size: 13))
+                        .foregroundStyle(DesktopTheme.textPrimary)
+                        .textSelection(.enabled)
+                }
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(message.role == "user" ? DesktopTheme.userBubble : DesktopTheme.panelElevated)
+                )
+                if message.role != "user" { Spacer(minLength: 40) }
+            }
+        case .activity(let activity):
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: activity.type == "error" ? "exclamationmark.triangle" : "waveform.path.ecg")
+                    .foregroundStyle(activity.type == "error" ? Color.red : DesktopTheme.accent)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(activity.title ?? activity.type.replacingOccurrences(of: "_", with: " ").capitalized)
+                        .font(.system(size: 12, weight: .semibold))
+                    if let body = activity.body, !body.isEmpty {
+                        Text(body)
+                            .font(.system(size: 12))
+                            .foregroundStyle(DesktopTheme.textMuted)
+                            .textSelection(.enabled)
+                    }
+                }
+                Spacer()
+                Text(activity.status.capitalized)
+                    .font(DesktopTheme.monoTiny)
+                    .foregroundStyle(DesktopTheme.textMuted)
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(DesktopTheme.panel)
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(DesktopTheme.border))
+            )
+        }
     }
 }

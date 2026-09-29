@@ -20,31 +20,72 @@ export async function ensureUserOrganization(userId: string): Promise<string> {
   }
 
   if (user.organizationId) {
+    await prisma.organizationMembership.upsert({
+      where: {
+        organizationId_userId: {
+          organizationId: user.organizationId,
+          userId: user.id,
+        },
+      },
+      create: {
+        organizationId: user.organizationId,
+        userId: user.id,
+        role: "owner",
+        status: "active",
+      },
+      update: { status: "active" },
+    })
     return user.organizationId
   }
 
   const baseSlug = slugify(user.email?.split("@")[0] || user.name || user.id)
   const slug = await uniqueOrgSlug(baseSlug)
 
-  const org = await prisma.organization.create({
-    data: {
-      name: user.name?.trim() || user.email || "Personal",
-      slug,
-      users: {
-        connect: { id: userId },
+  return prisma.$transaction(async (tx) => {
+    const current = await tx.user.findUnique({
+      where: { id: userId },
+      select: { organizationId: true },
+    })
+    if (current?.organizationId) {
+      await tx.organizationMembership.upsert({
+        where: {
+          organizationId_userId: {
+            organizationId: current.organizationId,
+            userId,
+          },
+        },
+        create: {
+          organizationId: current.organizationId,
+          userId,
+          role: "owner",
+          status: "active",
+        },
+        update: { status: "active" },
+      })
+      return current.organizationId
+    }
+
+    const org = await tx.organization.create({
+      data: {
+        name: user.name?.trim() || user.email || "Personal",
+        slug,
       },
-    },
-    select: { id: true },
+      select: { id: true },
+    })
+    await tx.user.update({
+      where: { id: userId },
+      data: { organizationId: org.id },
+    })
+    await tx.organizationMembership.create({
+      data: {
+        organizationId: org.id,
+        userId,
+        role: "owner",
+        status: "active",
+      },
+    })
+    return org.id
   })
-
-  // Keep user.organizationId in sync (connect above should set it via relation,
-  // but explicit update is safer if Prisma relation side differs).
-  await prisma.user.update({
-    where: { id: userId },
-    data: { organizationId: org.id },
-  })
-
-  return org.id
 }
 
 function slugify(input: string): string {

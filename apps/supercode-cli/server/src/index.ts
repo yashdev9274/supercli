@@ -443,6 +443,61 @@ app.get("/api/reviews/:id", proxyDesktopReview)
 app.get("/api/reviews/:id/files", proxyDesktopReview)
 app.post("/api/reviews/:id/trigger", proxyDesktopReview)
 
+async function proxyDesktopNova(req: express.Request, res: express.Response) {
+  const user = await getUserFromBearer(req)
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" })
+    return
+  }
+
+  const dashboardUrl = (
+    process.env.SUPERCODE_DASHBOARD_API_URL ||
+    process.env.SUPERCODE_APP_URL ||
+    (process.env.NODE_ENV === "production"
+      ? "https://supercodeai.vercel.app"
+      : "http://localhost:3001")
+  ).replace(/\/$/, "")
+  const suffix = req.originalUrl.replace(/^\/api\/nova/, "")
+
+  try {
+    const response = await fetch(`${dashboardUrl}/api/desktop/nova${suffix}`, {
+      method: req.method,
+      headers: {
+        Authorization: req.headers.authorization!,
+        Accept: "application/json",
+        ...(req.method !== "GET" ? { "Content-Type": "application/json" } : {}),
+      },
+      ...(req.method !== "GET" ? { body: JSON.stringify(req.body ?? {}) } : {}),
+      signal: AbortSignal.timeout(120_000),
+    })
+    const contentType = response.headers.get("content-type") || ""
+    const body = await response.text()
+    if (!contentType.toLowerCase().includes("application/json")) {
+      console.error(
+        `[nova/proxy] Dashboard returned ${response.status} as ${contentType || "unknown content type"} from ${dashboardUrl}`,
+      )
+      res.status(response.ok ? 502 : response.status).json({
+        error: response.status === 404
+          ? "The configured dashboard server does not provide the Nova Desktop API"
+          : "The Nova control plane returned an invalid response",
+      })
+      return
+    }
+    res.status(response.status).type("application/json").send(body)
+  } catch (error) {
+    console.error("[nova/proxy]", error)
+    res.status(502).json({ error: "Nova control plane is temporarily unavailable" })
+  }
+}
+
+app.get("/api/nova/connectors", proxyDesktopNova)
+app.get("/api/nova/approvals", proxyDesktopNova)
+app.post("/api/nova/approvals/:approvalId", proxyDesktopNova)
+app.get("/api/nova/sessions", proxyDesktopNova)
+app.post("/api/nova/sessions", proxyDesktopNova)
+app.get("/api/nova/sessions/:sessionId", proxyDesktopNova)
+app.get("/api/nova/sessions/:sessionId/sync", proxyDesktopNova)
+
 app.get("/api/user/me", async (req, res) => {
   try {
     const user = await getUserFromBearer(req)

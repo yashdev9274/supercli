@@ -5,6 +5,7 @@ import { getAppBaseUrl } from "./app-url"
 export const COMPOSIO_TOOLKIT: Record<IntegrationProvider, string> = {
   slack: "slack",
   linear: "linear",
+  github: "github",
 }
 
 /**
@@ -72,7 +73,10 @@ function authConfigIdFor(provider: IntegrationProvider): string | undefined {
   if (provider === "slack") {
     return process.env.COMPOSIO_SLACK_AUTH_CONFIG_ID?.trim() || undefined
   }
-  return process.env.COMPOSIO_LINEAR_AUTH_CONFIG_ID?.trim() || undefined
+  if (provider === "linear") {
+    return process.env.COMPOSIO_LINEAR_AUTH_CONFIG_ID?.trim() || undefined
+  }
+  return process.env.COMPOSIO_GITHUB_AUTH_CONFIG_ID?.trim() || undefined
 }
 
 export type ComposioConnectStart = {
@@ -265,7 +269,7 @@ async function authorizeViaToolkit(params: {
 }
 
 /**
- * Start Composio hosted OAuth for Slack or Linear.
+ * Start Composio hosted OAuth for a supported provider.
  * 1) Env auth config id + link (custom OAuth)
  * 2) Resolve/create managed auth config + link (keeps our callbackUrl)
  * 3) toolkits.authorize last resort (may not hit our callback)
@@ -341,6 +345,7 @@ export type ComposioAccountSummary = {
   toolkitSlug: string | null
   // Best-effort display metadata when Composio returns it
   displayName: string | null
+  userId: string | null
 }
 
 export async function getComposioConnectedAccount(
@@ -355,6 +360,8 @@ export async function getComposioConnectedAccount(
       // various shapes across SDK versions
       data?: { appName?: string; name?: string }
       params?: Record<string, unknown>
+      userId?: string
+      entityId?: string
     }
     if (!acct?.id) return null
     const displayName =
@@ -366,6 +373,7 @@ export async function getComposioConnectedAccount(
       status: acct.status || "UNKNOWN",
       toolkitSlug: acct.toolkit?.slug ?? null,
       displayName,
+      userId: acct.userId ?? acct.entityId ?? null,
     }
   } catch (error) {
     console.error("getComposioConnectedAccount failed:", error)
@@ -396,6 +404,7 @@ export async function listActiveComposioAccountsForEntity(
         status: a.status,
         toolkitSlug: a.toolkit?.slug ?? null,
         displayName: null,
+        userId: a.userId ?? entityId,
       }))
   } catch (error) {
     // Fallback: list all and filter client-side if userIds filter unsupported
@@ -421,6 +430,7 @@ export async function listActiveComposioAccountsForEntity(
           status: a.status,
           toolkitSlug: a.toolkit?.slug ?? null,
           displayName: null,
+          userId: a.userId ?? a.entityId ?? null,
         }))
     } catch (err2) {
       console.error("listActiveComposioAccountsForEntity bare list failed:", err2)
