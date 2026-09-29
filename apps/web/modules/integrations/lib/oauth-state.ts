@@ -16,11 +16,16 @@ function getStateSecret(): string {
  * Signed CSRF state: base64url(payload).base64url(hmac)
  * payload = { userId, provider, exp }
  */
-export function createOAuthState(userId: string, provider: "slack" | "linear"): string {
+export function createOAuthState(
+  userId: string,
+  provider: "slack" | "linear" | "github",
+  returnTo: "desktop" | "web" = "web",
+): string {
   const payload = Buffer.from(
     JSON.stringify({
       userId,
       provider,
+      returnTo,
       exp: Date.now() + STATE_TTL_MS,
     }),
     "utf8",
@@ -35,8 +40,8 @@ export function createOAuthState(userId: string, provider: "slack" | "linear"): 
 
 export function verifyOAuthState(
   state: string,
-  expectedProvider: "slack" | "linear",
-): { userId: string } | null {
+  expectedProvider: "slack" | "linear" | "github",
+): { userId: string; returnTo: "desktop" | "web" } | null {
   const parts = state.split(".")
   if (parts.length !== 2) return null
   const [payload, sig] = parts
@@ -59,10 +64,14 @@ export function verifyOAuthState(
       userId?: string
       provider?: string
       exp?: number
+      returnTo?: string
     }
     if (!data.userId || data.provider !== expectedProvider) return null
     if (typeof data.exp !== "number" || Date.now() > data.exp) return null
-    return { userId: data.userId }
+    return {
+      userId: data.userId,
+      returnTo: data.returnTo === "desktop" ? "desktop" : "web",
+    }
   } catch {
     return null
   }

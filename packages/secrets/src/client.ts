@@ -2,19 +2,30 @@ import { InfisicalSDK } from "@infisical/sdk"
 import { resolveToken } from "./resolve-token"
 import type { AppId } from "./resolve-token"
 
-let shared: InfisicalSDK | null = null
+let sharedTokenClient: InfisicalSDK | null = null
 
-export function getClient(app: AppId): InfisicalSDK {
-  if (!shared) {
+export async function getClient(app: AppId): Promise<InfisicalSDK> {
+  try {
     const { token } = resolveToken(app)
-    shared = new InfisicalSDK({
+    if (!sharedTokenClient) {
+      sharedTokenClient = new InfisicalSDK({
+        siteUrl: process.env.INFISICAL_SITE_URL ?? "https://app.infisical.com",
+      }).auth().accessToken(token)
+    }
+    return sharedTokenClient
+  } catch (error) {
+    const clientId = process.env.INFISICAL_CLIENT_ID
+    const clientSecret = process.env.INFISICAL_CLIENT_SECRET
+    if (!clientId || !clientSecret) throw error
+
+    const client = new InfisicalSDK({
       siteUrl: process.env.INFISICAL_SITE_URL ?? "https://app.infisical.com",
     })
-    shared.authenticate(token)
+    await client.auth().universalAuth.login({ clientId, clientSecret })
+    return client
   }
-  return shared
 }
 
 export function resetClient(): void {
-  shared = null
+  sharedTokenClient = null
 }

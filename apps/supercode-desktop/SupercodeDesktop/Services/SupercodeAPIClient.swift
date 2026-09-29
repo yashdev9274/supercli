@@ -372,6 +372,80 @@ actor SupercodeAPIClient {
 
     // MARK: - Connections
 
+    func listNovaConnectors() async throws -> [NovaConnectorStatus] {
+        let (data, http) = try await request("GET", path: "/api/nova/connectors")
+        try Self.requireJSON(http)
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(Self.serverMessage(from: data, statusCode: http.statusCode))
+        }
+        return try decoder.decode(NovaConnectorsResponse.self, from: data).connectors
+    }
+
+    func listNovaSessions() async throws -> [NovaSessionSummary] {
+        let (data, http) = try await request("GET", path: "/api/nova/sessions")
+        try Self.requireJSON(http)
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(Self.serverMessage(from: data, statusCode: http.statusCode))
+        }
+        return try decoder.decode(NovaSessionsResponse.self, from: data).sessions
+    }
+
+    func createNovaSession(objective: String, mode: String = "chat") async throws -> NovaSessionSummary {
+        let payload = try JSONSerialization.data(withJSONObject: [
+            "objective": objective,
+            "mode": mode,
+        ])
+        let (data, http) = try await request("POST", path: "/api/nova/sessions", body: payload)
+        try Self.requireJSON(http)
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(Self.serverMessage(from: data, statusCode: http.statusCode))
+        }
+        return try decoder.decode(NovaSessionResponse.self, from: data).session
+    }
+
+    func syncNovaSession(id: String, after sequence: Int, limit: Int = 100) async throws -> NovaSessionSync {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let path = "/api/nova/sessions/\(encoded)/sync?after=\(max(0, sequence))&limit=\(max(1, limit))"
+        let (data, http) = try await request("GET", path: path)
+        try Self.requireJSON(http)
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(Self.serverMessage(from: data, statusCode: http.statusCode))
+        }
+        return try decoder.decode(NovaSessionSync.self, from: data)
+    }
+
+    func listNovaApprovals() async throws -> [NovaApproval] {
+        let (data, http) = try await request("GET", path: "/api/nova/approvals")
+        try Self.requireJSON(http)
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(Self.serverMessage(from: data, statusCode: http.statusCode))
+        }
+        return try decoder.decode(NovaApprovalsResponse.self, from: data).approvals
+    }
+
+    func decideNovaApproval(_ approval: NovaApproval, decision: String) async throws -> NovaApproval {
+        let encoded = approval.id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? approval.id
+        let decisionPayload: [String: Any] = [
+            "decision": decision,
+            "sessionId": approval.sessionId,
+            "runId": approval.runId,
+            "toolInvocationId": approval.toolInvocationId ?? NSNull(),
+            "capability": approval.capability,
+            "normalizedArgsHash": approval.normalizedArgsHash,
+        ]
+        let payload = try JSONSerialization.data(withJSONObject: decisionPayload)
+        let (data, http) = try await request(
+            "POST",
+            path: "/api/nova/approvals/\(encoded)",
+            body: payload
+        )
+        try Self.requireJSON(http)
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(Self.serverMessage(from: data, statusCode: http.statusCode))
+        }
+        return try decoder.decode(NovaApprovalResponse.self, from: data).approval
+    }
+
     func listConnectedApps() async throws -> [ConnectedApp] {
         let (data, http) = try await request("POST", path: "/api/composio/apps", body: Data("{}".utf8))
         try Self.requireJSON(http)

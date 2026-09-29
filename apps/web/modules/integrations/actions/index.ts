@@ -44,10 +44,12 @@ function toStatus(
   } | null,
 ): IntegrationStatus {
   const connected = Boolean(row?.isActive && row?.composioConnectedAccountId)
-  const teamName =
-    provider === "slack" ? row?.slackTeamName ?? null : row?.linearTeamName ?? null
-  const teamId =
-    provider === "slack" ? row?.slackTeamId ?? null : row?.linearTeamId ?? null
+  const teamName = provider === "slack"
+    ? row?.slackTeamName ?? null
+    : provider === "linear" ? row?.linearTeamName ?? null : null
+  const teamId = provider === "slack"
+    ? row?.slackTeamId ?? null
+    : provider === "linear" ? row?.linearTeamId ?? null : null
 
   return {
     provider,
@@ -63,6 +65,7 @@ function toStatus(
 export async function getIntegrationStatuses(): Promise<{
   slack: IntegrationStatus
   linear: IntegrationStatus
+  github: IntegrationStatus
   composioConfigured: boolean
 } | null> {
   try {
@@ -74,6 +77,7 @@ export async function getIntegrationStatuses(): Promise<{
       return {
         slack: toStatus("slack", null),
         linear: toStatus("linear", null),
+        github: toStatus("github", null),
         composioConfigured,
       }
     }
@@ -81,16 +85,18 @@ export async function getIntegrationStatuses(): Promise<{
     const rows = await prisma.integration.findMany({
       where: {
         organizationId,
-        provider: { in: ["slack", "linear"] },
+        provider: { in: ["slack", "linear", "github"] },
       },
     })
 
     const slack = rows.find((r) => r.provider === "slack") ?? null
     const linear = rows.find((r) => r.provider === "linear") ?? null
+    const github = rows.find((r) => r.provider === "github") ?? null
 
     return {
       slack: toStatus("slack", slack),
       linear: toStatus("linear", linear),
+      github: toStatus("github", github),
       composioConfigured,
     }
   } catch (error) {
@@ -161,7 +167,7 @@ export async function upsertComposioIntegration(params: {
     })
   }
 
-  return prisma.integration.upsert({
+  if (params.provider === "linear") return prisma.integration.upsert({
     where: {
       organizationId_provider: {
         organizationId,
@@ -180,6 +186,21 @@ export async function upsertComposioIntegration(params: {
       linearTeamName: params.teamName ?? undefined,
       linearTeamId: params.teamId ?? undefined,
     },
+  })
+
+  return prisma.integration.upsert({
+    where: {
+      organizationId_provider: {
+        organizationId,
+        provider: "github",
+      },
+    },
+    create: {
+      organizationId,
+      provider: "github",
+      ...base,
+    },
+    update: base,
   })
 }
 

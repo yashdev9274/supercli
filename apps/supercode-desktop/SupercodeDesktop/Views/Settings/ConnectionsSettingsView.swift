@@ -20,7 +20,7 @@ struct ConnectionsSettingsView: View {
                     Text("Connections")
                         .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(DesktopTheme.textPrimary)
-                    Text("Connect external services and use their MCP tools in Supercode Desktop.")
+                    Text("Connect the apps Nova can read and update through Composio.")
                         .font(.system(size: 13))
                         .foregroundStyle(DesktopTheme.textSecondary)
                 }
@@ -42,9 +42,9 @@ struct ConnectionsSettingsView: View {
                 Image(systemName: "sparkles")
                     .foregroundStyle(DesktopTheme.accent)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Connected tools are available to the agent")
+                    Text("Nova connections")
                         .font(.system(size: 12, weight: .semibold))
-                    Text("\(connections.connectedCount) services · \(connections.availableToolCount) tools")
+                    Text("\(connections.connectedCount) connected apps · \(connections.availableToolCount) available tools")
                         .font(.system(size: 11))
                         .foregroundStyle(DesktopTheme.textSecondary)
                 }

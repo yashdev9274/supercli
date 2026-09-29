@@ -12,7 +12,7 @@ export function getAppBaseUrl(): string {
 }
 
 export function getIntegrationsSettingsUrl(params?: {
-  connected?: "slack" | "linear"
+  connected?: "slack" | "linear" | "github"
   error?: string
 }): string {
   const base = `${getAppBaseUrl()}/dashboard/integrations`
