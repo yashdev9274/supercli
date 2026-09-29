@@ -23,11 +23,20 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users               User[]
-  integrations        Integration[]
-  repositories        Repository[]
-  conversations       Conversation[]
-  vercelInstallations VercelInstallation[]
+  users                    User[]
+  integrations             Integration[]
+  repositories             Repository[]
+  conversations            Conversation[]
+  vercelInstallations      VercelInstallation[]
+  memberships              OrganizationMembership[]
+  externalInstallations    ExternalInstallation[]
+  userDelegatedConnections UserDelegatedConnection[]
+  agentSessions            AgentSession[]
+  inboundEvents            InboundEvent[]
+  outboxEvents             NovaOutboxEvent[]
+  auditEvents              NovaAuditEvent[]
+  usageLedger              NovaUsageLedger[]
+  desktopDevices           DesktopDevice[]
 
   @@map("organization")
 }
@@ -47,6 +56,8 @@ model User {
   respositories           Repository[]
   whatsAppIdentities      WhatsAppIdentity[]
   whatsAppLinkChallenges  WhatsAppLinkChallenge[]
+  organizationMemberships OrganizationMembership[]
+  desktopDevices          DesktopDevice[]
 
   @@unique([email])
   @@index([organizationId])
@@ -176,6 +187,486 @@ model Message {
 
   @@index([conversationId])
   @@map("message")
+}
+
+model OrganizationMembership {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String       @default("member") // owner | admin | member | guest
+  status         String       @default("active") // invited | active | suspended
+  capabilities   Json?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  externalIdentities      ExternalIdentity[]
+  delegatedConnections    UserDelegatedConnection[]
+  initiatedAgentSessions  AgentSession[]
+
+  @@unique([organizationId, userId])
+  @@index([userId, status])
+  @@index([organizationId, role])
+  @@map("organization_membership")
+}
+
+model ExternalInstallation {
+  id                 String       @id @default(cuid())
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider           String // slack | linear | github | future connector slug
+  externalAccountId  String
+  externalAccountName String?
+  botExternalUserId  String?
+  status             String       @default("pending") // pending | active | permission_missing | unhealthy | revoked
+  grantedScopes      Json?
+  missingScopes      Json?
+  webhookStatus      String       @default("pending") // pending | healthy | failing | disabled
+  credentialRef      String? // encrypted secret-manager reference; never a raw token
+  config             Json?
+  installedAt        DateTime?
+  lastHealthCheckAt  DateTime?
+  lastEventAt        DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  identities          ExternalIdentity[]
+  delegatedConnections UserDelegatedConnection[]
+  sessionSurfaces     SessionSurface[]
+  inboundEvents       InboundEvent[]
+  deliveryAttempts    DeliveryAttempt[]
+
+  @@unique([organizationId, provider, externalAccountId])
+  @@index([organizationId, provider, status])
+  @@index([provider, externalAccountId])
+  @@map("external_installation")
+}
+
+model UserDelegatedConnection {
+  id                 String                 @id @default(cuid())
+  organizationId     String
+  organization       Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  membershipId       String
+  membership         OrganizationMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  installationId     String?
+  installation       ExternalInstallation?  @relation(fields: [installationId], references: [id], onDelete: SetNull)
+  provider           String
+  externalAccountId  String
+  grantedScopes      Json?
+  credentialRef      String?
+  status             String                 @default("active")
+  expiresAt          DateTime?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  @@unique([membershipId, provider, externalAccountId])
+  @@index([organizationId, provider, status])
+  @@index([installationId])
+  @@map("user_delegated_connection")
+}
+
+model ExternalIdentity {
+  id                 String                 @id @default(cuid())
+  membershipId       String
+  membership         OrganizationMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  installationId     String
+  installation       ExternalInstallation   @relation(fields: [installationId], references: [id], onDelete: Cascade)
+  provider           String
+  externalUserId     String
+  displayName        String?
+  email              String?
+  status             String                 @default("verified")
+  verifiedAt         DateTime?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  @@unique([installationId, externalUserId])
+  @@index([membershipId, provider])
+  @@map("external_identity")
+}
+
+model AgentSession {
+  id                    String                  @id @default(cuid())
+  organizationId        String
+  organization          Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  initiatorMembershipId String?
+  initiatorMembership   OrganizationMembership? @relation(fields: [initiatorMembershipId], references: [id], onDelete: SetNull)
+  objective             String                  @db.Text
+  mode                  String                  @default("chat")
+  status                String                  @default("active") // active | sleeping | completed | cancelled | failed
+  policySnapshot        Json?
+  contextVersion        Int                     @default(1)
+  budget                Json?
+  nextSequence          Int                     @default(1)
+  activeRunId           String?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  completedAt           DateTime?
+
+  surfaces       SessionSurface[]
+  messages       AgentSessionMessage[]
+  activities     AgentActivity[]
+  runs           AgentRun[]
+  inboundEvents  InboundEvent[]
+  outboxEvents   NovaOutboxEvent[]
+  artifacts      NovaArtifact[]
+  auditEvents    NovaAuditEvent[]
+  usageLedger    NovaUsageLedger[]
+
+  @@index([organizationId, status, updatedAt])
+  @@index([initiatorMembershipId])
+  @@map("agent_session")
+}
+
+model SessionSurface {
+  id                   String                @id @default(cuid())
+  agentSessionId       String
+  agentSession         AgentSession          @relation(fields: [agentSessionId], references: [id], onDelete: Cascade)
+  installationId       String?
+  installation         ExternalInstallation? @relation(fields: [installationId], references: [id], onDelete: SetNull)
+  provider             String // desktop | slack | linear | github | web
+  surfaceKey           String @unique // deterministic organization/provider/installation/surface identity
+  externalSurfaceId    String
+  externalContainerId  String?
+  externalUrl          String?
+  status               String                @default("active")
+  lastInboundAt        DateTime?
+  lastOutboundAt       DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  messages      AgentSessionMessage[]
+  activities    AgentActivity[]
+  inboundEvents InboundEvent[]
+
+  @@index([provider, externalSurfaceId, installationId])
+  @@index([agentSessionId, status])
+  @@index([installationId])
+  @@map("session_surface")
+}
+
+model AgentSessionMessage {
+  id             String         @id @default(cuid())
+  agentSessionId String
+  agentSession   AgentSession   @relation(fields: [agentSessionId], references: [id], onDelete: Cascade)
+  surfaceId      String?
+  surface        SessionSurface? @relation(fields: [surfaceId], references: [id], onDelete: SetNull)
+  sequence       Int
+  role           String
+  content        String         @db.Text
+  senderType     String?
+  senderId       String?
+  originEventId  String?
+  externalId     String?
+  metadata       Json?
+  createdAt      DateTime       @default(now())
+
+  @@unique([agentSessionId, sequence])
+  @@unique([surfaceId, externalId])
+  @@index([agentSessionId, createdAt])
+  @@map("agent_session_message")
+}
+
+model AgentActivity {
+  id             String          @id @default(cuid())
+  agentSessionId String
+  agentSession   AgentSession    @relation(fields: [agentSessionId], references: [id], onDelete: Cascade)
+  surfaceId      String?
+  surface        SessionSurface? @relation(fields: [surfaceId], references: [id], onDelete: SetNull)
+  runId          String?
+  run            AgentRun?       @relation(fields: [runId], references: [id], onDelete: SetNull)
+  sequence       Int
+  type           String // acknowledgement | plan | action | approval_request | response | error | result
+  status         String          @default("created")
+  title          String?
+  body           String?         @db.Text
+  data           Json?
+  visibility     String          @default("company")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  deliveryAttempts DeliveryAttempt[]
+
+  @@unique([agentSessionId, sequence])
+  @@index([runId, createdAt])
+  @@map("agent_activity")
+}
+
+model InboundEvent {
+  id                 String                @id @default(cuid())
+  organizationId     String
+  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  installationId     String?
+  installation       ExternalInstallation? @relation(fields: [installationId], references: [id], onDelete: SetNull)
+  agentSessionId     String?
+  agentSession       AgentSession?         @relation(fields: [agentSessionId], references: [id], onDelete: SetNull)
+  surfaceId          String?
+  surface            SessionSurface?       @relation(fields: [surfaceId], references: [id], onDelete: SetNull)
+  provider           String
+  providerDeliveryId String
+  eventType          String
+  actorExternalId    String?
+  payload            Json
+  payloadVersion     String                 @default("1")
+  verificationState  String                 @default("verified")
+  status             String                 @default("pending") // pending | processing | completed | failed | ignored
+  attempts           Int                    @default(0)
+  error              String?                @db.Text
+  receivedAt         DateTime               @default(now())
+  processedAt        DateTime?
+  updatedAt          DateTime               @updatedAt
+
+  @@unique([provider, providerDeliveryId])
+  @@index([status, receivedAt])
+  @@index([organizationId, provider, eventType])
+  @@map("inbound_event")
+}
+
+model AgentRun {
+  id               String       @id @default(cuid())
+  agentSessionId   String
+  agentSession     AgentSession @relation(fields: [agentSessionId], references: [id], onDelete: Cascade)
+  parentRunId      String?
+  status           String       @default("queued")
+  executionTarget  String         @default("none") // none | desktop | remote_sandbox
+  desktopDeviceId  String?
+  desktopDevice    DesktopDevice? @relation(fields: [desktopDeviceId], references: [id], onDelete: SetNull)
+  policySnapshot   Json?
+  budget           Json?
+  version          Int          @default(1)
+  cancellationAt   DateTime?
+  cancellationReason String?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  activities       AgentActivity[]
+  toolInvocations  ToolInvocation[]
+  approvals        ApprovalRequest[]
+  artifacts        NovaArtifact[]
+  capabilityLeases CapabilityLease[]
+  usageLedger      NovaUsageLedger[]
+
+  @@index([agentSessionId, status, createdAt])
+  @@index([desktopDeviceId, status])
+  @@map("agent_run")
+}
+
+model ToolInvocation {
+  id                 String       @id @default(cuid())
+  runId              String
+  run                AgentRun     @relation(fields: [runId], references: [id], onDelete: Cascade)
+  idempotencyKey     String       @unique
+  toolName           String
+  capability         String
+  riskClass          String
+  normalizedArgsHash String
+  arguments          Json
+  status             String       @default("pending")
+  result              Json?
+  error               String?      @db.Text
+  startedAt           DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  approvals ApprovalRequest[]
+
+  @@index([runId, status, createdAt])
+  @@map("tool_invocation")
+}
+
+model ApprovalRequest {
+  id                   String          @id @default(cuid())
+  runId                String
+  run                  AgentRun        @relation(fields: [runId], references: [id], onDelete: Cascade)
+  toolInvocationId     String?
+  toolInvocation       ToolInvocation? @relation(fields: [toolInvocationId], references: [id], onDelete: Cascade)
+  approverMembershipId String?
+  capability           String
+  normalizedArgsHash   String
+  status               String          @default("pending") // pending | approved | denied | expired | cancelled
+  tokenHash            String?         @unique
+  expiresAt            DateTime
+  decidedAt            DateTime?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  @@index([runId, status])
+  @@index([approverMembershipId, status])
+  @@map("approval_request")
+}
+
+model NovaArtifact {
+  id             String       @id @default(cuid())
+  agentSessionId String
+  agentSession   AgentSession @relation(fields: [agentSessionId], references: [id], onDelete: Cascade)
+  runId          String?
+  run            AgentRun?    @relation(fields: [runId], references: [id], onDelete: SetNull)
+  type           String
+  name           String
+  uri            String?
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+
+  @@index([agentSessionId, type, createdAt])
+  @@index([runId])
+  @@map("nova_artifact")
+}
+
+model DeliveryAttempt {
+  id             String                @id @default(cuid())
+  installationId String?
+  installation   ExternalInstallation? @relation(fields: [installationId], references: [id], onDelete: SetNull)
+  activityId     String
+  activity       AgentActivity         @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  idempotencyKey String                @unique
+  provider       String
+  status         String                @default("pending")
+  externalId     String?
+  attempts       Int                   @default(0)
+  nextAttemptAt  DateTime?
+  error          String?               @db.Text
+  deliveredAt    DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([activityId])
+  @@map("delivery_attempt")
+}
+
+model NovaOutboxEvent {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agentSessionId String?
+  agentSession   AgentSession? @relation(fields: [agentSessionId], references: [id], onDelete: Cascade)
+  topic          String
+  idempotencyKey String       @unique
+  payload        Json
+  status         String       @default("pending")
+  attempts       Int          @default(0)
+  availableAt    DateTime     @default(now())
+  processedAt    DateTime?
+  error          String?      @db.Text
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([status, availableAt])
+  @@index([organizationId, topic])
+  @@map("nova_outbox_event")
+}
+
+model NovaAuditEvent {
+  id             String        @id @default(cuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agentSessionId String?
+  agentSession   AgentSession? @relation(fields: [agentSessionId], references: [id], onDelete: SetNull)
+  actorType      String
+  actorId        String?
+  action         String
+  resourceType   String
+  resourceId     String?
+  decision       String?
+  reason         String?
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([agentSessionId, createdAt])
+  @@map("nova_audit_event")
+}
+
+model NovaUsageLedger {
+  id             String        @id @default(cuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agentSessionId String?
+  agentSession   AgentSession? @relation(fields: [agentSessionId], references: [id], onDelete: SetNull)
+  runId          String?
+  run            AgentRun?     @relation(fields: [runId], references: [id], onDelete: SetNull)
+  kind           String
+  quantity       Decimal       @db.Decimal(18, 6)
+  unit           String
+  reservationKey String?       @unique
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([runId, kind])
+  @@map("nova_usage_ledger")
+}
+
+model DesktopDevice {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  devicePublicId String       @unique
+  displayName    String
+  status         String       @default("offline")
+  appVersion     String?
+  publicKey      String?      @db.Text
+  lastSeenAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  workspaceBindings WorkspaceBinding[]
+  agentRuns         AgentRun[]
+  capabilityLeases CapabilityLease[]
+
+  @@index([organizationId, status, lastSeenAt])
+  @@index([userId])
+  @@map("desktop_device")
+}
+
+model WorkspaceBinding {
+  id               String        @id @default(cuid())
+  desktopDeviceId  String
+  desktopDevice    DesktopDevice @relation(fields: [desktopDeviceId], references: [id], onDelete: Cascade)
+  opaqueBindingId  String        @unique
+  displayName      String
+  repositoryFullName String?
+  repositoryId     String?
+  gitRemoteHash    String?
+  status           String        @default("active")
+  lastUsedAt       DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  capabilityLeases CapabilityLease[]
+
+  @@index([desktopDeviceId, status])
+  @@index([repositoryId])
+  @@map("workspace_binding")
+}
+
+model CapabilityLease {
+  id                 String           @id @default(cuid())
+  runId              String
+  run                AgentRun         @relation(fields: [runId], references: [id], onDelete: Cascade)
+  desktopDeviceId    String
+  desktopDevice      DesktopDevice    @relation(fields: [desktopDeviceId], references: [id], onDelete: Cascade)
+  workspaceBindingId String
+  workspaceBinding   WorkspaceBinding @relation(fields: [workspaceBindingId], references: [id], onDelete: Cascade)
+  tokenHash          String           @unique
+  capabilities       Json
+  constraints        Json?
+  status             String           @default("active")
+  expiresAt          DateTime
+  lastUsedAt         DateTime?
+  revokedAt          DateTime?
+  createdAt          DateTime         @default(now())
+
+  @@index([runId, status])
+  @@index([desktopDeviceId, expiresAt])
+  @@map("capability_lease")
 }
 
 model WhatsAppIdentity {

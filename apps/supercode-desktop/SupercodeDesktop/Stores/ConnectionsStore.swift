@@ -6,6 +6,12 @@ final class ConnectionsStore: ObservableObject {
     static let shared = ConnectionsStore()
 
     @Published private(set) var apps: [ConnectedApp] = []
+    @Published private(set) var novaSessions: [NovaSessionSummary] = []
+    @Published private(set) var novaMessages: [String: [NovaSessionMessage]] = [:]
+    @Published private(set) var novaActivities: [String: [NovaSessionActivity]] = [:]
+    @Published private(set) var novaApprovals: [NovaApproval] = []
+    @Published var selectedNovaSessionId: String?
+    @Published private(set) var decidingApprovalId: String?
     @Published private(set) var isLoading = false
     @Published private(set) var connectingSlug: String?
     @Published private(set) var disconnectingSlug: String?
@@ -14,9 +20,21 @@ final class ConnectionsStore: ObservableObject {
     private var tools: [ComposioToolDefinition] = []
     private var hasLoadedTools = false
     private var connectionTask: Task<Void, Never>?
+    private var novaCursors: [String: Int] = [:]
 
     var connectedCount: Int { apps.filter(\.connected).count }
     var availableToolCount: Int { tools.count }
+    var selectedNovaSession: NovaSessionSummary? {
+        guard let selectedNovaSessionId else { return nil }
+        return novaSessions.first { $0.id == selectedNovaSessionId }
+    }
+    var pendingNovaApprovals: [NovaApproval] {
+        novaApprovals.filter(\.isPending)
+    }
+
+    func approvals(for sessionId: String) -> [NovaApproval] {
+        pendingNovaApprovals.filter { $0.sessionId == sessionId }
+    }
 
     func cachedToolDefinitions(for mode: AgentMode) -> [[String: Any]] {
         tools
@@ -32,8 +50,18 @@ final class ConnectionsStore: ObservableObject {
         errorMessage = nil
         defer { isLoading = false }
         do {
-            apps = try await SupercodeAPIClient.shared.listConnectedApps()
-            tools = try await SupercodeAPIClient.shared.listComposioTools()
+            async let sessionsRequest = SupercodeAPIClient.shared.listNovaSessions()
+            async let approvalsRequest = SupercodeAPIClient.shared.listNovaApprovals()
+            async let appsRequest = SupercodeAPIClient.shared.listConnectedApps()
+            async let toolsRequest = SupercodeAPIClient.shared.listComposioTools()
+            novaSessions = try await sessionsRequest
+            novaApprovals = try await approvalsRequest
+            if let selectedNovaSessionId,
+               !novaSessions.contains(where: { $0.id == selectedNovaSessionId }) {
+                self.selectedNovaSessionId = nil
+            }
+            apps = try await appsRequest
+            tools = try await toolsRequest
             hasLoadedTools = true
         } catch {
             errorMessage = error.localizedDescription
@@ -43,6 +71,72 @@ final class ConnectionsStore: ObservableObject {
     func loadToolsIfNeeded() async {
         guard !hasLoadedTools else { return }
         await refresh()
+    }
+
+    func selectNovaSession(_ sessionId: String) async {
+        selectedNovaSessionId = sessionId
+        await syncNovaSession(sessionId)
+    }
+
+    func createNovaSession(objective: String) async -> NovaSessionSummary? {
+        do {
+            let session = try await SupercodeAPIClient.shared.createNovaSession(objective: objective)
+            novaSessions.removeAll { $0.id == session.id }
+            novaSessions.insert(session, at: 0)
+            selectedNovaSessionId = session.id
+            await syncNovaSession(session.id)
+            return session
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    func syncNovaSession(_ sessionId: String) async {
+        do {
+            async let approvalsRequest = SupercodeAPIClient.shared.listNovaApprovals()
+            var cursor = novaCursors[sessionId] ?? 0
+            repeat {
+                let page = try await SupercodeAPIClient.shared.syncNovaSession(id: sessionId, after: cursor)
+                var messages = novaMessages[sessionId] ?? []
+                var activities = novaActivities[sessionId] ?? []
+                let messageIds = Set(messages.map(\.id))
+                let activityIds = Set(activities.map(\.id))
+                messages.append(contentsOf: page.messages.filter { !messageIds.contains($0.id) })
+                activities.append(contentsOf: page.activities.filter { !activityIds.contains($0.id) })
+                novaMessages[sessionId] = messages.sorted { $0.sequence < $1.sequence }
+                novaActivities[sessionId] = activities.sorted { $0.sequence < $1.sequence }
+                cursor = page.nextSequence
+                novaCursors[sessionId] = cursor
+                if !page.hasMore { break }
+            } while !Task.isCancelled
+            novaApprovals = try await approvalsRequest
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func decideNovaApproval(_ approval: NovaApproval, decision: String) async {
+        guard decidingApprovalId == nil, approval.isPending else { return }
+        decidingApprovalId = approval.id
+        errorMessage = nil
+        defer { decidingApprovalId = nil }
+        do {
+            let updated = try await SupercodeAPIClient.shared.decideNovaApproval(
+                approval,
+                decision: decision
+            )
+            if let index = novaApprovals.firstIndex(where: { $0.id == updated.id }) {
+                novaApprovals[index] = updated
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+            try? await refreshNovaApprovals()
+        }
+    }
+
+    func refreshNovaApprovals() async throws {
+        novaApprovals = try await SupercodeAPIClient.shared.listNovaApprovals()
     }
 
     func connect(_ app: ConnectedApp) {
@@ -146,6 +240,13 @@ final class ConnectionsStore: ObservableObject {
         connectionTask?.cancel()
         connectionTask = nil
         apps = []
+        novaSessions = []
+        novaMessages = [:]
+        novaActivities = [:]
+        novaApprovals = []
+        selectedNovaSessionId = nil
+        decidingApprovalId = nil
+        novaCursors = [:]
         tools = []
         hasLoadedTools = false
         connectingSlug = nil

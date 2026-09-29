@@ -10,14 +10,19 @@ import type { IntegrationProvider } from "../actions/schema"
 export async function beginProviderConnect(params: {
   userId: string
   provider: IntegrationProvider
-}): Promise<{ ok: true; redirectUrl: string } | { ok: false; error: string }> {
+  returnTo?: "desktop" | "web"
+}): Promise<{
+  ok: true
+  redirectUrl: string
+  connectionRequestId: string
+} | { ok: false; error: string }> {
   if (!isComposioConfigured()) {
     return { ok: false, error: "composio_not_configured" }
   }
 
   try {
     const organizationId = await ensureUserOrganization(params.userId)
-    const state = createOAuthState(params.userId, params.provider)
+    const state = createOAuthState(params.userId, params.provider, params.returnTo)
     const callbackUrl = getProviderCallbackUrl(params.provider, { state })
 
     const started = await startComposioConnect({
@@ -26,7 +31,11 @@ export async function beginProviderConnect(params: {
       callbackUrl,
     })
 
-    return { ok: true, redirectUrl: started.redirectUrl }
+    return {
+      ok: true,
+      redirectUrl: started.redirectUrl,
+      connectionRequestId: started.connectionRequestId,
+    }
   } catch (error) {
     const detail =
       error instanceof Error
