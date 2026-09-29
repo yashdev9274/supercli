@@ -80,14 +80,6 @@ export class ComposioSessionManager {
     const info = (await res.json()) as ComposioSessionInfo
     this.session = info
 
-    if (info.apiKey && !this.composio) {
-      try {
-        this.composio = new Composio({ apiKey: info.apiKey })
-      } catch {
-        // SDK init from server key failed — listApps won't work locally
-      }
-    }
-
     return info
   }
 

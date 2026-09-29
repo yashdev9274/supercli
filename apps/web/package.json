@@ -51,6 +51,8 @@
     "@super/db": "workspace:*",
     "@super/db-terminal": "workspace:*",
     "@super/embeddings-sdk": "workspace:*",
+    "@super/nova": "workspace:*",
+    "@super/secrets": "workspace:*",
     "@super/whatsapp": "workspace:*",
     "@tanstack/react-query": "^5.90.17",
     "@vercel/analytics": "^1.6.1",
@@ -96,6 +98,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/bun": "^1.3.14",
     "@types/mdx": "^2.0.14",
     "@types/node": "^20",
     "@types/nodemailer": "^8.0.1",

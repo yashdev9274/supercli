@@ -184,27 +184,38 @@ export function IntegrationsPage() {
   useEffect(() => {
     const connected = searchParams.get("connected")
     const error = searchParams.get("integration_error")
-    if (connected === "slack" || connected === "linear") {
-      toast.success(
-        connected === "slack"
-          ? "Slack connected via Composio"
-          : "Linear connected via Composio — choose a workspace",
-      )
-      queryClient.invalidateQueries({ queryKey: ["integration-statuses"] })
-      if (connected === "linear") {
-        setPromptLinearTeamAfterConnect(true)
-      }
-      const url = new URL(window.location.href)
-      url.searchParams.delete("connected")
-      url.searchParams.delete("integration_error")
-      window.history.replaceState({}, "", url.pathname + url.search)
-    } else if (error) {
-      toast.error(`Integration error: ${error.replaceAll("_", " ")}`)
-      const url = new URL(window.location.href)
-      url.searchParams.delete("integration_error")
-      url.searchParams.delete("connected")
-      window.history.replaceState({}, "", url.pathname + url.search)
+    if (
+      connected !== "slack" &&
+      connected !== "linear" &&
+      !error
+    ) {
+      return
     }
+    // Defer past the synchronous effect body to avoid a cascading render.
+    const timer = setTimeout(() => {
+      if (connected === "slack" || connected === "linear") {
+        toast.success(
+          connected === "slack"
+            ? "Slack connected via Composio"
+            : "Linear connected via Composio — choose a workspace",
+        )
+        queryClient.invalidateQueries({ queryKey: ["integration-statuses"] })
+        if (connected === "linear") {
+          setPromptLinearTeamAfterConnect(true)
+        }
+        const url = new URL(window.location.href)
+        url.searchParams.delete("connected")
+        url.searchParams.delete("integration_error")
+        window.history.replaceState({}, "", url.pathname + url.search)
+      } else if (error) {
+        toast.error(`Integration error: ${error.replaceAll("_", " ")}`)
+        const url = new URL(window.location.href)
+        url.searchParams.delete("integration_error")
+        url.searchParams.delete("connected")
+        window.history.replaceState({}, "", url.pathname + url.search)
+      }
+    }, 0)
+    return () => clearTimeout(timer)
   }, [searchParams, queryClient])
 
   // After Linear OAuth, open workspace picker once statuses are fresh.
@@ -212,8 +223,13 @@ export function IntegrationsPage() {
     if (!promptLinearTeamAfterConnect || isLoading || !data?.linear?.connected) {
       return
     }
-    setPromptLinearTeamAfterConnect(false)
-    void openLinearTeamDialog({ preferredTeamId: data.linear.teamId })
+    // Defer past the synchronous effect body to avoid a cascading render.
+    const teamId = data.linear.teamId
+    const timer = setTimeout(() => {
+      setPromptLinearTeamAfterConnect(false)
+      void openLinearTeamDialog({ preferredTeamId: teamId })
+    }, 0)
+    return () => clearTimeout(timer)
   }, [promptLinearTeamAfterConnect, isLoading, data])
 
   const disconnectMutation = useMutation({

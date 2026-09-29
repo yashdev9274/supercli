@@ -6,7 +6,10 @@ struct SidebarView: View {
     @EnvironmentObject private var workspace: WorkspaceStore
     @EnvironmentObject private var reviewStore: ReviewStore
     @EnvironmentObject private var agentRun: AgentRunStore
+    @EnvironmentObject private var connections: ConnectionsStore
     @State private var showAccountMenu = false
+    @State private var showNewNovaSession = false
+    @State private var newNovaObjective = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -116,6 +119,7 @@ Button {
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 14) {
+                    novaSessionsSection
                     projectsSection
 
                     if !conversations.personalConversations.isEmpty {
@@ -136,8 +140,90 @@ Button {
             accountFooter
         }
         .background(DesktopTheme.panel)
+        .alert("New Nova session", isPresented: $showNewNovaSession) {
+            TextField("What should Nova help with?", text: $newNovaObjective)
+            Button("Cancel", role: .cancel) { newNovaObjective = "" }
+            Button("Create") {
+                let objective = newNovaObjective
+                newNovaObjective = ""
+                Task {
+                    if await connections.createNovaSession(objective: objective) != nil {
+                        reviewStore.showNova()
+                    }
+                }
+            }
+            .disabled(newNovaObjective.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        } message: {
+            Text("This creates a company-aware session that can synchronize with connected provider surfaces.")
+        }
     }
 
+
+    private var novaSessionsSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                sectionHeader("Nova", count: connections.novaSessions.count)
+                if !connections.pendingNovaApprovals.isEmpty {
+                    Text("\(connections.pendingNovaApprovals.count)")
+                        .font(DesktopTheme.monoTiny)
+                        .foregroundStyle(Color.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color.orange))
+                }
+                Button {
+                    showNewNovaSession = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(DesktopTheme.textMuted)
+                }
+                .buttonStyle(.plain)
+                .help("New Nova session")
+                .padding(.trailing, 14)
+            }
+            if connections.novaSessions.isEmpty {
+                Text("No company sessions yet")
+                    .font(.system(size: 11))
+                    .foregroundStyle(DesktopTheme.textMuted)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+            } else {
+                ForEach(connections.novaSessions.prefix(20)) { session in
+                    let selected = reviewStore.destination == .nova && connections.selectedNovaSessionId == session.id
+                    Button {
+                        reviewStore.showNova()
+                        Task { await connections.selectNovaSession(session.id) }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 11))
+                                .foregroundStyle(selected ? DesktopTheme.accent : DesktopTheme.textMuted)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(session.objective)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(DesktopTheme.textPrimary)
+                                    .lineLimit(1)
+                                Text(session.sourceLabel.isEmpty ? session.status.capitalized : session.sourceLabel)
+                                    .font(DesktopTheme.monoTiny)
+                                    .foregroundStyle(DesktopTheme.textMuted)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(selected ? DesktopTheme.panelElevated : Color.clear)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 8)
+                    .help("Sync Nova session activity from every connected surface")
+                }
+            }
+        }
+    }
 
     private var projectsSection: some View {
         VStack(alignment: .leading, spacing: 4) {

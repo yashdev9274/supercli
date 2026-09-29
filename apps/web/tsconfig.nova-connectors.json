@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": false
+  },
+  "include": [
+    "next-env.d.ts",
+    "app/api/desktop/nova/**/*.ts",
+    "app/api/inngest/route.ts",
+    "app/api/nova/connectors/**/*.ts",
+    "app/api/nova/webhooks/**/*.ts",
+    "modules/nova/approvals/**/*.ts",
+    "modules/nova/connectors/**/*.ts",
+    "modules/nova/delivery/**/*.ts",
+    "modules/nova/events/**/*.ts",
+    "modules/nova/mutations/**/*.ts",
+    "modules/nova/providers/**/*.ts",
+    "modules/nova/runs/**/*.ts",
+    "modules/nova/sessions/**/*.ts",
+    "inngest/functions/nova.ts",
+    "../../packages/nova/**/*.ts",
+    "../../packages/secrets/**/*.ts"
+  ],
+  "exclude": ["node_modules", ".next", "**/*.test.ts", "../../packages/**/*.test.ts"]
+}

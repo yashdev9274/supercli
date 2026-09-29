@@ -42,6 +42,10 @@ final class ReviewStore: ObservableObject {
         Task { await refreshList() }
     }
 
+    func showNova() {
+        destination = .nova
+    }
+
     func refreshList() async {
         guard !isLoadingList else { return }
         isLoadingList = true

@@ -3,6 +3,7 @@ import Foundation
 enum DesktopDestination: Equatable {
     case home
     case review
+    case nova
 }
 
 enum PullRequestReviewStatus: String, Codable {

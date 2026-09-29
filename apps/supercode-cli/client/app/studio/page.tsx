@@ -278,7 +278,10 @@ function StudioPage() {
   }, [userId])
 
   useEffect(() => {
-    if (userId) fetchData()
+    if (!userId) return
+    // Defer past the synchronous effect body to avoid a cascading render.
+    const timer = setTimeout(() => fetchData(), 0)
+    return () => clearTimeout(timer)
   }, [userId, fetchData])
 
   const currentTier = currentPlan?.tier ?? "spark"

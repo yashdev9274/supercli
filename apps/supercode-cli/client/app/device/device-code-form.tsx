@@ -7,6 +7,13 @@ import { authClient } from "@/lib/auth-client"
 import { Spinner } from "@/components/ui/spinner"
 import { PixelLogo } from "@/components/ui/pixel-logo"
 
+function formatCode(raw: string) {
+  if (raw.length > 4) {
+    return raw.slice(0, 4) + "-" + raw.slice(4, 8)
+  }
+  return raw
+}
+
 const DeviceCodeForm = () => {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -23,17 +30,12 @@ const DeviceCodeForm = () => {
   useEffect(() => {
     const codeFromUrl = searchParams.get("user_code")
     if (codeFromUrl) {
+      // Defer past the synchronous effect body to avoid a cascading render.
       const formatted = formatCode(codeFromUrl.toUpperCase().replace(/[^A-Z0-9]/g, ""))
-      setUserCode(formatted)
+      const timer = setTimeout(() => setUserCode(formatted), 0)
+      return () => clearTimeout(timer)
     }
   }, [searchParams])
-
-  const formatCode = (raw: string) => {
-    if (raw.length > 4) {
-      return raw.slice(0, 4) + "-" + raw.slice(4, 8)
-    }
-    return raw
-  }
 
   const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")

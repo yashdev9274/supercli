@@ -7,7 +7,6 @@ interface PulseButtonProps {
 }
 
 export function PulseButton({ className, children }: PulseButtonProps) {
-  const [isPressed, setIsPressed] = useState(false);
   const [ripples, setRipples] = useState<Array<{ id: number; x: number; y: number }>>([]);
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -28,9 +27,6 @@ export function PulseButton({ className, children }: PulseButtonProps) {
       
       <button
         onClick={handleClick}
-        onMouseDown={() => setIsPressed(true)}
-        onMouseUp={() => setIsPressed(false)}
-        onMouseLeave={() => setIsPressed(false)}
         className={cn(
           "relative px-8 py-4 bg-zinc-950 border border-zinc-800 overflow-hidden",
           "transition-all duration-150 ease-out",
