@@ -54,6 +54,9 @@ model User {
   sessions                Session[]
   accounts                Account[]
   respositories           Repository[]
+  reviewRuns              ReviewRun[]
+  reviewCreditPeriods     ReviewCreditPeriod[]
+  reviewCreditEntries     ReviewCreditEntry[]
   whatsAppIdentities      WhatsAppIdentity[]
   whatsAppLinkChallenges  WhatsAppLinkChallenge[]
   organizationMemberships OrganizationMembership[]
@@ -76,6 +79,7 @@ model Repository {
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   reviews        Review[]
+  reviewRuns     ReviewRun[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -99,10 +103,79 @@ model Review {
   conversations      Conversation[]
   whatsAppDeliveries WhatsAppDelivery[]
   whatsAppActions    WhatsAppAction[]
+  reviewRuns         ReviewRun[]
 
   @@unique([repositoryId, prNumber])
   @@index([repositoryId])
   @@map("review")
+}
+
+model ReviewRun {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repositoryId String
+  repository   Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  reviewId     String?
+  review       Review?    @relation(fields: [reviewId], references: [id], onDelete: SetNull)
+  prNumber     Int
+  headSha      String
+  source       String
+  status       String     @default("created") // created | reserved | running | completed | refunded
+  attempt      Int        @default(0)
+  failure      String?    @db.Text
+  reservedAt   DateTime?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  refundedAt   DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  creditEntries ReviewCreditEntry[]
+
+  @@unique([userId, repositoryId, prNumber, headSha])
+  @@index([userId, createdAt])
+  @@index([repositoryId, prNumber, createdAt])
+  @@index([status, updatedAt])
+  @@map("review_run")
+}
+
+model ReviewCreditPeriod {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  periodStart  DateTime
+  periodEnd    DateTime
+  allocation   Int      @default(20)
+  usedCredits  Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  entries ReviewCreditEntry[]
+
+  @@unique([userId, periodStart])
+  @@index([userId, periodEnd])
+  @@map("review_credit_period")
+}
+
+model ReviewCreditEntry {
+  id             String             @id @default(cuid())
+  userId         String
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  periodId       String
+  period         ReviewCreditPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  reviewRunId    String
+  reviewRun      ReviewRun          @relation(fields: [reviewRunId], references: [id], onDelete: Cascade)
+  kind           String // reservation | settlement | refund | adjustment
+  quantity       Int
+  idempotencyKey String             @unique
+  source         String
+  createdAt      DateTime           @default(now())
+
+  @@index([userId, createdAt])
+  @@index([periodId, kind])
+  @@index([reviewRunId, createdAt])
+  @@map("review_credit_entry")
 }
 
 model NovaEarlyInvite {

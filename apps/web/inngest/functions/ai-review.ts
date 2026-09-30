@@ -3,6 +3,7 @@ import {
   markReviewFailed,
   runGeneratePrReview,
 } from "@/modules/ai/lib/generate-pr-review"
+import { refundReviewCredit } from "@/modules/billing/review-credits"
 
 function reviewDebouncePeriod(): `${number}s` {
   const configured = Number.parseInt(process.env.PR_REVIEW_DEBOUNCE_SECONDS ?? "5", 10)
@@ -40,6 +41,8 @@ export const generateReview = inngest.createFunction(
         repo?: string
         prNumber?: number
         userId?: string
+        reviewRunId?: string
+        headSha?: string
       }
       const owner = data.owner
       const repo = data.repo
@@ -48,10 +51,12 @@ export const generateReview = inngest.createFunction(
       if (!owner || !repo || !prNumber || !userId) return
 
       try {
+        const message = error.message || "Review generation failed"
         await markReviewFailed(
-          { owner, repo, prNumber, userId },
-          error.message || "Review generation failed",
+          { owner, repo, prNumber, userId, reviewRunId: data.reviewRunId, headSha: data.headSha },
+          message,
         )
+        await refundReviewCredit(data.reviewRunId, message)
       } catch (dbError) {
         console.error("[generate-review] onFailure failed to persist:", dbError)
       }
@@ -60,12 +65,14 @@ export const generateReview = inngest.createFunction(
   { event: "pr.review.requested" },
 
   async ({ event, step }) => {
-    const { owner, repo, prNumber, userId, source } = event.data as {
+    const { owner, repo, prNumber, userId, source, reviewRunId, headSha } = event.data as {
       owner: string
       repo: string
       prNumber: number
       userId?: string
       source?: string
+      reviewRunId?: string
+      headSha?: string
     }
 
     // Drop diagnostic / malformed events (e.g. manual probe sends).
@@ -110,6 +117,8 @@ export const generateReview = inngest.createFunction(
         prNumber,
         // May be undefined/stale — runGeneratePrReview resolves via repository.userId
         userId: userId ?? "",
+        reviewRunId,
+        headSha,
       })
 
       console.log(

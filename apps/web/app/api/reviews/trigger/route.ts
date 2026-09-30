@@ -3,6 +3,7 @@ import { headers } from "next/headers"
 import { auth } from "@super/auth/server"
 import { reviewPullRequest } from "@/modules/ai/action"
 import prisma from "@super/db"
+import { CreditLimitExceededError } from "@/modules/billing/review-credits"
 
 /**
  * POST /api/reviews/trigger
@@ -57,8 +58,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Failed to queue review",
+        code: error instanceof CreditLimitExceededError ? error.code : undefined,
       },
-      { status: 500 },
+      { status: error instanceof CreditLimitExceededError ? 402 : 500 },
     )
   }
 }
