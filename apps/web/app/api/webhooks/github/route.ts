@@ -99,6 +99,7 @@ export async function POST(req: NextRequest) {
             prTitle: pr?.title,
             source: "github_webhook",
             deliveryId: deliveryId ?? undefined,
+            headSha: pr?.head?.sha,
           })
           console.log(
             `[webhook/github] queued review for ${repoFullName}#${prNumber}:`,

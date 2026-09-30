@@ -1,9 +1,20 @@
 import prisma from "@super/db"
 import {
+  markReviewCreditRunning,
+  settleReviewCredit,
+} from "@/modules/billing/review-credits"
+import {
   getPullRequestDiff,
+  postInlineReviewComments,
   postReviewComment,
   updatePullRequestSummary,
 } from "@/modules/github/lib/github"
+import {
+  INLINE_FINDINGS_END,
+  INLINE_FINDINGS_START,
+  parseReviewResponse,
+  validateInlineFindings,
+} from "./inline-review-findings"
 import { retrieveContext } from "@/modules/pinecone/rag"
 import { generateText } from "ai"
 import {
@@ -285,6 +296,7 @@ Prioritized review findings. Use this exact format for each finding:
 
 Severity levels: \`critical\`, \`high\`, \`medium\`, \`low\`, \`nit\`.
 If there are no issues, write: \`No blocking issues found.\`
+Analyze all changed files before deciding the findings. Only report defects that are concrete and actionable; do not create comments merely to cover every file.
 
 ### Risk assessment
 One of: **Low** / **Medium** / **High** — with a one-line justification (blast radius, auth, data, migrations, etc.).
@@ -299,7 +311,14 @@ A cleaned-up PR body the author could paste, with:
 - Why
 - How tested
 
-Do not include a poem. Do not wrap the whole response in a single code fence.`
+Do not include a poem. Do not wrap the whole response in a single code fence.
+
+After the complete Markdown review, append machine-readable inline findings using exactly these markers:
+${INLINE_FINDINGS_START}
+{"findings":[{"severity":"high","title":"Short actionable title","body":"Explain the defect, impact, evidence, and suggested fix.","path":"exact/path/from/diff.ts","line":123,"side":"RIGHT"}]}
+${INLINE_FINDINGS_END}
+
+The JSON must be valid and contain no Markdown fence. Use \`RIGHT\` for an added or unchanged new-file line and \`LEFT\` only for a deleted old-file line. Every path and line must exist in the supplied diff. Include the same concrete issues described in the Markdown Findings section. Use an empty findings array when there are no actionable issues.`
 }
 
 function extractPrDescriptionSummary(review: string): string | null {
@@ -315,6 +334,8 @@ export type GeneratePrReviewInput = {
   repo: string
   prNumber: number
   userId: string
+  reviewRunId?: string
+  headSha?: string
 }
 
 export type GeneratePrReviewResult = {
@@ -324,6 +345,7 @@ export type GeneratePrReviewResult = {
   prNumber: number
   files: number
   commentPosted: boolean
+  inlineCommentsPosted?: number
   descriptionUpdated?: boolean
   review: string
   linearNotified?: boolean
@@ -500,11 +522,19 @@ export async function runGeneratePrReview(
   )
   const resolvedInput = { ...input, userId }
 
+  if (input.reviewRunId) {
+    await measure("creditRunningMs", () => markReviewCreditRunning(input.reviewRunId!))
+  }
   await measure("pendingMs", () => markReviewPending(resolvedInput))
 
   const prData = await measure("githubFetchMs", () =>
     getPullRequestDiff(accessToken, owner, repo, prNumber),
   )
+  if (input.headSha && prData.headSha !== input.headSha) {
+    throw new Error(
+      `Pull request head changed before review started (${input.headSha.slice(0, 7)} → ${prData.headSha.slice(0, 7)}). Queue the latest version.`,
+    )
+  }
 
   let context: string[] = []
   try {
@@ -518,7 +548,8 @@ export async function runGeneratePrReview(
 
     context = await measure("contextMs", () => retrieveContext(query, repoId, 6))
   } catch (error) {
-    console.error("[generate-pr-review] retrieveContext failed:", error)
+    const message = error instanceof Error ? error.message : String(error)
+    console.warn(`[generate-pr-review] context unavailable: ${message}`)
     context = []
   }
 
@@ -552,7 +583,12 @@ export async function runGeneratePrReview(
     throw new Error("Model returned empty review")
   }
 
-  const review = text
+  const parsedReview = parseReviewResponse(text)
+  const review = parsedReview.review
+  const inlineFindings = validateInlineFindings(
+    parsedReview.findings,
+    prData.changedFiles,
+  )
   const prUrl = `https://github.com/${owner}/${repo}/pull/${prNumber}`
 
   let reviewId: string | null = null
@@ -589,10 +625,16 @@ export async function runGeneratePrReview(
     reviewId = saved.id
   })
 
+  if (input.reviewRunId && reviewId) {
+    await measure("creditSettlementMs", () =>
+      settleReviewCredit({ reviewRunId: input.reviewRunId!, reviewId: reviewId! }),
+    )
+  }
+
   // Persist completed review first so the dashboard is correct even if GitHub
-  // writes fail. The sticky comment and PR-body summary are independent and
-  // best-effort, so run them concurrently without failing the review.
+  // writes fail. All GitHub writes are independent and best-effort.
   let commentPosted = false
+  let inlineCommentsPosted = 0
   let descriptionUpdated = false
   const descriptionSummary = extractPrDescriptionSummary(review)
 
@@ -608,6 +650,24 @@ export async function runGeneratePrReview(
         console.error(
           `[generate-pr-review] postReviewComment failed for ${repoId}#${prNumber} (review still saved):`,
           error,
+        )
+      }
+    }),
+    measure("githubInlineCommentsMs", async () => {
+      if (inlineFindings.length === 0) return
+      try {
+        inlineCommentsPosted = await postInlineReviewComments(
+          accessToken,
+          owner,
+          repo,
+          prNumber,
+          prData.headSha,
+          inlineFindings,
+        )
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        console.warn(
+          `[generate-pr-review] inline comments unavailable for ${repoId}#${prNumber}: ${message}`,
         )
       }
     }),
@@ -731,6 +791,7 @@ export async function runGeneratePrReview(
     prNumber,
     files: prData.changedFiles.length,
     commentPosted,
+    inlineCommentsPosted,
     descriptionUpdated,
     review,
     linearNotified,

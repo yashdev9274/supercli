@@ -100,7 +100,7 @@ const navigation: NavigationGroup[] = [
   { 
     section: "BILLING & USAGE",
     items: [
-      { name: "Billing", href: "/pricing", icon: CreditCard },
+      { name: "Usage", href: "/dashboard/usage", icon: CreditCard },
       { name: "Refer a Friend", href: "/dashboard/", icon: Gift },
     ]
   },

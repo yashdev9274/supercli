@@ -2,6 +2,14 @@ import { after } from "next/server"
 import { inngest } from "@/inngest/client"
 import prisma from "@super/db"
 import {
+  getGithubTokenForUser,
+  getPullRequestHead,
+} from "@/modules/github/lib/github"
+import {
+  refundReviewCredit,
+  reserveReviewCredit,
+} from "@/modules/billing/review-credits"
+import {
   markReviewFailed,
   runGeneratePrReview,
 } from "@/modules/ai/lib/generate-pr-review"
@@ -48,6 +56,8 @@ export async function reviewPullRequest(
     source?: string
     /** GitHub delivery id when sourced from a webhook. */
     deliveryId?: string
+    /** Exact PR head from the webhook payload, when available. */
+    headSha?: string
     /**
      * When true, wait for the full in-process review before returning.
      * Default: queue async (Inngest if configured, otherwise next/server after()).
@@ -98,7 +108,28 @@ export async function reviewPullRequest(
       )
     }
 
-    // Mark pending before queueing so failures after send are still visible
+    const accessToken = await getGithubTokenForUser(repository.user.id)
+    const currentHead = options?.headSha
+      ? { headSha: options.headSha, title: options.prTitle }
+      : await getPullRequestHead(accessToken, owner, repo, prNumber)
+    const admission = await reserveReviewCredit({
+      userId: repository.user.id,
+      repositoryId: repository.id,
+      prNumber,
+      headSha: currentHead.headSha,
+      source: options?.source ?? "manual",
+    })
+
+    if (admission.status === "reused") {
+      return {
+        success: true,
+        message: "Review already queued for this pull request version",
+        mode: "duplicate" as const,
+        remainingCredits: admission.remainingCredits,
+      }
+    }
+
+    // Mark pending only after a credit has been reserved.
     await prisma.review.upsert({
       where: {
         repositoryId_prNumber: {
@@ -128,6 +159,8 @@ export async function reviewPullRequest(
       userId: repository.user.id,
       source: options?.source ?? "manual",
       deliveryId: options?.deliveryId,
+      reviewRunId: admission.reviewRunId,
+      headSha: admission.headSha,
     }
 
     const runInProcess = async () => {
@@ -141,10 +174,9 @@ export async function reviewPullRequest(
           `[reviewPullRequest] in-process review failed for ${owner}/${repo}#${prNumber}:`,
           error,
         )
-        await markReviewFailed(
-          payload,
-          error instanceof Error ? error.message : "Unknown Error",
-        )
+        const message = error instanceof Error ? error.message : "Unknown Error"
+        await markReviewFailed(payload, message)
+        await refundReviewCredit(payload.reviewRunId, message)
       }
     }
 
@@ -171,6 +203,7 @@ export async function reviewPullRequest(
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown Error"
         await markReviewFailed(payload, message)
+        await refundReviewCredit(payload.reviewRunId, message)
         throw error
       }
     }
@@ -183,9 +216,7 @@ export async function reviewPullRequest(
           name: "pr.review.requested",
           data: payload,
           // Collapse duplicate deliveries for the same PR head burst.
-          id: options?.deliveryId
-            ? `pr-review-${owner}-${repo}-${prNumber}-${options.deliveryId}`
-            : undefined,
+          id: `pr-review-run-${admission.reviewRunId}`,
         })
 
         console.log(
@@ -218,6 +249,7 @@ export async function reviewPullRequest(
       success: true,
       message: "Review queued",
       mode: "after" as const,
+      remainingCredits: admission.remainingCredits,
     }
   } catch (error) {
     console.error(

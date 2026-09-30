@@ -671,6 +671,7 @@ export async function getRepoFileContents(
 
 const MAX_DIFF_CHARS = 120_000
 const SUPERCODE_REVIEW_MARKER = "<!-- supercode-ai-review -->"
+const SUPERCODE_INLINE_COMMENT_MARKER = "<!-- supercode-inline-review-comment -->"
 const SUPERCODE_SUMMARY_START = "<!-- supercode-review-summary:start -->"
 const SUPERCODE_SUMMARY_END = "<!-- supercode-review-summary:end -->"
 const MAX_PR_SUMMARY_CHARS = 6_000
@@ -711,6 +712,50 @@ export async function listOpenPullRequests(
       draft: Boolean(pr.draft),
       author: pr.user?.login ?? "unknown",
     }))
+}
+
+export async function getPullRequestHead(
+  token: string,
+  owner: string,
+  repo: string,
+  prNumber: number,
+): Promise<{ headSha: string; title: string }> {
+  const octokit = new Octokit({ auth: token })
+  const { data: pr } = await octokit.rest.pulls.get({
+    owner,
+    repo,
+    pull_number: prNumber,
+  })
+  return { headSha: pr.head.sha, title: pr.title }
+}
+
+export type PullRequestAuthor = {
+  id: string
+  login: string
+  name: string
+  avatarUrl: string | null
+}
+
+export async function getPullRequestAuthor(
+  token: string,
+  owner: string,
+  repo: string,
+  prNumber: number,
+): Promise<PullRequestAuthor | null> {
+  const octokit = new Octokit({ auth: token })
+  const { data: pr } = await octokit.rest.pulls.get({
+    owner,
+    repo,
+    pull_number: prNumber,
+  })
+  if (!pr.user) return null
+
+  return {
+    id: String(pr.user.id),
+    login: pr.user.login,
+    name: pr.user.name ?? pr.user.login,
+    avatarUrl: pr.user.avatar_url,
+  }
 }
 
 export async function getPullRequestDiff(
@@ -840,6 +885,91 @@ function formatReviewBody(review: string): string {
  * Post (or update) a single sticky Supercode review comment on a PR.
  * Re-runs update the same comment instead of creating duplicates.
  */
+export type InlineReviewComment = {
+  severity: "critical" | "high" | "medium" | "low" | "nit"
+  title: string
+  body: string
+  path: string
+  line: number
+  side: "LEFT" | "RIGHT"
+}
+
+function formatInlineReviewComment(comment: InlineReviewComment): string {
+  const priority = comment.severity === "critical" || comment.severity === "high"
+    ? "P1"
+    : comment.severity === "medium"
+      ? "P2"
+      : "P3"
+  return [
+    SUPERCODE_INLINE_COMMENT_MARKER,
+    `**${priority} · ${comment.severity.toUpperCase()} · ${comment.title}**`,
+    "",
+    comment.body,
+  ].join("\n")
+}
+
+/**
+ * Submit all validated findings as one GitHub review. A successful new review
+ * replaces marker-owned comments from earlier Supercode runs.
+ */
+export async function postInlineReviewComments(
+  token: string,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  headSha: string,
+  comments: InlineReviewComment[],
+): Promise<number> {
+  if (comments.length === 0) return 0
+
+  const octokit = new Octokit({ auth: token })
+  const { data: existing } = await octokit.rest.pulls.listReviewComments({
+    owner,
+    repo,
+    pull_number: prNumber,
+    per_page: 100,
+  })
+  const previousIds = existing
+    .filter((comment) => comment.body.includes(SUPERCODE_INLINE_COMMENT_MARKER))
+    .map((comment) => comment.id)
+
+  await octokit.rest.pulls.createReview({
+    owner,
+    repo,
+    pull_number: prNumber,
+    commit_id: headSha,
+    event: "COMMENT",
+    body: "Supercode found actionable issues during its complete PR analysis.",
+    comments: comments.map((comment) => ({
+      path: comment.path,
+      line: comment.line,
+      side: comment.side,
+      body: formatInlineReviewComment(comment),
+    })),
+  })
+
+  const cleanup = await Promise.allSettled(
+    previousIds.map((commentId) =>
+      octokit.rest.pulls.deleteReviewComment({
+        owner,
+        repo,
+        comment_id: commentId,
+      }),
+    ),
+  )
+  const cleanupFailures = cleanup.filter((result) => result.status === "rejected").length
+  if (cleanupFailures > 0) {
+    console.warn(
+      `[github] failed to remove ${cleanupFailures} previous inline comments on ${owner}/${repo}#${prNumber}`,
+    )
+  }
+
+  console.log(
+    `[github] posted ${comments.length} inline review comments on ${owner}/${repo}#${prNumber}`,
+  )
+  return comments.length
+}
+
 export async function postReviewComment(
   token: string,
   owner: string,
