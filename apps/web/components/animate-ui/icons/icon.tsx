@@ -110,16 +110,6 @@ function useAnimateIconContext() {
   return context;
 }
 
-function composeEventHandlers<E extends React.SyntheticEvent<unknown>>(
-  theirs?: (event: E) => void,
-  ours?: (event: E) => void,
-) {
-  return (event: E) => {
-    theirs?.(event);
-    ours?.(event);
-  };
-}
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyProps = Record<string, any>;
 
@@ -206,9 +196,15 @@ function AnimateIcon({
 
   React.useEffect(() => {
     if (animate === undefined) return;
-    setCurrentAnimation(typeof animate === 'string' ? animate : animation);
-    if (animate) startAnimation(animate as TriggerProp);
-    else stopAnimation();
+    // Defer past the synchronous effect body to avoid a cascading render.
+    const next = typeof animate === 'string' ? animate : animation;
+    const active = animate;
+    const timer = setTimeout(() => {
+      setCurrentAnimation(next);
+      if (active) startAnimation(active as TriggerProp);
+      else stopAnimation();
+    }, 0);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animate]);
 
@@ -240,8 +236,14 @@ function AnimateIcon({
 
   React.useEffect(() => {
     if (!animateOnView) return;
-    if (isInView) startAnimation(animateOnView);
-    else stopAnimation();
+    // Defer past the synchronous effect body to avoid a cascading render.
+    const inView = isInView;
+    const trigger = animateOnView;
+    const timer = setTimeout(() => {
+      if (inView) startAnimation(trigger);
+      else stopAnimation();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [isInView, animateOnView, startAnimation, stopAnimation]);
 
   React.useEffect(() => {
@@ -375,31 +377,49 @@ function AnimateIcon({
     React.isValidElement(children) ? (children as React.ReactElement).props : {}
   ) as AnyProps;
 
-  const handleMouseEnter = composeEventHandlers<React.MouseEvent<HTMLElement>>(
-    childProps.onMouseEnter,
-    () => {
+  const childMouseEnter = (childProps as AnyProps).onMouseEnter as
+    | ((event: React.MouseEvent<HTMLElement>) => void)
+    | undefined;
+  const childMouseLeave = (childProps as AnyProps).onMouseLeave as
+    | ((event: React.MouseEvent<HTMLElement>) => void)
+    | undefined;
+  const childPointerDown = (childProps as AnyProps).onPointerDown as
+    | ((event: React.PointerEvent<HTMLElement>) => void)
+    | undefined;
+  const childPointerUp = (childProps as AnyProps).onPointerUp as
+    | ((event: React.PointerEvent<HTMLElement>) => void)
+    | undefined;
+
+  const handleMouseEnter = React.useCallback(
+    (event: React.MouseEvent<HTMLElement>) => {
+      childMouseEnter?.(event);
       if (animateOnHover) startAnimation(animateOnHover);
     },
+    [childMouseEnter, animateOnHover, startAnimation],
   );
 
-  const handleMouseLeave = composeEventHandlers<React.MouseEvent<HTMLElement>>(
-    childProps.onMouseLeave,
-    () => {
+  const handleMouseLeave = React.useCallback(
+    (event: React.MouseEvent<HTMLElement>) => {
+      childMouseLeave?.(event);
       if (animateOnHover || animateOnTap) stopAnimation();
     },
+    [childMouseLeave, animateOnHover, animateOnTap, stopAnimation],
   );
 
-  const handlePointerDown = composeEventHandlers<
-    React.PointerEvent<HTMLElement>
-  >(childProps.onPointerDown, () => {
-    if (animateOnTap) startAnimation(animateOnTap);
-  });
+  const handlePointerDown = React.useCallback(
+    (event: React.PointerEvent<HTMLElement>) => {
+      childPointerDown?.(event);
+      if (animateOnTap) startAnimation(animateOnTap);
+    },
+    [childPointerDown, animateOnTap, startAnimation],
+  );
 
-  const handlePointerUp = composeEventHandlers<React.PointerEvent<HTMLElement>>(
-    childProps.onPointerUp,
-    () => {
+  const handlePointerUp = React.useCallback(
+    (event: React.PointerEvent<HTMLElement>) => {
+      childPointerUp?.(event);
       if (animateOnTap) stopAnimation();
     },
+    [childPointerUp, animateOnTap, stopAnimation],
   );
 
   const content = asChild ? (

@@ -68,13 +68,12 @@ function Slot<T extends HTMLElement = HTMLElement>({
     children.type !== null &&
     isMotionComponent(children.type);
 
-  const Base = React.useMemo(
-    () =>
-      isAlreadyMotion
-        ? (children.type as React.ElementType)
-        : motion.create(children.type as React.ElementType),
-    [isAlreadyMotion, children.type],
-  );
+  // motion.create caches component identity, mirroring motion's own Slot.
+  const Base = React.useMemo(() => {
+    return isAlreadyMotion
+      ? (children.type as React.ElementType)
+      : motion.create(children.type as React.ElementType)
+  }, [isAlreadyMotion, children.type]);
 
   if (!React.isValidElement(children)) return null;
 
@@ -83,6 +82,8 @@ function Slot<T extends HTMLElement = HTMLElement>({
   const mergedProps = mergeProps(childProps, props);
 
   return (
+    // Base is memoized and stable across renders (motion.create caches identity).
+    // eslint-disable-next-line react-hooks/static-components
     <Base {...mergedProps} ref={mergeRefs(childRef as React.Ref<T>, ref)} />
   );
 }

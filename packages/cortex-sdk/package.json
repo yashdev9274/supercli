@@ -81,7 +81,7 @@
     "test": "bun test"
   },
   "peerDependencies": {
-    "ai": "^4.0.0 || ^5.0.0 || ^6.0.0"
+    "ai": "^7.0.0"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.80",

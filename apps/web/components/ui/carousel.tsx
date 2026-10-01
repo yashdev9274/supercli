@@ -98,16 +98,22 @@ function Carousel({
 
   React.useEffect(() => {
     if (!api || !setApi) return
-    setApi(api)
+    // Defer past the synchronous effect body to avoid a cascading render.
+    const target = api
+    const timer = setTimeout(() => setApi(target), 0)
+    return () => clearTimeout(timer)
   }, [api, setApi])
 
   React.useEffect(() => {
     if (!api) return
-    onSelect(api)
+    // Defer the initial sync past the effect body to avoid a cascading render.
+    const target = api
+    const timer = setTimeout(() => onSelect(target), 0)
     api.on("reInit", onSelect)
     api.on("select", onSelect)
 
     return () => {
+      clearTimeout(timer)
       api?.off("select", onSelect)
     }
   }, [api, onSelect])

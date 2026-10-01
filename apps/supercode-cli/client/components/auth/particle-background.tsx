@@ -17,6 +17,8 @@ export function ParticleBackground() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    // Hydration-safe gate: particles use Math.random() and must not render on the server.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true)
     const newParticles: Particle[] = []
     const particleCount = 50

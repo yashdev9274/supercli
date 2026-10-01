@@ -4,8 +4,7 @@ import { signIn } from '@/lib/auth-client'
 import { motion } from "framer-motion";
 
 import React, { useState } from 'react'
-import { Github, Gitlab, Terminal, Moon, ChevronDown, Rocket } from "lucide-react";
-import Link from 'next/link';
+import { Github, Gitlab, Terminal, ChevronDown, Rocket } from "lucide-react";
 
 
 interface AuthButtonProps {
@@ -15,10 +14,11 @@ interface AuthButtonProps {
     delay?: number;
     onClick?: () => void;
     disabled?: boolean;
+    badge?: string;
     children?: React.ReactNode;
   }
   
-  function AuthButton({ name, icon: Icon, cloud, delay = 0, onClick, disabled, children }: AuthButtonProps) {
+  function AuthButton({ name, icon: Icon, cloud, delay = 0, onClick, disabled, badge, children }: AuthButtonProps) {
     return (
       <motion.button
         initial={{ opacity: 0, y: 10 }}
@@ -26,9 +26,10 @@ interface AuthButtonProps {
         transition={{ delay }}
         onClick={onClick}
         disabled={disabled}
-        className="w-full group relative flex items-center justify-between p-4 bg-card border border-border hover:border-primary hover:bg-accent transition-all rounded-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
+        title={disabled ? "Coming soon" : undefined}
+        className="w-full group relative flex items-center justify-between p-4 bg-card border border-border hover:border-primary hover:bg-accent transition-all rounded-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:bg-card"
       >
-        <div className="absolute inset-y-0 left-0 w-1 bg-primary scale-y-0 group-hover:scale-y-100 transition-transform origin-top" />
+        <div className={`absolute inset-y-0 left-0 w-1 bg-primary scale-y-0 transition-transform origin-top ${disabled ? "" : "group-hover:scale-y-100"}`} />
         <div className="flex items-center gap-4">
           {Icon && <Icon className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />}
           {children || (name && (
@@ -41,21 +42,19 @@ interface AuthButtonProps {
           {cloud && (
             <span className="text-[10px] font-bold text-primary/70 uppercase tracking-tighter">Cloud</span>
           )}
-          {cloud && <ChevronDown className="w-3 h-3 text-muted-foreground" />}
+          {badge ? (
+            <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-tighter">
+              {badge}
+            </span>
+          ) : cloud ? (
+            <ChevronDown className="w-3 h-3 text-muted-foreground" />
+          ) : null}
         </div>
       </motion.button>
     );
   }
 
 const LoginUI=()=> {
-
-
-    const providers = [
-        { name: "GitHub", icon: Github, cloud: true },
-        { name: "GitLab", icon: Gitlab, cloud: true },
-        { name: "AzureDevOps", icon: Terminal, cloud: false },
-        { name: "Bitbucket", icon: Terminal, cloud: false },
-      ];
 
     const [isLoading, setIsLoading] = useState(false)
     const handleGithubLogin = async ()=>{
@@ -85,11 +84,8 @@ const LoginUI=()=> {
           <div className="bg-primary p-1.5 rounded-none">
             <Rocket className="w-5 h-5 text-primary-foreground" />
           </div>
-          <span className="text-xl font-bold tracking-tighter text-foreground uppercase">Supecode Review</span>
+          <span className="text-xl font-bold tracking-tighter text-foreground uppercase">Supercode Review</span>
         </div>
-        <button className="p-2 hover:bg-accent rounded-none transition-colors border border-border">
-          <Moon className="w-4 h-4 text-muted-foreground" />
-        </button>
       </nav>
 
       {/* main content */}
@@ -147,17 +143,17 @@ const LoginUI=()=> {
               onClick={handleGithubLogin}
               disabled={isLoading}
             />
-            <AuthButton name="GitLab" icon={Gitlab} cloud delay={0.5} />
-            <AuthButton name="AzureDevOps" icon={Terminal} delay={0.6} />
-            <AuthButton name="Bitbucket" icon={Terminal} delay={0.7} />
+            <AuthButton name="GitLab" icon={Gitlab} cloud disabled delay={0.5} badge="Soon" />
+            <AuthButton name="AzureDevOps" icon={Terminal} disabled delay={0.6} badge="Soon" />
+            <AuthButton name="Bitbucket" icon={Terminal} disabled delay={0.7} badge="Soon" />
           </div>
 
           <div className="mt-8 text-left">
             <p className="text-sm text-muted-foreground">
               NEW TO SUPERCODE REVIEW?{" "}
-              <Link href="#" className="text-primary hover:underline underline-offset-4 font-bold">
-                SIGN UP
-              </Link>
+              <span className="text-primary font-bold">
+                SIGN IN WITH GITHUB
+              </span>
             </p>
           </div>
         </motion.div>
@@ -165,8 +161,8 @@ const LoginUI=()=> {
 
       <footer className="absolute bottom-8 left-0 w-full px-8 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] text-muted-foreground uppercase tracking-[0.2em]">
         <div className="flex gap-4">
-          <Link href="#" className="hover:text-primary transition-colors">Terms</Link>
-          <Link href="#" className="hover:text-primary transition-colors">Privacy</Link>
+          <span className="cursor-default">Terms</span>
+          <span className="cursor-default">Privacy</span>
         </div>
         <span>&copy; 2026 Supercode AI</span>
       </footer>

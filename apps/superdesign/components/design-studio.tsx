@@ -138,7 +138,10 @@ export function DesignStudio({
 
   useEffect(() => {
     if (initialPrompt && artifacts.length === 0) {
-      runGeneration(initialPrompt)
+      // Defer past the synchronous effect body so this kickoff isn't a
+      // cascading render; cleanup keeps StrictMode/dev to a single run.
+      const timer = setTimeout(() => runGeneration(initialPrompt), 0)
+      return () => clearTimeout(timer)
     }
     // Only on mount when there are no artifacts
     // eslint-disable-next-line react-hooks/exhaustive-deps

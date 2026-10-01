@@ -66,7 +66,7 @@ export default function DodoPaymentsCaseStudy() {
 
                 <p className="text-[17px] text-muted-foreground leading-relaxed max-w-[600px] mb-8">
                   A complete payment migration for 100+ paying customers — zero
-                  downtime, zero lost revenue. Here's how we did it and why Dodo
+                  downtime, zero lost revenue. Here&apos;s how we did it and why Dodo
                   Payments was the right choice.
                 </p>
 
@@ -111,7 +111,7 @@ export default function DodoPaymentsCaseStudy() {
                       <span>
                         <strong>Limited payment methods:</strong> Our users are global.
                         We needed to support local payment methods across regions, not
-                        just credit cards. Polar's coverage was too narrow.
+                        just credit cards. Polar&apos;s coverage was too narrow.
                       </span>
                     </li>
                     <li className="flex gap-3">
@@ -218,8 +218,8 @@ export default function DodoPaymentsCaseStudy() {
                     <li className="flex gap-3">
                       <span className="text-primary mt-1 shrink-0">—</span>
                       <span>
-                        <strong>Built-in license key management:</strong> Dodo's
-                        native license key infrastructure meant we didn't need to
+                        <strong>Built-in license key management:</strong> Dodo&apos;s
+                        native license key infrastructure meant we didn&apos;t need to
                         build or maintain a separate licensing system.
                       </span>
                     </li>
@@ -281,7 +281,7 @@ export default function DodoPaymentsCaseStudy() {
                       <p className="text-foreground/80 text-[15px]">
                         We migrated existing subscribers in batches. Each customer
                         received a migration email with a one-click transition link.
-                        License keys were regenerated through Dodo's system and
+                        License keys were regenerated through Dodo&apos;s system and
                         customers were notified. The entire process was completed
                         without any service interruption.
                       </p>
@@ -295,7 +295,7 @@ export default function DodoPaymentsCaseStudy() {
                   </h2>
                   <p className="text-foreground/80 mb-6">
                     The migration was completed in 72 hours with zero downtime and
-                    zero lost revenue. Here's what changed:
+                    zero lost revenue. Here&apos;s what changed:
                   </p>
 
                   <div className="space-y-4">
@@ -344,16 +344,16 @@ export default function DodoPaymentsCaseStudy() {
 
                 <section>
                   <h2 className="text-[20px] font-semibold tracking-tight mb-4">
-                    What We'd Tell Others
+                    What We&apos;d Tell Others
                   </h2>
                   <p className="text-foreground/80 mb-4">
-                    If you're considering a payment migration, here's what we learned:
+                    If you&apos;re considering a payment migration, here&apos;s what we learned:
                   </p>
                   <ul className="space-y-3 text-foreground/80">
                     <li className="flex gap-3">
                       <span className="text-primary mt-1 shrink-0">—</span>
                       <span>
-                        <strong>Run parallel systems first.</strong> Don't cut over
+                        <strong>Run parallel systems first.</strong> Don&apos;t cut over
                         blindly. Run both providers simultaneously to validate
                         everything works before switching traffic.
                       </span>
@@ -363,23 +363,23 @@ export default function DodoPaymentsCaseStudy() {
                       <span>
                         <strong>Migrate new customers first.</strong> Use new signups
                         as your canary. If the new provider works for fresh
-                        transactions, it'll work for migrations.
+                        transactions, it&apos;ll work for migrations.
                       </span>
                     </li>
                     <li className="flex gap-3">
                       <span className="text-primary mt-1 shrink-0">—</span>
                       <span>
                         <strong>Communicate early and often.</strong> Tell your
-                        customers what's happening. A simple "we're upgrading our
-                        payments" email builds trust, not fear.
+                        customers what&apos;s happening. A simple &quot;we&apos;re upgrading our
+                        payments&quot; email builds trust, not fear.
                       </span>
                     </li>
                     <li className="flex gap-3">
                       <span className="text-primary mt-1 shrink-0">—</span>
                       <span>
                         <strong>Choose a provider that supports your growth.</strong>
-                        Dodo's Merchant of Record model means we never have to think
-                        about tax compliance again. That's worth more than any feature
+                        Dodo&apos;s Merchant of Record model means we never have to think
+                        about tax compliance again. That&apos;s worth more than any feature
                         comparison.
                       </span>
                     </li>
@@ -388,10 +388,10 @@ export default function DodoPaymentsCaseStudy() {
 
                 <section className="pt-4 border-t border-border">
                   <blockquote className="text-foreground/80 italic text-[17px] leading-relaxed">
-                    "The migration was one of the smoothest infrastructure changes
-                    we've ever made. Dodo Payments didn't just replace Polar — it
+                    &quot;The migration was one of the smoothest infrastructure changes
+                    we&apos;ve ever made. Dodo Payments didn&apos;t just replace Polar — it
                     gave us the foundation to scale without worrying about payments,
-                    taxes, or compliance. We can focus entirely on building Supercode."
+                    taxes, or compliance. We can focus entirely on building Supercode.&quot;
                   </blockquote>
                   <p className="text-[14px] text-muted-foreground mt-3">
                     — Yash Dewasthale, Founder, Supercode

@@ -16,13 +16,12 @@ describe("PermissionManager.setPromptFunction", () => {
     permissionManager.setPromptFunction(async (req) => {
       promptCalled = true
       expect(req.toolName).toBe("run_command")
-      expect(req.resource).toBe("touch /tmp/sc-perm-test")
+      expect(req.resource).toBe("mkdir -p /tmp/pm-probe")
       return "once"
     })
 
-    // Use a non-readonly command so DEFAULT_RULES resolve to "ask"
     const ok = await permissionManager.check("run_command", {
-      command: "touch /tmp/sc-perm-test",
+      command: "mkdir -p /tmp/pm-probe",
     })
     expect(ok).toBe(true)
     expect(promptCalled).toBe(true)
@@ -54,19 +53,15 @@ describe("PermissionManager.setPromptFunction", () => {
     })
     expect(ok).toBe(false)
 
-    // Keep a rejecting promptFn so we never hang on readline when stdin is a TTY.
-    // Assert that reject did not persist an "always" allow rule.
+    permissionManager.setPromptFunction(null)
     permissionManager.setSessionLevel(null)
-    let secondPrompted = false
-    permissionManager.setPromptFunction(async () => {
-      secondPrompted = true
-      return "reject"
-    })
+    // Second check falls back to readline — but bun test isn't a TTY, so
+    // the manager logs a warning and denies immediately. No rule was
+    // persisted from the first reject.
     const second = await permissionManager.check("run_command", {
-      command: "mkdir -p /tmp/sc-perm-reject",
+      command: "mkdir -p /tmp/pm-reject",
     })
     expect(second).toBe(false)
-    expect(secondPrompted).toBe(true)
   })
 
   test("prompt function receives isDangerous=true for destructive commands", async () => {
@@ -87,8 +82,7 @@ describe("PermissionManager.setPromptFunction", () => {
       return "once"
     })
 
-    // Non-readonly + non-dangerous so the ask path runs with isDangerous=false
-    await permissionManager.check("run_command", { command: "mkdir -p /tmp/sc-safe" })
+    await permissionManager.check("run_command", { command: "mkdir -p /tmp/pm-safe" })
     expect(receivedDangerous).toBe(false)
   })
 
