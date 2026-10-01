@@ -311,7 +311,7 @@ const Navbar = () => {
                 </Button>
               </Link> */}
               <a
-                href="https://supercodeai.vercel.app/login"
+                href="https://supercodeai.vercel.app/dashboard"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group hidden md:inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-[13px] font-medium bg-white text-black hover:bg-white/90 transition-[transform,background-color,border-color] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]"
