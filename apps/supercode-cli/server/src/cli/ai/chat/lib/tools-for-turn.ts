@@ -36,12 +36,21 @@ export async function buildToolsForTurn(
   // missing/invalid the tools fall back to the authenticated server proxy and
   // cross-provider search fallback (Exa ↔ Firecrawl).
 
+  // You.com search is strictly opt-in: only expose the tool when YDC_API_KEY
+  // is set, so existing users see no change.
+  if (!process.env.YDC_API_KEY) {
+    delete toolsToUse.youcom_search
+  }
+
   const preferenceHints: string[] = []
 
   preferenceHints.push(
     "For general web search, prefer `exa_search` (Exa). " +
       "If Exa fails, it automatically falls back to Firecrawl. " +
       "You may also call `firecrawl_search` directly. " +
+      (process.env.YDC_API_KEY
+        ? "`youcom_search` (You.com) is also available as an additional search provider. "
+        : "") +
       "Use `firecrawl_scrape` when the user asks for deep websearch or webscraping " +
       "(extracting full page content, following links, or fetching structured data from a page). " +
       "Use `firecrawl_map` to discover URLs on a site. " +

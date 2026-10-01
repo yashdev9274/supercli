@@ -16,6 +16,7 @@ import { firecrawlScrapeTool } from "./firecrawl_scrape.ts"
 import { firecrawlMapTool } from "./firecrawl_map.ts"
 import { exaSearchTool } from "./exa_search.ts"
 import { exaFetchTool } from "./exa_fetch.ts"
+import { youcomSearchTool } from "./youcom_search.ts"
 import { codeExecTool } from "./code_exec.ts"
 import { readInstructionsTool } from "./read_instructions.ts"
 import { switchToAgentModeTool } from "./switch_to_agent_mode.ts"
@@ -63,6 +64,7 @@ export const toolMeta: Record<string, ToolMeta> = {
   firecrawl_map: { category: "web", requiresPermission: false, description: firecrawlMapTool.description },
   exa_search: { category: "web", requiresPermission: false, description: exaSearchTool.description },
   exa_fetch: { category: "web", requiresPermission: false, description: exaFetchTool.description },
+  youcom_search: { category: "web", requiresPermission: false, description: youcomSearchTool.description },
   code_exec: { category: "execute", requiresPermission: true, description: codeExecTool.description },
   read_instructions: { category: "read", requiresPermission: false, description: readInstructionsTool.description },
   switch_to_agent_mode: { category: "agent", requiresPermission: false, description: switchToAgentModeTool.description },
@@ -90,6 +92,7 @@ export const tools: Record<string, unknown> = {
   firecrawl_map: asSdk(firecrawlMapTool),
   exa_search: asSdk(exaSearchTool),
   exa_fetch: asSdk(exaFetchTool),
+  youcom_search: asSdk(youcomSearchTool),
   code_exec: withPermissionSdk("code_exec", codeExecTool),
   read_instructions: asSdk(readInstructionsTool),
   switch_to_agent_mode: asSdk(switchToAgentModeTool),
