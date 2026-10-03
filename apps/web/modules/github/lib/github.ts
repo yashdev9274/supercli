@@ -869,15 +869,24 @@ export async function updatePullRequestSummary(
   console.log(`[github] updated PR summary on ${owner}/${repo}#${prNumber}`)
 }
 
-function formatReviewBody(review: string): string {
+export type ReviewPublishOptions = {
+  imageBadges?: boolean
+  commentHeader?: string
+}
+
+function formatReviewBody(review: string, options?: ReviewPublishOptions): string {
+  const visualBadges = options?.imageBadges !== false
   return [
     SUPERCODE_REVIEW_MARKER,
-    "## 🤖 Supercode AI Review",
+    ...(options?.commentHeader?.trim() ? [options.commentHeader.trim(), ""] : []),
+    visualBadges ? "## 🤖 Supercode AI Review" : "## Supercode AI Review",
     "",
     review.trim(),
     "",
     "---",
-    "*Automated review by [Supercode](https://supercli.com) · leave a 👍/👎 reaction to rate this review*",
+    visualBadges
+      ? "*Automated review by [Supercode](https://supercli.com) · leave a 👍/👎 reaction to rate this review*"
+      : "*Automated review by [Supercode](https://supercli.com) · leave a thumbs-up/thumbs-down reaction to rate this review*",
   ].join("\n")
 }
 
@@ -894,7 +903,7 @@ export type InlineReviewComment = {
   side: "LEFT" | "RIGHT"
 }
 
-function formatInlineReviewComment(comment: InlineReviewComment): string {
+function formatInlineReviewComment(comment: InlineReviewComment, options?: ReviewPublishOptions): string {
   const priority = comment.severity === "critical" || comment.severity === "high"
     ? "P1"
     : comment.severity === "medium"
@@ -902,6 +911,7 @@ function formatInlineReviewComment(comment: InlineReviewComment): string {
       : "P3"
   return [
     SUPERCODE_INLINE_COMMENT_MARKER,
+    ...(options?.commentHeader?.trim() ? [options.commentHeader.trim(), ""] : []),
     `**${priority} · ${comment.severity.toUpperCase()} · ${comment.title}**`,
     "",
     comment.body,
@@ -919,6 +929,7 @@ export async function postInlineReviewComments(
   prNumber: number,
   headSha: string,
   comments: InlineReviewComment[],
+  options?: ReviewPublishOptions,
 ): Promise<number> {
   if (comments.length === 0) return 0
 
@@ -939,12 +950,15 @@ export async function postInlineReviewComments(
     pull_number: prNumber,
     commit_id: headSha,
     event: "COMMENT",
-    body: "Supercode found actionable issues during its complete PR analysis.",
+    body: [
+      ...(options?.commentHeader?.trim() ? [options.commentHeader.trim(), ""] : []),
+      "Supercode found actionable issues during its complete PR analysis.",
+    ].join("\n"),
     comments: comments.map((comment) => ({
       path: comment.path,
       line: comment.line,
       side: comment.side,
-      body: formatInlineReviewComment(comment),
+      body: formatInlineReviewComment(comment, options),
     })),
   })
 
@@ -976,11 +990,10 @@ export async function postReviewComment(
   repo: string,
   prNumber: number,
   review: string,
-  // Kept for call-site compatibility; unused (we only post one sticky comment).
-  _options?: { headSha?: string; event?: "COMMENT" | "APPROVE" | "REQUEST_CHANGES" },
+  options?: ReviewPublishOptions & { headSha?: string; event?: "COMMENT" | "APPROVE" | "REQUEST_CHANGES" },
 ) {
   const octokit = new Octokit({ auth: token })
-  const body = formatReviewBody(review)
+  const body = formatReviewBody(review, options)
 
   const { data: comments } = await octokit.rest.issues.listComments({
     owner,

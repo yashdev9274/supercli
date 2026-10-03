@@ -837,6 +837,7 @@ export async function queueReview(id: string): Promise<{ success: boolean; messa
     const result = await reviewPullRequest(owner, repo, prNumber, {
         userId: session.user.id,
         source: "dashboard",
+        rerun: true,
         wait: true,
     })
     return {

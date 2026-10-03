@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
     const result = await reviewPullRequest(owner, repo, prNumber, {
       userId: session.user.id,
       source: "api_trigger",
+      rerun: true,
       wait: true,
     })
     return NextResponse.json(result)

@@ -43,6 +43,18 @@ const SettingPage = () => {
       </motion.div>
 
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-10">
+        <section>
+          <SectionLabel>Code review</SectionLabel>
+          <div className="flex flex-col gap-4 rounded-xl border border-border bg-card/40 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium">Make reviews your own</p>
+              <p className="mt-1 text-xs text-muted-foreground">Customize PR summaries, instructions, and automatic reviews.</p>
+            </div>
+            <Button asChild variant="outline" size="sm" className="shrink-0">
+              <Link href="/dashboard/review-settings">Review settings <ArrowUpRight className="size-3.5" /></Link>
+            </Button>
+          </div>
+        </section>
         <motion.section
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}

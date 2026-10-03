@@ -678,6 +678,7 @@ export function PrWorkspace({
               variant={completed ? "outline" : "default"}
               disabled={isGenerating || generatePending}
               onClick={onGenerate}
+              title={completed ? "Regenerate with current review settings (uses 1 review credit)" : "Generate a review (uses 1 review credit)"}
               className="mr-1 h-7 gap-1.5 px-2.5 text-[11px] transition-transform duration-150 active:scale-[0.97]"
             >
               {isGenerating || generatePending ? (

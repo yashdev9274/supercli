@@ -16,6 +16,17 @@ import {
   validateInlineFindings,
 } from "./inline-review-findings"
 import { retrieveContext } from "@/modules/pinecone/rag"
+import {
+  DEFAULT_REVIEW_SETTINGS,
+  parseReviewSettings,
+  type ReviewSettings,
+} from "@/modules/reviews/review-settings"
+import {
+  formatReviewSummary,
+  parseReviewSections,
+  replaceReviewSection,
+} from "@/modules/reviews/review-summary"
+import { ensureSequenceDiagram } from "@/modules/reviews/sequence-diagram"
 import { generateText } from "ai"
 import {
   chatModel,
@@ -215,7 +226,23 @@ export function buildReviewPrompt(input: {
   fileSummary: string
   contextBlocks: string[]
   diff: string
+  settings?: ReviewSettings
 }) {
+  const settings = input.settings ?? DEFAULT_REVIEW_SETTINGS
+  const severityGuidance = settings.strictness === "high"
+    ? "Report only critical and high severity actionable defects. Omit medium, low, and nit findings."
+    : settings.strictness === "medium"
+      ? "Report only critical, high, and medium severity actionable defects. Omit low and nit findings."
+      : "Report actionable defects at all severity levels: critical, high, medium, low, and nit."
+  const additionalGuidance = settings.instructions.trim()
+    ? `\n\n## Additional repository review guidance\n${settings.instructions.trim()}\n\nApply this guidance when reviewing the code, while preserving the required output format and severity threshold.`
+    : ""
+  const confidenceSection = settings.includeConfidence
+    ? `\n\n### Confidence Score\nGive a score from 1–5 (1 = low confidence, 5 = high confidence) in the review's correctness, with a concise justification grounded in the available diff, context, and verification gaps.`
+    : ""
+  const diagramSection = settings.includeSequenceDiagram
+    ? `\n\n### Sequence Diagram\nInclude only a fenced \`mermaid\` code block containing a \`sequenceDiagram\` of the changed flow. Base participants and interactions on the diff and context; do not invent behavior. No prose in this section.`
+    : ""
   const description = truncate(
     input.description || "_No description provided._",
     MAX_DESCRIPTION_CHARS,
@@ -247,6 +274,7 @@ export function buildReviewPrompt(input: {
 Be specific, actionable, and grounded in the diff. Prefer concrete file/line references over vague advice.
 Do not invent APIs or behavior that is not in the diff/context.
 If something looks fine, say so briefly — do not pad.
+${severityGuidance}${additionalGuidance}
 
 ## Pull request
 - Repo: ${input.owner}/${input.repo}
@@ -309,9 +337,11 @@ Checklist of concrete verification steps:
 A cleaned-up PR body the author could paste, with:
 - What
 - Why
-- How tested
+- How tested${confidenceSection}${diagramSection}
 
 Do not include a poem. Do not wrap the whole response in a single code fence.
+${settings.includeConfidence ? "" : "Do not include a Confidence Score section."}
+${settings.includeSequenceDiagram ? "" : "Do not include a Sequence Diagram section or Mermaid diagram."}
 
 After the complete Markdown review, append machine-readable inline findings using exactly these markers:
 ${INLINE_FINDINGS_START}
@@ -321,12 +351,10 @@ ${INLINE_FINDINGS_END}
 The JSON must be valid and contain no Markdown fence. Use \`RIGHT\` for an added or unchanged new-file line and \`LEFT\` only for a deleted old-file line. Every path and line must exist in the supplied diff. Include the same concrete issues described in the Markdown Findings section. Use an empty findings array when there are no actionable issues.`
 }
 
-function extractPrDescriptionSummary(review: string): string | null {
-  const match = review.match(
-    /(?:^|\n)###\s+PR description summary\s*\n([\s\S]*?)(?=\n###\s|$)/i,
-  )
-  const summary = match?.[1]?.trim()
-  return summary || null
+export function extractPrDescriptionSummary(review: string): string | null {
+  return parseReviewSections(review).find(
+    (section) => section.heading.toLowerCase() === "pr description summary",
+  )?.content || null
 }
 
 export type GeneratePrReviewInput = {
@@ -521,6 +549,8 @@ export async function runGeneratePrReview(
     resolveGithubAccessToken(input),
   )
   const resolvedInput = { ...input, userId }
+  const repository = await findRepository(owner, repo, userId)
+  const settings = parseReviewSettings(repository?.reviewSettings)
 
   if (input.reviewRunId) {
     await measure("creditRunningMs", () => markReviewCreditRunning(input.reviewRunId!))
@@ -575,6 +605,7 @@ export async function runGeneratePrReview(
     fileSummary,
     contextBlocks: context,
     diff: prData.diff,
+    settings,
   })
 
   const text = await measure("generationMs", () => generateReviewText(prompt))
@@ -584,16 +615,29 @@ export async function runGeneratePrReview(
   }
 
   const parsedReview = parseReviewResponse(text)
-  const review = parsedReview.review
+  const review = settings.includeSequenceDiagram
+    ? await measure("sequenceDiagramMs", () => ensureSequenceDiagram(
+        parsedReview.review,
+        { title: prData.title, fileSummary, diff: truncate(prData.diff, MAX_DIFF_CHARS, "diff") },
+        generateReviewText,
+      ))
+    : parsedReview.review
   const inlineFindings = validateInlineFindings(
-    parsedReview.findings,
+    parsedReview.findings.filter((finding) => {
+      if (settings.strictness === "high") {
+        return finding.severity === "critical" || finding.severity === "high"
+      }
+      if (settings.strictness === "medium") {
+        return finding.severity !== "low" && finding.severity !== "nit"
+      }
+      return true
+    }),
     prData.changedFiles,
   )
   const prUrl = `https://github.com/${owner}/${repo}/pull/${prNumber}`
 
   let reviewId: string | null = null
   await measure("persistenceMs", async () => {
-    const repository = await findRepository(owner, repo, userId)
     if (!repository) {
       console.warn(`[generate-pr-review] repository ${repoId} missing when saving`)
       return
@@ -637,13 +681,21 @@ export async function runGeneratePrReview(
   let inlineCommentsPosted = 0
   let descriptionUpdated = false
   const descriptionSummary = extractPrDescriptionSummary(review)
+  const publishedReview = settings.strictness === "low"
+    ? review
+    : replaceReviewSection(review, "Findings", `### Findings\n\n${inlineFindings.length
+        ? inlineFindings.map((finding) => `- **[${finding.severity}] ${finding.title}** — \`${finding.path}:${finding.line}\`\n  ${finding.body.replace(/\n/g, "\n  ")}`).join("\n\n")
+        : `No validated ${settings.strictness === "high" ? "high or critical" : "medium, high, or critical"} findings to display.`}`)
+  const comment = formatReviewSummary(publishedReview, settings)
 
   await Promise.all([
     measure("githubCommentMs", async () => {
       try {
-        await postReviewComment(accessToken, owner, repo, prNumber, review, {
+        await postReviewComment(accessToken, owner, repo, prNumber, comment, {
           headSha: prData.headSha,
           event: "COMMENT",
+          imageBadges: settings.imageBadges,
+          commentHeader: settings.commentHeader,
         })
         commentPosted = true
       } catch (error) {
@@ -663,6 +715,7 @@ export async function runGeneratePrReview(
           prNumber,
           prData.headSha,
           inlineFindings,
+          { imageBadges: settings.imageBadges, commentHeader: settings.commentHeader },
         )
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
@@ -672,6 +725,7 @@ export async function runGeneratePrReview(
       }
     }),
     measure("githubDescriptionMs", async () => {
+      if (!settings.updateDescription) return
       if (!descriptionSummary) {
         console.warn(
           `[generate-pr-review] PR description summary missing for ${repoId}#${prNumber}`,
