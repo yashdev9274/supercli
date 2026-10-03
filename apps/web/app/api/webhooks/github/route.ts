@@ -1,6 +1,11 @@
 import { reviewPullRequest } from "@/modules/ai/action"
 import { NextResponse, NextRequest } from "next/server"
 import crypto from "crypto"
+import prisma from "@super/db"
+import {
+  parseReviewSettings,
+  shouldReviewPullRequest,
+} from "@/modules/reviews/review-settings"
 
 /** PR actions that should trigger an automatic AI review. */
 const REVIEW_ACTIONS = new Set([
@@ -45,7 +50,10 @@ export async function POST(req: NextRequest) {
     if (secret) {
       if (!verifyWebhookSignature(rawBody, signature, secret)) {
         console.error("[webhook/github] invalid signature")
-        return NextResponse.json({ error: "Invalid signature" }, { status: 401 })
+        return NextResponse.json(
+          { error: "Invalid signature" },
+          { status: 401 },
+        )
       }
     } else {
       console.warn(
@@ -56,15 +64,17 @@ export async function POST(req: NextRequest) {
     const body = JSON.parse(rawBody)
 
     if (event === "ping") {
-      return NextResponse.json({ message: "Pong", zen: body.zen }, { status: 200 })
+      return NextResponse.json(
+        { message: "Pong", zen: body.zen },
+        { status: 200 },
+      )
     }
 
     if (event === "pull_request") {
       const action = body.action as string
       const repoFullName = body.repository?.full_name as string | undefined
       const prNumber = (body.number ?? body.pull_request?.number) as
-        | number
-        | undefined
+        number | undefined
       const pr = body.pull_request as
         | {
             draft?: boolean
@@ -83,11 +93,18 @@ export async function POST(req: NextRequest) {
 
       const [owner, repoName] = repoFullName.split("/")
 
-      // Auto-queue AI review for new/updated non-draft PRs.
-      // Draft PRs wait until ready_for_review (or open as non-draft).
+      const repository = REVIEW_ACTIONS.has(action)
+        ? await prisma.repository.findFirst({
+            where: { owner, name: repoName },
+            select: { userId: true, reviewSettings: true },
+          })
+        : null
       const shouldReview =
-        REVIEW_ACTIONS.has(action) &&
-        (action === "ready_for_review" || !draft)
+        Boolean(repository) &&
+        shouldReviewPullRequest(
+          parseReviewSettings(repository?.reviewSettings),
+          { action, draft, author: pr?.user?.login },
+        )
 
       console.log(
         `[webhook/github] pr=${repoFullName}#${prNumber} action=${action} draft=${draft} shouldReview=${shouldReview} title=${pr?.title ?? ""}`,
@@ -96,6 +113,7 @@ export async function POST(req: NextRequest) {
       if (shouldReview) {
         try {
           const result = await reviewPullRequest(owner, repoName, prNumber, {
+            userId: repository?.userId,
             prTitle: pr?.title,
             source: "github_webhook",
             deliveryId: deliveryId ?? undefined,
@@ -118,6 +136,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: "Event Processed" }, { status: 200 })
   } catch (error) {
     console.error("[webhook/github] unhandled error:", error)
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 },
+    )
   }
 }

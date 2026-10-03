@@ -1,10 +1,14 @@
 "use client"
 
+import { Children, isValidElement } from "react"
+
 import type { Components } from "react-markdown"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Check } from "lucide-react"
+
 import { cn } from "@/lib/utils"
+import { MermaidDiagram } from "@/modules/reviews/components/mermaid-diagram"
 
 function isCheckboxElement(node: unknown): node is {
   type: unknown
@@ -144,11 +148,26 @@ const components: Components = {
       </code>
     )
   },
-  pre: ({ children }) => (
-    <pre className="mb-3 overflow-x-auto rounded-lg border border-border bg-[#0c0c0c] px-3.5 py-3 font-mono text-[12px] leading-relaxed text-foreground/85 last:mb-0">
-      {children}
-    </pre>
-  ),
+  pre: ({ children, node }) => {
+    const code = node?.children[0]
+    if (
+      code?.type === "element" &&
+      code.tagName === "code" &&
+      Array.isArray(code.properties.className) &&
+      code.properties.className.includes("language-mermaid")
+    ) {
+      const element = Children.toArray(children)[0]
+      if (isValidElement<{ children?: string }>(element)) {
+        return <MermaidDiagram source={String(element.props.children ?? "")} />
+      }
+    }
+
+    return (
+      <pre className="mb-3 overflow-x-auto rounded-lg border border-border bg-[#0c0c0c] px-3.5 py-3 font-mono text-[12px] leading-relaxed text-foreground/85 last:mb-0">
+        {children}
+      </pre>
+    )
+  },
   table: ({ children }) => (
     <div className="mb-4 overflow-x-auto rounded-lg border border-border last:mb-0">
       <table className="w-full min-w-[320px] border-collapse text-left text-[12.5px]">

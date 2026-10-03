@@ -74,6 +74,7 @@ model Repository {
   owner          String
   fullName       String
   url            String
+  reviewSettings Json?         @map("review_settings")
   userId         String
   user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   organizationId String?

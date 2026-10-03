@@ -54,6 +54,7 @@ export async function reviewPullRequest(
     prTitle?: string
     /** Origin for logs / Inngest payload (webhook, dashboard, backfill, …). */
     source?: string
+    rerun?: boolean
     /** GitHub delivery id when sourced from a webhook. */
     deliveryId?: string
     /** Exact PR head from the webhook payload, when available. */
@@ -118,6 +119,7 @@ export async function reviewPullRequest(
       prNumber,
       headSha: currentHead.headSha,
       source: options?.source ?? "manual",
+      rerun: options?.rerun,
     })
 
     if (admission.status === "reused") {

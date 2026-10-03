@@ -80,6 +80,7 @@ const navigation: NavigationGroup[] = [
         icon: Monitor,
         children: [
           { name: "PR Review", href: "/dashboard/pull-requests" },
+          { name: "Review Settings", href: "/dashboard/review-settings" },
           { name: "Logs", href: "/dashboard/logs", locked: true },
           { name: "Bugs Caught", href: "/dashboard/bugs-caught" },
           { name: "Custom Context", href: "/dashboard/context", locked: true },

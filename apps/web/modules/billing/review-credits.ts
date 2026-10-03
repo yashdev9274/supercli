@@ -81,6 +81,7 @@ export async function reserveReviewCredit(input: {
   prNumber: number
   headSha: string
   source: string
+  rerun?: boolean
   now?: Date
 }): Promise<ReviewCreditAdmission> {
   const githubAccount = await prisma.account.findFirst({
@@ -130,7 +131,7 @@ export async function reserveReviewCredit(input: {
           },
         })
 
-        if (["reserved", "running", "completed"].includes(run.status)) {
+        if (["reserved", "running"].includes(run.status) || (run.status === "completed" && !input.rerun)) {
           return {
             reviewRunId: run.id,
             headSha: run.headSha,
@@ -160,6 +161,8 @@ export async function reserveReviewCredit(input: {
             failure: null,
             reservedAt: now,
             refundedAt: null,
+            startedAt: null,
+            completedAt: null,
           },
         })
         await tx.reviewCreditEntry.create({
