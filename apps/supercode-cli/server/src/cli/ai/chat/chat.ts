@@ -1053,7 +1053,7 @@ function stdinKeypress(_str: string, key: any) {
 
   // Tab to cycle MODES
   if (key.name === "tab") {
-    const idx = MODES.indexOf(stdinMode)
+    const idx = (MODES as readonly string[]).indexOf(stdinMode)
     stdinMode = MODES[(idx + 1) % MODES.length]!
     applyModePermissions(stdinMode)
     if (activeFooter) activeFooter.setMode(stdinMode)
@@ -1645,7 +1645,7 @@ function stripToolCallXml(chunk: string): string {
 }
 
 async function chatInput(currentMode: string): Promise<{ input: string; mode: string }> {
-  stdinMode = MODES.includes(currentMode) ? currentMode : "chat"
+  stdinMode = (MODES as readonly string[]).includes(currentMode) ? currentMode : "chat"
   applyModePermissions(stdinMode)
   // If voice capture or skill load just populated stdinInput, preserve it.
   // Otherwise reset to empty as usual.

@@ -1,7 +1,6 @@
-import type { LanguageModel } from "ai"
 import { SdkError } from "../core/errors"
 import type { GatewayOptions, GatewayProvider } from "../core/types"
-import type { BaseGatewayProvider, GatewayCost, GatewayUsage, ModelInfo } from "./base"
+import type { BaseGatewayProvider, GatewayCost, GatewayModel, GatewayUsage, ModelInfo } from "./base"
 import { ConcentrateAIProvider } from "./concentrateai"
 import { GeminiProvider } from "./gemini"
 import { MergeDevProvider } from "./mergedev"
@@ -22,7 +21,7 @@ export type GatewayOptionsWithCallbacks = GatewayOptions & {
 }
 
 export interface GatewayClient {
-  model(id?: string): LanguageModel
+  model(id?: string): GatewayModel
   listModels(): Promise<ModelInfo[]>
   readonly provider: GatewayProvider
   readonly defaultModel: string

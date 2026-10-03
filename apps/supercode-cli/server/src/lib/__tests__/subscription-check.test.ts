@@ -9,7 +9,7 @@ const planFindFirstMock = mock<FindFirstFn>(async (_args: unknown) => null)
 const subscriptionCreateMock = mock(async (_args: unknown) => ({}))
 const creditUpsertMock = mock(async (_args: unknown) => ({}))
 
-;(mock as any).module("../prisma", () => ({
+mock.module("../prisma", () => ({
   default: {
     subscription: {
       findFirst: findFirstMock,

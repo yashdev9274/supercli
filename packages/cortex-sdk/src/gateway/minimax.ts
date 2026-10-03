@@ -1,4 +1,4 @@
-import type { LanguageModel } from "ai"
+import type { GatewayModel } from "./base"
 import { createMinimax } from "vercel-minimax-ai-provider"
 import { BaseGatewayProvider, type GatewayProviderOptions, type ModelInfo } from "./base"
 
@@ -25,7 +25,7 @@ export class MiniMaxProvider extends BaseGatewayProvider {
     })
   }
 
-  protected buildModel(modelName: string): LanguageModel {
+  protected buildModel(modelName: string): GatewayModel {
     return this.sdk.languageModel(modelName)
   }
 
