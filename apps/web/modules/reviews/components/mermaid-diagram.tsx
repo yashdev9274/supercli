@@ -1,9 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useState } from "react"
 import { useTheme } from "next-themes"
 
 let renderQueue = Promise.resolve()
+
+export const MermaidThemeContext = createContext<"dark" | "neutral" | null>(null)
 
 type DiagramResult = {
   source: string
@@ -19,7 +21,8 @@ export function MermaidDiagram({
   description?: string
 }) {
   const { resolvedTheme } = useTheme()
-  const theme = resolvedTheme === "dark" ? "dark" : "neutral"
+  const diagramTheme = useContext(MermaidThemeContext)
+  const theme = diagramTheme ?? (resolvedTheme === "dark" ? "dark" : "neutral")
   const [result, setResult] = useState<DiagramResult | null>(null)
   const current =
     result?.source === source && result.theme === theme ? result : null
