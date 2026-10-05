@@ -3,12 +3,12 @@
 import { useMemo, useState } from "react"
 import {
   ArrowUpRight,
+  Bug,
   Check,
   ChevronDown,
   ChevronRight,
   Code2,
   Copy,
-  ExternalLink,
   File,
   FileCode2,
   FilePlus2,
@@ -20,13 +20,17 @@ import {
   Github,
   Loader2,
   MoreHorizontal,
+  MessageSquarePlus,
   Sparkles,
   X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { PrDiffFile, ReviewDetail } from "@/modules/dashboard/actions"
 import { Button } from "@/components/ui/button"
+import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { extractFindingsSection, parseFindings, severityRank } from "@/modules/bugs-caught/lib/parse-findings"
 import { ReviewMarkdown } from "@/modules/pull-requests/components/review-markdown"
+import { ReviewFindingsPanel } from "@/modules/pull-requests/components/review-findings-panel"
 
 export type PrTab = "Overview" | "Diff"
 
@@ -267,7 +271,7 @@ function FileTreePanel({
   const tree = useMemo(() => buildFileTree(files), [files])
 
   return (
-    <aside className="flex h-full min-h-0 w-[292px] shrink-0 flex-col border-r border-border bg-card/25">
+    <aside data-slot="pr-file-tree" className="hidden h-full min-h-0 w-[240px] shrink-0 flex-col border-r border-border bg-card/25 @min-[760px]/pr-workspace:flex @min-[1280px]/pr-workspace:w-[292px]">
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-border px-3">
         <div className="min-w-0">
           <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/55">
@@ -467,8 +471,7 @@ function OverviewBody({
   )
 }
 
-function DiffFileCard({ file, selected }: { file: PrDiffFile; selected: boolean }) {
-  const [open, setOpen] = useState(selected)
+function DiffFileCard({ file, open, onToggle }: { file: PrDiffFile; open: boolean; onToggle: () => void }) {
   const lines = useMemo(() => (file.patch ? parsePatch(file.patch) : []), [file.patch])
 
   return (
@@ -479,7 +482,7 @@ function DiffFileCard({ file, selected }: { file: PrDiffFile; selected: boolean 
       <header className="flex min-h-10 items-center gap-2 bg-muted/25 px-3">
         <button
           type="button"
-          onClick={() => setOpen((value) => !value)}
+          onClick={onToggle}
           className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-[color,background-color,transform] duration-150 hover:bg-muted/45 hover:text-foreground active:scale-[0.97]"
           aria-label={open ? `Collapse ${file.filename}` : `Expand ${file.filename}`}
           aria-expanded={open}
@@ -565,11 +568,13 @@ function DiffFileCard({ file, selected }: { file: PrDiffFile; selected: boolean 
 function DiffView({
   files,
   isLoading,
-  selectedFile,
+  expandedFiles,
+  onToggleFile,
 }: {
   files: PrDiffFile[]
   isLoading: boolean
-  selectedFile: string | null
+  expandedFiles: ReadonlySet<string>
+  onToggleFile: (filename: string) => void
 }) {
   if (isLoading) {
     return (
@@ -603,7 +608,7 @@ function DiffView({
         </div>
       </div>
       {files.map((file) => (
-        <DiffFileCard key={file.filename} file={file} selected={selectedFile === file.filename} />
+        <DiffFileCard key={file.filename} file={file} open={expandedFiles.has(file.filename)} onToggle={() => onToggleFile(file.filename)} />
       ))}
     </div>
   )
@@ -620,6 +625,8 @@ export function PrWorkspace({
   showGenerate,
   onGenerate,
   generatePending,
+  reviewMode = "dashboard",
+  publishReview,
 }: {
   activeId: string
   review: ReviewDetail | null | undefined
@@ -632,23 +639,47 @@ export function PrWorkspace({
   showGenerate: boolean
   onGenerate: () => void
   generatePending: boolean
+  reviewMode?: "dashboard" | "public"
+  publishReview?: {
+    pending: boolean
+    added: boolean
+    onPublish: () => void
+  }
 }) {
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [expandedFiles, setExpandedFiles] = useState<Set<string>>(() => new Set())
+  const [findingsOpen, setFindingsOpen] = useState(false)
+  const reviewMarkdown = review?.review ?? ""
+  const findings = useMemo(() => completed && reviewMarkdown
+    ? parseFindings(extractFindingsSection(reviewMarkdown)).sort((a, b) => severityRank(a.severity) - severityRank(b.severity))
+    : [], [completed, reviewMarkdown])
+  const filenames = useMemo(() => new Set(files.map((file) => file.filename)), [files])
+
+  const toggleFile = (filename: string) => {
+    setExpandedFiles((current) => {
+      const next = new Set(current)
+      if (next.has(filename)) next.delete(filename)
+      else next.add(filename)
+      return next
+    })
+  }
 
   const selectFile = (filename: string) => {
     setSelectedFile(filename)
+    setExpandedFiles((current) => new Set(current).add(filename))
+    setFindingsOpen(false)
     onTabChange("Diff")
     window.setTimeout(() => {
       document
         .getElementById(`diff-${encodeURIComponent(filename)}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "start" })
+        ?.scrollIntoView({ behavior: "instant", block: "start" })
     }, 0)
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col bg-background">
-      <header className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-border px-4">
-        <div className="flex min-w-0 items-center gap-2 text-[12px]">
+    <div className="@container/pr-workspace flex h-full min-h-0 flex-1 flex-col bg-background">
+      <header className="flex min-h-11 shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border px-4 py-2 @min-[640px]/pr-workspace:h-11 @min-[640px]/pr-workspace:flex-nowrap @min-[640px]/pr-workspace:py-0">
+        <div className="flex min-w-0 flex-1 basis-full items-center gap-2 text-[12px] @min-[640px]/pr-workspace:basis-auto">
           <GitPullRequest className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
           {review ? (
             <>
@@ -671,20 +702,40 @@ export function PrWorkspace({
           )}
         </div>
 
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex w-full shrink-0 items-center justify-end gap-1 @min-[640px]/pr-workspace:w-auto">
+          {publishReview && review ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!completed || isGenerating || publishReview.pending || publishReview.added}
+              onClick={publishReview.onPublish}
+              title={publishReview.added ? "This review has been added to GitHub" : "Add this review as a comment on the GitHub PR"}
+              className="mr-1 h-7 gap-1.5 px-2.5 text-[11px]"
+            >
+              {publishReview.pending ? (
+                <><Loader2 className="h-3 w-3 animate-spin motion-reduce:animate-none" /> Posting…</>
+              ) : publishReview.added ? (
+                <><Check className="h-3 w-3" /> Review added</>
+              ) : (
+                <><MessageSquarePlus className="h-3 w-3" /> Add review</>
+              )}
+            </Button>
+          ) : null}
           {(showGenerate || isGenerating || completed) && review ? (
             <Button
               size="sm"
               variant={completed ? "outline" : "default"}
-              disabled={isGenerating || generatePending}
+              disabled={isGenerating || generatePending || publishReview?.pending}
               onClick={onGenerate}
-              title={completed ? "Regenerate with current review settings (uses 1 review credit)" : "Generate a review (uses 1 review credit)"}
+              title={reviewMode === "public"
+                ? "Review the latest public changes for free"
+                : completed ? "Regenerate with current review settings (uses 1 review credit)" : "Generate a review (uses 1 review credit)"}
               className="mr-1 h-7 gap-1.5 px-2.5 text-[11px] transition-transform duration-150 active:scale-[0.97]"
             >
               {isGenerating || generatePending ? (
                 <><Loader2 className="h-3 w-3 animate-spin" /> Generating…</>
               ) : (
-                <><Sparkles className="h-3 w-3" /> {completed ? "Regenerate" : "Generate"}</>
+                <><Sparkles className="h-3 w-3" /> {completed ? reviewMode === "public" ? "Check latest" : "Regenerate" : "Generate"}</>
               )}
             </Button>
           ) : null}
@@ -693,9 +744,11 @@ export function PrWorkspace({
               href={review.prUrl}
               target="_blank"
               rel="noopener noreferrer"
+              aria-label="View on GitHub"
               className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] text-muted-foreground transition-[color,background-color,transform] duration-150 hover:bg-muted/40 hover:text-foreground active:scale-[0.97]"
             >
-              View on GitHub <ArrowUpRight className="h-3 w-3" />
+              <span className="hidden @min-[640px]/pr-workspace:inline">View on GitHub</span>
+              <ArrowUpRight className="h-3 w-3" />
             </a>
           ) : null}
         </div>
@@ -731,13 +784,40 @@ export function PrWorkspace({
               ))}
             </div>
             {review?.baseRef && review.headRef ? (
-              <div className="hidden items-center gap-1.5 text-[10px] text-muted-foreground md:flex">
+              <div className="hidden min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground @min-[1120px]/pr-workspace:flex">
                 <GitBranch className="h-3 w-3" />
-                <span className="font-mono">{review.baseRef}</span>
+                <span className="max-w-24 truncate font-mono">{review.baseRef}</span>
                 <span className="text-muted-foreground/35">←</span>
-                <span className="font-mono">{review.headRef}</span>
+                <span className="max-w-36 truncate font-mono">{review.headRef}</span>
               </div>
             ) : null}
+            <Sheet open={findingsOpen} onOpenChange={setFindingsOpen}>
+              <SheetTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Open bugs found"
+                  className="flex h-7 items-center gap-1.5 rounded-md border border-border px-2 text-[11px] text-muted-foreground hover:bg-muted/40 hover:text-foreground @min-[1120px]/pr-workspace:hidden"
+                >
+                  <Bug className="h-3 w-3" aria-hidden="true" />
+                  Bugs <span className="font-mono text-[10px]">{completed ? findings.length : "—"}</span>
+                </button>
+              </SheetTrigger>
+              <SheetContent className={cn(
+                "w-[340px] max-w-[calc(100vw-24px)] gap-0 p-0 data-[state=open]:duration-150 data-[state=closed]:duration-150 motion-reduce:animate-none motion-reduce:transition-none",
+                reviewMode === "public" && "dark public-review-page",
+              )}>
+                <SheetTitle className="sr-only">Bugs found</SheetTitle>
+                <SheetDescription className="sr-only">AI review findings prioritized by severity, with suggested fixes and links to changed files.</SheetDescription>
+                <ReviewFindingsPanel
+                  findings={findings}
+                  filenames={filenames}
+                  isGenerating={isGenerating}
+                  completed={completed}
+                  failed={review?.status === "failed"}
+                  onSelectFile={selectFile}
+                />
+              </SheetContent>
+            </Sheet>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-6 md:px-8">
@@ -756,10 +836,20 @@ export function PrWorkspace({
                 generatePending={generatePending}
               />
             ) : (
-              <DiffView files={files} isLoading={filesLoading} selectedFile={selectedFile} />
+              <DiffView files={files} isLoading={filesLoading} expandedFiles={expandedFiles} onToggleFile={toggleFile} />
             )}
           </div>
         </section>
+        <aside aria-label="Bugs found" className="hidden min-h-0 w-[300px] shrink-0 flex-col border-l border-border bg-card/25 @min-[1120px]/pr-workspace:flex @min-[1440px]/pr-workspace:w-[320px]">
+          <ReviewFindingsPanel
+            findings={findings}
+            filenames={filenames}
+            isGenerating={isGenerating}
+            completed={completed}
+            failed={review?.status === "failed"}
+            onSelectFile={selectFile}
+          />
+        </aside>
       </div>
     </div>
   )

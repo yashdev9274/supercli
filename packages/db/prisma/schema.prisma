@@ -16,6 +16,31 @@ model Test {
   name String
 }
 
+model PublicReviewCache {
+  key        String   @id
+  inputHash  String
+  status     String   @default("pending")
+  leaseToken String?
+  leaseUntil DateTime?
+  expiresAt  DateTime
+  markdown   String?  @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([expiresAt])
+  @@index([status, leaseUntil])
+  @@map("public_review_cache")
+}
+
+model PublicReviewQuota {
+  key       String   @id
+  count     Int      @default(0)
+  expiresAt DateTime
+
+  @@index([expiresAt])
+  @@map("public_review_quota")
+}
+
 model Organization {
   id        String   @id @default(cuid())
   name      String

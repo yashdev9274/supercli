@@ -52,18 +52,34 @@ function inferSnippetKind(
  * Extract the Findings / Bugs Found / Issues section from a full review.
  */
 export function extractFindingsSection(content: string): string {
-  const patterns = [
-    /##+\s*Findings[\s\S]*?(?=##+\s|$)/i,
-    /##+\s*Bugs Found[\s\S]*?(?=##+\s|$)/i,
-    /##+\s*Issues[\s\S]*?(?=##+\s|$)/i,
-  ]
+  const lines = content.split(/\r?\n/)
+  let start = -1
+  let level = 0
+  let fence: { character: string; length: number } | null = null
 
-  for (const pattern of patterns) {
-    const match = content.match(pattern)
-    if (match) return match[0].trim()
+  for (const [index, line] of lines.entries()) {
+    const delimiter = line.match(/^\s*(`{3,}|~{3,})(.*)$/)
+    if (fence) {
+      if (delimiter && delimiter[1][0] === fence.character && delimiter[1].length >= fence.length && !delimiter[2].trim()) {
+        fence = null
+      }
+      continue
+    }
+    if (delimiter) {
+      fence = { character: delimiter[1][0], length: delimiter[1].length }
+      continue
+    }
+    const heading = line.match(/^ {0,3}(#{1,6})[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$/)
+    if (!heading) continue
+    if (start >= 0 && heading[1].length <= level) {
+      return lines.slice(start, index).join("\n").trim()
+    }
+    if (start < 0 && /^(findings|bugs found|issues)$/i.test(heading[2].trim())) {
+      start = index
+      level = heading[1].length
+    }
   }
-
-  return content
+  return start >= 0 ? lines.slice(start).join("\n").trim() : content
 }
 
 /**
@@ -75,7 +91,7 @@ export function parseFindings(findingsText: string): ParsedFinding[] {
   const lines = findingsText.split("\n")
 
   let current: ParsedFinding | null = null
-  let inCodeBlock = false
+  let fence: { character: string; length: number } | null = null
   let codeLang = ""
   let codeLines: string[] = []
   let textBeforeFence = ""
@@ -99,29 +115,27 @@ export function parseFindings(findingsText: string): ParsedFinding[] {
   for (const rawLine of lines) {
     const line = rawLine
     // Allow indented fences (common under nested list findings)
-    const fenceOpen = line.match(/^\s*```([\w+-]*)\s*$/)
-    if (fenceOpen) {
-      if (inCodeBlock) {
+    const delimiter = line.match(/^\s*(`{3,}|~{3,})(.*)$/)
+    if (fence) {
+      if (delimiter && delimiter[1][0] === fence.character && delimiter[1].length >= fence.length && !delimiter[2].trim()) {
         flushFence()
-        inCodeBlock = false
+        fence = null
       } else {
-        inCodeBlock = true
-        codeLang = (fenceOpen[1] || "").toLowerCase()
-        codeLines = []
+        codeLines.push(line.replace(/^ {0,4}/, ""))
       }
       continue
     }
-
-    if (inCodeBlock) {
-      // Strip one level of common indent from fenced content when present
-      codeLines.push(line.replace(/^ {0,4}/, ""))
+    if (delimiter) {
+      fence = { character: delimiter[1][0], length: delimiter[1].length }
+      codeLang = delimiter[2].trim().split(/\s+/)[0].toLowerCase()
+      codeLines = []
       continue
     }
 
     // - **[severity] title** — path
     // - [severity] title — path
     const findingMatch = line.match(
-      /^[-*]\s*\*{0,2}\[(\w+)\]\s*(.+?)\*{0,2}\s*[—–-]\s*`?([^`\n]+)`?\s*$/i,
+      /^\s*(?:[-*]|\d+[.)])\s*\*{0,2}\[(\w+)\]\s*(.+?)\*{0,2}\s*[—–-]\s*`?([^`\n]+)`?\s*$/i,
     )
     if (findingMatch) {
       if (current) items.push(current)
@@ -155,7 +169,7 @@ export function parseFindings(findingsText: string): ParsedFinding[] {
     }
   }
 
-  if (inCodeBlock) flushFence()
+  if (fence) flushFence()
   if (current) items.push(current)
 
   // If a finding has a single fence and prose mentions fix, label as fix
@@ -174,6 +188,12 @@ export function parseFindings(findingsText: string): ParsedFinding[] {
   }
 
   return items
+}
+
+export function resolveFindingPath(filePath: string, filenames: ReadonlySet<string>): string | null {
+  if (filenames.has(filePath)) return filePath
+  const path = filePath.replace(/:(?:L)?\d+(?:[-–](?:L)?\d+)?(?::\d+)?$/, "")
+  return filenames.has(path) ? path : null
 }
 
 export function severityRank(severity: string) {

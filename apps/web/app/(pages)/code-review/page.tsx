@@ -233,7 +233,7 @@ export default function CodeReviewPage() {
                 size="lg"
                 className="bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200 active:scale-[0.97] transition-transform duration-150"
               >
-                <Link href="https://supercodeai.vercel.app/dashboard">
+                <Link href="/review">
                   Try Code Review
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
@@ -244,8 +244,8 @@ export default function CodeReviewPage() {
                 size="lg"
                 className="active:scale-[0.97] transition-transform duration-150"
               >
-                <Link href="https://cal.com/yash-dewasthale/talk-to-founder">
-                  Book a demo
+                <Link href="/review">
+                  How it works
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
@@ -450,7 +450,7 @@ export default function CodeReviewPage() {
               <div>
                 <div className="font-medium text-neutral-900 dark:text-white">Learning System</div>
                 <div className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-                  Gets smarter with every review, adapting to your team's style.
+                  Gets smarter with every review, adapting to your team&apos;s style.
                 </div>
               </div>
             </div>
