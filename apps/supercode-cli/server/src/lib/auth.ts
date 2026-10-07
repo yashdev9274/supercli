@@ -1,12 +1,16 @@
 
 import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
-import { deviceAuthorization } from "better-auth/plugins"
+import { deviceAuthorization, oneTimeToken } from "better-auth/plugins"
 import prisma from "./prisma"
 
 const serverUrl = process.env.BETTER_AUTH_URL || "http://localhost:3004"
 const clientUrl = process.env.CLIENT_URL || "http://localhost:3000"
 const isProduction = serverUrl.startsWith("https://")
+const novaOrigins = [
+  "https://nova.supercodeai.tech",
+  "http://nova.localhost:3003",
+]
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -14,7 +18,7 @@ export const auth = betterAuth({
   }),
   baseURL: serverUrl,
   basePath: "/api/auth",
-  trustedOrigins: [clientUrl, serverUrl],
+  trustedOrigins: [clientUrl, serverUrl, ...novaOrigins],
   account: {
     skipStateCookieCheck: true,
   },
@@ -33,6 +37,10 @@ export const auth = betterAuth({
     },
   },
   plugins: [
+    oneTimeToken({
+      expiresIn: 3,
+      storeToken: "hashed",
+    }),
     deviceAuthorization({
       schema: {},
       expiresIn: "10m",

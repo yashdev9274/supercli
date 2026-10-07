@@ -56,7 +56,7 @@ bun run db:migrate                 # create database tables
 bun run dev:web                    # start the dashboard
 ```
 
-> **Dashboard** → http://localhost:3000
+> **Dashboard / Nova Web** → http://localhost:3003 / http://nova.localhost:3003
 
 No database? Set one up later — `bun install` skips Prisma client generation gracefully when `DATABASE_URL` isn't set.
 
@@ -81,9 +81,9 @@ This is a **monorepo** managed with [Turborepo](https://turbo.build) and [Bun](h
 
 | App | Description | Port |
 |-----|-------------|------|
-| `apps/web` | Next.js 16 dashboard (supercli.com) | `3000` |
+| `apps/web` | Next.js 16 dashboard and Nova Web | `3003` |
 | `apps/docs` | Next.js MDX documentation site | `3001` |
-| `apps/supercode-cli/client` | Terminal web client UI (Next.js) | `3002` |
+| `apps/supercode-cli/client` | Terminal web client UI and Nova login | `3000` |
 | `apps/supercode-cli/server` | AI coding agent — also published as the `supercode` npm CLI | — |
 | `apps/api` | Shared API server (scaffolded) | TBD |
 
@@ -271,7 +271,7 @@ We use high-quality coding datasets:
    ```env
    DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres"
    BETTER_AUTH_SECRET="your-secret-key"          # openssl rand -hex 32
-   BETTER_AUTH_URL="http://localhost:3000"
+   BETTER_AUTH_URL="http://localhost:3003"
    GITHUB_CLIENT_ID="your-github-oauth-id"
    GITHUB_CLIENT_SECRET="your-github-oauth-secret"
    ```
@@ -290,7 +290,7 @@ We use high-quality coding datasets:
    ```bash
    bun run dev:web
    ```
-   Open [http://localhost:3000](http://localhost:3000).
+   Open [http://localhost:3003](http://localhost:3003), or Nova at [http://nova.localhost:3003](http://nova.localhost:3003).
 
 7. **Start other apps** (in separate terminals)
    ```bash
@@ -403,7 +403,7 @@ Run from the **repo root** unless otherwise noted.
 | Script | What it does |
 |--------|--------------|
 | `bun run dev` | Start all dev servers (Turborepo) |
-| `bun run dev:web` | Dashboard only (port 3000) |
+| `bun run dev:web` | Dashboard and Nova Web (port 3003) |
 | `bun run dev:docs` | Docs only (port 3001) |
 | `bun run dev:terminal` | Terminal web client only |
 | `bun run dev:terminal-server` | CLI agent dev loop |

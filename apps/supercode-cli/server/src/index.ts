@@ -497,6 +497,8 @@ app.get("/api/nova/sessions", proxyDesktopNova)
 app.post("/api/nova/sessions", proxyDesktopNova)
 app.get("/api/nova/sessions/:sessionId", proxyDesktopNova)
 app.get("/api/nova/sessions/:sessionId/sync", proxyDesktopNova)
+app.post("/api/nova/sessions/:sessionId/messages", proxyDesktopNova)
+app.post("/api/nova/sessions/:sessionId/turn", proxyDesktopNova)
 
 app.get("/api/user/me", async (req, res) => {
   try {

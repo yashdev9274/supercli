@@ -56,9 +56,13 @@ export async function listDesktopComposioApps(userId: string) {
       : a.connected ? -1 : 1)
 }
 
-export async function beginDesktopComposioConnect(userId: string, slug: string) {
+export async function beginDesktopComposioConnect(
+  userId: string,
+  slug: string,
+  returnTo: "desktop" | "web" | "nova" = "desktop",
+) {
   const provider = integrationProviderSchema.parse(slug)
-  return beginProviderConnect({ userId, provider, returnTo: "desktop" })
+  return beginProviderConnect({ userId, provider, returnTo })
 }
 
 export async function disconnectDesktopComposio(userId: string, connectedAccountId: string) {

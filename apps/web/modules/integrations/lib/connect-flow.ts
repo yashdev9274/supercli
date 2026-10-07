@@ -4,13 +4,13 @@ import {
   isComposioConfigured,
   startComposioConnect,
 } from "./composio"
-import { createOAuthState } from "./oauth-state"
+import { createOAuthState, type OAuthReturnTo } from "./oauth-state"
 import type { IntegrationProvider } from "../actions/schema"
 
 export async function beginProviderConnect(params: {
   userId: string
   provider: IntegrationProvider
-  returnTo?: "desktop" | "web"
+  returnTo?: OAuthReturnTo
 }): Promise<{
   ok: true
   redirectUrl: string

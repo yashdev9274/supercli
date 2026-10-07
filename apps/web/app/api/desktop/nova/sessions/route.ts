@@ -28,7 +28,12 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ error: "Invalid session", issues: parsed.error.issues }, { status: 400 })
     }
-    const session = await createAgentSession({ userId: user.id, ...parsed.data })
+    const session = await createAgentSession({
+      userId: user.id,
+      objective: parsed.data.objective,
+      mode: parsed.data.mode,
+      surface: "desktop",
+    })
     return NextResponse.json({ session }, { status: 201 })
   } catch (error) {
     console.error("[api/desktop/nova/sessions]", error)

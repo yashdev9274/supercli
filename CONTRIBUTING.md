@@ -23,7 +23,7 @@ bun run db:migrate
 
 # 6. Start the dashboard
 bun run dev:web
-# → http://localhost:3000
+# → http://localhost:3003
 ```
 
 ## Prerequisites
@@ -74,7 +74,7 @@ Run from the **repo root** unless noted.
 | Command | What it starts |
 |---------|---------------|
 | `bun run dev` | All dev servers (Turborepo) |
-| `bun run dev:web` | Dashboard only (port 3000) |
+| `bun run dev:web` | Dashboard and Nova Web (port 3003) |
 | `bun run dev:docs` | Docs site (port 3001) |
 | `bun run dev:terminal` | Terminal web client |
 | `bun run dev:terminal-server` | CLI agent dev loop |
@@ -124,7 +124,7 @@ Example for local development:
 ```env
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres"
 BETTER_AUTH_SECRET="your-secret"          # openssl rand -hex 32
-BETTER_AUTH_URL="http://localhost:3000"
+BETTER_AUTH_URL="http://localhost:3003"
 GITHUB_CLIENT_ID="your-github-client-id"  # from github.com/settings/developers
 GITHUB_CLIENT_SECRET="your-github-secret"
 ```
