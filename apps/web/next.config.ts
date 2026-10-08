@@ -15,17 +15,9 @@ const nextConfig: NextConfig = {
     root: resolve("../../")
   },
   async redirects() {
+    // /settings is owned by Nova web (nova.localhost / nova.supercodeai.tech).
+    // On the main app host, proxy.ts still sends /settings → /dashboard/settings.
     return [
-      {
-        source: "/settings",
-        destination: "/dashboard/settings",
-        permanent: true,
-      },
-      {
-        source: "/settings/:path*",
-        destination: "/dashboard/settings/:path*",
-        permanent: true,
-      },
       {
         source: "/providers",
         destination: "/dashboard/providers",

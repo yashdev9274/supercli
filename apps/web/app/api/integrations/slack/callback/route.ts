@@ -7,5 +7,6 @@ export async function GET(request: NextRequest) {
   return handleComposioCallback({
     provider: "slack",
     searchParams: request.nextUrl.searchParams,
+    requestOrigin: request.nextUrl.origin,
   })
 }

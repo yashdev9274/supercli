@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "bun run db:generate && next dev",
+    "dev": "bun run db:generate && next dev --port 3003",
     "build": "bun run db:generate && bun run db:migrate && next build --webpack",
     "postinstall": "bun run db:generate",
-    "start": "next start",
+    "start": "next start --port 3003",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate --schema ../../packages/db/prisma/schema.prisma",

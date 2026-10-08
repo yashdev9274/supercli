@@ -2,6 +2,8 @@ import { createHmac, timingSafeEqual } from "crypto"
 
 const STATE_TTL_MS = 10 * 60 * 1000 // 10 minutes
 
+export type OAuthReturnTo = "desktop" | "web" | "nova"
+
 function getStateSecret(): string {
   const secret =
     process.env.BETTER_AUTH_SECRET ||
@@ -12,14 +14,20 @@ function getStateSecret(): string {
   return secret
 }
 
+function normalizeReturnTo(value: unknown): OAuthReturnTo {
+  if (value === "desktop") return "desktop"
+  if (value === "nova") return "nova"
+  return "web"
+}
+
 /**
  * Signed CSRF state: base64url(payload).base64url(hmac)
- * payload = { userId, provider, exp }
+ * payload = { userId, provider, returnTo, exp }
  */
 export function createOAuthState(
   userId: string,
   provider: "slack" | "linear" | "github",
-  returnTo: "desktop" | "web" = "web",
+  returnTo: OAuthReturnTo = "web",
 ): string {
   const payload = Buffer.from(
     JSON.stringify({
@@ -41,7 +49,7 @@ export function createOAuthState(
 export function verifyOAuthState(
   state: string,
   expectedProvider: "slack" | "linear" | "github",
-): { userId: string; returnTo: "desktop" | "web" } | null {
+): { userId: string; returnTo: OAuthReturnTo } | null {
   const parts = state.split(".")
   if (parts.length !== 2) return null
   const [payload, sig] = parts
@@ -70,7 +78,7 @@ export function verifyOAuthState(
     if (typeof data.exp !== "number" || Date.now() > data.exp) return null
     return {
       userId: data.userId,
-      returnTo: data.returnTo === "desktop" ? "desktop" : "web",
+      returnTo: normalizeReturnTo(data.returnTo),
     }
   } catch {
     return null

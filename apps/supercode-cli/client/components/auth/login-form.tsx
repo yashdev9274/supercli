@@ -9,6 +9,23 @@ import { Github, Code2, Sparkles, ArrowRight } from 'lucide-react'
 import { ParticleBackground } from './particle-background'
 import { PixelLogo } from '@/components/ui/pixel-logo'
 
+const ALLOWED_REDIRECT_ORIGINS = new Set([
+  "https://nova.supercodeai.tech",
+  "http://nova.localhost:3003",
+])
+
+function getSafeRedirect(): URL | null {
+  const redirect = new URLSearchParams(window.location.search).get("redirect")
+  if (!redirect) return null
+
+  try {
+    const url = new URL(redirect)
+    return ALLOWED_REDIRECT_ORIGINS.has(url.origin) ? url : null
+  } catch {
+    return null
+  }
+}
+
 const LoginForm = () => {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
@@ -18,10 +35,32 @@ const LoginForm = () => {
   const { data, isPending } = authClient.useSession()
 
   useEffect(() => {
-    if (!isPending && data?.session) {
-      const params = new URLSearchParams(window.location.search)
-      const redirect = params.get("redirect")
-      router.replace(redirect || "/")
+    if (isPending || !data?.session) return
+
+    const novaUrl = getSafeRedirect()
+    if (!novaUrl) {
+      router.replace("/")
+      return
+    }
+
+    let cancelled = false
+    const transferSession = async () => {
+      const { data: tokenData, error: tokenError } = await authClient.oneTimeToken.generate()
+      if (cancelled) return
+      if (tokenError || !tokenData?.token) {
+        setError("Failed to create the Nova login session. Please try again.")
+        return
+      }
+
+      const callbackUrl = new URL("/api/auth/cli/callback", novaUrl.origin)
+      callbackUrl.searchParams.set("token", tokenData.token)
+      callbackUrl.searchParams.set("redirect", novaUrl.pathname)
+      window.location.replace(callbackUrl.toString())
+    }
+
+    void transferSession()
+    return () => {
+      cancelled = true
     }
   }, [data, isPending, router])
 
@@ -46,10 +85,9 @@ const LoginForm = () => {
     setIsLoading(true)
     setError(null)
     try {
-      const params = new URLSearchParams(window.location.search)
-      const redirect = params.get("redirect") || ""
-      const callbackURL = redirect
-        ? new URL(redirect, window.location.origin).toString()
+      const novaUrl = getSafeRedirect()
+      const callbackURL = novaUrl
+        ? `${window.location.origin}/sign-in?redirect=${encodeURIComponent(novaUrl.toString())}`
         : window.location.origin
       await authClient.signIn.social({
         provider: 'github',

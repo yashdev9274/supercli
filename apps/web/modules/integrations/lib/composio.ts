@@ -70,13 +70,14 @@ export function composioEntityIdForOrg(organizationId: string): string {
 }
 
 function authConfigIdFor(provider: IntegrationProvider): string | undefined {
-  if (provider === "slack") {
-    return process.env.COMPOSIO_SLACK_AUTH_CONFIG_ID?.trim() || undefined
-  }
-  if (provider === "linear") {
-    return process.env.COMPOSIO_LINEAR_AUTH_CONFIG_ID?.trim() || undefined
-  }
-  return process.env.COMPOSIO_GITHUB_AUTH_CONFIG_ID?.trim() || undefined
+  const raw = (() => {
+    if (provider === "slack") return process.env.COMPOSIO_SLACK_AUTH_CONFIG_ID
+    if (provider === "linear") return process.env.COMPOSIO_LINEAR_AUTH_CONFIG_ID
+    return process.env.COMPOSIO_GITHUB_AUTH_CONFIG_ID
+  })()?.trim()
+  // Ignore empty / obviously truncated ids (e.g. trailing underscore stubs).
+  if (!raw || raw.length < 8 || raw.endsWith("_")) return undefined
+  return raw
 }
 
 export type ComposioConnectStart = {

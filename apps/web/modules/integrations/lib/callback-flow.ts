@@ -1,5 +1,5 @@
-import { getIntegrationsSettingsUrl } from "./app-url"
-import { verifyOAuthState } from "./oauth-state"
+import { getIntegrationsSettingsUrl, getNovaConnectionsUrl } from "./app-url"
+import { verifyOAuthState, type OAuthReturnTo } from "./oauth-state"
 import {
   getComposioConnectedAccount,
 } from "./composio"
@@ -8,12 +8,23 @@ import { ensureUserOrganization } from "./org"
 import type { IntegrationProvider } from "../actions/schema"
 import { NextResponse } from "next/server"
 
-function completionUrl(returnTo: "desktop" | "web", provider: IntegrationProvider, error?: string) {
+function completionUrl(
+  returnTo: OAuthReturnTo,
+  provider: IntegrationProvider,
+  error?: string,
+  requestOrigin?: string | null,
+) {
   if (returnTo === "desktop") {
     const url = new URL("supercode://composio/connected")
     url.searchParams.set("provider", provider)
     if (error) url.searchParams.set("error", error)
     return url
+  }
+  if (returnTo === "nova") {
+    return getNovaConnectionsUrl(
+      error ? { error } : { connected: provider },
+      requestOrigin,
+    )
   }
   return getIntegrationsSettingsUrl(error ? { error } : { connected: provider })
 }
@@ -25,8 +36,10 @@ function completionUrl(returnTo: "desktop" | "web", provider: IntegrationProvide
 export async function handleComposioCallback(params: {
   provider: IntegrationProvider
   searchParams: URLSearchParams
+  /** Origin of the callback request so Nova redirects stay on nova.localhost / nova.supercodeai.tech. */
+  requestOrigin?: string | null
 }): Promise<NextResponse> {
-  const { provider, searchParams } = params
+  const { provider, searchParams, requestOrigin } = params
 
   const status =
     searchParams.get("status") ||
@@ -37,25 +50,27 @@ export async function handleComposioCallback(params: {
     searchParams.get("error_description") ||
     searchParams.get("integration_error")
 
+  // Peek state early so error redirects honor returnTo (nova vs dashboard).
+  const state = searchParams.get("state")
+  const peeked = state ? verifyOAuthState(state, provider) : null
+  const returnTo: OAuthReturnTo = peeked?.returnTo ?? "web"
+
   if (error || (status && status !== "success" && status !== "ACTIVE")) {
     return NextResponse.redirect(
-      getIntegrationsSettingsUrl({
-        error: error || `${provider}_oauth_denied`,
-      }),
+      completionUrl(returnTo, provider, error || `${provider}_oauth_denied`, requestOrigin),
     )
   }
 
-  const state = searchParams.get("state")
   if (!state) {
     return NextResponse.redirect(
-      getIntegrationsSettingsUrl({ error: "missing_oauth_params" }),
+      completionUrl(returnTo, provider, "missing_oauth_params", requestOrigin),
     )
   }
 
-  const verified = verifyOAuthState(state, provider)
+  const verified = peeked ?? verifyOAuthState(state, provider)
   if (!verified) {
     return NextResponse.redirect(
-      getIntegrationsSettingsUrl({ error: "invalid_state" }),
+      completionUrl(returnTo, provider, "invalid_state", requestOrigin),
     )
   }
 
@@ -65,7 +80,9 @@ export async function handleComposioCallback(params: {
     searchParams.get("connectedAccountID")
 
   if (!connectedAccountId) {
-    return NextResponse.redirect(getIntegrationsSettingsUrl({ error: "missing_connected_account" }))
+    return NextResponse.redirect(
+      completionUrl(verified.returnTo, provider, "missing_connected_account", requestOrigin),
+    )
   }
 
   try {
@@ -78,7 +95,14 @@ export async function handleComposioCallback(params: {
       account.toolkitSlug !== provider ||
       (account.userId && account.userId !== expectedEntityId)
     ) {
-      return NextResponse.redirect(completionUrl(verified.returnTo, provider, `${provider}_connection_invalid`))
+      return NextResponse.redirect(
+        completionUrl(
+          verified.returnTo,
+          provider,
+          `${provider}_connection_invalid`,
+          requestOrigin,
+        ),
+      )
     }
 
     await upsertComposioIntegration({
@@ -88,9 +112,18 @@ export async function handleComposioCallback(params: {
       teamName: account?.displayName ?? null,
     })
 
-    return NextResponse.redirect(completionUrl(verified.returnTo, provider))
+    return NextResponse.redirect(
+      completionUrl(verified.returnTo, provider, undefined, requestOrigin),
+    )
   } catch (err) {
     console.error(`Composio ${provider} callback failed:`, err)
-    return NextResponse.redirect(completionUrl(verified.returnTo, provider, `${provider}_connect_failed`))
+    return NextResponse.redirect(
+      completionUrl(
+        verified.returnTo,
+        provider,
+        `${provider}_connect_failed`,
+        requestOrigin,
+      ),
+    )
   }
 }

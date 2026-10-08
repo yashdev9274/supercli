@@ -23,6 +23,14 @@ describe("Composio OAuth state", () => {
     expect(verifyOAuthState(state, "slack")).toBeNull()
   })
 
+  test("preserves the Nova return target for Linear", () => {
+    const state = createOAuthState("user_2", "linear", "nova")
+    expect(verifyOAuthState(state, "linear")).toEqual({
+      userId: "user_2",
+      returnTo: "nova",
+    })
+  })
+
   test("rejects a modified signature", () => {
     const state = createOAuthState("user_1", "slack", "web")
     expect(verifyOAuthState(`${state}changed`, "slack")).toBeNull()

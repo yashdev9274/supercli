@@ -61,9 +61,11 @@ const LoginUI=()=> {
     const handleGithubLogin = async ()=>{
         setIsLoading(true)
         try {
+            const isNovaHost = window.location.hostname === "nova.supercodeai.tech"
+                || window.location.hostname === "nova.localhost"
             await signIn.social({
                 provider:"github",
-                callbackURL: "/dashboard"
+                callbackURL: isNovaHost ? "/" : "/dashboard"
             })
         } catch (error) {
             console.error("Login error:", error)

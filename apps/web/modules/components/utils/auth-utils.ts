@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
-export const requireAuth = async () => {
+export const requireAuth = async (loginPath = "/login") => {
     let lastError: unknown
     for (let attempt = 0; attempt < 2; attempt++) {
         try {
@@ -13,7 +13,7 @@ export const requireAuth = async () => {
             })
 
             if (!session) {
-                redirect("/login")
+                redirect(loginPath)
             }
 
             return session
@@ -24,16 +24,17 @@ export const requireAuth = async () => {
             }
         }
     }
-    redirect("/login")
+    void lastError
+    redirect(loginPath)
 }
 
-export const requireUnAuth = async () =>{
+export const requireUnAuth = async (authenticatedPath = "/") =>{
     const session = await auth.api.getSession({
         headers:await headers()
     })
 
     if(session){
-        redirect("/")
+        redirect(authenticatedPath)
     }
 
     return session
