@@ -2,6 +2,14 @@ import prisma from "@super/db"
 
 import { streamHarnessAgent } from "@/modules/nova/harness/agent"
 import type { HarnessChatMessage } from "@/modules/nova/harness/client"
+import {
+  formatLocalAttachmentsContext,
+  imageDataUrl,
+  localAttachmentsSchema,
+  type LocalAttachment,
+  type LocalAttachmentMeta,
+} from "@/modules/nova/attachments/contracts"
+import { formatLocalProjectContext } from "@/modules/nova/local-projects/service"
 import type { NovaReference, ReferenceInput } from "@/modules/nova/references/contracts"
 import { resolveNovaReferences } from "@/modules/nova/references/service"
 import {
@@ -26,6 +34,7 @@ export type TurnStreamEvent =
         senderId: string
         createdAt: string
         references?: NovaReference[]
+        localAttachments?: LocalAttachmentMeta[]
       }
       runId: string
       latestSequence: number
@@ -63,7 +72,7 @@ function effortHint(effort?: string | null): string {
   }
 }
 
-function buildSystemPrompt(objective: string, effort?: string | null) {
+function buildSystemPrompt(objective: string, effort?: string | null, localProjectNote?: string | null) {
   return `You are Nova, Supercode's AI software engineer.
 
 You run through the same Supercode harness as the Nova macOS app (provider routing, plan gates, usage).
@@ -73,7 +82,7 @@ On the web you reason, plan, review, draft, and coordinate company work.
 - Local shell, filesystem, and native tools stay on the paired Nova desktop app.
 - Keep prose tight and senior. No filler.
 - ${effortHint(effort)}
-- Session objective: ${objective}`
+- Session objective: ${objective}${localProjectNote ? `\n- ${localProjectNote}` : ""}`
 }
 
 async function buildTurnContext(
@@ -85,7 +94,23 @@ async function buildTurnContext(
   const [session, messages, responses] = await Promise.all([
     prisma.agentSession.findUniqueOrThrow({
       where: { id: sessionId },
-      select: { objective: true },
+      select: {
+        objective: true,
+        localProject: {
+          select: {
+            id: true,
+            displayName: true,
+            rootName: true,
+            fileCount: true,
+            truncated: true,
+            repositoryFullName: true,
+            status: true,
+            lastUsedAt: true,
+            updatedAt: true,
+            pathIndex: true,
+          },
+        },
+      },
     }),
     prisma.agentSessionMessage.findMany({
       where: {
@@ -143,15 +168,36 @@ async function buildTurnContext(
     })
   }
 
+  const localProject = session.localProject && session.localProject.status === "active"
+    ? {
+        id: session.localProject.id,
+        displayName: session.localProject.displayName,
+        rootName: session.localProject.rootName,
+        fileCount: session.localProject.fileCount,
+        truncated: session.localProject.truncated,
+        repositoryFullName: session.localProject.repositoryFullName,
+        status: session.localProject.status,
+        lastUsedAt: session.localProject.lastUsedAt?.toISOString() ?? null,
+        updatedAt: session.localProject.updatedAt.toISOString(),
+        paths: Array.isArray(session.localProject.pathIndex)
+          ? session.localProject.pathIndex.filter((item): item is string => typeof item === "string")
+          : [],
+      }
+    : null
+
+  const localProjectNote = localProject
+    ? `Active local project “${localProject.displayName}” (${localProject.fileCount} indexed paths under “${localProject.rootName}”). Prefer @ Files / attachments from that project; you cannot freely read the user's disk.`
+    : null
+
   const chatMessages: HarnessChatMessage[] = [
-    { role: "system", content: buildSystemPrompt(session.objective, effort) },
+    { role: "system", content: buildSystemPrompt(session.objective, effort, localProjectNote) },
     ...window.map((entry) => ({
       role: entry.role,
       content: entry.content,
     })),
   ]
 
-  return { objective: session.objective, messages: chatMessages }
+  return { objective: session.objective, messages: chatMessages, localProject }
 }
 
 async function completeRun(input: {
@@ -243,6 +289,7 @@ export async function* runWebTurn(input: {
   harnessToken: string
   signal?: AbortSignal
   references?: ReferenceInput[]
+  localAttachments?: LocalAttachment[]
 }): AsyncGenerator<TurnStreamEvent> {
   const content = input.content.trim()
   const selection = resolveHarnessSelection(input.model, input.provider)
@@ -253,6 +300,14 @@ export async function* runWebTurn(input: {
     message: "Request accepted",
     model: selection.model,
   }
+
+  const parsedLocal = localAttachmentsSchema.safeParse(input.localAttachments ?? [])
+  if (!parsedLocal.success) {
+    yield { type: "error", message: parsedLocal.error.issues[0]?.message ?? "Invalid local attachments" }
+    yield { type: "finish", reason: "error" }
+    return
+  }
+  const localAttachments = parsedLocal.data
 
   let resolvedReferences: Awaited<ReturnType<typeof resolveNovaReferences>>
   try {
@@ -270,6 +325,7 @@ export async function* runWebTurn(input: {
     clientMessageId: input.clientMessageId,
     surface: "web",
     references: resolvedReferences.references,
+    localAttachments,
   })
   if (!posted) {
     yield { type: "error", message: "Session not found" }
@@ -296,9 +352,27 @@ export async function* runWebTurn(input: {
       content,
       input.effort,
     )
-    if (resolvedReferences.context) {
-      const userMessage = context.messages.findLast((message) => message.role === "user")
-      if (userMessage) userMessage.content += `\n\n${resolvedReferences.context}`
+    const userMessage = context.messages.findLast((message) => message.role === "user")
+    if (userMessage) {
+      const baseText = typeof userMessage.content === "string" ? userMessage.content : ""
+      let text = baseText
+      if (resolvedReferences.context) {
+        text += `\n\n${resolvedReferences.context}`
+      }
+      if (context.localProject) {
+        text += `\n\n${formatLocalProjectContext(context.localProject)}`
+      }
+      const localContext = formatLocalAttachmentsContext(localAttachments)
+      if (localContext) {
+        text += `\n\n${localContext}`
+      }
+      const imageParts = localAttachments.flatMap((file) => {
+        const url = imageDataUrl(file)
+        return url ? [{ type: "image" as const, image: url }] : []
+      })
+      userMessage.content = imageParts.length > 0
+        ? [{ type: "text", text }, ...imageParts]
+        : text
     }
 
     yield {

@@ -62,6 +62,7 @@ model Organization {
   auditEvents              NovaAuditEvent[]
   usageLedger              NovaUsageLedger[]
   desktopDevices           DesktopDevice[]
+  webLocalProjects         WebLocalProject[]
 
   @@map("organization")
 }
@@ -86,6 +87,7 @@ model User {
   whatsAppLinkChallenges  WhatsAppLinkChallenge[]
   organizationMemberships OrganizationMembership[]
   desktopDevices          DesktopDevice[]
+  webLocalProjects        WebLocalProject[]
 
   @@unique([email])
   @@index([organizationId])
@@ -399,6 +401,8 @@ model AgentSession {
   budget                Json?
   nextSequence          Int                     @default(1)
   activeRunId           String?
+  localProjectId        String?
+  localProject          WebLocalProject?        @relation(fields: [localProjectId], references: [id], onDelete: SetNull)
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
   completedAt           DateTime?
@@ -415,6 +419,7 @@ model AgentSession {
 
   @@index([organizationId, status, updatedAt])
   @@index([initiatorMembershipId])
+  @@index([localProjectId])
   @@map("agent_session")
 }
 
@@ -723,6 +728,33 @@ model DesktopDevice {
   @@index([organizationId, status, lastSeenAt])
   @@index([userId])
   @@map("desktop_device")
+}
+
+/// Browser-granted local project folder for Nova web (File System Access API on the client).
+/// Path index lives in Postgres so threads remember the project; file bodies are read in-browser.
+model WebLocalProject {
+  id                 String       @id @default(cuid())
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName        String
+  rootName           String
+  /// Relative file paths from the granted folder root (string[]).
+  pathIndex          Json
+  fileCount          Int          @default(0)
+  truncated          Boolean      @default(false)
+  repositoryFullName String?
+  status             String       @default("active") // active | archived
+  lastUsedAt         DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  sessions AgentSession[]
+
+  @@index([userId, status, lastUsedAt])
+  @@index([organizationId, status])
+  @@map("web_local_project")
 }
 
 model WorkspaceBinding {

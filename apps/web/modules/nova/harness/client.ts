@@ -6,9 +6,15 @@ export type HarnessStreamEvent =
   | { type: "finish"; reason?: string; usage?: Record<string, unknown> }
   | { type: "error"; message: string }
 
+export type HarnessChatContentPart =
+  | { type: "text"; text: string }
+  | { type: "image"; image: string }
+  | { type: "image_url"; image_url: { url: string } }
+
 export type HarnessChatMessage = {
   role: "system" | "user" | "assistant" | "tool"
-  content: string
+  /** Plain string, or multimodal parts (text + images) for vision models. */
+  content: string | HarnessChatContentPart[]
   tool_call_id?: string
   tool_calls?: unknown
 }

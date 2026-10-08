@@ -9,6 +9,7 @@ const createSessionSchema = z.object({
   objective: z.string().trim().min(1).max(20_000),
   mode: z.string().trim().min(1).max(64).optional(),
   surface: z.enum(["web", "desktop"]).optional(),
+  localProjectId: z.string().trim().min(1).max(64).optional().nullable(),
 })
 
 async function currentUserId() {
@@ -40,6 +41,7 @@ export async function POST(request: NextRequest) {
       objective: parsed.data.objective,
       mode: parsed.data.mode,
       surface: parsed.data.surface ?? "web",
+      localProjectId: parsed.data.localProjectId,
     })
     return NextResponse.json({ session }, { status: 201 })
   } catch (error) {

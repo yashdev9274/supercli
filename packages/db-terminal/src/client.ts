@@ -25,11 +25,25 @@ declare const globalThis: {
   prismaTerminalGlobal: ReturnType<typeof prismaClientSingleton> | undefined
 } & typeof global
 
-const prisma = globalThis.prismaTerminalGlobal ?? prismaClientSingleton()
-
-if (process.env.NODE_ENV !== "production") {
-  globalThis.prismaTerminalGlobal = prisma
+/**
+ * Lazy client so Next.js can import modules that re-export harness helpers
+ * during `collect page data` without requiring DATABASE_URL_TERMINAL at
+ * module-evaluation time. The URL is still required on first real query.
+ */
+function getPrisma(): ReturnType<typeof prismaClientSingleton> {
+  if (!globalThis.prismaTerminalGlobal) {
+    globalThis.prismaTerminalGlobal = prismaClientSingleton()
+  }
+  return globalThis.prismaTerminalGlobal
 }
 
+const prisma = new Proxy({} as ReturnType<typeof prismaClientSingleton>, {
+  get(_target, property, receiver) {
+    const client = getPrisma()
+    const value = Reflect.get(client, property, receiver)
+    return typeof value === "function" ? value.bind(client) : value
+  },
+})
+
 export default prisma
-export { PrismaClient }
+export { PrismaClient, getPrisma as getTerminalPrisma }

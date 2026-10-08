@@ -3,7 +3,7 @@ import { createSessionCookieForUser } from "@super/auth/server"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 
-import { harnessTokenCookieHeader } from "@/modules/nova/harness/auth"
+import { harnessTokenCookieHeader } from "@/modules/nova/harness/cookies"
 
 const callbackQuerySchema = z.object({
   token: z.string().min(1).max(512),

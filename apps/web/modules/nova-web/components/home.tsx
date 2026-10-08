@@ -4,6 +4,8 @@ import { useState } from "react"
 import { ChevronDown, Cloud, FolderGit2 } from "lucide-react"
 
 import { Composer } from "@/modules/nova-web/components/composer"
+import type { LocalAttachment } from "@/modules/nova/attachments/contracts"
+import type { LocalWorkspaceState } from "@/modules/nova-web/local-workspace"
 import type { NovaReference } from "@/modules/nova/references/contracts"
 import type {
   HarnessProvider,
@@ -47,8 +49,10 @@ export function EmptyHome({
   onModelChange,
   onEffortChange,
   onModeChange,
+  onLocalProjectChange,
+  localProjectLabel,
 }: {
-  onStart: (value: string, references?: NovaReference[]) => void
+  onStart: (value: string, references?: NovaReference[], localFiles?: LocalAttachment[]) => void
   busy?: boolean
   model: string
   provider: HarnessProvider
@@ -57,16 +61,25 @@ export function EmptyHome({
   onModelChange: (selection: { provider: HarnessProvider; model: string }) => void
   onEffortChange: (effort: NovaEffort) => void
   onModeChange: (mode: NovaAgentMode) => void
+  onLocalProjectChange?: (project: LocalWorkspaceState) => void
+  localProjectLabel?: string | null
 }) {
   const [draft, setDraft] = useState("")
   const [references, setReferences] = useState<NovaReference[]>([])
+  const [localFiles, setLocalFiles] = useState<LocalAttachment[]>([])
 
   function submit(value = draft) {
     const objective = value.trim()
-    if (!objective || busy) return
-    onStart(objective, references)
+    if (busy) return
+    if (!objective && localFiles.length === 0) return
+    onStart(
+      objective || "Please review the attached local files.",
+      references,
+      localFiles,
+    )
     setDraft("")
     setReferences([])
+    setLocalFiles([])
   }
 
   return (
@@ -79,7 +92,7 @@ export function EmptyHome({
             className="flex items-center gap-1.5 rounded-md px-1.5 py-1 transition hover:bg-white/[0.04] hover:text-[#a0a0a0]"
           >
             <FolderGit2 className="size-3.5" strokeWidth={1.75} />
-            Company
+            {localProjectLabel ? localProjectLabel : "Local project"}
             <ChevronDown className="size-3 opacity-70" />
           </button>
           <button
@@ -98,6 +111,9 @@ export function EmptyHome({
             onChange={setDraft}
             references={references}
             onReferencesChange={setReferences}
+            localFiles={localFiles}
+            onLocalFilesChange={setLocalFiles}
+            onLocalProjectChange={onLocalProjectChange}
             onSubmit={() => submit()}
             large
             disabled={busy}
@@ -108,7 +124,7 @@ export function EmptyHome({
             onModelChange={onModelChange}
             onEffortChange={onEffortChange}
             onModeChange={onModeChange}
-            placeholder="Ask to make changes, @mention files, run /commands"
+            placeholder="Ask to make changes, open a local folder, @mention files"
           />
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             {STARTERS.map((starter) => (

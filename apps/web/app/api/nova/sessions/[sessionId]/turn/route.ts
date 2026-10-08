@@ -3,6 +3,7 @@ import { headers } from "next/headers"
 import { NextRequest } from "next/server"
 import { z } from "zod"
 
+import { localAttachmentsSchema } from "@/modules/nova/attachments/contracts"
 import { ensureHarnessToken } from "@/modules/nova/harness/auth"
 import { referencesInputSchema } from "@/modules/nova/references/contracts"
 import { runWebTurn } from "@/modules/nova/sessions/turn"
@@ -15,6 +16,7 @@ const turnSchema = z.object({
   effort: z.enum(["low", "medium", "high", "xhigh"]).optional(),
   mode: z.enum(["agent", "plan", "chat"]).optional(),
   references: referencesInputSchema,
+  localAttachments: localAttachmentsSchema,
 })
 
 export const runtime = "nodejs"
@@ -86,6 +88,7 @@ export async function POST(
           harnessToken: harnessAuth.token,
           signal: request.signal,
           references: parsed.data.references,
+          localAttachments: parsed.data.localAttachments,
         })) {
           write(event)
         }

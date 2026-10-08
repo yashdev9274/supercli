@@ -1,33 +1,18 @@
 import terminalPrisma from "@super/db-terminal"
 import { cookies } from "next/headers"
 
-export const HARNESS_TOKEN_COOKIE = "nova_harness_token"
+import {
+  clearHarnessTokenCookieHeader,
+  HARNESS_TOKEN_COOKIE,
+  harnessTokenCookieHeader,
+  harnessTokenMaxAgeSeconds,
+} from "@/modules/nova/harness/cookies"
 
-const HARNESS_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 14
-
-export function harnessTokenCookieHeader(token: string): string {
-  const parts = [
-    `${HARNESS_TOKEN_COOKIE}=${encodeURIComponent(token)}`,
-    "Path=/",
-    `Max-Age=${HARNESS_TOKEN_MAX_AGE_SECONDS}`,
-    "HttpOnly",
-    "SameSite=Lax",
-  ]
-  if (process.env.NODE_ENV === "production") parts.push("Secure")
-  return parts.join("; ")
-}
-
-export function clearHarnessTokenCookieHeader(): string {
-  const parts = [
-    `${HARNESS_TOKEN_COOKIE}=`,
-    "Path=/",
-    "Max-Age=0",
-    "HttpOnly",
-    "SameSite=Lax",
-  ]
-  if (process.env.NODE_ENV === "production") parts.push("Secure")
-  return parts.join("; ")
-}
+export {
+  clearHarnessTokenCookieHeader,
+  HARNESS_TOKEN_COOKIE,
+  harnessTokenCookieHeader,
+} from "@/modules/nova/harness/cookies"
 
 /** Read harness bearer from the Nova cookie, if present and still valid in terminal DB. */
 export async function readHarnessTokenFromCookie(email: string): Promise<string | null> {
@@ -105,7 +90,7 @@ export async function ensureHarnessToken(input: {
   }
 
   const token = crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "")
-  const expiresAt = new Date(Date.now() + HARNESS_TOKEN_MAX_AGE_SECONDS * 1000)
+  const expiresAt = new Date(Date.now() + harnessTokenMaxAgeSeconds() * 1000)
   await terminalPrisma.session.create({
     data: {
       id: crypto.randomUUID(),

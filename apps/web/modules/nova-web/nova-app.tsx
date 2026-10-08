@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { Menu, MessageSquare, X } from "lucide-react"
 
 import {
+  bindSessionLocalProject,
   createSession,
   decideApproval,
   getSession,
@@ -13,6 +14,7 @@ import {
   listSessions,
   streamTurn,
   syncSession,
+  type LocalProjectDto,
 } from "@/modules/nova-web/api"
 import { ApprovalsView } from "@/modules/nova-web/components/approvals"
 import { ConnectionsView } from "@/modules/nova-web/components/connections"
@@ -44,6 +46,17 @@ import type {
   TimelineEntry,
   WorkspaceView,
 } from "@/modules/nova-web/types"
+import {
+  reduceWorkingSteps,
+  tickWorkingSteps,
+  type WorkingStep,
+} from "@/modules/nova-web/working-steps"
+import {
+  getActiveLocalProjectId,
+  restoreLocalWorkspace,
+  type LocalWorkspaceState,
+} from "@/modules/nova-web/local-workspace"
+import type { LocalAttachment } from "@/modules/nova/attachments/contracts"
 import type { NovaReference } from "@/modules/nova/references/contracts"
 
 const PENDING_TURN_KEY = "nova:pending-turn"
@@ -56,6 +69,7 @@ type PendingTurn = {
   effort: NovaEffort
   mode: NovaAgentMode
   references?: NovaReference[]
+  localAttachments?: LocalAttachment[]
 }
 
 type NovaAppProps = {
@@ -174,6 +188,8 @@ export function NovaApp({
   const [detailsOpen, setDetailsOpen] = useState(true)
   const [draft, setDraft] = useState("")
   const [references, setReferences] = useState<NovaReference[]>([])
+  const [localFiles, setLocalFiles] = useState<LocalAttachment[]>([])
+  const [localProject, setLocalProject] = useState<LocalProjectDto | null>(null)
   const [model, setModel] = useState(DEFAULT_NOVA_MODEL)
   const [provider, setProvider] = useState<HarnessProvider>(DEFAULT_NOVA_PROVIDER)
   const [effort, setEffort] = useState<NovaEffort>("high")
@@ -181,6 +197,7 @@ export function NovaApp({
   const [streaming, setStreaming] = useState(false)
   const [streamingText, setStreamingText] = useState("")
   const [streamPhase, setStreamPhase] = useState<string | null>(null)
+  const [workingSteps, setWorkingSteps] = useState<WorkingStep[]>([])
   const [workingSince, setWorkingSince] = useState<number | null>(null)
   const [decidingApprovalId, setDecidingApprovalId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -199,6 +216,7 @@ export function NovaApp({
     (href: string) => {
       setSidebarOpen(false)
       setReferences([])
+      setLocalFiles([])
       router.push(href)
     },
     [router],
@@ -254,6 +272,10 @@ export function NovaApp({
       syncSession(sessionId, reset ? 0 : cursorRef.current, 500),
     ])
     setSession(detailResponse.session)
+    setLocalProject(detailResponse.session.localProject ?? null)
+    if (detailResponse.session.localProjectId) {
+      void restoreLocalWorkspace(detailResponse.session.localProjectId).catch(() => undefined)
+    }
     if (reset) {
       setTimeline(
         mergeTimeline(
@@ -335,10 +357,53 @@ export function NovaApp({
     }
   }, [loadSession, selectedId, setSyncCursor])
 
-  async function startThread(objective: string, selectedReferences: NovaReference[] = []) {
+  async function handleLocalProjectChange(workspace: LocalWorkspaceState) {
+    const projectId = workspace.projectId
+    if (!projectId) {
+      setLocalProject(null)
+      return
+    }
+    const summary: LocalProjectDto = {
+      id: projectId,
+      displayName: workspace.displayName,
+      rootName: workspace.rootName,
+      fileCount: workspace.entries.length,
+      truncated: workspace.truncated,
+      repositoryFullName: null,
+      status: "active",
+      lastUsedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      paths: workspace.entries.map((entry) => entry.path),
+    }
+    setLocalProject(summary)
+    if (selectedId) {
+      try {
+        const bound = await bindSessionLocalProject(selectedId, projectId)
+        if (bound.project) setLocalProject(bound.project)
+        setSession((current) =>
+          current
+            ? {
+                ...current,
+                localProjectId: bound.localProjectId,
+                localProject: bound.project,
+              }
+            : current,
+        )
+      } catch (error) {
+        setError(error instanceof Error ? error.message : "Could not link local project to this thread")
+      }
+    }
+  }
+
+  async function startThread(
+    objective: string,
+    selectedReferences: NovaReference[] = [],
+    selectedLocalFiles: LocalAttachment[] = [],
+  ) {
     startTransition(async () => {
       try {
-        const response = await createSession(objective)
+        const projectId = getActiveLocalProjectId() || localProject?.id || null
+        const response = await createSession(objective, { localProjectId: projectId })
         setSessions((current) => [
           response.session,
           ...current.filter((item) => item.id !== response.session.id),
@@ -352,6 +417,7 @@ export function NovaApp({
           effort,
           mode: agentMode,
           references: selectedReferences,
+          localAttachments: selectedLocalFiles,
         })
         navigate(`/s/${response.session.id}`)
         setError(null)
@@ -370,6 +436,7 @@ export function NovaApp({
       effort?: NovaEffort
       mode?: NovaAgentMode
       references?: NovaReference[]
+      localAttachments?: LocalAttachment[]
     },
   ) => {
     if (streamingRef.current) return
@@ -379,9 +446,11 @@ export function NovaApp({
     setStreaming(true)
     setStreamingText("")
     setStreamPhase("Starting…")
+    setWorkingSteps([])
     setWorkingSince(Date.now())
     setDraft("")
     setReferences([])
+    setLocalFiles([])
     try {
       const clientMessageId = crypto.randomUUID()
       for await (const event of streamTurn(sessionId, content, {
@@ -391,10 +460,12 @@ export function NovaApp({
         effort: opts?.effort ?? effort,
         mode: opts?.mode ?? agentMode,
         references: opts?.references ?? [],
+        localAttachments: opts?.localAttachments ?? [],
       })) {
         if (abortRef.current) break
         if (event.type === "status") {
           setStreamPhase(event.message)
+          setWorkingSteps((steps) => reduceWorkingSteps(steps, { type: "status", message: event.message }))
         } else if (event.type === "user_message") {
           setTimeline((current) =>
             mergeTimeline(current, [{ ...event.message, kind: "message" as const }], []),
@@ -403,12 +474,28 @@ export function NovaApp({
         } else if (event.type === "text") {
           setStreamingText((value) => value + event.content)
           setStreamPhase(null)
+          setWorkingSteps((steps) => reduceWorkingSteps(steps, { type: "text" }))
         } else if (event.type === "reasoning") {
-          // Keep phase label on reasoning ticks so the working clock feels live.
-          if (event.content.trim()) setStreamPhase(event.content.slice(0, 120))
+          if (event.content.trim()) {
+            setStreamPhase("Thinking…")
+            setWorkingSteps((steps) =>
+              reduceWorkingSteps(steps, { type: "reasoning", content: event.content }),
+            )
+          }
         } else if (event.type === "activity") {
           setTimeline((current) =>
             mergeTimeline(current, [], [{ ...event.activity, kind: "activity" as const }]),
+          )
+          setWorkingSteps((steps) =>
+            reduceWorkingSteps(steps, {
+              type: "activity",
+              activity: {
+                type: event.activity.type,
+                title: event.activity.title,
+                body: event.activity.body,
+                status: event.activity.status,
+              },
+            }),
           )
           if (event.activity.type === "response") {
             setStreamingText("")
@@ -429,9 +516,19 @@ export function NovaApp({
       setStreaming(false)
       setStreamingText("")
       setStreamPhase(null)
+      setWorkingSteps([])
       setWorkingSince(null)
     }
   }, [agentMode, effort, loadSharedState, model, provider, pullSync, setSyncCursor])
+
+  // Keep "Thinking for Xs" labels live while reasoning is in flight.
+  useEffect(() => {
+    if (!streaming) return
+    const id = window.setInterval(() => {
+      setWorkingSteps((steps) => tickWorkingSteps(steps))
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [streaming])
 
   // After navigating to a new thread, pick up the pending first turn.
   useEffect(() => {
@@ -450,12 +547,18 @@ export function NovaApp({
       effort: pending.effort,
       mode: pending.mode,
       references: pending.references,
+      localAttachments: pending.localAttachments,
     })
   }, [runTurn, selectedId])
 
   function submitFollowUp() {
-    if (!selectedId || !draft.trim() || streamingRef.current) return
-    void runTurn(selectedId, draft.trim(), { references })
+    if (!selectedId || streamingRef.current) return
+    const content = draft.trim()
+    if (!content && localFiles.length === 0) return
+    void runTurn(selectedId, content || "Please review the attached local files.", {
+      references,
+      localAttachments: localFiles,
+    })
   }
 
   function handleModelChange(selection: { provider: HarnessProvider; model: string }) {
@@ -529,8 +632,13 @@ export function NovaApp({
           draft={draft}
           references={references}
           onReferencesChange={setReferences}
+          localFiles={localFiles}
+          onLocalFilesChange={setLocalFiles}
+          localProject={localProject ?? session.localProject ?? null}
+          onLocalProjectChange={(workspace) => void handleLocalProjectChange(workspace)}
           streamingText={streamingText}
           streamPhase={streamPhase}
+          workingSteps={workingSteps}
           streaming={streaming}
           workingSince={workingSince}
           loading={isPending}
@@ -568,6 +676,8 @@ export function NovaApp({
           onModelChange={handleModelChange}
           onEffortChange={setEffort}
           onModeChange={setAgentMode}
+          onLocalProjectChange={(workspace) => void handleLocalProjectChange(workspace)}
+          localProjectLabel={localProject?.displayName ?? null}
         />
       )}
     </>

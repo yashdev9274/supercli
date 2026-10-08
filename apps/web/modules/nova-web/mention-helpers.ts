@@ -8,7 +8,7 @@ export const REFERENCE_CATEGORIES: { kind: ReferenceKind; label: string; descrip
   { kind: "pull_requests", label: "Pull requests", description: "Open and recent pull requests" },
   { kind: "skills", label: "Skills", description: "Skills available to the agent" },
   { kind: "devices", label: "Devices", description: "Your paired computers" },
-  { kind: "files", label: "Files", description: "Source files in connected repos" },
+  { kind: "files", label: "Files", description: "Local folder + connected repos" },
 ]
 
 export type MentionQuery = {

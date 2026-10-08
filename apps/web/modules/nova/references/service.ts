@@ -165,6 +165,13 @@ export async function resolveNovaReferences(userId: string, input: ReferenceInpu
   let remaining = MAX_CONTEXT_CHARS
 
   for (const reference of unique) {
+    // Client-side local workspace files are delivered as localAttachments, not GitHub refs.
+    if (reference.kind === "files" && reference.id.startsWith("local:")) {
+      throw new ReferenceServiceError(
+        "Local folder files must be attached from the browser. Open a local folder in @ Files or use + / paste / drag-and-drop.",
+        400,
+      )
+    }
     let label: string
     let description: string
     let content: string

@@ -7,6 +7,7 @@ import {
   Check,
   ChevronRight,
   File,
+  FolderOpen,
   GitPullRequest,
   Laptop,
   MessageSquare,
@@ -18,6 +19,14 @@ import {
 import { cn } from "@/lib/utils"
 import type { NovaReference, ReferenceKind, ReferenceSearchResult } from "@/modules/nova/references/contracts"
 import { MAX_REFERENCES, REFERENCE_CATEGORIES } from "@/modules/nova-web/mention-helpers"
+import {
+  getLocalWorkspace,
+  isLocalFileReferenceId,
+  localWorkspaceStatusMessage,
+  localWorkspaceSupportsPicker,
+  restoreLocalWorkspace,
+  searchLocalWorkspaceFiles,
+} from "@/modules/nova-web/local-workspace"
 
 const REFERENCE_ICONS = {
   people: Users,
@@ -37,22 +46,78 @@ type SearchState = {
   message?: string
 }
 
+function mergeFileResults(local: NovaReference[], remote: NovaReference[], limit = 50): NovaReference[] {
+  const seen = new Set<string>()
+  const out: NovaReference[] = []
+  for (const item of [...local, ...remote]) {
+    const key = `${item.kind}:${item.id}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(item)
+    if (out.length >= limit) break
+  }
+  return out
+}
+
 export function useReferenceSearch(kind: ReferenceKind | null, query: string, session: number) {
   const [search, setSearch] = useState<SearchState | null>(null)
   const [attempt, setAttempt] = useState(0)
-  const key = JSON.stringify([kind, query, session, attempt])
+  const [workspaceTick, setWorkspaceTick] = useState(0)
+  const key = JSON.stringify([kind, query, session, attempt, workspaceTick])
+
+  useEffect(() => {
+    if (kind !== "files") return
+    void restoreLocalWorkspace().then((state) => {
+      if (state) setWorkspaceTick((value) => value + 1)
+    })
+  }, [kind])
 
   useEffect(() => {
     if (!kind) return
     const controller = new AbortController()
     const timer = window.setTimeout(async () => {
       try {
+        const localItems = kind === "files" ? searchLocalWorkspaceFiles(query) : []
         const params = new URLSearchParams({ kind, q: query })
         const response = await fetch(`/api/nova/references?${params}`, {
           signal: controller.signal,
           cache: "no-store",
         })
-        const result: ReferenceSearchResult & { error?: string } = await response.json()
+        const result: ReferenceSearchResult & { error?: string } = await response.json().catch(() => ({} as ReferenceSearchResult))
+
+        if (kind === "files") {
+          // Local results still show even if GitHub search fails.
+          if (!response.ok) {
+            if (!controller.signal.aborted) {
+              setSearch({
+                key,
+                status: "success",
+                items: localItems,
+                message: localItems.length
+                  ? `${localWorkspaceStatusMessage() || "Local folder"} · GitHub: ${result.error || "unavailable"}`
+                  : (result.error || "Reference search failed"),
+              })
+            }
+            return
+          }
+          if (!Array.isArray(result.items)) throw new Error("Invalid reference results")
+          const remote = result.items.filter((item) =>
+            item
+            && item.kind === "files"
+            && typeof item.id === "string"
+            && typeof item.label === "string"
+            && typeof item.description === "string"
+            && !isLocalFileReferenceId(item.id),
+          )
+          const items = mergeFileResults(localItems, remote)
+          const localNote = localWorkspaceStatusMessage()
+          const message = [localNote, result.message].filter(Boolean).join(" · ") || undefined
+          if (!controller.signal.aborted) {
+            setSearch({ key, status: "success", items, message })
+          }
+          return
+        }
+
         if (!response.ok) throw new Error(result.error || "Reference search failed")
         if (!Array.isArray(result.items) || result.items.some((item) =>
           !item || item.kind !== kind || typeof item.id !== "string"
@@ -62,7 +127,24 @@ export function useReferenceSearch(kind: ReferenceKind | null, query: string, se
           setSearch({ key, status: "success", items: result.items, message: result.message })
         }
       } catch (error) {
-        if (!controller.signal.aborted) setSearch({ key, status: "error", items: EMPTY_ITEMS, message: error instanceof Error ? error.message : "Reference search failed" })
+        if (!controller.signal.aborted) {
+          const localItems = kind === "files" ? searchLocalWorkspaceFiles(query) : []
+          if (kind === "files" && localItems.length > 0) {
+            setSearch({
+              key,
+              status: "success",
+              items: localItems,
+              message: localWorkspaceStatusMessage(),
+            })
+            return
+          }
+          setSearch({
+            key,
+            status: "error",
+            items: EMPTY_ITEMS,
+            message: error instanceof Error ? error.message : "Reference search failed",
+          })
+        }
       }
     }, 200)
     return () => {
@@ -77,6 +159,7 @@ export function useReferenceSearch(kind: ReferenceKind | null, query: string, se
     items: current?.items ?? EMPTY_ITEMS,
     message: current?.message,
     retry: () => setAttempt((value) => value + 1),
+    refreshLocalWorkspace: () => setWorkspaceTick((value) => value + 1),
   }
 }
 
@@ -106,6 +189,9 @@ export function MentionPicker({
   onReferenceSelect,
   onBack,
   onRetry,
+  onOpenLocalFolder,
+  onAttachLocalFiles,
+  localFolderBusy = false,
 }: {
   id: string
   anchorRef: RefObject<HTMLTextAreaElement | null>
@@ -123,9 +209,14 @@ export function MentionPicker({
   onReferenceSelect: (reference: NovaReference) => void
   onBack: () => void
   onRetry: () => void
+  onOpenLocalFolder?: () => void
+  onAttachLocalFiles?: () => void
+  localFolderBusy?: boolean
 }) {
   const category = REFERENCE_CATEGORIES.find((item) => item.kind === kind)
   const atLimit = references.length >= MAX_REFERENCES
+  const workspace = getLocalWorkspace()
+  const showLocalActions = kind === "files" && (onOpenLocalFolder || onAttachLocalFiles)
 
   useLayoutEffect(() => {
     const anchor = anchorRef.current
@@ -218,7 +309,8 @@ export function MentionPicker({
           </button>
         )) : status === "success" ? items.map((item, index) => {
           const attached = references.some((reference) => reference.kind === item.kind && reference.id === item.id)
-          const unavailable = atLimit && !attached
+          const unavailable = atLimit && !attached && !isLocalFileReferenceId(item.id)
+          const isLocal = isLocalFileReferenceId(item.id)
           return (
             <button
               key={`${item.kind}:${item.id}`}
@@ -237,7 +329,11 @@ export function MentionPicker({
                 unavailable && "opacity-50",
               )}
             >
-              <ReferenceIcon kind={item.kind} className="mt-1 text-[#858585]" />
+              {isLocal ? (
+                <FolderOpen aria-hidden="true" className="mt-1 size-3.5 shrink-0 text-[#2dd4bf]" strokeWidth={1.6} />
+              ) : (
+                <ReferenceIcon kind={item.kind} className="mt-1 text-[#858585]" />
+              )}
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[13px] leading-[17px]">{item.label}</span>
                 {item.description ? <span className="block truncate text-[12px] leading-[15px] text-[#999]">{item.description}</span> : null}
@@ -257,16 +353,80 @@ export function MentionPicker({
           <div className="px-3 py-4 text-center">
             <p>{message || `Couldn’t load ${category?.label.toLowerCase()}. Try again.`}</p>
             <button type="button" tabIndex={-1} onClick={onRetry} className="mt-2 rounded px-2 py-1 text-[#ededed] underline decoration-[#777] underline-offset-4 hover:bg-white/[0.06]">Retry (Enter)</button>
+            {showLocalActions ? <LocalFileActions onOpenLocalFolder={onOpenLocalFolder} onAttachLocalFiles={onAttachLocalFiles} busy={localFolderBusy} emptyQuery={!query.trim()} /> : null}
           </div>
         ) : kind && status === "success" && items.length === 0 ? (
           <div className="px-3 py-5 text-center">
             <Search aria-hidden="true" className="mx-auto mb-2 size-4 text-[#777]" />
-            <p>{message || (query.trim() ? `No ${category?.label.toLowerCase()} match “${query}”.` : `No ${category?.label.toLowerCase()} available.`)}</p>
+            <p>
+              {kind === "files"
+                ? (query.trim()
+                  ? `No files match “${query}” in ${workspace ? `local · ${workspace.rootName}` : "linked sources"} or connected repos.`
+                  : (message || "No files available yet."))
+                : (message || (query.trim() ? `No ${category?.label.toLowerCase()} match “${query}”.` : `No ${category?.label.toLowerCase()} available.`))}
+            </p>
+            {showLocalActions ? (
+              <LocalFileActions
+                onOpenLocalFolder={onOpenLocalFolder}
+                onAttachLocalFiles={onAttachLocalFiles}
+                busy={localFolderBusy}
+                emptyQuery={!query.trim()}
+              />
+            ) : null}
           </div>
         ) : kind && message ? <p className="px-2 py-1">{message}</p> : null}
+        {kind === "files" && items.length > 0 && showLocalActions && !workspace && localWorkspaceSupportsPicker() ? (
+          <div className="mt-1 border-t border-white/[0.07] px-2 py-2">
+            <LocalFileActions onOpenLocalFolder={onOpenLocalFolder} onAttachLocalFiles={onAttachLocalFiles} busy={localFolderBusy} compact />
+          </div>
+        ) : null}
         {atLimit ? <p className="mt-1 border-t border-white/[0.07] px-2 py-2">{MAX_REFERENCES} references attached. Remove one to add more.</p> : null}
       </div>
     </div>,
     document.body,
   )
 }
+
+function LocalFileActions({
+  onOpenLocalFolder,
+  onAttachLocalFiles,
+  busy,
+  emptyQuery = false,
+  compact = false,
+}: {
+  onOpenLocalFolder?: () => void
+  onAttachLocalFiles?: () => void
+  busy?: boolean
+  emptyQuery?: boolean
+  compact?: boolean
+}) {
+  if (!onOpenLocalFolder && !onAttachLocalFiles) return null
+  return (
+    <div className={cn("flex flex-col items-center gap-1.5", compact ? "py-1" : "mt-3")}>
+      {onOpenLocalFolder && localWorkspaceSupportsPicker() ? (
+        <button
+          type="button"
+          tabIndex={-1}
+          disabled={busy}
+          onClick={onOpenLocalFolder}
+          className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.1] bg-white/[0.04] px-2.5 py-1.5 text-[12px] text-[#e8e8e8] transition hover:bg-white/[0.07] disabled:opacity-50"
+        >
+          <FolderOpen className="size-3.5 text-[#2dd4bf]" />
+          {busy ? "Indexing folder…" : emptyQuery ? "Open local folder" : "Search another local folder"}
+        </button>
+      ) : null}
+      {onAttachLocalFiles ? (
+        <button
+          type="button"
+          tabIndex={-1}
+          disabled={busy}
+          onClick={onAttachLocalFiles}
+          className="text-[12px] text-[#9a9a9a] underline decoration-[#555] underline-offset-4 hover:text-[#d0d0d0] disabled:opacity-50"
+        >
+          Or attach files from your computer
+        </button>
+      ) : null}
+    </div>
+  )
+}
+

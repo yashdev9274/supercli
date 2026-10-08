@@ -93,14 +93,16 @@ function MarkdownBody({ content }: { content: string }) {
   )
 }
 
-export function WorkedFor({ seconds }: { seconds: number }) {
-  if (seconds < 1) return null
+export function WorkedFor({ seconds, ms }: { seconds?: number; ms?: number }) {
+  const totalMs = ms ?? (seconds != null ? seconds * 1000 : 0)
+  if (totalMs < 500) return null
+  const totalSeconds = Math.max(0, Math.floor(totalMs / 1000))
   const label =
-    seconds < 60
-      ? `${seconds}s`
-      : `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`
+    totalSeconds < 60
+      ? `${totalSeconds}s`
+      : `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`
   return (
-    <p className="my-4 text-center text-[12px] text-[#5c5c5c]">Worked for {label}</p>
+    <p className="mb-1 mt-4 text-[12.5px] leading-5 text-[#5c5c5c]">Worked for {label}</p>
   )
 }
 
@@ -150,6 +152,24 @@ export function TimelineItem({ entry }: { entry: TimelineEntry }) {
     return null
   }
 
+  // Quiet Capy-style tool lines instead of heavy cards for routine tool results.
+  if (entry.type === "action" || entry.type === "result" || entry.type === "plan") {
+    const title = entry.title?.trim()
+    const body = entry.body?.trim()
+    return (
+      <article className="py-0.5">
+        <p className="text-[12.5px] leading-5 text-[#6b6b6b]">
+          {title ? <span className="text-[#8a8a8a]">{title}</span> : null}
+          {title && body ? <span className="text-[#4a4a4a]"> · </span> : null}
+          {body ? <span>{body}</span> : null}
+          {!title && !body ? (
+            <span className="capitalize">{entry.type.replaceAll("_", " ")}</span>
+          ) : null}
+        </p>
+      </article>
+    )
+  }
+
   return (
     <article
       className={cn(
@@ -188,24 +208,19 @@ export function TimelineItem({ entry }: { entry: TimelineEntry }) {
   )
 }
 
-export function StreamingBubble({ text, phase }: { text: string; phase?: string | null }) {
+export function StreamingBubble({ text }: { text: string; phase?: string | null }) {
+  if (!text) return null
   return (
-    <article className="py-3">
-      {phase && !text ? (
-        <p className="flex items-center gap-2 text-[12.5px] text-[#6b6b6b]">
-          <span className="size-1.5 animate-pulse rounded-full bg-[#2dd4bf]" />
-          {phase}
-        </p>
-      ) : null}
-      {text ? (
-        <div className="relative">
-          <MarkdownBody content={text} />
-          <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-[#2dd4bf]/80 align-middle" />
-        </div>
-      ) : null}
+    <article className="py-2">
+      <div className="relative">
+        <MarkdownBody content={text} />
+        <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-[#2dd4bf]/80 align-middle" />
+      </div>
     </article>
   )
 }
+
+export { MarkdownBody }
 
 export function ApprovalCard({
   approval,

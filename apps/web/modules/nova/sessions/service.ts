@@ -6,6 +6,12 @@ import {
 } from "@super/nova"
 
 import { ensureUserOrganization } from "@/modules/integrations/lib/org"
+import {
+  localAttachmentsFromMetadata,
+  toLocalAttachmentMeta,
+  type LocalAttachment,
+  type LocalAttachmentMeta,
+} from "@/modules/nova/attachments/contracts"
 import { referencesFromMetadata, type NovaReference } from "@/modules/nova/references/contracts"
 
 const DEFAULT_SYNC_LIMIT = 100
@@ -91,11 +97,29 @@ export async function getAgentSession(userId: string, sessionId: string) {
     include: {
       surfaces: true,
       runs: { orderBy: { createdAt: "desc" }, take: 10 },
+      localProject: true,
     },
   })
   if (!session) return null
   return {
     ...serializeSession(session),
+    localProjectId: session.localProjectId,
+    localProject: session.localProject
+      ? {
+          id: session.localProject.id,
+          displayName: session.localProject.displayName,
+          rootName: session.localProject.rootName,
+          fileCount: session.localProject.fileCount,
+          truncated: session.localProject.truncated,
+          repositoryFullName: session.localProject.repositoryFullName,
+          status: session.localProject.status,
+          lastUsedAt: session.localProject.lastUsedAt?.toISOString() ?? null,
+          updatedAt: session.localProject.updatedAt.toISOString(),
+          paths: Array.isArray(session.localProject.pathIndex)
+            ? session.localProject.pathIndex.filter((item): item is string => typeof item === "string")
+            : [],
+        }
+      : null,
     runs: session.runs.map((run) => ({
       id: run.id,
       status: run.status,
@@ -112,6 +136,7 @@ export async function createAgentSession(input: {
   objective: string
   mode?: string
   surface?: NovaSurfaceProvider
+  localProjectId?: string | null
 }): Promise<AgentSessionSummary> {
   const organizationId = await ensureUserOrganization(input.userId)
   const membership = await membershipForUser(input.userId, organizationId)
@@ -120,6 +145,20 @@ export async function createAgentSession(input: {
   const surfaceProvider = input.surface === "desktop" ? "desktop" : "web"
 
   return prisma.$transaction(async (tx) => {
+    let localProjectId: string | null = null
+    if (input.localProjectId) {
+      const project = await tx.webLocalProject.findFirst({
+        where: {
+          id: input.localProjectId,
+          userId: input.userId,
+          organizationId,
+          status: "active",
+        },
+        select: { id: true },
+      })
+      localProjectId = project?.id ?? null
+    }
+
     const session = await tx.agentSession.create({
       data: {
         organizationId,
@@ -127,8 +166,15 @@ export async function createAgentSession(input: {
         objective,
         mode: input.mode?.trim() || "chat",
         nextSequence: 2,
+        localProjectId,
       },
     })
+    if (localProjectId) {
+      await tx.webLocalProject.update({
+        where: { id: localProjectId },
+        data: { lastUsedAt: new Date() },
+      })
+    }
     const surface = await tx.sessionSurface.create({
       data: {
         agentSessionId: session.id,
@@ -224,6 +270,7 @@ export type PostedSessionMessage = {
     senderId: string
     createdAt: string
     references?: NovaReference[]
+    localAttachments?: LocalAttachmentMeta[]
   }
   runId: string
   surfaceId: string
@@ -237,6 +284,7 @@ export async function postSessionMessage(input: {
   clientMessageId?: string
   surface?: NovaSurfaceProvider
   references?: NovaReference[]
+  localAttachments?: LocalAttachment[]
 }): Promise<PostedSessionMessage | null> {
   const content = input.content.trim()
   if (!content) throw new Error("Message content is required")
@@ -282,6 +330,7 @@ export async function postSessionMessage(input: {
           senderId: membership.id,
           createdAt: existing.createdAt.toISOString(),
           references: referencesFromMetadata(existing.metadata),
+          localAttachments: localAttachmentsFromMetadata(existing.metadata),
         },
         runId: existing.agentSession.activeRunId ?? "",
         surfaceId: surface.id,
@@ -289,6 +338,8 @@ export async function postSessionMessage(input: {
       }
     }
   }
+
+  const localAttachmentMeta = (input.localAttachments ?? []).map(toLocalAttachmentMeta)
 
   return prisma.$transaction(async (tx) => {
     const locked = await tx.agentSession.findFirst({
@@ -320,6 +371,7 @@ export async function postSessionMessage(input: {
           provider: surfaceProvider,
           clientMessageId,
           references: input.references ?? [],
+          localAttachments: localAttachmentMeta,
         },
       },
       select: { id: true, sequence: true, content: true, createdAt: true },
@@ -382,6 +434,7 @@ export async function postSessionMessage(input: {
         senderId: membership.id,
         createdAt: message.createdAt.toISOString(),
         references: input.references ?? [],
+        localAttachments: localAttachmentMeta,
       },
       runId: run.id,
       surfaceId: surface.id,
@@ -440,6 +493,7 @@ export async function syncAgentSession(input: {
       senderId: message.senderId,
       createdAt: message.createdAt.toISOString(),
       references: referencesFromMetadata(message.metadata),
+      localAttachments: localAttachmentsFromMetadata(message.metadata),
     })),
     activities: activities.filter((activity) => selectedSequences.has(activity.sequence)).map((activity) => ({
       id: activity.id,

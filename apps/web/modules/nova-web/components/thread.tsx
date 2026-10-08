@@ -15,6 +15,7 @@ import {
   TimelineItem,
   WorkedFor,
 } from "@/modules/nova-web/components/timeline"
+import { WorkingProcess } from "@/modules/nova-web/components/working-process"
 import type {
   HarnessProvider,
   NovaAgentMode,
@@ -27,12 +28,23 @@ import {
   type SessionDetail,
   type TimelineEntry,
 } from "@/modules/nova-web/types"
+import type { LocalProjectDto } from "@/modules/nova-web/api"
+import type { WorkingStep } from "@/modules/nova-web/working-steps"
+import type { LocalWorkspaceState } from "@/modules/nova-web/local-workspace"
+import type { LocalAttachment } from "@/modules/nova/attachments/contracts"
 import type { NovaReference } from "@/modules/nova/references/contracts"
 
 function formatDuration(ms: number) {
   const seconds = Math.max(0, Math.floor(ms / 1000))
   if (seconds < 60) return `${seconds}s`
-  return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+}
+
+function workedMsBetween(prev: TimelineEntry, next: TimelineEntry): number | null {
+  const a = Date.parse(prev.createdAt)
+  const b = Date.parse(next.createdAt)
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return null
+  return b - a
 }
 
 export function ThreadView({
@@ -42,8 +54,13 @@ export function ThreadView({
   draft,
   references,
   onReferencesChange,
+  localFiles,
+  onLocalFilesChange,
+  localProject,
+  onLocalProjectChange,
   streamingText,
   streamPhase,
+  workingSteps,
   streaming,
   workingSince,
   loading,
@@ -68,8 +85,13 @@ export function ThreadView({
   draft: string
   references: NovaReference[]
   onReferencesChange: (references: NovaReference[]) => void
+  localFiles: LocalAttachment[]
+  onLocalFilesChange: (files: LocalAttachment[]) => void
+  localProject?: LocalProjectDto | null
+  onLocalProjectChange?: (project: LocalWorkspaceState) => void
   streamingText: string
   streamPhase: string | null
+  workingSteps: WorkingStep[]
   streaming: boolean
   workingSince: number | null
   loading: boolean
@@ -141,6 +163,14 @@ export function ThreadView({
         <h1 className="min-w-0 flex-1 truncate text-[13px] font-medium text-[#e8e8e8]">
           {session.objective}
         </h1>
+        {localProject ? (
+          <span
+            title={`${localProject.fileCount} indexed files${localProject.truncated ? " (partial)" : ""}`}
+            className="hidden max-w-[180px] truncate rounded-md border border-[#2dd4bf]/20 bg-[#2dd4bf]/[0.08] px-2 py-0.5 text-[11px] text-[#9fe5d8] sm:inline"
+          >
+            {localProject.displayName}
+          </span>
+        ) : null}
         {streaming && workedSeconds != null ? (
           <span className="hidden text-[11px] text-[#6b6b6b] sm:inline">
             Working · {formatDuration(workedSeconds * 1000)}
@@ -200,27 +230,45 @@ export function ThreadView({
               <>
                 {visibleTimeline.map((entry, index) => {
                   const prev = visibleTimeline[index - 1]
+                  // Capy: quiet "Worked for" before the assistant response that closes a turn.
                   const showWorked =
-                    entry.kind === "activity"
-                    && entry.type === "response"
-                    && prev?.kind === "message"
-                    && prev.role === "user"
+                    (
+                      (entry.kind === "activity" && entry.type === "response")
+                      || (entry.kind === "message" && entry.role === "assistant")
+                    )
+                    && prev
+                    && (
+                      (prev.kind === "message" && prev.role === "user")
+                      || (prev.kind === "activity" && prev.type !== "response")
+                    )
+                  // Prefer duration from the nearest prior user message.
+                  let workedMs: number | null = null
+                  if (showWorked) {
+                    for (let i = index - 1; i >= 0; i -= 1) {
+                      const candidate = visibleTimeline[i]
+                      if (candidate?.kind === "message" && candidate.role === "user") {
+                        workedMs = workedMsBetween(candidate, entry)
+                        break
+                      }
+                    }
+                  }
                   return (
                     <div key={`${entry.kind}-${entry.id}`}>
-                      {showWorked ? <WorkedFor seconds={8} /> : null}
+                      {showWorked && workedMs != null ? <WorkedFor ms={workedMs} /> : null}
                       <TimelineItem entry={entry} />
                     </div>
                   )
                 })}
                 {streaming ? (
-                  <>
-                    {workedSeconds != null && workedSeconds > 2 && !streamingText ? (
-                      <p className="my-3 text-[12.5px] text-[#6b6b6b]">
-                        Worked for {formatDuration(workedSeconds * 1000)}
-                      </p>
-                    ) : null}
+                  <div className="pt-1">
+                    <WorkingProcess
+                      steps={workingSteps}
+                      workingSince={workingSince}
+                      streaming={streaming}
+                      agentName="Nova"
+                    />
                     <StreamingBubble text={streamingText} phase={streamPhase} />
-                  </>
+                  </div>
                 ) : null}
               </>
             ) : (
@@ -257,6 +305,20 @@ export function ThreadView({
                   <p className="mt-1 text-[#c8c8c8]">{provider} · {model}</p>
                 </div>
                 <div>
+                  <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-[#3d3d3d]">Local project</p>
+                  {localProject ? (
+                    <div className="mt-1 space-y-0.5 text-[#c8c8c8]">
+                      <p className="truncate">{localProject.displayName}</p>
+                      <p className="text-[11px] text-[#6b6b6b]">
+                        {localProject.fileCount} files
+                        {localProject.truncated ? " · partial index" : ""}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-[#3d3d3d]">None — open a folder via @ Files</p>
+                  )}
+                </div>
+                <div>
                   <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-[#3d3d3d]">Surfaces</p>
                   <div className="mt-1.5 space-y-1">
                     {session.surfaces.map((surface) => (
@@ -290,9 +352,12 @@ export function ThreadView({
         <div className="mx-auto max-w-[720px]">
           <Composer
             value={draft}
-          onChange={onDraftChange}
-          references={references}
-          onReferencesChange={onReferencesChange}
+            onChange={onDraftChange}
+            references={references}
+            onReferencesChange={onReferencesChange}
+            localFiles={localFiles}
+            onLocalFilesChange={onLocalFilesChange}
+            onLocalProjectChange={onLocalProjectChange}
             onSubmit={onSubmit}
             streaming={streaming}
             disabled={loading}

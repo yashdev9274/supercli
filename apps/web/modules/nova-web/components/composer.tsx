@@ -3,11 +3,15 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
 import {
   ArrowUp,
+  AtSign,
   AudioLines,
   Check,
   ChevronDown,
   ChevronRight,
   Cpu,
+  File,
+  FileText,
+  Image as ImageIcon,
   Plus,
   Search,
   Square,
@@ -16,7 +20,22 @@ import {
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { imageDataUrl, type LocalAttachment } from "@/modules/nova/attachments/contracts"
 import type { NovaReference, ReferenceKind } from "@/modules/nova/references/contracts"
+import {
+  filesFromClipboard,
+  filesFromDataTransfer,
+  mergeLocalAttachments,
+  pickLocalFiles,
+  readLocalFile,
+} from "@/modules/nova-web/local-files"
+import {
+  isLocalFileReferenceId,
+  localPathFromReferenceId,
+  pickLocalWorkspaceFolder,
+  readLocalWorkspaceFile,
+  type LocalWorkspaceState,
+} from "@/modules/nova-web/local-workspace"
 import {
   addReference,
   filterReferenceCategories,
@@ -46,6 +65,7 @@ import {
 import { MentionPicker, mentionOptionId, ReferenceIcon, useReferenceSearch } from "./mention-picker"
 
 const EMPTY_REFERENCES: NovaReference[] = []
+const EMPTY_LOCAL_FILES: LocalAttachment[] = []
 
 type MentionState = {
   draft: string
@@ -74,6 +94,9 @@ export function Composer({
   onModeChange,
   references = EMPTY_REFERENCES,
   onReferencesChange,
+  localFiles = EMPTY_LOCAL_FILES,
+  onLocalFilesChange,
+  onLocalProjectChange,
 }: {
   value: string
   onChange: (value: string) => void
@@ -93,11 +116,20 @@ export function Composer({
   onModeChange?: (mode: NovaAgentMode) => void
   references?: NovaReference[]
   onReferencesChange?: (references: NovaReference[]) => void
+  localFiles?: LocalAttachment[]
+  onLocalFilesChange?: (files: LocalAttachment[]) => void
+  onLocalProjectChange?: (project: LocalWorkspaceState) => void
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const attachRef = useRef<HTMLButtonElement>(null)
+  const attachMenuRef = useRef<HTMLDivElement>(null)
   const pickerRef = useRef<HTMLDivElement>(null)
   const composingRef = useRef(false)
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false)
+  const [localFileBusy, setLocalFileBusy] = useState(false)
+  const [localFileError, setLocalFileError] = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState(false)
+  const dragDepthRef = useRef(0)
   const sessionRef = useRef(0)
   const pendingCaretRef = useRef<{ value: string; caret: number } | null>(null)
   const [mention, setMention] = useState<MentionState | null>(null)
@@ -105,27 +137,30 @@ export function Composer({
   const pickerId = useId()
   const hintId = `${pickerId}-hint`
   const referencesEnabled = !!onReferencesChange && !disabled && !streaming
+  const localFilesEnabled = !!onLocalFilesChange && !disabled && !streaming && !localFileBusy
+  const attachEnabled = referencesEnabled || localFilesEnabled
   const pickerOpen = referencesEnabled && mention !== null && mention.draft === value
   const categories = filterReferenceCategories(pickerOpen ? mention.range.query : "")
   const search = useReferenceSearch(pickerOpen ? mention.kind : null, pickerOpen ? mention.range.query : "", mention?.session ?? 0)
   const optionCount = pickerOpen && mention.kind ? search.items.length : categories.length
   const activeIndex = Math.max(0, Math.min(mention?.activeIndex ?? 0, optionCount - 1))
-  const canSend = value.trim().length > 0 && !disabled && !streaming
+  const canSend = (value.trim().length > 0 || localFiles.length > 0) && !disabled && !streaming && !localFileBusy
   const effortMeta = NOVA_EFFORTS.find((item) => item.id === effort) ?? NOVA_EFFORTS[2]!
   const chip = modelChipLabel(provider, model)
 
   const dismissMention = useCallback(() => setMention(null), [])
 
   useEffect(() => {
-    if (!pickerOpen) return
+    if (!pickerOpen && !attachMenuOpen) return
     function onPointer(event: PointerEvent) {
       const target = event.target as Node
-      if (pickerRef.current?.contains(target) || textareaRef.current?.contains(target) || attachRef.current?.contains(target)) return
+      if (pickerRef.current?.contains(target) || textareaRef.current?.contains(target) || attachRef.current?.contains(target) || attachMenuRef.current?.contains(target)) return
       dismissMention()
+      setAttachMenuOpen(false)
     }
     document.addEventListener("pointerdown", onPointer)
     return () => document.removeEventListener("pointerdown", onPointer)
-  }, [dismissMention, pickerOpen])
+  }, [attachMenuOpen, dismissMention, pickerOpen])
 
   useLayoutEffect(() => {
     const pending = pendingCaretRef.current
@@ -162,6 +197,7 @@ export function Composer({
   function openMention() {
     const textarea = textareaRef.current
     if (!referencesEnabled || !textarea) return
+    setAttachMenuOpen(false)
     const range = parseMentionQuery(value, textarea.selectionStart, textarea.selectionEnd)
     const edit = range
       ? { value, caret: textarea.selectionStart }
@@ -171,6 +207,96 @@ export function Composer({
     pendingCaretRef.current = edit
     setMention({ draft: edit.value, range: nextRange, kind: null, activeIndex: 0, session: ++sessionRef.current })
     if (edit.value !== value) onChange(edit.value)
+  }
+
+  function openAttachMenu() {
+    if (!attachEnabled) return
+    if (localFilesEnabled && referencesEnabled) {
+      setAttachMenuOpen((open) => !open)
+      dismissMention()
+      return
+    }
+    if (localFilesEnabled) {
+      void handlePickLocalFiles()
+      return
+    }
+    openMention()
+  }
+
+  async function ingestLocalFiles(picked: File[], source: "picker" | "paste" | "drop") {
+    if (!localFilesEnabled || !onLocalFilesChange || picked.length === 0) return
+    setAttachMenuOpen(false)
+    setLocalFileError(null)
+    setLocalFileBusy(true)
+    try {
+      const read = await Promise.all(picked.map((file) => readLocalFile(file)))
+      const ok = read.flatMap((item) => (item.ok ? [item.attachment] : []))
+      const failed = read.flatMap((item) => (item.ok ? [] : [`${item.name}: ${item.error}`]))
+      const merged = mergeLocalAttachments(localFiles, ok)
+      onLocalFilesChange(merged.attachments)
+      const notes = [...failed, ...merged.skipped]
+      if (notes.length > 0) setLocalFileError(notes.slice(0, 3).join(" · "))
+      const verb = source === "paste" ? "pasted" : source === "drop" ? "dropped" : "attached"
+      setReferenceAnnouncement(
+        ok.length > 0
+          ? `${ok.length} file${ok.length === 1 ? "" : "s"} ${verb}.`
+          : "No files attached.",
+      )
+    } catch (error) {
+      setLocalFileError(error instanceof Error ? error.message : "Could not attach files")
+    } finally {
+      setLocalFileBusy(false)
+      textareaRef.current?.focus({ preventScroll: true })
+    }
+  }
+
+  async function handlePickLocalFiles() {
+    if (!localFilesEnabled) return
+    try {
+      const picked = await pickLocalFiles()
+      await ingestLocalFiles(picked, "picker")
+    } catch (error) {
+      setLocalFileError(error instanceof Error ? error.message : "Could not open the file picker")
+    }
+  }
+
+  function onComposerDragEnter(event: React.DragEvent) {
+    if (!localFilesEnabled) return
+    if (![...event.dataTransfer.types].includes("Files")) return
+    event.preventDefault()
+    dragDepthRef.current += 1
+    setDragOver(true)
+  }
+
+  function onComposerDragLeave(event: React.DragEvent) {
+    if (!localFilesEnabled) return
+    event.preventDefault()
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+    if (dragDepthRef.current === 0) setDragOver(false)
+  }
+
+  function onComposerDragOver(event: React.DragEvent) {
+    if (!localFilesEnabled) return
+    if (![...event.dataTransfer.types].includes("Files")) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = "copy"
+  }
+
+  function onComposerDrop(event: React.DragEvent) {
+    if (!localFilesEnabled) return
+    event.preventDefault()
+    dragDepthRef.current = 0
+    setDragOver(false)
+    const files = filesFromDataTransfer(event.dataTransfer)
+    void ingestLocalFiles(files, "drop")
+  }
+
+  function onComposerPaste(event: React.ClipboardEvent) {
+    if (!localFilesEnabled) return
+    const files = filesFromClipboard(event.clipboardData)
+    if (files.length === 0) return
+    event.preventDefault()
+    void ingestLocalFiles(files, "paste")
   }
 
   function pickCategory(kind: ReferenceKind | null) {
@@ -189,8 +315,38 @@ export function Composer({
     if (edit.value !== value) onChange(edit.value)
   }
 
-  function pickReference(reference: NovaReference) {
-    if (!pickerOpen || !mention || !onReferencesChange) return
+  async function pickReference(reference: NovaReference) {
+    if (!pickerOpen || !mention) return
+
+    // Local workspace files → attach file contents (browser can't resolve them server-side).
+    if (isLocalFileReferenceId(reference.id)) {
+      if (!localFilesEnabled || !onLocalFilesChange) return
+      const path = localPathFromReferenceId(reference.id)
+      if (!path) return
+      setLocalFileBusy(true)
+      setLocalFileError(null)
+      try {
+        const read = await readLocalWorkspaceFile(path)
+        if (!read.ok) {
+          setLocalFileError(`${read.name}: ${read.error}`)
+          return
+        }
+        const merged = mergeLocalAttachments(localFiles, [read.attachment])
+        onLocalFilesChange(merged.attachments)
+        if (merged.skipped.length) setLocalFileError(merged.skipped.slice(0, 2).join(" · "))
+        setReferenceAnnouncement(`${reference.label} attached from local folder.`)
+        const edit = replaceMentionQuery(value, mention.range, "")
+        pendingCaretRef.current = edit
+        dismissMention()
+        onChange(edit.value)
+      } finally {
+        setLocalFileBusy(false)
+        textareaRef.current?.focus({ preventScroll: true })
+      }
+      return
+    }
+
+    if (!onReferencesChange) return
     const result = addReference(references, reference)
     if (result.status === "limit") return
     if (result.status === "added") onReferencesChange(result.references)
@@ -201,13 +357,45 @@ export function Composer({
     onChange(edit.value)
   }
 
+  async function handleOpenLocalFolder() {
+    if (!localFilesEnabled) return
+    setLocalFileBusy(true)
+    setLocalFileError(null)
+    try {
+      const state = await pickLocalWorkspaceFolder()
+      if (!state) return
+      search.refreshLocalWorkspace()
+      onLocalProjectChange?.(state)
+      setReferenceAnnouncement(
+        state.projectId
+          ? `Local project “${state.displayName}” saved · ${state.entries.length} files indexed and searchable.`
+          : `Local folder “${state.rootName}” linked · ${state.entries.length} files searchable.`,
+      )
+    } catch (error) {
+      setLocalFileError(error instanceof Error ? error.message : "Could not open local folder")
+    } finally {
+      setLocalFileBusy(false)
+      textareaRef.current?.focus({ preventScroll: true })
+    }
+  }
+
   return (
     <div
+      onDragEnter={onComposerDragEnter}
+      onDragLeave={onComposerDragLeave}
+      onDragOver={onComposerDragOver}
+      onDrop={onComposerDrop}
       className={cn(
-        "rounded-2xl border border-white/[0.08] bg-[#1c1c1c]",
+        "relative rounded-2xl border border-white/[0.08] bg-[#1c1c1c] transition",
+        dragOver && "border-[#2dd4bf]/55 bg-[#2dd4bf]/[0.04] ring-1 ring-[#2dd4bf]/30",
         className,
       )}
     >
+      {dragOver ? (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-[#0a0a0a]/55 text-[13px] font-medium text-[#d7f5ef]">
+          Drop files, photos, or documents
+        </div>
+      ) : null}
       <div className="px-3.5 pt-3">
         <textarea
           ref={textareaRef}
@@ -215,6 +403,7 @@ export function Composer({
           disabled={disabled || streaming}
           aria-label="Message to Nova"
           role="combobox"
+          onPaste={onComposerPaste}
           aria-autocomplete="list"
           aria-haspopup="listbox"
           aria-expanded={pickerOpen}
@@ -271,7 +460,7 @@ export function Composer({
                   search.retry()
                 } else {
                   const reference = search.items[activeIndex]
-                  if (reference) pickReference(reference)
+                  if (reference) void pickReference(reference)
                 }
                 return
               }
@@ -283,17 +472,53 @@ export function Composer({
             }
           }}
           rows={large ? 3 : 2}
-          placeholder={placeholder ?? "Ask to make changes, @mention files, run /commands"}
+          placeholder={placeholder ?? "Ask Nova, paste or drop files, @mention refs"}
           className={cn(
             "w-full resize-none bg-transparent text-[14px] leading-6 text-[#ececec] outline-none placeholder:text-[#5a5a5a] disabled:opacity-60",
             large ? "min-h-[72px]" : "min-h-[48px] max-h-[160px]",
           )}
         />
-        <p id={hintId} className="sr-only">Type @ to attach a reference. Use Up and Down to navigate, Enter or Tab to select, Right to open a category, Left to go back, and Escape to close.</p>
+        <p id={hintId} className="sr-only">
+          Paste or drop files, photos, and documents to attach them. Type @ to mention a reference.
+          Use Up and Down to navigate, Enter or Tab to select, Right to open a category, Left to go back, and Escape to close.
+        </p>
       </div>
 
-      {references.length > 0 ? (
-        <ul aria-label="Attached references" className="flex flex-wrap gap-1.5 px-3.5 pb-2">
+      {references.length > 0 || localFiles.length > 0 ? (
+        <ul aria-label="Attachments" className="flex flex-wrap gap-1.5 px-3.5 pb-2">
+          {localFiles.map((file) => {
+            const thumb = imageDataUrl(file)
+            const KindIcon = file.kind === "image" ? ImageIcon : file.kind === "document" ? FileText : File
+            return (
+              <li
+                key={file.id}
+                title={`${file.name} · ${file.kind} · ${Math.max(1, Math.round(file.size / 1024))}KB`}
+                className="flex max-w-full items-center gap-1.5 rounded-md border border-[#2dd4bf]/25 bg-[#2dd4bf]/[0.08] py-0.5 pl-1.5 pr-0.5 text-[12px] text-[#d7f5ef]"
+              >
+                {thumb ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={thumb} alt="" className="size-5 shrink-0 rounded object-cover" />
+                ) : (
+                  <KindIcon className="size-3.5 shrink-0 text-[#2dd4bf]" />
+                )}
+                <span className="max-w-[180px] truncate">{file.name}</span>
+                <button
+                  type="button"
+                  disabled={!localFilesEnabled}
+                  aria-label={`Remove ${file.name}`}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    onLocalFilesChange?.(localFiles.filter((item) => item.id !== file.id))
+                    setReferenceAnnouncement(`${file.name} removed.`)
+                    textareaRef.current?.focus({ preventScroll: true })
+                  }}
+                  className="flex size-6 shrink-0 items-center justify-center rounded text-[#8d8d8d] hover:bg-white/[0.07] hover:text-white focus-visible:outline-2 focus-visible:outline-[#2dd4bf] disabled:opacity-40"
+                >
+                  <X aria-hidden="true" className="size-3" />
+                </button>
+              </li>
+            )
+          })}
           {references.map((reference) => (
             <li key={`${reference.kind}:${reference.id}`} title={`${reference.label}${reference.description ? ` · ${reference.description}` : ""}`} className="flex max-w-full items-center gap-1.5 rounded-md border border-white/[0.09] bg-white/[0.035] py-0.5 pl-2 pr-0.5 text-[12px] text-[#c5c5c5]">
               <ReferenceIcon kind={reference.kind} className="size-3 text-[#999]" />
@@ -316,12 +541,52 @@ export function Composer({
           ))}
         </ul>
       ) : null}
+      {localFileError ? (
+        <p className="px-3.5 pb-2 text-[11px] leading-4 text-amber-300/90">{localFileError}</p>
+      ) : null}
       <p role="status" aria-live="polite" className="sr-only">{referenceAnnouncement}</p>
 
-      <div className="flex items-center gap-1.5 px-2.5 pb-2.5">
-        <IconBtn buttonRef={attachRef} label="Attach a reference" disabled={!referencesEnabled} onMouseDown={(event) => event.preventDefault()} onClick={openMention}>
+      <div className="relative flex items-center gap-1.5 px-2.5 pb-2.5">
+        <IconBtn
+          buttonRef={attachRef}
+          label={localFileBusy ? "Reading local files…" : "Attach files or mentions"}
+          disabled={!attachEnabled}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={openAttachMenu}
+        >
           <Plus className="size-4" strokeWidth={1.75} />
         </IconBtn>
+        {attachMenuOpen ? (
+          <div
+            ref={attachMenuRef}
+            role="menu"
+            aria-label="Attach"
+            className="absolute bottom-[calc(100%+6px)] left-0 z-30 min-w-[200px] overflow-hidden rounded-xl border border-white/[0.1] bg-[#1a1a1a] p-1 shadow-2xl"
+          >
+            {localFilesEnabled ? (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => void handlePickLocalFiles()}
+                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12.5px] text-[#d6d6d6] transition hover:bg-white/[0.05]"
+              >
+                <File className="size-3.5 text-[#2dd4bf]" />
+                Files, photos, documents
+              </button>
+            ) : null}
+            {referencesEnabled ? (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={openMention}
+                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12.5px] text-[#d6d6d6] transition hover:bg-white/[0.05]"
+              >
+                <AtSign className="size-3.5 text-[#999]" />
+                Mention @
+              </button>
+            ) : null}
+          </div>
+        ) : null}
 
         <ModelPicker
           provider={provider}
@@ -384,9 +649,12 @@ export function Composer({
           references={references}
           onActiveIndexChange={(index) => setMention({ ...mention, activeIndex: index })}
           onCategorySelect={pickCategory}
-          onReferenceSelect={pickReference}
+          onReferenceSelect={(reference) => void pickReference(reference)}
           onBack={() => pickCategory(null)}
           onRetry={search.retry}
+          onOpenLocalFolder={localFilesEnabled ? () => void handleOpenLocalFolder() : undefined}
+          onAttachLocalFiles={localFilesEnabled ? () => void handlePickLocalFiles() : undefined}
+          localFolderBusy={localFileBusy}
         />
       ) : null}
     </div>

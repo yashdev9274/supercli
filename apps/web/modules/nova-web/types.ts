@@ -4,13 +4,22 @@ import type {
   ConnectorStatus,
   SyncCursor as ContractSyncCursor,
 } from "@super/nova"
+import type { LocalAttachmentMeta } from "@/modules/nova/attachments/contracts"
+import type { LocalProjectSummary } from "@/modules/nova/local-projects/contracts"
 import type { NovaReference } from "@/modules/nova/references/contracts"
 
 export type SyncCursor = Omit<ContractSyncCursor, "messages"> & {
-  messages: Array<ContractSyncCursor["messages"][number] & { references?: NovaReference[] }>
+  messages: Array<
+    ContractSyncCursor["messages"][number] & {
+      references?: NovaReference[]
+      localAttachments?: LocalAttachmentMeta[]
+    }
+  >
 }
 
 export type SessionDetail = AgentSessionSummary & {
+  localProjectId?: string | null
+  localProject?: LocalProjectSummary | null
   runs: Array<{
     id: string
     status: string

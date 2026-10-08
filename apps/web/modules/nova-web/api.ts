@@ -7,6 +7,7 @@ import type {
   TimelineActivity,
   TimelineMessage,
 } from "@/modules/nova-web/types"
+import type { LocalAttachment } from "@/modules/nova/attachments/contracts"
 import type { NovaReference } from "@/modules/nova/references/contracts"
 
 export async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -26,12 +27,76 @@ export function listSessions() {
   return requestJson<{ sessions: AgentSessionSummary[] }>("/api/nova/sessions")
 }
 
-export function createSession(objective: string) {
+export function createSession(objective: string, options?: { localProjectId?: string | null }) {
   return requestJson<{ session: AgentSessionSummary }>("/api/nova/sessions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ objective, mode: "chat", surface: "web" }),
+    body: JSON.stringify({
+      objective,
+      mode: "chat",
+      surface: "web",
+      localProjectId: options?.localProjectId ?? undefined,
+    }),
   })
+}
+
+export type LocalProjectDto = {
+  id: string
+  displayName: string
+  rootName: string
+  fileCount: number
+  truncated: boolean
+  repositoryFullName: string | null
+  status: string
+  lastUsedAt: string | null
+  updatedAt: string
+  paths?: string[]
+}
+
+export function listLocalProjects() {
+  return requestJson<{ projects: LocalProjectDto[] }>("/api/nova/local-projects")
+}
+
+export function createLocalProject(input: {
+  displayName: string
+  rootName: string
+  paths: string[]
+  truncated?: boolean
+  repositoryFullName?: string | null
+}) {
+  return requestJson<{ project: LocalProjectDto }>("/api/nova/local-projects", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  })
+}
+
+export function updateLocalProject(
+  projectId: string,
+  input: {
+    displayName?: string
+    paths?: string[]
+    truncated?: boolean
+    repositoryFullName?: string | null
+    status?: "active" | "archived"
+  },
+) {
+  return requestJson<{ project: LocalProjectDto }>(`/api/nova/local-projects/${projectId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  })
+}
+
+export function bindSessionLocalProject(sessionId: string, projectId: string | null) {
+  return requestJson<{ sessionId: string; localProjectId: string | null; project: LocalProjectDto | null }>(
+    `/api/nova/sessions/${sessionId}/local-project`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId }),
+    },
+  )
 }
 
 export function getSession(sessionId: string) {
@@ -93,6 +158,7 @@ export async function* streamTurn(
     effort?: "low" | "medium" | "high" | "xhigh"
     mode?: "agent" | "plan" | "chat"
     references?: NovaReference[]
+    localAttachments?: LocalAttachment[]
   },
 ): AsyncGenerator<TurnEvent> {
   const response = await fetch(`/api/nova/sessions/${sessionId}/turn`, {
@@ -105,7 +171,19 @@ export async function* streamTurn(
       provider: options?.provider,
       effort: options?.effort,
       mode: options?.mode,
-      references: options?.references?.map(({ kind, id }) => ({ kind, id })),
+      // Local workspace ids are attached as localAttachments client-side; never send them as GitHub refs.
+      references: options?.references
+        ?.filter((reference) => !reference.id.startsWith("local:"))
+        .map(({ kind, id }) => ({ kind, id })),
+      localAttachments: options?.localAttachments?.map((file) => ({
+        id: file.id,
+        kind: file.kind,
+        name: file.name,
+        mediaType: file.mediaType,
+        size: file.size,
+        text: file.text,
+        dataBase64: file.dataBase64,
+      })),
     }),
   })
   if (!response.ok || !response.body) {

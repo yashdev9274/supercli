@@ -101,8 +101,38 @@ export function extractDeltaReasoning(delta: any): string {
   return chunks.join("")
 }
 
-/** Flatten AI-SDK / OpenAI message content (string or parts array) for upstream APIs. */
-export function serializeChatContent(content: unknown): string {
+/**
+ * Serialize message content for OpenAI-compatible APIs.
+ * Multimodal parts (text + image_url / image) are preserved as an array so
+ * vision models can see pasted/dropped photos from Nova web.
+ */
+export function serializeChatContent(content: unknown): string | Array<Record<string, unknown>> {
+  if (Array.isArray(content)) {
+    const parts: Array<Record<string, unknown>> = []
+    let hasMedia = false
+    for (const part of content) {
+      if (!part || typeof part !== "object") continue
+      const obj = part as Record<string, unknown>
+      const type = typeof obj.type === "string" ? obj.type : ""
+      if (type === "text" && typeof obj.text === "string") {
+        parts.push({ type: "text", text: obj.text })
+        continue
+      }
+      if (type === "image_url") {
+        hasMedia = true
+        parts.push({ type: "image_url", image_url: obj.image_url })
+        continue
+      }
+      if (type === "image" && typeof obj.image === "string") {
+        hasMedia = true
+        parts.push({ type: "image_url", image_url: { url: obj.image } })
+        continue
+      }
+      const text = joinTextParts(part)
+      if (text) parts.push({ type: "text", text })
+    }
+    if (hasMedia && parts.length > 0) return parts
+  }
   return joinTextParts(content)
 }
 
