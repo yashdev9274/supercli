@@ -6,7 +6,24 @@ import { defineConfig } from "prisma/config"
  * surfaces on Vercel as P1002: "Timed out trying to acquire a postgres advisory lock".
  *
  * App runtime keeps using DATABASE_URL (pooled) via @prisma/adapter-pg.
+ * migrate-deploy.ts also overwrites DATABASE_URL to the direct URL for the child process.
  */
+function stripPooler(url: string): string {
+  try {
+    const parsed = new URL(url)
+    if (parsed.hostname.includes("-pooler.")) {
+      parsed.hostname = parsed.hostname.replace("-pooler.", ".")
+    }
+    parsed.hostname = parsed.hostname.replace(/\.pooler\./g, ".")
+    parsed.searchParams.delete("pgbouncer")
+    parsed.searchParams.delete("connection_limit")
+    parsed.searchParams.delete("pool_timeout")
+    return parsed.toString()
+  } catch {
+    return url.replace("-pooler.", ".").replace(".pooler.", ".")
+  }
+}
+
 function migrateDatabaseUrl(): string {
   const candidates = [
     process.env.DATABASE_URL_UNPOOLED,
@@ -23,21 +40,6 @@ function migrateDatabaseUrl(): string {
   }
 
   return "postgresql://postgres:postgres@localhost:5432/postgres"
-}
-
-/** Neon pooler host: ep-xxx-pooler.region... → ep-xxx.region... */
-function stripPooler(url: string): string {
-  try {
-    const parsed = new URL(url)
-    if (parsed.hostname.includes("-pooler.")) {
-      parsed.hostname = parsed.hostname.replace("-pooler.", ".")
-    }
-    // PgBouncer query flags are meaningless / harmful on a direct connection.
-    parsed.searchParams.delete("pgbouncer")
-    return parsed.toString()
-  } catch {
-    return url.replace("-pooler.", ".")
-  }
 }
 
 export default defineConfig({
