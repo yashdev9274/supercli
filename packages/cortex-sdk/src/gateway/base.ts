@@ -1,6 +1,11 @@
 import { generateText, streamText, type FinishReason, type LanguageModel, type LanguageModelUsage, type ModelMessage, type ToolSet } from "ai"
+import type { LanguageModelV2, LanguageModelV3 } from "@ai-sdk/provider"
 import { AuthError, ConnectionError, ModelUnavailableError, SdkError } from "../core/errors"
 import type { FetchLike, GatewayProvider } from "../core/types"
+
+// Gateway adapters build models through both ai v4/v5 (v2 spec) and newer
+// provider SDKs (v3 spec); the AI runtime normalizes either at call time.
+export type GatewayModel = LanguageModel | LanguageModelV2 | LanguageModelV3
 
 export interface ModelInfo {
   id: string
@@ -63,7 +68,7 @@ export abstract class BaseGatewayProvider {
   protected readonly onUsage?: (usage: GatewayUsage) => void
   protected readonly onCost?: (cost: GatewayCost) => void
 
-  private readonly modelCache = new Map<string, LanguageModel>()
+  private readonly modelCache = new Map<string, GatewayModel>()
 
   constructor(options: GatewayProviderOptions) {
     this.provider = options.provider
@@ -78,7 +83,7 @@ export abstract class BaseGatewayProvider {
     this.onCost = options.onCost
   }
 
-  model(id?: string): LanguageModel {
+  model(id?: string): GatewayModel {
     const modelId = id ?? this.defaultModel
     let cached = this.modelCache.get(modelId)
     if (!cached) {
@@ -90,7 +95,7 @@ export abstract class BaseGatewayProvider {
 
   abstract listModels(): Promise<ModelInfo[]>
 
-  protected abstract buildModel(modelName: string): LanguageModel
+  protected abstract buildModel(modelName: string): GatewayModel
 
   async fetchWithRetry(url: string | URL, init?: RequestInit): Promise<Response> {
     let lastError: unknown
@@ -173,19 +178,32 @@ export abstract class BaseGatewayProvider {
 
   protected trackUsage(model: string, usage: LanguageModelUsage, durationMs: number | null): void {
     if (!this.onUsage) return
+    // ai v4/v5 report flat usage fields; v6/v7 providers report nested token objects.
+    const u = usage as unknown as {
+      inputTokens?: number | { total?: number }
+      outputTokens?: number | { text?: number }
+      totalTokens?: number
+      cachedInputTokens?: number
+      inputTokenDetails?: { noCacheTokens?: number; cacheReadTokens?: number }
+      outputTokenDetails?: { textTokens?: number }
+    }
+    const inputTokens =
+      typeof u.inputTokens === "object" && u.inputTokens ? (u.inputTokens.total ?? 0) : (u.inputTokens ?? 0)
+    const outputTokens =
+      typeof u.outputTokens === "object" && u.outputTokens ? (u.outputTokens.text ?? 0) : (u.outputTokens ?? 0)
     this.onUsage({
       provider: this.provider,
       model,
-      inputTokens: usage.inputTokens ?? 0,
-      outputTokens: usage.outputTokens ?? 0,
-      cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
-      totalTokens: usage.totalTokens ?? 0,
+      inputTokens,
+      outputTokens,
+      cachedInputTokens: u.cachedInputTokens ?? u.inputTokenDetails?.cacheReadTokens ?? 0,
+      totalTokens: u.totalTokens ?? inputTokens + outputTokens,
       durationMs,
     })
   }
 
   protected async streamToContent(params: {
-    model: LanguageModel
+    model: GatewayModel
     modelId: string
     system?: string
     messages: ModelMessage[]
@@ -205,7 +223,7 @@ export abstract class BaseGatewayProvider {
   }> {
     const startedAt = Date.now()
     const result = streamText({
-      model: params.model,
+      model: params.model as LanguageModel,
       system: params.system,
       messages: params.messages,
       tools: params.tools,
@@ -242,7 +260,7 @@ export abstract class BaseGatewayProvider {
 
     if (!text.trim() && toolCalls.length === 0) {
       const fallback = await generateText({
-        model: params.model,
+        model: params.model as LanguageModel,
         system: params.system,
         messages: params.messages,
         tools: params.tools,

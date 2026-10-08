@@ -376,7 +376,7 @@ export default function LaunchPage() {
           {/* What's New */}
           <div className="text-left max-w-[640px] mx-auto mb-16">
             <div className="font-mono text-[11px] text-muted-foreground/40 tracking-wider uppercase mb-6">
-              $ what's new in supercode
+              $ what&apos;s new in supercode
             </div>
             <div className="space-y-8">
               {changelog.map((group, i) => (

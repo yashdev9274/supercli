@@ -1,5 +1,5 @@
 import type { JSONValue, LanguageModelV2, LanguageModelV2CallOptions, LanguageModelV2Content, LanguageModelV2FinishReason, LanguageModelV2FunctionTool, LanguageModelV2Prompt, LanguageModelV2StreamPart, LanguageModelV2Usage } from "@ai-sdk/provider"
-import type { LanguageModel } from "ai"
+import type { GatewayModel } from "./base"
 import { BaseGatewayProvider, type GatewayProviderOptions, type ModelInfo } from "./base"
 
 const DEFAULT_BASE_URL = "https://supercode-8w7e.onrender.com"
@@ -18,7 +18,7 @@ export class SupercodeCloudProvider extends BaseGatewayProvider {
     })
   }
 
-  protected buildModel(modelName: string): LanguageModel {
+  protected buildModel(modelName: string): GatewayModel {
     return new SupercodeCloudLanguageModel(this, modelName)
   }
 

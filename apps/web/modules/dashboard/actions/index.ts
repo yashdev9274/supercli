@@ -7,6 +7,20 @@ import { fetchUserContribution, getGithubToken, getGithubAuthStatus, isGithubRea
 import { headers } from "next/headers";
 import { Octokit } from "octokit";
 
+interface ContributionDay {
+  date: string;
+  contributionCount: number;
+}
+
+interface ContributionWeek {
+  contributionDays: ContributionDay[];
+}
+
+interface ContributionCalendarLike {
+  weeks: ContributionWeek[];
+  totalContributions?: number;
+}
+
 export async function getDashboardStats() {
     try {
         const session = await auth.api.getSession({
@@ -115,8 +129,8 @@ export async function getMontlyActivity(){
             monthlyData[monthKey] = { commits: 0, prs: 0, reviews: 0 };
           }
           
-          calendar.weeks.forEach((week: any) => {
-            week.contributionDays.forEach((day: any) => {
+          calendar.weeks.forEach((week: ContributionWeek) => {
+            week.contributionDays.forEach((day: ContributionDay) => {
               const date = new Date(day.date);
               const monthKey = monthNames[date.getMonth()];
               if (monthlyData[monthKey]) {
@@ -163,7 +177,7 @@ export async function getMontlyActivity(){
             per_page:100
         })
 
-    prs.items.forEach((pr: any)=>{
+    prs.items.forEach((pr: { created_at: string })=>{
         const date = new Date(pr.created_at)
         const monthKey = monthNames[date.getMonth()]
         if(monthlyData[monthKey]){
@@ -211,8 +225,8 @@ export async function getContributionStats(){
 
         // First flatten raw contributions so we can compute levels relative to the max count.
         const rawContributions: { date: string; count: number }[] =
-            calendar.weeks.flatMap((week: any) =>
-                week.contributionDays.map((day: any) => ({
+            calendar.weeks.flatMap((week: ContributionWeek) =>
+                week.contributionDays.map((day: ContributionDay) => ({
                     date: day.date,
                     count: day.contributionCount,
                 }))
