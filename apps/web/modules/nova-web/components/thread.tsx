@@ -16,6 +16,7 @@ import {
   WorkedFor,
 } from "@/modules/nova-web/components/timeline"
 import { WorkingProcess } from "@/modules/nova-web/components/working-process"
+import { WorkspacePanel } from "@/modules/nova-web/components/workspace-panel"
 import type {
   HarnessProvider,
   NovaAgentMode,
@@ -292,59 +293,16 @@ export function ThreadView({
         ) : null}
 
         {detailsOpen ? (
-          <aside className="hidden w-[260px] shrink-0 border-l border-white/[0.05] bg-[#0e0e0e] lg:block">
-            <div className="h-full overflow-y-auto p-4">
-              <p className="text-[12px] font-medium text-[#c8c8c8]">Thread</p>
-              <div className="mt-4 space-y-4 text-[12px] text-[#8a8a8a]">
-                <div>
-                  <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-[#3d3d3d]">Status</p>
-                  <p className="mt-1 capitalize text-[#c8c8c8]">{sessionUiLabel(uiStatus)}</p>
-                </div>
-                <div>
-                  <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-[#3d3d3d]">Harness</p>
-                  <p className="mt-1 text-[#c8c8c8]">{provider} · {model}</p>
-                </div>
-                <div>
-                  <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-[#3d3d3d]">Local project</p>
-                  {localProject ? (
-                    <div className="mt-1 space-y-0.5 text-[#c8c8c8]">
-                      <p className="truncate">{localProject.displayName}</p>
-                      <p className="text-[11px] text-[#6b6b6b]">
-                        {localProject.fileCount} files
-                        {localProject.truncated ? " · partial index" : ""}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="mt-1 text-[#3d3d3d]">None — open a folder via @ Files</p>
-                  )}
-                </div>
-                <div>
-                  <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-[#3d3d3d]">Surfaces</p>
-                  <div className="mt-1.5 space-y-1">
-                    {session.surfaces.map((surface) => (
-                      <p key={surface.id} className="capitalize text-[#a0a0a0]">
-                        {surface.provider}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-[#3d3d3d]">Runs</p>
-                  <div className="mt-1.5 space-y-1">
-                    {session.runs.length > 0 ? (
-                      session.runs.slice(0, 5).map((run) => (
-                        <p key={run.id} className="capitalize text-[#a0a0a0]">
-                          {run.status.replaceAll("_", " ")}
-                        </p>
-                      ))
-                    ) : (
-                      <p className="text-[#3d3d3d]">No runs yet</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </aside>
+          <div className="hidden h-full min-h-0 lg:flex">
+            <WorkspacePanel
+              session={session}
+              timeline={visibleTimeline}
+              workingSteps={workingSteps}
+              streaming={streaming}
+              localProject={localProject}
+              localFiles={localFiles}
+            />
+          </div>
         ) : null}
       </div>
 

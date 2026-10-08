@@ -13,7 +13,7 @@
     "typecheck": "echo 'db typecheck pending'",
     "db:clean": "rm -rf src/generated",
     "db:generate": "prisma generate --schema ./prisma/schema.prisma",
-    "db:migrate": "prisma migrate deploy --schema ./prisma/schema.prisma"
+    "db:migrate": "bun run ./scripts/migrate-deploy.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

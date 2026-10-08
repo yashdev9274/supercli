@@ -55,6 +55,9 @@ export function languageFromPath(path: string): string {
   if (ext === "go") return "go"
   if (ext === "rs") return "rs"
   if (ext === "swift") return "swift"
+  if (ext === "prisma") return "prisma"
+  if (ext === "sql") return "sql"
+  if (ext === "yml" || ext === "yaml") return "yml"
   return ext || "file"
 }
 
