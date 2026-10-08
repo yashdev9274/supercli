@@ -1,4 +1,46 @@
-import { defineConfig } from "prisma/config";
+import { defineConfig } from "prisma/config"
+
+/**
+ * Prefer a direct (unpooled) Postgres URL for Prisma Migrate.
+ * Neon/PgBouncer pooler URLs cannot hold session-scoped advisory locks, which
+ * surfaces on Vercel as P1002: "Timed out trying to acquire a postgres advisory lock".
+ *
+ * App runtime keeps using DATABASE_URL (pooled) via @prisma/adapter-pg.
+ * migrate-deploy.ts also overwrites DATABASE_URL to the direct URL for the child process.
+ */
+function stripPooler(url: string): string {
+  try {
+    const parsed = new URL(url)
+    if (parsed.hostname.includes("-pooler.")) {
+      parsed.hostname = parsed.hostname.replace("-pooler.", ".")
+    }
+    parsed.hostname = parsed.hostname.replace(/\.pooler\./g, ".")
+    parsed.searchParams.delete("pgbouncer")
+    parsed.searchParams.delete("connection_limit")
+    parsed.searchParams.delete("pool_timeout")
+    return parsed.toString()
+  } catch {
+    return url.replace("-pooler.", ".").replace(".pooler.", ".")
+  }
+}
+
+function migrateDatabaseUrl(): string {
+  const candidates = [
+    process.env.DATABASE_URL_UNPOOLED,
+    process.env.DIRECT_URL,
+    process.env.DIRECT_DATABASE_URL,
+    process.env.POSTGRES_URL_NON_POOLING,
+    process.env.DATABASE_URL,
+  ]
+
+  for (const value of candidates) {
+    const url = value?.trim()
+    if (!url) continue
+    return stripPooler(url)
+  }
+
+  return "postgresql://postgres:postgres@localhost:5432/postgres"
+}
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -6,8 +48,6 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url:
-      process.env["DATABASE_URL"] ??
-      "postgresql://postgres:postgres@localhost:5432/postgres",
+    url: migrateDatabaseUrl(),
   },
-});
+})

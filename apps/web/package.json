@@ -10,7 +10,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate --schema ../../packages/db/prisma/schema.prisma",
-    "db:migrate": "prisma migrate deploy --config ../../packages/db/prisma.config.ts"
+    "db:migrate": "bun run --cwd ../../packages/db db:migrate"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.49",
