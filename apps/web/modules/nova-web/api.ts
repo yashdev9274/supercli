@@ -27,13 +27,16 @@ export function listSessions() {
   return requestJson<{ sessions: AgentSessionSummary[] }>("/api/nova/sessions")
 }
 
-export function createSession(objective: string, options?: { localProjectId?: string | null }) {
+export function createSession(
+  objective: string,
+  options?: { localProjectId?: string | null; mode?: "agent" | "plan" | "chat" },
+) {
   return requestJson<{ session: AgentSessionSummary }>("/api/nova/sessions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       objective,
-      mode: "chat",
+      mode: options?.mode ?? "agent",
       surface: "web",
       localProjectId: options?.localProjectId ?? undefined,
     }),
@@ -69,6 +72,20 @@ export function createLocalProject(input: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   })
+}
+
+export function createLocalProjectFromGithub(fullName: string) {
+  return requestJson<{ project: LocalProjectDto }>("/api/nova/local-projects/from-github", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fullName }),
+  })
+}
+
+export type ConnectedRepoOption = {
+  owner: string
+  name: string
+  fullName: string
 }
 
 export function updateLocalProject(

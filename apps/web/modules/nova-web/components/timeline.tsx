@@ -8,22 +8,22 @@ import {
   Check,
   CircleDot,
   ShieldCheck,
-  Sparkles,
   X,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { NovaIcon } from "@/modules/nova-web/components/nova-icon"
 import type { ApprovalRequest, TimelineEntry } from "@/modules/nova-web/types"
 
 export function NovaMark({ size = "md" }: { size?: "sm" | "md" }) {
   return (
     <div
       className={cn(
-        "relative flex items-center justify-center overflow-hidden rounded-full bg-[#2dd4bf]/15 text-[#2dd4bf]",
+        "relative flex items-center justify-center overflow-hidden rounded-[7px]",
         size === "sm" ? "size-6" : "size-7",
       )}
     >
-      <Sparkles className={size === "sm" ? "size-3" : "size-3.5"} strokeWidth={2} />
+      <NovaIcon size={size === "sm" ? "sm" : "md"} alt="" className={size === "sm" ? "size-6" : "size-7"} />
     </div>
   )
 }

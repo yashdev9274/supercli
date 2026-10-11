@@ -1,4 +1,4 @@
-export const SETTINGS_SECTIONS = ["general", "profile", "activity", "usage"] as const
+export const SETTINGS_SECTIONS = ["general", "profile", "projects", "activity", "usage"] as const
 
 export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]
 

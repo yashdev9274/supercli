@@ -40,7 +40,7 @@ test("localAttachmentsSchema accepts text, image, and document kinds", () => {
   expect(ok.success).toBe(true)
 
   const tooMany = localAttachmentsSchema.safeParse(
-    Array.from({ length: 9 }, (_, i) => ({
+    Array.from({ length: 17 }, (_, i) => ({
       id: `id_${i}`,
       kind: "text",
       name: `f${i}.ts`,
@@ -84,7 +84,8 @@ test("formatLocalAttachmentsContext wraps docs and notes images", () => {
   expect(context).toContain("untrusted user-provided")
   expect(context).toContain("cannot write back")
   expect(context).toContain("ui.png")
-  expect(context).toContain("vision inputs")
+  expect(context).toContain("--- file: auth.ts")
+  expect(context).not.toContain("[object Object]")
 })
 
 test("imageDataUrl builds a data URL", () => {

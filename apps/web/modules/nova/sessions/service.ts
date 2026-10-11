@@ -164,7 +164,7 @@ export async function createAgentSession(input: {
         organizationId,
         initiatorMembershipId: membership.id,
         objective,
-        mode: input.mode?.trim() || "chat",
+        mode: input.mode?.trim() || "agent",
         nextSequence: 2,
         localProjectId,
       },

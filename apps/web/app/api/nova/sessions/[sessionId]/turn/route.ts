@@ -85,6 +85,7 @@ export async function POST(
           model: parsed.data.model,
           provider: parsed.data.provider,
           effort: parsed.data.effort,
+          mode: parsed.data.mode ?? "agent",
           harnessToken: harnessAuth.token,
           signal: request.signal,
           references: parsed.data.references,

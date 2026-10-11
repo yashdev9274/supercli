@@ -189,10 +189,11 @@ export const NOVA_EFFORTS: Array<{ id: NovaEffort; label: string }> = [
 ]
 
 export type NovaAgentMode = "agent" | "plan" | "chat"
-export const NOVA_AGENT_MODES: Array<{ id: NovaAgentMode; label: string }> = [
-  { id: "agent", label: "Agent" },
-  { id: "plan", label: "Plan" },
-  { id: "chat", label: "Chat" },
+export const DEFAULT_NOVA_AGENT_MODE: NovaAgentMode = "agent"
+export const NOVA_AGENT_MODES: Array<{ id: NovaAgentMode; label: string; description?: string }> = [
+  { id: "agent", label: "Agent", description: "Implement fixes with concrete file patches" },
+  { id: "plan", label: "Plan", description: "Design approach without editing" },
+  { id: "chat", label: "Chat", description: "Short conversational answers" },
 ]
 
 export function menuId(entry: NovaModelEntry) { return `${entry.provider}::${entry.id}` }

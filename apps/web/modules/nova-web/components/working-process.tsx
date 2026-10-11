@@ -168,16 +168,27 @@ export function WorkedForLine({ ms, className }: { ms: number; className?: strin
 export function WorkingProcess({
   steps,
   workingSince,
+  workingUntil,
   streaming,
   agentName = "Nova",
+  defaultOpen,
 }: {
   steps: WorkingStep[]
   workingSince: number | null
+  /** When the turn finished; used for stable "Worked for" duration. */
+  workingUntil?: number | null
   streaming: boolean
   agentName?: string
+  /** Defaults to open while streaming, collapsed after (Capy-style). */
+  defaultOpen?: boolean
 }) {
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(defaultOpen ?? streaming)
   const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    // Auto-expand while live; collapse once the turn settles so the answer leads.
+    setOpen(defaultOpen ?? streaming)
+  }, [streaming, defaultOpen])
 
   useEffect(() => {
     if (!streaming || !workingSince) return
@@ -187,7 +198,8 @@ export function WorkingProcess({
 
   if (!streaming && steps.length === 0) return null
 
-  const elapsed = workingSince ? Math.max(0, now - workingSince) : 0
+  const end = streaming ? now : (workingUntil ?? now)
+  const elapsed = workingSince ? Math.max(0, end - workingSince) : 0
   const header = streaming
     ? `Working for ${formatWorkDuration(elapsed)}`
     : `Worked for ${formatWorkDuration(elapsed)}`

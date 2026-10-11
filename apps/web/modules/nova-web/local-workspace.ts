@@ -67,6 +67,14 @@ type IndexedDBHandleRecord = {
 let memoryState: LocalWorkspaceState | null = null
 let memoryHandle: FileSystemDirectoryHandleLike | null = null
 let pathHandleCache = new Map<string, FileSystemFileHandleLike>()
+/** Paths from a DB/GitHub project when no folder handle is available. */
+let virtualProject: {
+  projectId: string
+  displayName: string
+  rootName: string
+  paths: string[]
+  repositoryFullName: string | null
+} | null = null
 const ACTIVE_HANDLE_ID = "active"
 
 function supportsDirectoryPicker(): boolean {
@@ -303,16 +311,49 @@ export async function restoreLocalWorkspace(projectId?: string | null): Promise<
 }
 
 export function getLocalWorkspace(): LocalWorkspaceState | null {
-  return memoryState
+  if (memoryState) return memoryState
+  if (!virtualProject) return null
+  return {
+    projectId: virtualProject.projectId,
+    displayName: virtualProject.displayName,
+    rootName: virtualProject.rootName,
+    entries: virtualProject.paths.map((path) => ({
+      path,
+      name: path.split("/").pop() || path,
+      kind: classifyPath(path),
+    })),
+    truncated: false,
+    indexedAt: Date.now(),
+  }
 }
 
 export function getActiveLocalProjectId(): string | null {
-  return memoryState?.projectId ?? null
+  return memoryState?.projectId ?? virtualProject?.projectId ?? null
+}
+
+/** Seed searchable paths for a GitHub/DB project without a browser folder grant. */
+export function setVirtualProjectIndex(input: {
+  projectId: string
+  displayName: string
+  rootName: string
+  paths: string[]
+  repositoryFullName?: string | null
+} | null) {
+  virtualProject = input
+    ? {
+        projectId: input.projectId,
+        displayName: input.displayName,
+        rootName: input.rootName,
+        paths: input.paths,
+        repositoryFullName: input.repositoryFullName ?? null,
+      }
+    : null
 }
 
 export function clearLocalWorkspace() {
   memoryState = null
   memoryHandle = null
+  virtualProject = null
   pathHandleCache = new Map()
   void openHandleDb().then((db) => {
     const tx = db.transaction("handles", "readwrite")
@@ -340,7 +381,7 @@ export function localFileReference(entry: LocalWorkspaceEntry, rootName: string,
 }
 
 export function searchLocalWorkspaceFiles(query: string, limit = 40): NovaReference[] {
-  const state = memoryState
+  const state = getLocalWorkspace()
   if (!state) return []
   const q = query.trim().toLowerCase()
   const matched = q
@@ -349,7 +390,10 @@ export function searchLocalWorkspaceFiles(query: string, limit = 40): NovaRefere
       || entry.name.toLowerCase().includes(q),
     )
     : state.entries
-  return matched.slice(0, limit).map((entry) => localFileReference(entry, state.displayName || state.rootName, state.projectId))
+  const labelRoot = state.displayName || state.rootName
+  // GitHub-backed virtual projects still use local: ids for path search UX;
+  // content is resolved via attachments or GitHub references on the server.
+  return matched.slice(0, limit).map((entry) => localFileReference(entry, labelRoot, state.projectId))
 }
 
 async function resolveHandleForPath(path: string): Promise<FileSystemFileHandleLike | null> {

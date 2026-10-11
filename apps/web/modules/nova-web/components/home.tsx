@@ -1,11 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, Cloud, FolderGit2 } from "lucide-react"
+import { ChevronDown, Cloud } from "lucide-react"
 
 import { Composer } from "@/modules/nova-web/components/composer"
+import { ProjectPicker, type ProjectSelection } from "@/modules/nova-web/components/project-picker"
 import type { LocalAttachment } from "@/modules/nova/attachments/contracts"
-import type { LocalWorkspaceState } from "@/modules/nova-web/local-workspace"
+import type { LocalProjectDto } from "@/modules/nova-web/api"
 import type { NovaReference } from "@/modules/nova/references/contracts"
 import type {
   HarnessProvider,
@@ -49,8 +50,9 @@ export function EmptyHome({
   onModelChange,
   onEffortChange,
   onModeChange,
-  onLocalProjectChange,
-  localProjectLabel,
+  onProjectChange,
+  onManageProjects,
+  localProject,
 }: {
   onStart: (value: string, references?: NovaReference[], localFiles?: LocalAttachment[]) => void
   busy?: boolean
@@ -61,8 +63,9 @@ export function EmptyHome({
   onModelChange: (selection: { provider: HarnessProvider; model: string }) => void
   onEffortChange: (effort: NovaEffort) => void
   onModeChange: (mode: NovaAgentMode) => void
-  onLocalProjectChange?: (project: LocalWorkspaceState) => void
-  localProjectLabel?: string | null
+  onProjectChange?: (selection: ProjectSelection) => void
+  onManageProjects?: () => void
+  localProject?: LocalProjectDto | null
 }) {
   const [draft, setDraft] = useState("")
   const [references, setReferences] = useState<NovaReference[]>([])
@@ -87,14 +90,12 @@ export function EmptyHome({
       <DotField />
       <div className="relative z-[1] flex flex-1 flex-col items-center justify-center px-5 pb-24">
         <div className="mb-3 flex items-center gap-3 text-[12px] text-[#5c5c5c]">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 rounded-md px-1.5 py-1 transition hover:bg-white/[0.04] hover:text-[#a0a0a0]"
-          >
-            <FolderGit2 className="size-3.5" strokeWidth={1.75} />
-            {localProjectLabel ? localProjectLabel : "Local project"}
-            <ChevronDown className="size-3 opacity-70" />
-          </button>
+          <ProjectPicker
+            value={localProject}
+            disabled={busy}
+            onChange={(selection) => onProjectChange?.(selection)}
+            onManageProjects={onManageProjects}
+          />
           <button
             type="button"
             className="flex items-center gap-1.5 rounded-md px-1.5 py-1 transition hover:bg-white/[0.04] hover:text-[#a0a0a0]"
@@ -113,7 +114,6 @@ export function EmptyHome({
             onReferencesChange={setReferences}
             localFiles={localFiles}
             onLocalFilesChange={setLocalFiles}
-            onLocalProjectChange={onLocalProjectChange}
             onSubmit={() => submit()}
             large
             disabled={busy}
@@ -124,7 +124,11 @@ export function EmptyHome({
             onModelChange={onModelChange}
             onEffortChange={onEffortChange}
             onModeChange={onModeChange}
-            placeholder="Ask to make changes, open a local folder, @mention files"
+            placeholder={
+              localProject
+                ? `Work on ${localProject.displayName}…`
+                : "Select a project above, then ask Nova to make changes"
+            }
           />
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             {STARTERS.map((starter) => (
