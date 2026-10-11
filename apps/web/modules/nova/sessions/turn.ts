@@ -4,11 +4,11 @@ import { streamHarnessAgent } from "@/modules/nova/harness/agent"
 import type { HarnessChatMessage } from "@/modules/nova/harness/client"
 import {
   formatLocalAttachmentsContext,
-  imageDataUrl,
   localAttachmentsSchema,
   type LocalAttachment,
   type LocalAttachmentMeta,
 } from "@/modules/nova/attachments/contracts"
+import { packGithubProjectForTurn } from "@/modules/nova/local-projects/pack"
 import { formatLocalProjectContext } from "@/modules/nova/local-projects/service"
 import type { NovaReference, ReferenceInput } from "@/modules/nova/references/contracts"
 import { resolveNovaReferences } from "@/modules/nova/references/service"
@@ -72,16 +72,45 @@ function effortHint(effort?: string | null): string {
   }
 }
 
-function buildSystemPrompt(objective: string, effort?: string | null, localProjectNote?: string | null) {
+function modeDirective(mode?: string | null): string {
+  switch ((mode ?? "agent").toLowerCase()) {
+    case "plan":
+      return `Mode: PLAN
+- Design the approach, tradeoffs, and file touch list.
+- Do not emit full file replacements unless the user asked for sample snippets.
+- End with a clear implementation sequence the Agent mode can execute next.`
+    case "chat":
+      return `Mode: CHAT
+- Answer briefly and conversationally.
+- Prefer short guidance over large patches unless the user asks for code.`
+    default:
+      return `Mode: AGENT (default — implement)
+- You are in agentic implement mode. Do the work, do not stop at a plan.
+- When the user asks to fix/build/improve UI or code and sources are in <nova_local_files>, output concrete mergeable patches now:
+  - Prefer full-file replacements fenced as \`\`\`ts path=relative/path.tsx\`\`\` (or the real language).
+  - Or unified diffs with --- a/path +++ b/path.
+- Never end with “attach these files and I'll patch” when those files are already attached or clearly listed in the path index.
+- Lead with the patches; keep narrative short. Call out what you changed in a brief summary after the patches.
+- You cannot write back to disk from Nova web — still produce copy-pasteable / mergeable file bodies as if applying the change.`
+  }
+}
+
+function buildSystemPrompt(
+  objective: string,
+  effort?: string | null,
+  localProjectNote?: string | null,
+  mode?: string | null,
+) {
   return `You are Nova, Supercode's AI software engineer.
 
 You run through the same Supercode harness as the Nova macOS app (provider routing, plan gates, usage).
-On the web you reason, plan, review, draft, and coordinate company work.
+On the web you reason, review, draft, coordinate company work, and in Agent mode implement concrete code changes.
 - Prefer actionable guidance with file paths, commands, and concrete tradeoffs.
-- Do not claim you edited local files, ran shell on a machine, or opened a desktop workspace unless the user provides that evidence.
-- Local shell, filesystem, and native tools stay on the paired Nova desktop app.
+- When <nova_local_files> or <nova_local_project_paths> are present, that IS the working tree for this turn. Read it and act on it.
+- Do not claim you wrote files back to disk, ran a local shell, or opened a desktop workspace unless a tool actually did.
 - Keep prose tight and senior. No filler.
 - ${effortHint(effort)}
+- ${modeDirective(mode)}
 - Session objective: ${objective}${localProjectNote ? `\n- ${localProjectNote}` : ""}`
 }
 
@@ -90,6 +119,7 @@ async function buildTurnContext(
   triggerSequence: number,
   fallbackUserContent: string,
   effort?: string | null,
+  mode?: string | null,
 ) {
   const [session, messages, responses] = await Promise.all([
     prisma.agentSession.findUniqueOrThrow({
@@ -186,11 +216,13 @@ async function buildTurnContext(
     : null
 
   const localProjectNote = localProject
-    ? `Active local project “${localProject.displayName}” (${localProject.fileCount} indexed paths under “${localProject.rootName}”). Prefer @ Files / attachments from that project; you cannot freely read the user's disk.`
+    ? localProject.repositoryFullName
+      ? `Active project “${localProject.displayName}” is GitHub repo ${localProject.repositoryFullName} (${localProject.fileCount} indexed paths). Packed sources land in <nova_local_files>. Implement against them with concrete diffs — do not ask the user to re-attach those files.`
+      : `Active local project “${localProject.displayName}” (${localProject.fileCount} indexed paths under “${localProject.rootName}”). Packed sources land in <nova_local_files>. Implement against them with concrete diffs — do not ask the user to re-attach those files.`
     : null
 
   const chatMessages: HarnessChatMessage[] = [
-    { role: "system", content: buildSystemPrompt(session.objective, effort, localProjectNote) },
+    { role: "system", content: buildSystemPrompt(session.objective, effort, localProjectNote, mode) },
     ...window.map((entry) => ({
       role: entry.role,
       content: entry.content,
@@ -198,6 +230,56 @@ async function buildTurnContext(
   ]
 
   return { objective: session.objective, messages: chatMessages, localProject }
+}
+
+/** Pull path= fences / unified-diff headers from the assistant answer for the working log. */
+function extractWorkedFiles(text: string): Array<{ path: string; kind: "write" | "read" }> {
+  const found: Array<{ path: string; kind: "write" | "read" }> = []
+  const seen = new Set<string>()
+  const push = (path: string, kind: "write" | "read") => {
+    const clean = path.replace(/^["'`]|["'`]$/g, "").trim()
+    if (!clean || seen.has(clean)) return
+    if (!/^[A-Za-z0-9_./@+-]+$/.test(clean)) return
+    if (!clean.includes("/") && !clean.includes(".")) return
+    seen.add(clean)
+    found.push({ path: clean, kind })
+  }
+  for (const match of text.matchAll(/```[\w.+-]*[^\n]*?(?:path\s*=\s*|file\s*=\s*)([^\s\n`]+)/gi)) {
+    push(match[1]!, "write")
+  }
+  for (const match of text.matchAll(/^\+\+\+\s+[ab]\/(.+)$/gm)) {
+    push(match[1]!, "write")
+  }
+  for (const match of text.matchAll(/(?:^|\n)(?:Writing|Updated|Created|Edited)\s+`?([A-Za-z0-9_./+-]+\.[A-Za-z0-9]{1,8})`?/gi)) {
+    push(match[1]!, "write")
+  }
+  return found.slice(0, 24)
+}
+
+function harnessContentToText(content: HarnessChatMessage["content"]): string {
+  if (typeof content === "string") return content
+  if (!Array.isArray(content)) {
+    // Never allow "[object Object]" into the model prompt.
+    try {
+      return JSON.stringify(content)
+    } catch {
+      return ""
+    }
+  }
+  return content
+    .map((part) => {
+      if (!part || typeof part !== "object") return ""
+      if (part.type === "text" && typeof part.text === "string") return part.text
+      if (part.type === "image" && typeof part.image === "string") {
+        return `[image attached: ${part.image.slice(0, 64)}…]`
+      }
+      if (part.type === "image_url" && part.image_url?.url) {
+        return `[image attached: ${part.image_url.url.slice(0, 64)}…]`
+      }
+      return ""
+    })
+    .filter(Boolean)
+    .join("\n")
 }
 
 async function completeRun(input: {
@@ -285,6 +367,7 @@ export async function* runWebTurn(input: {
   model?: string
   provider?: string
   effort?: string
+  mode?: "agent" | "plan" | "chat" | string
   /** Pre-resolved harness bearer (CLI session token). */
   harnessToken: string
   signal?: AbortSignal
@@ -293,11 +376,18 @@ export async function* runWebTurn(input: {
 }): AsyncGenerator<TurnStreamEvent> {
   const content = input.content.trim()
   const selection = resolveHarnessSelection(input.model, input.provider)
+  const mode = (input.mode ?? "agent").toLowerCase()
 
   yield {
     type: "status",
     phase: "accepted",
     message: "Request accepted",
+    model: selection.model,
+  }
+  yield {
+    type: "status",
+    phase: "mode",
+    message: mode === "plan" ? "Plan mode" : mode === "chat" ? "Chat mode" : "Agent mode · implement",
     model: selection.model,
   }
 
@@ -307,7 +397,7 @@ export async function* runWebTurn(input: {
     yield { type: "finish", reason: "error" }
     return
   }
-  const localAttachments = parsedLocal.data
+  let localAttachments = parsedLocal.data
 
   let resolvedReferences: Awaited<ReturnType<typeof resolveNovaReferences>>
   try {
@@ -346,16 +436,135 @@ export async function* runWebTurn(input: {
   })
 
   try {
+    yield {
+      type: "status",
+      phase: "gathering_context",
+      message: "Gathering project context",
+      runId: posted.runId,
+      model: selection.model,
+    }
+
     const context = await buildTurnContext(
       input.sessionId,
       posted.message.sequence,
       content,
       input.effort,
+      mode,
     )
+
+    // GitHub-backed projects: pull relevant file bodies server-side into this turn.
+    if (context.localProject?.repositoryFullName) {
+      yield {
+        type: "status",
+        phase: "packing",
+        message: `Packing files from ${context.localProject.repositoryFullName}`,
+        runId: posted.runId,
+        model: selection.model,
+      }
+      try {
+        const before = localAttachments.length
+        localAttachments = await packGithubProjectForTurn(
+          input.userId,
+          context.localProject,
+          content,
+          localAttachments,
+        )
+        const added = localAttachments.slice(before)
+        if (added.length > 0) {
+          yield {
+            type: "status",
+            phase: "packed",
+            message: `Packed ${added.length} project file${added.length === 1 ? "" : "s"}`,
+            runId: posted.runId,
+            model: selection.model,
+          }
+          for (const file of added.slice(0, 12)) {
+            const activity = await prisma.$transaction(async (tx) => {
+              const sequence = await tx.agentSession.update({
+                where: { id: input.sessionId },
+                data: { nextSequence: { increment: 1 } },
+                select: { nextSequence: true },
+              })
+              return tx.agentActivity.create({
+                data: {
+                  agentSessionId: input.sessionId,
+                  surfaceId: posted.surfaceId,
+                  runId: posted.runId,
+                  sequence: sequence.nextSequence - 1,
+                  type: "action",
+                  status: "completed",
+                  title: "Reading",
+                  body: `read ${file.name}`,
+                },
+              })
+            })
+            yield {
+              type: "activity",
+              activity: {
+                id: activity.id,
+                sessionId: input.sessionId,
+                runId: posted.runId,
+                sequence: activity.sequence,
+                type: activity.type,
+                status: activity.status,
+                title: activity.title,
+                body: activity.body,
+                createdAt: activity.createdAt.toISOString(),
+              },
+            }
+          }
+        }
+      } catch (error) {
+        console.warn("[nova/turn] github project pack failed", error)
+      }
+    } else if (localAttachments.length > 0) {
+      yield {
+        type: "status",
+        phase: "packed",
+        message: `Using ${localAttachments.length} attached project file${localAttachments.length === 1 ? "" : "s"}`,
+        runId: posted.runId,
+        model: selection.model,
+      }
+      for (const file of localAttachments.filter((f) => f.kind === "text").slice(0, 12)) {
+        const activity = await prisma.$transaction(async (tx) => {
+          const sequence = await tx.agentSession.update({
+            where: { id: input.sessionId },
+            data: { nextSequence: { increment: 1 } },
+            select: { nextSequence: true },
+          })
+          return tx.agentActivity.create({
+            data: {
+              agentSessionId: input.sessionId,
+              surfaceId: posted.surfaceId,
+              runId: posted.runId,
+              sequence: sequence.nextSequence - 1,
+              type: "action",
+              status: "completed",
+              title: "Reading",
+              body: `read ${file.name}`,
+            },
+          })
+        })
+        yield {
+          type: "activity",
+          activity: {
+            id: activity.id,
+            sessionId: input.sessionId,
+            runId: posted.runId,
+            sequence: activity.sequence,
+            type: activity.type,
+            status: activity.status,
+            title: activity.title,
+            body: activity.body,
+            createdAt: activity.createdAt.toISOString(),
+          },
+        }
+      }
+    }
+
     const userMessage = context.messages.findLast((message) => message.role === "user")
     if (userMessage) {
-      const baseText = typeof userMessage.content === "string" ? userMessage.content : ""
-      let text = baseText
+      let text = harnessContentToText(userMessage.content) || content
       if (resolvedReferences.context) {
         text += `\n\n${resolvedReferences.context}`
       }
@@ -366,13 +575,18 @@ export async function* runWebTurn(input: {
       if (localContext) {
         text += `\n\n${localContext}`
       }
-      const imageParts = localAttachments.flatMap((file) => {
-        const url = imageDataUrl(file)
-        return url ? [{ type: "image" as const, image: url }] : []
-      })
-      userMessage.content = imageParts.length > 0
-        ? [{ type: "text", text }, ...imageParts]
-        : text
+      // Always send plain string content to the harness. Multimodal arrays were
+      // coercing to "[object Object]" on some terminal/provider paths.
+      const imageNotes = localAttachments
+        .filter((file) => file.kind === "image" && file.dataBase64)
+        .map((file) => `Image attachment “${file.name}” (${file.mediaType}, ${file.size} bytes) was provided as base64 and is available to vision-capable routes.`)
+      if (imageNotes.length) {
+        text += `\n\n${imageNotes.join("\n")}`
+      }
+      if (mode === "agent") {
+        text += `\n\n[Nova agent mode] Implement now. Prefer full file replacements with path= fences for every file you change. Do not reply with only a plan.`
+      }
+      userMessage.content = text
     }
 
     yield {
@@ -381,6 +595,11 @@ export async function* runWebTurn(input: {
       message: `Harness · ${selection.provider} · ${selection.model}`,
       runId: posted.runId,
       model: selection.model,
+    }
+    // Kick a thinking step on the client even when the provider emits no reasoning tokens.
+    yield {
+      type: "reasoning",
+      content: mode === "agent" ? "Implementing against packed project sources…" : "Working…",
     }
     await prisma.agentRun.updateMany({
       where: { id: posted.runId, status: { in: ["queued", "gathering_context", "planning"] } },
@@ -458,6 +677,43 @@ export async function* runWebTurn(input: {
 
     if (!text.trim()) {
       throw new Error("Harness returned an empty response")
+    }
+
+    // Surface proposed file writes in the working log (Capy-style).
+    for (const file of extractWorkedFiles(text)) {
+      const activity = await prisma.$transaction(async (tx) => {
+        const sequence = await tx.agentSession.update({
+          where: { id: input.sessionId },
+          data: { nextSequence: { increment: 1 } },
+          select: { nextSequence: true },
+        })
+        return tx.agentActivity.create({
+          data: {
+            agentSessionId: input.sessionId,
+            surfaceId: posted.surfaceId,
+            runId: posted.runId,
+            sequence: sequence.nextSequence - 1,
+            type: "action",
+            status: "completed",
+            title: file.kind === "write" ? "Writing" : "Reading",
+            body: `${file.kind === "write" ? "wrote" : "read"} ${file.path}`,
+          },
+        })
+      })
+      yield {
+        type: "activity",
+        activity: {
+          id: activity.id,
+          sessionId: input.sessionId,
+          runId: posted.runId,
+          sequence: activity.sequence,
+          type: activity.type,
+          status: activity.status,
+          title: activity.title,
+          body: activity.body,
+          createdAt: activity.createdAt.toISOString(),
+        },
+      }
     }
 
     await prisma.agentRun.updateMany({

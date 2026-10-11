@@ -1,8 +1,12 @@
 import { afterAll, beforeEach, expect, test } from "bun:test"
 
-import { streamHarnessAgent, type HarnessAgentEvent } from "./agent"
+import { flattenHarnessContent, streamHarnessAgent, type HarnessAgentEvent } from "./agent"
 import type { HarnessChatMessage, HarnessChatTool, HarnessStreamEvent } from "./client"
 import type { ComposioTool } from "./composio-client"
+
+function contentText(content: HarnessChatMessage["content"] | undefined): string {
+  return flattenHarnessContent(content ?? "")
+}
 
 const originalUrl = process.env.SUPERCODE_TERMINAL_API_URL
 const tools: ComposioTool[] = [
@@ -85,14 +89,14 @@ test("fetches connected Linear data with the CLI token and feeds it back to the 
   expect(chats).toHaveLength(2)
   expect(chats[0]?.tools?.map((tool) => tool.function.name)).toEqual(["LINEAR_GET_WORKSPACE", "LINEAR_LIST_TEAMS"])
   expect(chats[0]?.tools?.[0]?.function.parameters).toEqual(tools[0]?.parameters)
-  expect(chats[0]?.messages.some((message) => message.role === "system" && message.content.includes("Available read toolkits: linear"))).toBe(true)
+  expect(chats[0]?.messages.some((message) => message.role === "system" && contentText(message.content).includes("Available read toolkits: linear"))).toBe(true)
   expect(executions).toEqual([{ toolName: "LINEAR_GET_WORKSPACE", arguments: {} }])
   const assistant = chats[1]?.messages.find((message) => message.tool_calls)
   const toolCalls = assistant?.tool_calls as Array<{ id: string; function: { name: string } }>
   const toolResult = chats[1]?.messages.find((message) => message.role === "tool")
   expect(toolCalls[0]?.function.name).toBe("LINEAR_GET_WORKSPACE")
   expect(toolResult?.tool_call_id).toBe(toolCalls[0]?.id)
-  expect(JSON.parse(toolResult?.content ?? "{}").data.workspace.name).toBe("Connected Linear workspace")
+  expect(JSON.parse(contentText(toolResult?.content) || "{}").data.workspace.name).toBe("Connected Linear workspace")
   expect(authorizations.every((authorization) => authorization === "Bearer authenticated-cli-account")).toBe(true)
   expect(events.some((event) => event.type === "tool-result" && event.status === "completed")).toBe(true)
   expect(events.filter((event) => event.type === "text").map((event) => event.content).join("")).toContain("Connected Linear workspace")
@@ -123,7 +127,7 @@ test("does not expose or execute mutations or unconnected/local tools", async ()
   expect(executions).toHaveLength(0)
   expect(chats[0]?.tools?.some((tool) => tool.function.name === "LINEAR_UPDATE_ISSUE")).toBe(false)
   expect(events.filter((event) => event.type === "tool-result" && event.status === "denied")).toHaveLength(2)
-  expect(chats[1]?.messages.filter((message) => message.role === "tool").every((message) => JSON.parse(message.content).denied === true)).toBe(true)
+  expect(chats[1]?.messages.filter((message) => message.role === "tool").every((message) => JSON.parse(contentText(message.content)).denied === true)).toBe(true)
 })
 
 test("fails closed when approval metadata is absent", async () => {
@@ -140,7 +144,7 @@ test("passes HTTP and Composio tool failures back without fabricating data", asy
   const events = await collect()
   expect(events.some((event) => event.type === "tool-result" && event.status === "failed")).toBe(true)
   const toolResult = chats[1]?.messages.find((message) => message.role === "tool")
-  expect(JSON.parse(toolResult?.content ?? "{}")).toEqual({ successful: false, error: "Composio connection expired" })
+  expect(JSON.parse(contentText(toolResult?.content) || "{}")).toEqual({ successful: false, error: "Composio connection expired" })
 })
 
 test("marks unsuccessful Composio results as failures", async () => {
@@ -148,7 +152,7 @@ test("marks unsuccessful Composio results as failures", async () => {
   responses = [[call("LINEAR_GET_WORKSPACE")], [{ type: "text", content: "I couldn't read that workspace." }]]
   const events = await collect()
   expect(events.some((event) => event.type === "tool-result" && event.status === "failed" && event.message === "Get workspace failed")).toBe(true)
-  expect(JSON.parse(chats[1]?.messages.find((message) => message.role === "tool")?.content ?? "{}").error).toBe("Linear permission denied")
+  expect(JSON.parse(contentText(chats[1]?.messages.find((message) => message.role === "tool")?.content) || "{}").error).toBe("Linear permission denied")
 })
 
 test("catalog failures stop the turn instead of claiming no integration exists", async () => {
@@ -164,7 +168,7 @@ test("tool-free accounts still support normal chat", async () => {
   await collect()
   expect(chats).toHaveLength(1)
   expect(chats[0]?.tools).toBeUndefined()
-  expect(chats[0]?.messages.some((message) => message.content.includes("Available read toolkits: none"))).toBe(true)
+  expect(chats[0]?.messages.some((message) => contentText(message.content).includes("Available read toolkits: none"))).toBe(true)
 })
 
 test("blocks repeated identical reads after two executions", async () => {
@@ -190,7 +194,7 @@ test("truncates oversized results and tells the model to narrow its query", asyn
   result = { successful: true, data: "x".repeat(100_000) }
   responses = [[call("LINEAR_GET_WORKSPACE")], [{ type: "text", content: "The result was truncated." }]]
   await collect()
-  const content = chats[1]?.messages.find((message) => message.role === "tool")?.content ?? "{}"
+  const content = contentText(chats[1]?.messages.find((message) => message.role === "tool")?.content) || "{}"
   expect(JSON.parse(content).truncated).toBe(true)
   expect(content.length).toBeLessThan(25_000)
 })

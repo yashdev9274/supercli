@@ -122,6 +122,13 @@ function humanizeStatus(message: string): string | null {
   if (lower === "request accepted" || lower === "accepted") return "Accepted request"
   if (lower.includes("plan_gate") || lower.includes("plan limits")) return "Checking plan limits"
   if (lower.includes("budget")) return "Checking usage budget"
+  if (lower.startsWith("agent mode")) return "Agent mode · implement"
+  if (lower.startsWith("plan mode")) return "Plan mode"
+  if (lower.startsWith("chat mode")) return "Chat mode"
+  if (lower.includes("gathering project context")) return "Gathering project context"
+  if (lower.startsWith("packing files")) return raw.replace(/^Packing files from\s+/i, "Packing files · ")
+  if (lower.startsWith("packed ")) return raw
+  if (lower.startsWith("using ") && lower.includes("attached")) return raw
   if (lower.startsWith("harness")) {
     const bits = raw.split("·").map((s) => s.trim()).filter(Boolean)
     if (bits.length >= 3) return `Routing · ${bits[1]} · ${bits[2]}`

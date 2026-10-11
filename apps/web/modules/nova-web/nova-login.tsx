@@ -1,7 +1,9 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Github, Sparkles } from "lucide-react"
+import { Github } from "lucide-react"
+
+import { NovaIcon } from "@/modules/nova-web/components/nova-icon"
 
 import { signIn, useSession } from "@/lib/auth-client"
 
@@ -43,8 +45,8 @@ export function NovaLogin() {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(241,127,66,0.1),transparent_35%)]" />
       <div className="relative w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="flex size-11 items-center justify-center rounded-2xl bg-[#f17f42] text-[#171411] shadow-[0_0_45px_rgba(241,127,66,0.2)]">
-            <Sparkles className="size-5" />
+          <div className="flex size-11 items-center justify-center overflow-hidden rounded-2xl shadow-[0_0_45px_rgba(0,0,0,0.35)]">
+            <NovaIcon size="lg" alt="" className="size-11" />
           </div>
           <h1 className="mt-4 text-2xl font-semibold tracking-[-0.04em]">Welcome to Nova</h1>
           <p className="mt-2 max-w-xs text-sm leading-6 text-zinc-500">

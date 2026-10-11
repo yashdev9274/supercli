@@ -128,13 +128,9 @@ test("local attachments reach the harness and metadata-only tags reach message p
   expect(text).toContain("export function add")
   expect(text).toContain("util.ts")
   expect(text).toContain("untrusted user-provided")
-  expect(text).toContain("vision inputs")
-  expect(Array.isArray(content)).toBe(true)
-  expect(content).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({ type: "image", image: "data:image/png;base64,aGVsbG8=" }),
-    ]),
-  )
+  expect(typeof content).toBe("string")
+  expect(String(content)).toContain("ui.png")
+  expect(String(content)).not.toContain("[object Object]")
   expect(postMessage.mock.calls[0]?.[0]).toMatchObject({
     localAttachments: [
       {
@@ -159,7 +155,7 @@ test("oversized local attachment batches fail before the harness is called", asy
     sessionId: "session_1",
     content: "Explain the attached file",
     harnessToken: "cli-session",
-    localAttachments: Array.from({ length: 9 }, (_, i) => ({
+    localAttachments: Array.from({ length: 17 }, (_, i) => ({
       id: `f${i}`,
       kind: "text" as const,
       name: `f${i}.ts`,

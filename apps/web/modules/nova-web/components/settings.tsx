@@ -1,21 +1,37 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   Activity,
   ArrowLeft,
   Copy,
   CreditCard,
   ExternalLink,
+  FolderGit2,
+  FolderOpen,
+  Github,
+  Loader2,
+  MoreHorizontal,
+  Plus,
   Search,
   Settings2,
   UserRound,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { requestJson } from "@/modules/nova-web/api"
+import {
+  createLocalProjectFromGithub,
+  listLocalProjects,
+  requestJson,
+  type LocalProjectDto,
+} from "@/modules/nova-web/api"
 import { AccountMenu } from "@/modules/nova-web/components/account-menu"
+import { getConnectedRepos } from "@/modules/dashboard/actions/analytics"
 import type { SettingsActivity, SettingsUsage } from "@/modules/nova/settings/service"
+import {
+  localWorkspaceSupportsPicker,
+  pickLocalWorkspaceFolder,
+} from "@/modules/nova-web/local-workspace"
 import type { SettingsSectionId } from "@/modules/nova-web/settings-sections"
 import type { NovaUser } from "@/modules/nova-web/types"
 
@@ -29,6 +45,7 @@ const SECTION_META: Array<{
 }> = [
   { id: "general", label: "General", icon: Settings2 },
   { id: "profile", label: "Profile", icon: UserRound },
+  { id: "projects", label: "Projects", icon: FolderGit2 },
   { id: "activity", label: "Activity", icon: Activity },
   { id: "usage", label: "Usage", icon: CreditCard },
 ]
@@ -229,6 +246,9 @@ export function SettingsView({
           {section === "profile" ? (
             <ProfileSection user={user} copied={copied} onCopy={copyText} />
           ) : null}
+          {section === "projects" ? (
+            <ProjectsSection onNavigate={onNavigate} />
+          ) : null}
           {section === "activity" ? (
             <ActivitySection
               range={activityRange}
@@ -245,6 +265,264 @@ export function SettingsView({
         </div>
       </section>
     </div>
+  )
+}
+
+function relativeUpdated(value: string | null) {
+  if (!value) return "—"
+  const ms = Date.now() - new Date(value).getTime()
+  if (!Number.isFinite(ms) || ms < 0) return "—"
+  const minutes = Math.floor(ms / 60_000)
+  if (minutes < 1) return "just now"
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 48) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
+function ProjectsSection({ onNavigate }: { onNavigate: (href: string) => void }) {
+  const [projects, setProjects] = useState<LocalProjectDto[]>([])
+  const [repos, setRepos] = useState<Array<{ fullName: string; owner: string; name: string }>>([])
+  const [query, setQuery] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [newOpen, setNewOpen] = useState(false)
+
+  const refresh = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [projectRes, repoList] = await Promise.all([
+        listLocalProjects(),
+        getConnectedRepos().catch(() => []),
+      ])
+      setProjects(projectRes.projects)
+      setRepos(repoList)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load projects")
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return projects
+    return projects.filter((project) =>
+      `${project.displayName} ${project.rootName} ${project.repositoryFullName ?? ""}`
+        .toLowerCase()
+        .includes(q),
+    )
+  }, [projects, query])
+
+  async function addFromGithub(fullName: string) {
+    setBusy(true)
+    setError(null)
+    try {
+      await createLocalProjectFromGithub(fullName)
+      setNewOpen(false)
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create project from GitHub")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function addFromMac() {
+    if (!localWorkspaceSupportsPicker()) {
+      setError("This browser can’t open folders. Use Chrome or Edge.")
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const workspace = await pickLocalWorkspaceFolder()
+      if (!workspace) return
+      setNewOpen(false)
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not open folder")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-[28px] font-medium tracking-tight">Projects & setup</h1>
+          <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[#8a8a8a]">
+            Manage projects, setup, and create new ones from repositories or folders on this Mac.
+          </p>
+        </div>
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setNewOpen((v) => !v)}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 text-[12.5px] text-[#e8e8e8] transition hover:bg-white/[0.07] disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
+            New project
+          </button>
+          {newOpen ? (
+            <>
+              <button type="button" className="fixed inset-0 z-20" aria-label="Close" onClick={() => setNewOpen(false)} />
+              <div className="absolute right-0 top-[calc(100%+6px)] z-30 w-[300px] overflow-hidden rounded-xl border border-white/[0.1] bg-[#1a1a1a] p-1 shadow-2xl">
+                <p className="px-2.5 py-1.5 text-[10px] font-medium uppercase tracking-[0.08em] text-[#5c5c5c]">
+                  Sources
+                </p>
+                <button
+                  type="button"
+                  disabled={busy || repos.length === 0}
+                  onClick={() => {
+                    // If only one repo, create immediately; else show list inline by expanding
+                    if (repos.length === 1) void addFromGithub(repos[0]!.fullName)
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-white/[0.05] disabled:opacity-50"
+                >
+                  <Github className="size-3.5 text-[#8a8a8a]" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[12.5px] text-[#e8e8e8]">GitHub repository</span>
+                    <span className="block text-[11px] text-[#6b6b6b]">
+                      {repos.length ? `${repos[0]?.owner ?? "account"} · ${repos.length} repos` : "No connected repos"}
+                    </span>
+                  </span>
+                </button>
+                {repos.length > 1 ? (
+                  <div className="mb-1 max-h-[160px] overflow-y-auto border-t border-white/[0.06] pt-1">
+                    {repos.map((repo) => (
+                      <button
+                        key={repo.fullName}
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void addFromGithub(repo.fullName)}
+                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12px] text-[#c8c8c8] transition hover:bg-white/[0.05]"
+                      >
+                        <FolderGit2 className="size-3.5 text-[#6b6b6b]" />
+                        <span className="truncate">{repo.fullName}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void addFromMac()}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-white/[0.05] disabled:opacity-50"
+                >
+                  <FolderOpen className="size-3.5 text-[#8a8a8a]" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[12.5px] text-[#e8e8e8]">Open a folder</span>
+                    <span className="block text-[11px] text-[#6b6b6b]">Browse this Mac</span>
+                  </span>
+                </button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mt-6 flex items-center gap-3">
+        <div className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border border-white/[0.08] bg-[#141414] px-3">
+          <Search className="size-3.5 shrink-0 text-[#5c5c5c]" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search projects"
+            className="min-w-0 flex-1 bg-transparent text-[13px] text-[#e8e8e8] outline-none placeholder:text-[#5c5c5c]"
+          />
+        </div>
+      </div>
+
+      {error ? (
+        <p className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2 text-[12.5px] text-amber-100/90">
+          {error}
+        </p>
+      ) : null}
+
+      <div className="mt-5 overflow-hidden rounded-xl border border-white/[0.08] bg-[#141414]">
+        <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_0.7fr_0.6fr_0.7fr_36px] gap-2 border-b border-white/[0.06] px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.06em] text-[#5c5c5c]">
+          <span>Project</span>
+          <span>Repositories</span>
+          <span>Setup</span>
+          <span>Snapshot</span>
+          <span className="text-right">Updated</span>
+          <span />
+        </div>
+
+        <div className="border-b border-white/[0.05] bg-white/[0.02] px-4 py-1.5 text-[11px] text-[#6b6b6b]">
+          Active {filtered.length}
+        </div>
+
+        {loading ? (
+          <p className="flex items-center gap-2 px-4 py-8 text-[13px] text-[#6b6b6b]">
+            <Loader2 className="size-3.5 animate-spin" /> Loading projects…
+          </p>
+        ) : filtered.length === 0 ? (
+          <p className="px-4 py-10 text-center text-[13px] text-[#5c5c5c]">
+            No projects yet. Create one from GitHub or open a folder on this Mac.
+          </p>
+        ) : (
+          filtered.map((project) => (
+            <div
+              key={project.id}
+              className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_0.7fr_0.6fr_0.7fr_36px] items-center gap-2 border-b border-white/[0.04] px-4 py-3 last:border-b-0"
+            >
+              <div className="flex min-w-0 items-center gap-2.5">
+                {project.repositoryFullName ? (
+                  <FolderGit2 className="size-4 shrink-0 text-[#8a8a8a]" />
+                ) : (
+                  <FolderOpen className="size-4 shrink-0 text-[#8a8a8a]" />
+                )}
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] text-[#e8e8e8]">{project.displayName}</p>
+                  <p className="truncate text-[11px] text-[#5c5c5c]">
+                    {project.fileCount} files{project.truncated ? " · partial" : ""}
+                  </p>
+                </div>
+              </div>
+              <p className="truncate text-[12.5px] text-[#a0a0a0]">
+                {project.repositoryFullName || "No repositories"}
+              </p>
+              <p className="text-[12.5px] text-[#8a8a8a]">Default</p>
+              <p className="flex items-center gap-1.5 text-[12.5px] text-[#6b6b6b]">
+                <span className="size-1.5 rounded-full bg-[#3d3d3d]" />
+                Off
+              </p>
+              <p className="text-right text-[12px] text-[#6b6b6b]">
+                {relativeUpdated(project.lastUsedAt || project.updatedAt)}
+              </p>
+              <button
+                type="button"
+                className="flex size-7 items-center justify-center rounded-md text-[#5c5c5c] hover:bg-white/[0.05] hover:text-[#c8c8c8]"
+                aria-label="Project actions"
+              >
+                <MoreHorizontal className="size-3.5" />
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onNavigate("/settings?section=profile")}
+        className="mt-4 flex w-full items-center gap-2 rounded-xl border border-white/[0.08] bg-[#141414] px-4 py-3 text-left text-[12.5px] text-[#8a8a8a] transition hover:bg-white/[0.03] hover:text-[#c8c8c8]"
+      >
+        <Github className="size-3.5" />
+        Don’t see a repository? Manage the GitHub installation
+        <ExternalLink className="ml-auto size-3.5 opacity-70" />
+      </button>
+    </>
   )
 }
 

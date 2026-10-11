@@ -11,13 +11,13 @@ import {
   Search,
   Settings2,
   ShieldCheck,
-  Sparkles,
   X,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { statusDot } from "@/modules/nova-web/theme"
 import { AccountMenu } from "@/modules/nova-web/components/account-menu"
+import { NovaIcon } from "@/modules/nova-web/components/nova-icon"
 import {
   relativeTime,
   sessionUiStatus,
@@ -70,10 +70,10 @@ export function NovaSidebar({
         <button
           type="button"
           onClick={() => onNavigate("/")}
-          className="flex size-7 items-center justify-center rounded-lg bg-white/[0.04] transition hover:bg-white/[0.07]"
+          className="flex size-7 items-center justify-center overflow-hidden rounded-[7px] transition hover:opacity-90"
           aria-label="Nova home"
         >
-          <Sparkles className="size-3.5 text-[#2dd4bf]" strokeWidth={2} />
+          <NovaIcon size="md" alt="" />
         </button>
         <div className="ml-auto flex items-center gap-0.5">
           <IconBtn

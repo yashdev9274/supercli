@@ -30,6 +30,7 @@ import {
   type TimelineEntry,
 } from "@/modules/nova-web/types"
 import type { LocalProjectDto } from "@/modules/nova-web/api"
+import { ProjectPicker, type ProjectSelection } from "@/modules/nova-web/components/project-picker"
 import type { WorkingStep } from "@/modules/nova-web/working-steps"
 import type { LocalWorkspaceState } from "@/modules/nova-web/local-workspace"
 import type { LocalAttachment } from "@/modules/nova/attachments/contracts"
@@ -59,11 +60,14 @@ export function ThreadView({
   onLocalFilesChange,
   localProject,
   onLocalProjectChange,
+  onProjectChange,
+  onManageProjects,
   streamingText,
   streamPhase,
   workingSteps,
   streaming,
   workingSince,
+  completedWorkByRunId,
   loading,
   decidingApprovalId,
   detailsOpen,
@@ -90,11 +94,14 @@ export function ThreadView({
   onLocalFilesChange: (files: LocalAttachment[]) => void
   localProject?: LocalProjectDto | null
   onLocalProjectChange?: (project: LocalWorkspaceState) => void
+  onProjectChange?: (selection: ProjectSelection) => void
+  onManageProjects?: () => void
   streamingText: string
   streamPhase: string | null
   workingSteps: WorkingStep[]
   streaming: boolean
   workingSince: number | null
+  completedWorkByRunId?: Record<string, { steps: WorkingStep[]; since: number; until: number }>
   loading: boolean
   decidingApprovalId: string | null
   detailsOpen: boolean
@@ -133,9 +140,12 @@ export function ThreadView({
 
   const visibleTimeline = useMemo(() => {
     return timeline.filter((entry) => {
-      if (entry.kind === "activity" && entry.type === "acknowledgement" && entry.status === "working") {
-        return false
-      }
+      if (entry.kind !== "activity") return true
+      // Working/tool noise lives in WorkingProcess, not as separate timeline cards.
+      if (entry.type === "acknowledgement" && entry.status === "working") return false
+      if (entry.type === "action" || entry.type === "result") return false
+      if ((entry.type as string) === "tool_result") return false
+      if (entry.type === "plan" && !entry.body) return false
       return true
     })
   }, [timeline])
@@ -164,14 +174,14 @@ export function ThreadView({
         <h1 className="min-w-0 flex-1 truncate text-[13px] font-medium text-[#e8e8e8]">
           {session.objective}
         </h1>
-        {localProject ? (
-          <span
-            title={`${localProject.fileCount} indexed files${localProject.truncated ? " (partial)" : ""}`}
-            className="hidden max-w-[180px] truncate rounded-md border border-[#2dd4bf]/20 bg-[#2dd4bf]/[0.08] px-2 py-0.5 text-[11px] text-[#9fe5d8] sm:inline"
-          >
-            {localProject.displayName}
-          </span>
-        ) : null}
+        <div className="hidden sm:block">
+          <ProjectPicker
+            value={localProject}
+            disabled={loading || streaming}
+            onChange={(selection) => onProjectChange?.(selection)}
+            onManageProjects={onManageProjects}
+          />
+        </div>
         {streaming && workedSeconds != null ? (
           <span className="hidden text-[11px] text-[#6b6b6b] sm:inline">
             Working · {formatDuration(workedSeconds * 1000)}
@@ -231,18 +241,37 @@ export function ThreadView({
               <>
                 {visibleTimeline.map((entry, index) => {
                   const prev = visibleTimeline[index - 1]
-                  // Capy: quiet "Worked for" before the assistant response that closes a turn.
-                  const showWorked =
-                    (
-                      (entry.kind === "activity" && entry.type === "response")
-                      || (entry.kind === "message" && entry.role === "assistant")
+                  const isAnswer =
+                    (entry.kind === "activity" && entry.type === "response")
+                    || (entry.kind === "message" && entry.role === "assistant")
+                  const runId = entry.kind === "activity" ? entry.runId : null
+                  const completed = runId && completedWorkByRunId
+                    ? completedWorkByRunId[runId]
+                    : null
+
+                  // Full Capy-style working log frozen onto this run's answer.
+                  if (isAnswer && completed && completed.steps.length > 0) {
+                    return (
+                      <div key={`${entry.kind}-${entry.id}`}>
+                        <WorkingProcess
+                          steps={completed.steps}
+                          workingSince={completed.since}
+                          workingUntil={completed.until}
+                          streaming={false}
+                          agentName="Nova"
+                        />
+                        <TimelineItem entry={entry} />
+                      </div>
                     )
+                  }
+
+                  const showWorked =
+                    isAnswer
                     && prev
                     && (
                       (prev.kind === "message" && prev.role === "user")
                       || (prev.kind === "activity" && prev.type !== "response")
                     )
-                  // Prefer duration from the nearest prior user message.
                   let workedMs: number | null = null
                   if (showWorked) {
                     for (let i = index - 1; i >= 0; i -= 1) {
@@ -265,7 +294,7 @@ export function ThreadView({
                     <WorkingProcess
                       steps={workingSteps}
                       workingSince={workingSince}
-                      streaming={streaming}
+                      streaming
                       agentName="Nova"
                     />
                     <StreamingBubble text={streamingText} phase={streamPhase} />

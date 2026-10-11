@@ -197,15 +197,17 @@ export async function getSessionLocalProject(userId: string, sessionId: string) 
 
 export function formatLocalProjectContext(project: LocalProjectSummary): string {
   const paths = project.paths ?? []
-  const sample = paths.slice(0, 200)
+  const sample = paths.slice(0, 400)
   const more = paths.length > sample.length ? `\n…and ${paths.length - sample.length} more paths` : ""
   return [
-    "The user is working on a local project folder granted to Nova web (browser File System Access).",
-    `Project: ${project.displayName} (root folder “${project.rootName}”).`,
-    project.repositoryFullName ? `Linked repository hint: ${project.repositoryFullName}.` : null,
+    "The user selected this project as the working tree for the session.",
+    `Project: ${project.displayName} (root “${project.rootName}”).`,
+    project.repositoryFullName ? `Linked repository: ${project.repositoryFullName}.` : null,
     `${project.fileCount} indexed path${project.fileCount === 1 ? "" : "s"}${project.truncated ? " (index truncated)" : ""}.`,
-    "You cannot freely read disk paths. Prefer files the user @-mentions or attaches; ask them to open/attach others.",
-    "Indexed relative paths:",
+    "Relevant file bodies for this turn are in <nova_local_files> when packing succeeded.",
+    "For implement/fix requests: produce concrete path-qualified patches or full file replacements from attached sources. Do not ask the user to re-attach files already listed in <nova_local_files>. If a needed path is only in the index below, name it and still ship the best patch you can from what is attached — never stop at a plan-only reply.",
+    "You cannot write back to the user's disk or run a local shell from Nova web; still give mergeable diffs.",
+    "Indexed relative paths (searchable):",
     "<nova_local_project_paths>",
     sample.join("\n") + more,
     "</nova_local_project_paths>",
