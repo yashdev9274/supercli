@@ -1,4 +1,4 @@
-import prisma, { Prisma } from "@super/db"
+import prisma, { type Prisma } from "@super/db"
 
 import { ensureUserOrganization } from "@/modules/integrations/lib/org"
 import {

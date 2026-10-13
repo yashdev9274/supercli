@@ -1,4 +1,4 @@
-import prisma, { Prisma } from "@super/db"
+import prisma, { type Prisma } from "@super/db"
 
 import { inngest } from "@/inngest/client"
 import { ensureHarnessToken } from "@/modules/nova/harness/auth"
