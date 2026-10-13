@@ -36,7 +36,7 @@ type FileSystemDirectoryHandleLike = {
   name: string
   values: () => AsyncIterableIterator<FileSystemFileHandleLike | FileSystemDirectoryHandleLike>
   getDirectoryHandle?: (name: string, options?: { create?: boolean }) => Promise<FileSystemDirectoryHandleLike>
-  getFileHandle?: (name: string) => Promise<FileSystemFileHandleLike>
+  getFileHandle?: (name: string, options?: { create?: boolean }) => Promise<FileSystemFileHandleLike>
   queryPermission?: (descriptor?: { mode?: "read" | "readwrite" }) => Promise<PermissionState>
   requestPermission?: (descriptor?: { mode?: "read" | "readwrite" }) => Promise<PermissionState>
 }
@@ -280,13 +280,24 @@ export async function pickLocalWorkspaceFolder(options?: {
   }
   let handle: FileSystemDirectoryHandleLike
   try {
-    handle = await anyWindow.showDirectoryPicker({ mode: "read" })
+    // Prefer readwrite so Agent mode can apply patches back to disk.
+    handle = await anyWindow.showDirectoryPicker({ mode: "readwrite" }).catch(async () => {
+      return anyWindow.showDirectoryPicker({ mode: "read" })
+    })
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") return null
     throw error
   }
   const allowed = await ensurePermission(handle)
   if (!allowed) throw new Error("Folder permission was denied")
+  // Best-effort upgrade to write for agent applies (user may deny and stay read-only).
+  try {
+    if (handle.requestPermission) {
+      await handle.requestPermission({ mode: "readwrite" })
+    }
+  } catch {
+    // stay read-only
+  }
   // New folder grant creates/updates a DB-backed project for this user.
   return indexDirectoryHandle(handle, {
     projectId: null,
@@ -456,4 +467,182 @@ export function localWorkspaceStatusMessage(): string | undefined {
   const saved = state.projectId ? "saved" : "session-only"
   const base = `Local project · ${state.displayName || state.rootName} · ${count} file${count === 1 ? "" : "s"} · ${saved}`
   return state.truncated ? `${base} (partial — folder is large)` : base
+}
+
+type FileSystemWritable = {
+  write: (data: string | BufferSource | Blob) => Promise<void>
+  close: () => Promise<void>
+}
+
+type WritableFileHandle = FileSystemFileHandleLike & {
+  createWritable?: () => Promise<FileSystemWritable>
+}
+
+/**
+ * Write text into the granted local folder (requires readwrite permission).
+ * Creates intermediate directories when the File System Access API allows it.
+ */
+export async function writeLocalWorkspaceFile(
+  path: string,
+  content: string,
+): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
+  try {
+    if (!memoryHandle) {
+      return { ok: false, error: "No local folder linked. Re-open the project folder with write access." }
+    }
+    const allowed = await ensureWritePermission(memoryHandle)
+    if (!allowed) {
+      return { ok: false, error: "Write permission denied. Re-open the folder and allow editing." }
+    }
+
+    const parts = path.replaceAll("\\", "/").split("/").filter(Boolean)
+    if (parts.length === 0) return { ok: false, error: "Invalid path" }
+    const fileName = parts[parts.length - 1]!
+    let dir: FileSystemDirectoryHandleLike = memoryHandle
+
+    for (let i = 0; i < parts.length - 1; i += 1) {
+      const part = parts[i]!
+      if (!dir.getDirectoryHandle) {
+        return { ok: false, error: "This browser cannot create nested folders." }
+      }
+      dir = await dir.getDirectoryHandle(part, { create: true })
+    }
+
+    if (!dir.getFileHandle) {
+      return { ok: false, error: "This browser cannot write files in the folder." }
+    }
+    const handle = (await dir.getFileHandle(fileName, { create: true })) as WritableFileHandle
+    if (!handle.createWritable) {
+      return { ok: false, error: "Writable file streams are unavailable in this browser." }
+    }
+    const writable = await handle.createWritable()
+    await writable.write(content)
+    await writable.close()
+    pathHandleCache.set(path.replaceAll("\\", "/"), handle)
+
+    // Keep the in-memory index aware of new paths.
+    if (memoryState) {
+      const normalized = path.replaceAll("\\", "/")
+      if (!memoryState.entries.some((entry) => entry.path === normalized)) {
+        memoryState = {
+          ...memoryState,
+          entries: [
+            ...memoryState.entries,
+            {
+              path: normalized,
+              name: fileName,
+              kind: classifyPath(normalized),
+            },
+          ],
+        }
+      }
+    }
+
+    return { ok: true, path: path.replaceAll("\\", "/") }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Could not write local file",
+    }
+  }
+}
+
+async function ensureWritePermission(handle: FileSystemDirectoryHandleLike): Promise<boolean> {
+  try {
+    if (handle.queryPermission) {
+      const current = await handle.queryPermission({ mode: "readwrite" })
+      if (current === "granted") return true
+    }
+    if (handle.requestPermission) {
+      const next = await handle.requestPermission({ mode: "readwrite" })
+      return next === "granted"
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
+export function hasLocalWorkspaceHandle(): boolean {
+  return Boolean(memoryHandle)
+}
+
+export async function hasLocalWorkspaceWriteAccess(): Promise<boolean> {
+  if (!memoryHandle) return false
+  try {
+    if (memoryHandle.queryPermission) {
+      return (await memoryHandle.queryPermission({ mode: "readwrite" })) === "granted"
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Ensure we have a folder handle with readwrite permission.
+ * Call only from a user gesture (button click). May open the directory picker.
+ */
+export async function ensureLocalWorkspaceWritable(): Promise<{
+  ok: boolean
+  prompted: boolean
+  error?: string
+}> {
+  // Already writable
+  if (memoryHandle) {
+    const allowed = await ensureWritePermission(memoryHandle)
+    if (allowed) return { ok: true, prompted: false }
+  }
+
+  // Try restoring a persisted handle for the active project (still needs a gesture for permission).
+  if (!memoryHandle) {
+    try {
+      const restored = await restoreLocalWorkspace(memoryState?.projectId ?? getActiveLocalProjectId())
+      if (restored && memoryHandle) {
+        const allowed = await ensureWritePermission(memoryHandle)
+        if (allowed) return { ok: true, prompted: true }
+      }
+    } catch {
+      // fall through to picker
+    }
+  }
+
+  // Last resort: pick the project folder with write access (user gesture).
+  if (!supportsDirectoryPicker()) {
+    return {
+      ok: false,
+      prompted: true,
+      error: "This browser can’t write to folders. Use Chrome/Edge.",
+    }
+  }
+
+  try {
+    const anyWindow = window as unknown as {
+      showDirectoryPicker: (options?: { mode?: "read" | "readwrite" }) => Promise<FileSystemDirectoryHandleLike>
+    }
+    const handle = await anyWindow.showDirectoryPicker({ mode: "readwrite" })
+    const writeOk = await ensureWritePermission(handle)
+    if (!writeOk) {
+      return {
+        ok: false,
+        prompted: true,
+        error: "Write access was denied. Choose the project folder and allow editing.",
+      }
+    }
+    await indexDirectoryHandle(handle, {
+      projectId: memoryState?.projectId ?? getActiveLocalProjectId(),
+      displayName: memoryState?.displayName,
+      persistRemote: true,
+    })
+    return { ok: true, prompted: true }
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      return { ok: false, prompted: true, error: "Folder picker cancelled" }
+    }
+    return {
+      ok: false,
+      prompted: true,
+      error: error instanceof Error ? error.message : "Could not open project folder",
+    }
+  }
 }

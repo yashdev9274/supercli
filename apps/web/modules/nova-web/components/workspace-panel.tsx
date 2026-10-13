@@ -145,6 +145,7 @@ function collectTouchedPaths(
   steps: WorkingStep[],
   localFiles: LocalAttachment[],
   localProject: LocalProjectDto | null | undefined,
+  fileProposals: Array<{ path: string }> = [],
 ): string[] {
   const paths: string[] = []
   const push = (path?: string | null) => {
@@ -156,6 +157,7 @@ function collectTouchedPaths(
     for (const child of step.children ?? []) push(child.path)
   }
   for (const file of localFiles) push(file.name)
+  for (const proposal of fileProposals) push(proposal.path)
   // Prefer project-relative paths that look like source files recently attached
   if (localProject?.paths) {
     for (const name of localFiles.map((f) => f.name)) {
@@ -540,6 +542,7 @@ export function WorkspacePanel({
   streaming,
   localProject,
   localFiles = [],
+  fileProposals = [],
   className,
 }: {
   session: SessionDetail
@@ -548,6 +551,7 @@ export function WorkspacePanel({
   streaming: boolean
   localProject?: LocalProjectDto | null
   localFiles?: LocalAttachment[]
+  fileProposals?: Array<{ path: string; content: string; language?: string }>
   className?: string
 }) {
   const [tabs, setTabs] = useState<PanelTab[]>([
@@ -560,8 +564,8 @@ export function WorkspacePanel({
   const todos = useMemo(() => buildTodos(workingSteps, streaming), [workingSteps, streaming])
   const tasks = useMemo(() => buildTasks(workingSteps, timeline, streaming), [workingSteps, timeline, streaming])
   const touchedPaths = useMemo(
-    () => collectTouchedPaths(workingSteps, localFiles, localProject),
-    [workingSteps, localFiles, localProject],
+    () => collectTouchedPaths(workingSteps, localFiles, localProject, fileProposals),
+    [workingSteps, localFiles, localProject, fileProposals],
   )
 
   const activeTab = tabs.find((tab) => tab.id === activeId) ?? tabs[0]!
@@ -595,7 +599,19 @@ export function WorkspacePanel({
       [path]: { content: current[path]?.content ?? null, loading: true, error: null },
     }))
 
-    // Prefer attached local file content already in memory.
+    // 1) Agent proposals win — show what Nova wants to write even without a folder handle.
+    const proposal = fileProposals.find(
+      (file) => file.path === path || file.path.endsWith(`/${path}`) || path.endsWith(file.path),
+    )
+    if (proposal?.content) {
+      setFileBodies((current) => ({
+        ...current,
+        [path]: { content: proposal.content, loading: false, error: null },
+      }))
+      return
+    }
+
+    // 2) Prefer attached local file content already in memory.
     const attached = localFiles.find((file) => file.name === path || file.name.endsWith(`/${path}`) || path.endsWith(file.name))
     if (attached?.text) {
       setFileBodies((current) => ({
@@ -612,7 +628,7 @@ export function WorkspacePanel({
       return
     }
 
-    // Local workspace handle
+    // 3) Local workspace handle
     if (getLocalWorkspace()) {
       const read = await readLocalWorkspaceFile(path)
       if (read.ok) {
@@ -626,9 +642,14 @@ export function WorkspacePanel({
         }))
         return
       }
+      // Fall through with a softer error if we still have no body.
       setFileBodies((current) => ({
         ...current,
-        [path]: { content: null, loading: false, error: read.error },
+        [path]: {
+          content: null,
+          loading: false,
+          error: `${read.error} If Nova proposed this file, open the Changes tab or re-run Agent mode with the folder linked.`,
+        },
       }))
       return
     }
@@ -642,6 +663,18 @@ export function WorkspacePanel({
       },
     }))
   }
+
+  // Keep file tabs in sync when new proposals arrive.
+  useEffect(() => {
+    for (const proposal of fileProposals.slice(0, 8)) {
+      openFileTab(proposal.path, false)
+      setFileBodies((current) => ({
+        ...current,
+        [proposal.path]: { content: proposal.content, loading: false, error: null },
+      }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fileProposals])
 
   function closeTab(id: string) {
     if (id === "overview") return

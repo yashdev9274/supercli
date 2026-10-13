@@ -68,6 +68,9 @@ export function ThreadView({
   streaming,
   workingSince,
   completedWorkByRunId,
+  fileProposals,
+  applyStatus,
+  onApplyProposals,
   loading,
   decidingApprovalId,
   detailsOpen,
@@ -102,6 +105,9 @@ export function ThreadView({
   streaming: boolean
   workingSince: number | null
   completedWorkByRunId?: Record<string, { steps: WorkingStep[]; since: number; until: number }>
+  fileProposals?: Array<{ path: string; content: string; language?: string }>
+  applyStatus?: string | null
+  onApplyProposals?: () => void | Promise<void>
   loading: boolean
   decidingApprovalId: string | null
   detailsOpen: boolean
@@ -330,6 +336,7 @@ export function ThreadView({
               streaming={streaming}
               localProject={localProject}
               localFiles={localFiles}
+              fileProposals={fileProposals}
             />
           </div>
         ) : null}
@@ -337,6 +344,25 @@ export function ThreadView({
 
       <div className="shrink-0 px-4 pb-4 pt-2 sm:px-6">
         <div className="mx-auto max-w-[720px]">
+          {fileProposals && fileProposals.length > 0 ? (
+            <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-[#2dd4bf]/25 bg-[#2dd4bf]/[0.06] px-3 py-2">
+              <p className="min-w-0 flex-1 text-[12.5px] leading-5 text-[#b8d9d4]">
+                {applyStatus
+                  ? applyStatus
+                  : `${fileProposals.length} file${fileProposals.length === 1 ? "" : "s"} ready — one click writes the whole set into your project folder`}
+              </p>
+              <button
+                type="button"
+                onClick={() => void onApplyProposals?.()}
+                disabled={streaming || loading || Boolean(applyStatus?.startsWith("Granting"))}
+                className="shrink-0 rounded-full bg-[#2dd4bf] px-3.5 py-1.5 text-[12.5px] font-medium text-[#0c0c0c] transition hover:bg-[#5eead4] disabled:opacity-50"
+              >
+                {applyStatus?.startsWith("Applied") && !applyStatus.includes("Couldn’t")
+                  ? "Applied"
+                  : "Make these changes"}
+              </button>
+            </div>
+          ) : null}
           <Composer
             value={draft}
             onChange={onDraftChange}

@@ -8,6 +8,11 @@ import {
   type LocalAttachment,
   type LocalAttachmentMeta,
 } from "@/modules/nova/attachments/contracts"
+import {
+  parseFileProposals,
+  remapProposals,
+  type FileProposal,
+} from "@/modules/nova/agent-files/parse-proposals"
 import { packGithubProjectForTurn } from "@/modules/nova/local-projects/pack"
 import { formatLocalProjectContext } from "@/modules/nova/local-projects/service"
 import type { NovaReference, ReferenceInput } from "@/modules/nova/references/contracts"
@@ -55,6 +60,8 @@ export type TurnStreamEvent =
         createdAt: string
       }
     }
+  /** Full file bodies the agent proposed — client applies these to disk / shows in the panel. */
+  | { type: "file_proposals"; proposals: FileProposal[]; runId?: string }
   | { type: "error"; message: string }
   | { type: "finish"; reason: string; runId?: string; latestSequence?: number; model?: string }
 
@@ -230,30 +237,6 @@ async function buildTurnContext(
   ]
 
   return { objective: session.objective, messages: chatMessages, localProject }
-}
-
-/** Pull path= fences / unified-diff headers from the assistant answer for the working log. */
-function extractWorkedFiles(text: string): Array<{ path: string; kind: "write" | "read" }> {
-  const found: Array<{ path: string; kind: "write" | "read" }> = []
-  const seen = new Set<string>()
-  const push = (path: string, kind: "write" | "read") => {
-    const clean = path.replace(/^["'`]|["'`]$/g, "").trim()
-    if (!clean || seen.has(clean)) return
-    if (!/^[A-Za-z0-9_./@+-]+$/.test(clean)) return
-    if (!clean.includes("/") && !clean.includes(".")) return
-    seen.add(clean)
-    found.push({ path: clean, kind })
-  }
-  for (const match of text.matchAll(/```[\w.+-]*[^\n]*?(?:path\s*=\s*|file\s*=\s*)([^\s\n`]+)/gi)) {
-    push(match[1]!, "write")
-  }
-  for (const match of text.matchAll(/^\+\+\+\s+[ab]\/(.+)$/gm)) {
-    push(match[1]!, "write")
-  }
-  for (const match of text.matchAll(/(?:^|\n)(?:Writing|Updated|Created|Edited)\s+`?([A-Za-z0-9_./+-]+\.[A-Za-z0-9]{1,8})`?/gi)) {
-    push(match[1]!, "write")
-  }
-  return found.slice(0, 24)
 }
 
 function harnessContentToText(content: HarnessChatMessage["content"]): string {
@@ -584,7 +567,7 @@ export async function* runWebTurn(input: {
         text += `\n\n${imageNotes.join("\n")}`
       }
       if (mode === "agent") {
-        text += `\n\n[Nova agent mode] Implement now. Prefer full file replacements with path= fences for every file you change. Do not reply with only a plan.`
+        text += `\n\n[Nova agent mode] Implement now. For EVERY file you change, emit a FULL file body in a fenced block with path=, e.g. \n\`\`\`tsx path=apps/web/modules/nova-web/components/workspace-panel.tsx\n...entire file...\n\`\`\`\nNova will apply those fences to the user's local folder. Do not claim you wrote a file unless you emitted its full path= fence. Do not reply with only a plan.`
       }
       userMessage.content = text
     }
@@ -679,8 +662,24 @@ export async function* runWebTurn(input: {
       throw new Error("Harness returned an empty response")
     }
 
-    // Surface proposed file writes in the working log (Capy-style).
-    for (const file of extractWorkedFiles(text)) {
+    // Parse real file bodies (path= fences). Only then mark writes in the working log.
+    let proposals = parseFileProposals(text)
+    if (context.localProject?.paths?.length) {
+      proposals = remapProposals(proposals, context.localProject.paths)
+    }
+
+    if (mode === "agent" && proposals.length === 0) {
+      // Soft nudge only in the working log — answer still delivers.
+      yield {
+        type: "status",
+        phase: "proposals",
+        message: "No path= file fences found — agent did not emit applyable patches",
+        runId: posted.runId,
+        model: selection.model,
+      }
+    }
+
+    for (const file of proposals) {
       const activity = await prisma.$transaction(async (tx) => {
         const sequence = await tx.agentSession.update({
           where: { id: input.sessionId },
@@ -695,8 +694,8 @@ export async function* runWebTurn(input: {
             sequence: sequence.nextSequence - 1,
             type: "action",
             status: "completed",
-            title: file.kind === "write" ? "Writing" : "Reading",
-            body: `${file.kind === "write" ? "wrote" : "read"} ${file.path}`,
+            title: "Writing",
+            body: `wrote ${file.path} +${file.content.split("\n").length}`,
           },
         })
       })
@@ -716,17 +715,44 @@ export async function* runWebTurn(input: {
       }
     }
 
+    if (proposals.length > 0) {
+      yield {
+        type: "file_proposals",
+        proposals,
+        runId: posted.runId,
+      }
+    }
+
     await prisma.agentRun.updateMany({
       where: { id: posted.runId, status: { in: ["planning", "executing"] } },
       data: { status: "delivering", version: { increment: 1 } },
     })
 
     const modelTag = `${selection.provider}:${selection.model}`
+    // Append a machine-readable trailer so clients/reloads can still recover proposals.
+    let body = text.trim()
+    if (proposals.length > 0) {
+      const trailer = [
+        "",
+        "<!-- nova_file_proposals",
+        JSON.stringify(
+          proposals.map((p) => ({
+            path: p.path,
+            language: p.language ?? null,
+            // Keep trailer bounded for DB body size
+            content: p.content.length > 200_000 ? p.content.slice(0, 200_000) : p.content,
+          })),
+        ).replaceAll("-->", "--\\>"),
+        "-->",
+      ].join("\n")
+      body = `${body}${trailer}`
+    }
+
     const completed = await completeRun({
       runId: posted.runId,
       sessionId: input.sessionId,
       surfaceId: posted.surfaceId,
-      body: text.trim(),
+      body,
       model: modelTag,
     })
     yield { type: "activity", activity: completed.activity }

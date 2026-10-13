@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { stripProposalTrailer } from "@/modules/nova-web/apply-proposals"
 import { NovaIcon } from "@/modules/nova-web/components/nova-icon"
 import type { ApprovalRequest, TimelineEntry } from "@/modules/nova-web/types"
 
@@ -29,6 +30,7 @@ export function NovaMark({ size = "md" }: { size?: "sm" | "md" }) {
 }
 
 function MarkdownBody({ content }: { content: string }) {
+  const cleaned = stripProposalTrailer(content)
   return (
     <div className="nova-md text-[14.5px] leading-7 text-[#d6d6d6]">
       <ReactMarkdown
@@ -87,7 +89,7 @@ function MarkdownBody({ content }: { content: string }) {
           hr: () => <hr className="my-5 border-white/[0.08]" />,
         }}
       >
-        {content}
+        {cleaned}
       </ReactMarkdown>
     </div>
   )

@@ -151,6 +151,12 @@ export function decideApproval(approval: ApprovalRequest, decision: "approved" |
   })
 }
 
+export type FileProposalDto = {
+  path: string
+  content: string
+  language?: string
+}
+
 export type TurnEvent =
   | { type: "status"; phase: string; message: string; runId?: string; model?: string }
   | {
@@ -162,6 +168,7 @@ export type TurnEvent =
   | { type: "text"; content: string }
   | { type: "reasoning"; content: string }
   | { type: "activity"; activity: Omit<TimelineActivity, "kind"> }
+  | { type: "file_proposals"; proposals: FileProposalDto[]; runId?: string }
   | { type: "error"; message: string }
   | { type: "finish"; reason: string; runId?: string; latestSequence?: number; model?: string }
 
