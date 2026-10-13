@@ -49,7 +49,9 @@ export async function sendReviewComplete(params: {
   config?: WhatsAppConfig
 }) {
   const config = params.config ?? getWhatsAppConfig()
-  const components: Array<Record<string, unknown>> = [
+  const target = params.to ?? params.recipient
+  if (!target) throw new Error("sendReviewComplete requires to or recipient")
+  const components: Array<Record<string, unknown> & { type: string }> = [
     {
       type: "body",
       parameters: [
@@ -88,8 +90,7 @@ export async function sendReviewComplete(params: {
 
   return getWhatsAppClient(config).messages.sendTemplate({
     phoneNumberId: config.phoneNumberId,
-    ...(params.to ? { to: params.to.replace(/^\+/, "") } : {}),
-    ...(params.recipient ? { recipient: params.recipient } : {}),
+    to: target.replace(/^\+/, ""),
     template: {
       name: config.reviewTemplateName,
       language: { code: config.templateLanguage },
@@ -105,10 +106,11 @@ export async function sendWhatsAppText(params: {
   config?: WhatsAppConfig
 }) {
   const config = params.config ?? getWhatsAppConfig()
+  const target = params.to ?? params.recipient
+  if (!target) throw new Error("sendWhatsAppText requires to or recipient")
   return getWhatsAppClient(config).messages.sendText({
     phoneNumberId: config.phoneNumberId,
-    ...(params.to ? { to: params.to.replace(/^\+/, "") } : {}),
-    ...(params.recipient ? { recipient: params.recipient } : {}),
+    to: target.replace(/^\+/, ""),
     body: params.body,
   })
 }

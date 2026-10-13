@@ -24,7 +24,7 @@ export default function ChangelogCard() {
             {/* Left — version info */}
             <div className="flex flex-col justify-center px-6 py-12 md:px-10 border-b md:border-b-0 md:border-r border-border">
               <h2 className="text-lg font-semibold text-primary uppercase mb-3">
-                // SHIP
+                {"// SHIP"}
               </h2>
               <h3 className="text-[32px] md:text-[36px] text-[#A1A1AA] font-medium tracking-tighter leading-[1.15] mb-2">
                 Changelog

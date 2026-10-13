@@ -54,7 +54,7 @@ const FAQSection = () => {
       <div className="max-w-[700px] mx-auto">
         <div className="mb-12">
           <h2 className="text-lg font-semibold text-primary uppercase mb-4">
-            // faq
+            {"// faq"}
           </h2>
           <h3 className="text-[28px] md:text-[36px] text-[#A1A1AA] font-medium tracking-tighter leading-[1.15]">
             frequently asked questions

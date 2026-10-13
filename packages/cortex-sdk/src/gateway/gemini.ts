@@ -1,5 +1,5 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google"
-import type { LanguageModel } from "ai"
+import type { GatewayModel } from "./base"
 import { BaseGatewayProvider, type GatewayProviderOptions, type ModelInfo } from "./base"
 
 const DEFAULT_MODEL = "gemini-2.5-flash"
@@ -24,7 +24,7 @@ export class GeminiProvider extends BaseGatewayProvider {
     })
   }
 
-  protected buildModel(modelName: string): LanguageModel {
+  protected buildModel(modelName: string): GatewayModel {
     return this.sdk.chat(modelName)
   }
 
