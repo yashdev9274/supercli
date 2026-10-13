@@ -23,6 +23,7 @@ import {
   stripProposalTrailer,
 } from "@/modules/nova-web/apply-proposals"
 import { ApprovalsView } from "@/modules/nova-web/components/approvals"
+import { AutomationsView } from "@/modules/nova-web/components/automations"
 import { ConnectionsView } from "@/modules/nova-web/components/connections"
 import { EmptyHome } from "@/modules/nova-web/components/home"
 import { MoreView } from "@/modules/nova-web/components/more"
@@ -44,6 +45,7 @@ import {
   type NovaAgentMode,
   type NovaEffort,
 } from "@/modules/nova-web/models"
+import { resolveNovaTurnMode } from "@/modules/nova-web/resolve-mode"
 import type {
   AgentSessionSummary,
   ApprovalRequest,
@@ -139,6 +141,7 @@ function parseRoute(pathname: string): {
     }
   }
   if (clean.startsWith("/pulls")) return { view: "pulls", sessionId: null, pullId: null }
+  if (clean.startsWith("/automations")) return { view: "automations", sessionId: null, pullId: null }
   if (clean.startsWith("/approvals")) return { view: "approvals", sessionId: null, pullId: null }
   if (clean.startsWith("/connections")) return { view: "connections", sessionId: null, pullId: null }
   if (clean.startsWith("/more")) return { view: "more", sessionId: null, pullId: null }
@@ -590,7 +593,34 @@ export function NovaApp({
       }
 
       const clientMessageId = crypto.randomUUID()
-      const turnMode = opts?.mode ?? agentMode
+      // Auto-pick chat vs agent vs plan from the message (connected apps / file work → agent).
+      const resolved = resolveNovaTurnMode({
+        message: content,
+        explicitMode: opts?.mode ?? agentMode,
+        lockExplicit: false,
+        hasProject: Boolean(localProject?.id || getActiveLocalProjectId()),
+        hasAttachments: (opts?.localAttachments?.length ?? 0) > 0 || packedAttachments.length > 0,
+        hasConnectedApps: true,
+      })
+      const turnMode = resolved.mode
+      if (resolved.auto && turnMode !== agentMode) {
+        setAgentMode(turnMode)
+      }
+      setStreamPhase(
+        resolved.auto
+          ? `${turnMode === "agent" ? "Agent" : turnMode === "plan" ? "Plan" : "Chat"} mode · ${resolved.reason}`
+          : `Using ${turnMode} mode`,
+      )
+      setWorkingSteps((steps) => {
+        const next = reduceWorkingSteps(steps, {
+          type: "status",
+          message: resolved.auto
+            ? `Auto · ${turnMode} mode`
+            : `${turnMode} mode`,
+        })
+        workingStepsRef.current = next
+        return next
+      })
       for await (const event of streamTurn(sessionId, content, {
         clientMessageId,
         model: opts?.model ?? model,
@@ -814,6 +844,8 @@ export function NovaApp({
           onBack={() => navigate("/")}
           onNavigate={navigate}
         />
+      ) : view === "automations" ? (
+        <AutomationsView key={pathname + search} path={pathname} onNavigate={navigate} />
       ) : view === "approvals" ? (
         <ApprovalsView
           approvals={approvals}

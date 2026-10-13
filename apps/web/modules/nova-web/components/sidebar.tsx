@@ -10,7 +10,7 @@ import {
   Pencil,
   Search,
   Settings2,
-  ShieldCheck,
+  Zap,
   X,
 } from "lucide-react"
 
@@ -33,7 +33,6 @@ export function NovaSidebar({
   selectedPullId,
   view,
   query,
-  pendingApprovals,
   onQueryChange,
   onNavigate,
   onNewSession,
@@ -110,11 +109,10 @@ export function NovaSidebar({
           onClick={() => onNavigate("/")}
         />
         <NavItem
-          active={view === "approvals"}
-          icon={<ShieldCheck className="size-3.5" strokeWidth={1.75} />}
-          label="Approvals"
-          badge={pendingApprovals > 0 ? pendingApprovals : undefined}
-          onClick={() => onNavigate("/approvals")}
+          active={view === "automations"}
+          icon={<Zap className="size-3.5" strokeWidth={1.75} />}
+          label="Automations"
+          onClick={() => onNavigate("/automations")}
         />
         <NavItem
           active={pullsActive}

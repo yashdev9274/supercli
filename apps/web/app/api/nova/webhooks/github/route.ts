@@ -2,6 +2,8 @@ import prisma from "@super/db"
 import { NextResponse } from "next/server"
 
 import { ingestNormalizedEvent } from "@/modules/nova/events/service"
+import { normalizeAutomationProviderEvent } from "@/modules/nova/automations/providers"
+import { dispatchAutomationEvent } from "@/modules/nova/automations/runner"
 import { normalizeGitHubEvent, parseGitHubEnvelope } from "@/modules/nova/providers/github"
 import { verifyGitHubSignature } from "@/modules/nova/providers/signatures"
 
@@ -23,8 +25,13 @@ async function processGitHubEvent(input: {
     select: { id: true, organizationId: true, botExternalUserId: true },
   })
   if (!installation) return
+  const automationEvent = normalizeAutomationProviderEvent("github", input.envelope, { ...installation, installationId: installation.id, deliveryId: input.deliveryId }, input.eventName)
+  if (automationEvent) await dispatchAutomationEvent(automationEvent)
   const appSlug = process.env.NOVA_GITHUB_APP_SLUG?.trim()
-  if (!appSlug) throw new Error("NOVA_GITHUB_APP_SLUG is not configured")
+  if (!appSlug) {
+    if (automationEvent) return
+    throw new Error("NOVA_GITHUB_APP_SLUG is not configured")
+  }
   const event = normalizeGitHubEvent({
     ...input,
     installationId: installation.id,
@@ -32,8 +39,8 @@ async function processGitHubEvent(input: {
     botExternalUserId: installation.botExternalUserId,
     appSlug,
   })
-  if (!event) return
-  await ingestNormalizedEvent(event)
+  if (event) await ingestNormalizedEvent(event)
+  if (!event && !automationEvent) return
   await prisma.externalInstallation.update({
     where: { id: installation.id },
     data: { webhookStatus: "healthy", lastEventAt: new Date(), lastHealthCheckAt: new Date() },

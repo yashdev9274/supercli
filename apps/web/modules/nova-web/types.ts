@@ -45,6 +45,7 @@ export type WorkspaceView =
   | "home"
   | "session"
   | "approvals"
+  | "automations"
   | "connections"
   | "pulls"
   | "pull"

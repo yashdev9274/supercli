@@ -64,12 +64,13 @@ afterAll(() => {
   else process.env.SUPERCODE_TERMINAL_API_URL = originalUrl
 })
 
-async function collect(signal?: AbortSignal): Promise<HarnessAgentEvent[]> {
+async function collect(signal?: AbortSignal, mode: string = "chat"): Promise<HarnessAgentEvent[]> {
   const events: HarnessAgentEvent[] = []
   for await (const event of streamHarnessAgent({
     token: "authenticated-cli-account",
     provider: "supercode",
     model: "test-model",
+    mode,
     messages: [{ role: "system", content: "You are Nova" }, { role: "user", content: "Fetch my Linear workspace details" }],
     signal,
   })) events.push(event)
@@ -89,7 +90,7 @@ test("fetches connected Linear data with the CLI token and feeds it back to the 
   expect(chats).toHaveLength(2)
   expect(chats[0]?.tools?.map((tool) => tool.function.name)).toEqual(["LINEAR_GET_WORKSPACE", "LINEAR_LIST_TEAMS"])
   expect(chats[0]?.tools?.[0]?.function.parameters).toEqual(tools[0]?.parameters)
-  expect(chats[0]?.messages.some((message) => message.role === "system" && contentText(message.content).includes("Available read toolkits: linear"))).toBe(true)
+  expect(chats[0]?.messages.some((message) => message.role === "system" && contentText(message.content).includes("Available toolkits: linear"))).toBe(true)
   expect(executions).toEqual([{ toolName: "LINEAR_GET_WORKSPACE", arguments: {} }])
   const assistant = chats[1]?.messages.find((message) => message.tool_calls)
   const toolCalls = assistant?.tool_calls as Array<{ id: string; function: { name: string } }>
@@ -118,24 +119,59 @@ test("keeps multiple calls and their results paired across model rounds", async 
   expect(ids).toEqual(callIds)
 })
 
-test("does not expose or execute mutations or unconnected/local tools", async () => {
+test("chat mode does not expose or execute mutations or unconnected/local tools", async () => {
   responses = [
     [call("LINEAR_UPDATE_ISSUE", "write"), call("read_file", "local"), { type: "finish", reason: "tool_calls" }],
     [{ type: "text", content: "Those actions are unavailable on this web turn." }, { type: "finish", reason: "stop" }],
   ]
-  const events = await collect()
+  const events: HarnessAgentEvent[] = []
+  for await (const event of streamHarnessAgent({
+    token: "authenticated-cli-account",
+    provider: "supercode",
+    model: "test-model",
+    mode: "chat",
+    messages: [{ role: "system", content: "You are Nova" }, { role: "user", content: "Update linear" }],
+  })) events.push(event)
   expect(executions).toHaveLength(0)
   expect(chats[0]?.tools?.some((tool) => tool.function.name === "LINEAR_UPDATE_ISSUE")).toBe(false)
   expect(events.filter((event) => event.type === "tool-result" && event.status === "denied")).toHaveLength(2)
   expect(chats[1]?.messages.filter((message) => message.role === "tool").every((message) => JSON.parse(contentText(message.content)).denied === true)).toBe(true)
 })
 
-test("fails closed when approval metadata is absent", async () => {
+test("agent mode can execute mutation tools", async () => {
+  responses = [
+    [call("LINEAR_UPDATE_ISSUE", "write", { id: "1" }), { type: "finish", reason: "tool_calls" }],
+    [{ type: "text", content: "Updated." }, { type: "finish", reason: "stop" }],
+  ]
+  const events: HarnessAgentEvent[] = []
+  for await (const event of streamHarnessAgent({
+    token: "authenticated-cli-account",
+    provider: "supercode",
+    model: "test-model",
+    mode: "agent",
+    messages: [{ role: "user", content: "Update the issue" }],
+  })) events.push(event)
+  expect(executions.some((item) => item.toolName === "LINEAR_UPDATE_ISSUE")).toBe(true)
+  expect(chats[0]?.tools?.some((tool) => tool.function.name === "LINEAR_UPDATE_ISSUE")).toBe(true)
+  expect(events.some((event) => event.type === "tool-result" && event.status === "completed")).toBe(true)
+})
+
+test("ambiguous approval metadata is still offered in agent mode as unknown write-capable", async () => {
   catalog = [{ ...tools[0]!, requiresApproval: undefined } as unknown as ComposioTool]
-  responses = [[call("LINEAR_GET_WORKSPACE")], [{ type: "text", content: "Tool access is unavailable." }]]
-  await collect()
-  expect(chats[0]?.tools).toBeUndefined()
-  expect(executions).toHaveLength(0)
+  responses = [
+    [call("LINEAR_GET_WORKSPACE")],
+    [{ type: "text", content: "Workspace fetched." }, { type: "finish", reason: "stop" }],
+  ]
+  const events: HarnessAgentEvent[] = []
+  for await (const event of streamHarnessAgent({
+    token: "authenticated-cli-account",
+    provider: "supercode",
+    model: "test-model",
+    mode: "agent",
+    messages: [{ role: "user", content: "Fetch workspace" }],
+  })) events.push(event)
+  expect(chats[0]?.tools?.some((tool) => tool.function.name === "LINEAR_GET_WORKSPACE")).toBe(true)
+  expect(executions.length).toBeGreaterThanOrEqual(1)
 })
 
 test("passes HTTP and Composio tool failures back without fabricating data", async () => {
@@ -168,7 +204,7 @@ test("tool-free accounts still support normal chat", async () => {
   await collect()
   expect(chats).toHaveLength(1)
   expect(chats[0]?.tools).toBeUndefined()
-  expect(chats[0]?.messages.some((message) => contentText(message.content).includes("Available read toolkits: none"))).toBe(true)
+  expect(chats[0]?.messages.some((message) => contentText(message.content).includes("Available toolkits: none"))).toBe(true)
 })
 
 test("blocks repeated identical reads after two executions", async () => {
@@ -200,22 +236,22 @@ test("truncates oversized results and tells the model to narrow its query", asyn
 })
 
 test("bounds runaway tool rounds", async () => {
-  responses = Array.from({ length: 8 }, (_, round) => [call("LINEAR_GET_WORKSPACE", "call", { page: round })])
+  responses = Array.from({ length: 12 }, (_, round) => [call("LINEAR_GET_WORKSPACE", "call", { page: round })])
   await expect(collect()).rejects.toThrow("tool-step budget")
-  expect(executions).toHaveLength(8)
+  expect(executions).toHaveLength(10)
 })
 
 test("rejects oversized batches before executing any calls", async () => {
-  responses = [Array.from({ length: 25 }, (_, index) => call("LINEAR_GET_WORKSPACE", `call_${index}`, { page: index }))]
+  responses = [Array.from({ length: 40 }, (_, index) => call("LINEAR_GET_WORKSPACE", `call_${index}`, { page: index }))]
   await expect(collect()).rejects.toThrow("tool-call budget")
   expect(executions).toHaveLength(0)
 })
 
 test("bounds accumulated tool-result context", async () => {
   result = { successful: true, data: "x".repeat(100_000) }
-  responses = Array.from({ length: 8 }, (_, round) => [call("LINEAR_GET_WORKSPACE", "call", { page: round })])
+  responses = Array.from({ length: 12 }, (_, round) => [call("LINEAR_GET_WORKSPACE", "call", { page: round })])
   await expect(collect()).rejects.toThrow("tool-result context budget")
-  expect(executions.length).toBeLessThan(8)
+  expect(executions.length).toBeLessThan(10)
 })
 
 test("an error finish cannot turn a partial answer into a success", async () => {

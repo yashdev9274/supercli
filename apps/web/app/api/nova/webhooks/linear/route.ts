@@ -2,6 +2,8 @@ import prisma from "@super/db"
 import { NextResponse } from "next/server"
 
 import { ingestNormalizedEvent } from "@/modules/nova/events/service"
+import { normalizeAutomationProviderEvent } from "@/modules/nova/automations/providers"
+import { dispatchAutomationEvent } from "@/modules/nova/automations/runner"
 import { normalizeLinearEvent, parseLinearEnvelope } from "@/modules/nova/providers/linear"
 import { verifyLinearSignature } from "@/modules/nova/providers/signatures"
 
@@ -21,14 +23,16 @@ async function processLinearEvent(
     select: { id: true, organizationId: true, botExternalUserId: true },
   })
   if (!installation) return
+  const automationEvent = normalizeAutomationProviderEvent("linear", envelope, { ...installation, installationId: installation.id, deliveryId })
+  if (automationEvent) await dispatchAutomationEvent(automationEvent)
   const event = normalizeLinearEvent({
     envelope,
     deliveryId,
     ...installation,
     installationId: installation.id,
   })
-  if (!event) return
-  await ingestNormalizedEvent(event)
+  if (event) await ingestNormalizedEvent(event)
+  if (!event && !automationEvent) return
   await prisma.externalInstallation.update({
     where: { id: installation.id },
     data: { webhookStatus: "healthy", lastEventAt: new Date(), lastHealthCheckAt: new Date() },

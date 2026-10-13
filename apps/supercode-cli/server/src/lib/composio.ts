@@ -1,6 +1,10 @@
 import { Composio } from "@composio/core"
 
-const READ_ONLY_TOOL_PATTERN = /(^|_)(CHECK|DESCRIBE|DOWNLOAD|FETCH|FIND|GET|LIST|LOOKUP|QUERY|READ|RETRIEVE|SEARCH|VIEW)(_|$)/i
+// Broad read classification so GitHub/Linear list+get tools aren't marked write-only.
+const READ_ONLY_TOOL_PATTERN =
+  /(^|_)(CHECK|DESCRIBE|DOWNLOAD|FETCH|FIND|GET|LIST|LOOKUP|QUERY|READ|RETRIEVE|SEARCH|VIEW|SHOW|COUNT|STATS|STATUS|COMPARE|DIFF|TREE|BLOB|CONTENTS|COMMITS?|FILES?|BRANCHES|REPOS?|ISSUES?|PULLS?|REVIEWS?|COMMENTS?|WORKFLOWS?|RUNS?|ARTIFACTS?|MEMBERS?|ORGS?|USERS?|ME|META|INFO|ACTIVITY|TIMELINE|MERGED)(_|$)/i
+const WRITE_TOOL_PATTERN =
+  /(^|_)(CREATE|UPDATE|DELETE|REMOVE|ADD|SET|SEND|POST|PUT|PATCH|PUSH|MERGE|CLOSE|REOPEN|ASSIGN|UPLOAD|WRITE|EDIT|INSERT|DESTROY|REVOKE|CANCEL|TRIGGER|DISPATCH|FORK|STAR|ENABLE|DISABLE|INSTALL|PUBLISH|DEPLOY|RELEASE|TRANSFER|COMMENT|REPLY|REPLACE)(_|$)/i
 
 export class ServerComposioService {
   constructor(private client?: Composio) {}
@@ -127,7 +131,10 @@ export class ServerComposioService {
       parameters: tool.inputParameters ?? { type: "object", properties: {} },
       toolkit: tool.toolkit?.slug,
       toolkitName: tool.toolkit?.name,
-      requiresApproval: !READ_ONLY_TOOL_PATTERN.test(tool.slug),
+      // Write tokens win; otherwise treat matching read tokens as no-approval.
+      requiresApproval: WRITE_TOOL_PATTERN.test(tool.slug)
+        ? true
+        : !READ_ONLY_TOOL_PATTERN.test(tool.slug),
     }))
   }
 
