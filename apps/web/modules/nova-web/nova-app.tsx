@@ -14,8 +14,14 @@ import {
   listSessions,
   streamTurn,
   syncSession,
+  type FileProposalDto,
   type LocalProjectDto,
 } from "@/modules/nova-web/api"
+import {
+  applyFileProposalsLocally,
+  recoverProposalsFromBody,
+  stripProposalTrailer,
+} from "@/modules/nova-web/apply-proposals"
 import { ApprovalsView } from "@/modules/nova-web/components/approvals"
 import { ConnectionsView } from "@/modules/nova-web/components/connections"
 import { EmptyHome } from "@/modules/nova-web/components/home"
@@ -64,6 +70,12 @@ import type { LocalAttachment } from "@/modules/nova/attachments/contracts"
 import type { NovaReference } from "@/modules/nova/references/contracts"
 
 const PENDING_TURN_KEY = "nova:pending-turn"
+
+function mergeProposals(current: FileProposalDto[], incoming: FileProposalDto[]): FileProposalDto[] {
+  const map = new Map(current.map((item) => [item.path, item]))
+  for (const item of incoming) map.set(item.path, item)
+  return [...map.values()]
+}
 
 type PendingTurn = {
   sessionId: string
@@ -208,6 +220,9 @@ export function NovaApp({
     since: number
     until: number
   }>>({})
+  /** Pending / applied agent file proposals for the active thread. */
+  const [fileProposals, setFileProposals] = useState<FileProposalDto[]>([])
+  const [applyStatus, setApplyStatus] = useState<string | null>(null)
   const [decidingApprovalId, setDecidingApprovalId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -637,6 +652,42 @@ export function NovaApp({
           })
           if (event.activity.type === "response") {
             setStreamingText("")
+            // Recover proposals from trailer if stream event was missed.
+            if (event.activity.body) {
+              const recovered = recoverProposalsFromBody(event.activity.body)
+              if (recovered.length) {
+                setFileProposals((current) => mergeProposals(current, recovered))
+              }
+            }
+          }
+        } else if (event.type === "file_proposals") {
+          if (event.runId) activeRunIdRef.current = event.runId
+          setFileProposals((current) => mergeProposals(current, event.proposals))
+          setWorkingSteps((steps) => {
+            const next = reduceWorkingSteps(steps, {
+              type: "status",
+              message: `Proposed ${event.proposals.length} file change${event.proposals.length === 1 ? "" : "s"}`,
+            })
+            workingStepsRef.current = next
+            return next
+          })
+          // Browsers block write permission without a user gesture — don't auto-apply.
+          // Probe quietly; if write is already granted, apply. Otherwise wait for the button.
+          if ((opts?.mode ?? agentMode) === "agent") {
+            void applyFileProposalsLocally(event.proposals, { interactive: false }).then((batch) => {
+              if (batch.applied > 0) {
+                setApplyStatus(batch.message)
+                setWorkingSteps((steps) => {
+                  const next = reduceWorkingSteps(steps, { type: "status", message: batch.message })
+                  workingStepsRef.current = next
+                  return next
+                })
+              } else {
+                setApplyStatus(
+                  `${event.proposals.length} file${event.proposals.length === 1 ? "" : "s"} ready — click Make these changes to write the whole project folder`,
+                )
+              }
+            })
           }
         } else if (event.type === "error") {
           setError(event.message)
@@ -799,6 +850,27 @@ export function NovaApp({
           streaming={streaming}
           workingSince={workingSince}
           completedWorkByRunId={completedWorkByRunId}
+          fileProposals={fileProposals}
+          applyStatus={applyStatus}
+          onApplyProposals={async () => {
+            if (!fileProposals.length) return
+            setApplyStatus("Granting folder access and applying…")
+            // interactive:true runs inside this click — browser allows write + picker.
+            const batch = await applyFileProposalsLocally(fileProposals, { interactive: true })
+            setApplyStatus(batch.message)
+            setWorkingSteps((steps) => {
+              const next = reduceWorkingSteps(steps, { type: "status", message: batch.message })
+              workingStepsRef.current = next
+              return next
+            })
+            if (batch.applied > 0 && localProject) {
+              // Refresh project meta so the panel sees new paths.
+              setLocalProject({
+                ...localProject,
+                fileCount: Math.max(localProject.fileCount, (localProject.paths?.length ?? 0)),
+              })
+            }
+          }}
           loading={isPending}
           decidingApprovalId={decidingApprovalId}
           detailsOpen={detailsOpen}
