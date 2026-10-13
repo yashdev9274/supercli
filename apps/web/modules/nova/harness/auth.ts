@@ -59,6 +59,7 @@ export async function ensureHarnessToken(input: {
   email: string
   name?: string | null
   image?: string | null
+  background?: boolean
 }): Promise<HarnessAuthResult> {
   if (!process.env.DATABASE_URL_TERMINAL?.trim()) {
     throw new Error(
@@ -66,7 +67,7 @@ export async function ensureHarnessToken(input: {
     )
   }
 
-  const existing = await readHarnessTokenFromCookie(input.email)
+  const existing = input.background ? null : await readHarnessTokenFromCookie(input.email)
   if (existing) return { token: existing }
 
   const email = input.email.trim().toLowerCase()

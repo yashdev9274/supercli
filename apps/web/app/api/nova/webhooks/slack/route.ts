@@ -2,6 +2,8 @@ import prisma from "@super/db"
 import { NextResponse } from "next/server"
 
 import { ingestNormalizedEvent } from "@/modules/nova/events/service"
+import { normalizeAutomationProviderEvent } from "@/modules/nova/automations/providers"
+import { dispatchAutomationEvent } from "@/modules/nova/automations/runner"
 import { normalizeSlackEvent, parseSlackEnvelope } from "@/modules/nova/providers/slack"
 import { verifySlackSignature } from "@/modules/nova/providers/signatures"
 
@@ -15,9 +17,11 @@ async function processSlackEvent(envelope: NonNullable<ReturnType<typeof parseSl
     select: { id: true, organizationId: true, botExternalUserId: true },
   })
   if (!installation) return
+  const automationEvent = normalizeAutomationProviderEvent("slack", envelope, { ...installation, installationId: installation.id, deliveryId: envelope.event_id ?? "" })
+  if (automationEvent) await dispatchAutomationEvent(automationEvent)
   const event = normalizeSlackEvent({ envelope, ...installation, installationId: installation.id })
-  if (!event) return
-  await ingestNormalizedEvent(event)
+  if (event) await ingestNormalizedEvent(event)
+  if (!event && !automationEvent) return
   await prisma.externalInstallation.update({
     where: { id: installation.id },
     data: { webhookStatus: "healthy", lastEventAt: new Date(), lastHealthCheckAt: new Date() },

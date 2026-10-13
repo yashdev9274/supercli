@@ -63,6 +63,7 @@ model Organization {
   usageLedger              NovaUsageLedger[]
   desktopDevices           DesktopDevice[]
   webLocalProjects         WebLocalProject[]
+  automations              NovaAutomation[]
 
   @@map("organization")
 }
@@ -206,6 +207,58 @@ model ReviewCreditEntry {
   @@map("review_credit_entry")
 }
 
+model NovaAutomation {
+  id                  String @id @default(cuid())
+  organizationId      String
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creatorMembershipId String
+  creator             OrganizationMembership @relation("AutomationCreator", fields: [creatorMembershipId], references: [id], onDelete: Cascade)
+  runAsMembershipId   String
+  runAs               OrganizationMembership @relation("AutomationRunAs", fields: [runAsMembershipId], references: [id], onDelete: Cascade)
+  name                String
+  instructions        String @db.Text
+  onlyRunWhen         String @db.Text
+  model               String
+  provider            String
+  effort              String @default("medium")
+  triggers            Json
+  repositoryIds       Json
+  maxRunsPerDay       Int @default(10)
+  cooldownMinutes     Int @default(5)
+  status              String @default("active")
+  webhookTokenHash    String?
+  lastRunAt           DateTime?
+  version             Int @default(1)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  runs                NovaAutomationRun[]
+
+  @@index([organizationId, status])
+  @@index([creatorMembershipId])
+  @@index([runAsMembershipId])
+  @@map("nova_automation")
+}
+
+model NovaAutomationRun {
+  id             String @id @default(cuid())
+  automationId   String
+  automation     NovaAutomation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  deliveryId     String
+  event          Json
+  snapshot       Json
+  status         String @default("queued")
+  reason         String? @db.Text
+  agentSessionId String? @unique
+  agentSession   AgentSession? @relation(fields: [agentSessionId], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
+  completedAt    DateTime?
+
+  @@unique([automationId, deliveryId])
+  @@index([automationId, createdAt])
+  @@index([status, createdAt])
+  @@map("nova_automation_run")
+}
+
 model NovaEarlyInvite {
   id            String    @id @default(cuid())
   name          String
@@ -305,6 +358,8 @@ model OrganizationMembership {
   externalIdentities      ExternalIdentity[]
   delegatedConnections    UserDelegatedConnection[]
   initiatedAgentSessions  AgentSession[]
+  createdAutomations      NovaAutomation[] @relation("AutomationCreator")
+  runAsAutomations        NovaAutomation[] @relation("AutomationRunAs")
 
   @@unique([organizationId, userId])
   @@index([userId, status])
@@ -416,6 +471,7 @@ model AgentSession {
   artifacts      NovaArtifact[]
   auditEvents    NovaAuditEvent[]
   usageLedger    NovaUsageLedger[]
+  automationRun  NovaAutomationRun?
 
   @@index([organizationId, status, updatedAt])
   @@index([initiatorMembershipId])

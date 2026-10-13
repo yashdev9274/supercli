@@ -3,6 +3,11 @@ import prisma from "@super/db"
 import { streamHarnessAgent } from "@/modules/nova/harness/agent"
 import type { HarnessChatMessage } from "@/modules/nova/harness/client"
 import {
+  executeNativeGithubTool,
+  isNativeGithubTool,
+  nativeGithubHarnessTools,
+} from "@/modules/nova/harness/native-github-tools"
+import {
   formatLocalAttachmentsContext,
   localAttachmentsSchema,
   type LocalAttachment,
@@ -596,6 +601,15 @@ export async function* runWebTurn(input: {
       provider: selection.provider,
       model: selection.model,
       signal: input.signal,
+      mode,
+      extraTools: nativeGithubHarnessTools(),
+      executeExtraTool: async (toolName, args, signal) => {
+        signal?.throwIfAborted()
+        if (!isNativeGithubTool(toolName)) {
+          return { successful: false, error: `Unknown tool ${toolName}` }
+        }
+        return executeNativeGithubTool(input.userId, toolName, args)
+      },
     })) {
       if (event.type === "status") {
         yield {
