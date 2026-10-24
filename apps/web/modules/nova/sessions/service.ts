@@ -275,6 +275,7 @@ export type PostedSessionMessage = {
   runId: string
   surfaceId: string
   latestSequence: number
+  replayed?: boolean
 }
 
 export async function postSessionMessage(input: {
@@ -301,8 +302,13 @@ export async function postSessionMessage(input: {
   if (!surface) return null
 
   const clientMessageId = input.clientMessageId?.trim() || null
+
+  const localAttachmentMeta = (input.localAttachments ?? []).map(toLocalAttachmentMeta)
+
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM agent_session WHERE id = ${input.sessionId} AND "organizationId" = ${organizationId} FOR UPDATE`
   if (clientMessageId) {
-    const existing = await prisma.agentSessionMessage.findFirst({
+    const existing = await tx.agentSessionMessage.findFirst({
       where: {
         agentSessionId: input.sessionId,
         surfaceId: surface.id,
@@ -332,16 +338,14 @@ export async function postSessionMessage(input: {
           references: referencesFromMetadata(existing.metadata),
           localAttachments: localAttachmentsFromMetadata(existing.metadata),
         },
-        runId: existing.agentSession.activeRunId ?? "",
+        runId: existing.metadata && typeof existing.metadata === "object" && !Array.isArray(existing.metadata) && typeof existing.metadata.runId === "string" ? existing.metadata.runId : "",
+        replayed: true,
         surfaceId: surface.id,
         latestSequence: Math.max(0, existing.agentSession.nextSequence - 1),
       }
     }
   }
 
-  const localAttachmentMeta = (input.localAttachments ?? []).map(toLocalAttachmentMeta)
-
-  return prisma.$transaction(async (tx) => {
     const locked = await tx.agentSession.findFirst({
       where: { id: input.sessionId, organizationId },
       select: { id: true, status: true },
@@ -399,6 +403,10 @@ export async function postSessionMessage(input: {
     await tx.agentSession.update({
       where: { id: locked.id },
       data: { activeRunId: run.id },
+    })
+    await tx.agentSessionMessage.update({
+      where: { id: message.id },
+      data: { metadata: { provider: surfaceProvider, clientMessageId, runId: run.id, references: input.references ?? [], localAttachments: localAttachmentMeta } },
     })
     const activitySeq = await tx.agentSession.update({
       where: { id: locked.id },

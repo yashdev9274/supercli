@@ -47,7 +47,8 @@ describe("CLI Composio connections", () => {
         create: mock(async (_userId: string, _options: unknown) => ({ sessionId: "session_1", mcp: { url: "https://mcp.composio.dev/session_1", headers: { "x-mcp-secret": "test-only" } } })),
       },
       tools: {
-        getRawComposioTools: mock(async () => [
+        getRawComposioToolBySlug: mock(async (_name: string) => ({ version: "20261020_01" })),
+        getRawComposioTools: mock(async (_query?: unknown) => [
           { slug: "GOOGLECALENDAR_LIST_EVENTS", name: "List events", toolkit: { slug: "googlecalendar", name: "Calendar" } },
           { slug: "GOOGLECALENDAR_CREATE_EVENT", name: "Create event", toolkit: { slug: "googlecalendar", name: "Calendar" } },
           { slug: "GITHUB_CREATE_ISSUE", name: "Create issue", toolkit: { slug: "github", name: "GitHub" } },
@@ -177,8 +178,24 @@ describe("CLI Composio connections", () => {
     expect((await post("execute", { name: "GITHUB_CREATE_ISSUE", arguments: {} })).status).toBe(403)
     expect((await post("execute", { name: "GOOGLECALENDAR_LIST_EVENTS", arguments: {} })).status).toBe(200)
     expect(client.tools.execute).toHaveBeenCalledWith("GOOGLECALENDAR_LIST_EVENTS", {
-      userId: "user_1", connectedAccountId: "ca_calendar", arguments: {}, version: "latest",
+      userId: "user_1", connectedAccountId: "ca_calendar", arguments: {}, version: "20261020_01",
     })
+  })
+
+  test("resolves a concrete version and refuses execution when none is available", async () => {
+    await service.executeTool("user_1", "GOOGLECALENDAR_LIST_EVENTS", {})
+    expect(client.tools.getRawComposioToolBySlug).toHaveBeenCalledWith("GOOGLECALENDAR_LIST_EVENTS")
+    client.tools.execute.mockClear()
+    client.tools.getRawComposioToolBySlug.mockResolvedValue({ version: "latest" })
+    await expect(service.executeTool("user_1", "GOOGLECALENDAR_LIST_EVENTS", {})).rejects.toThrow("concrete tool version")
+    expect(client.tools.execute).not.toHaveBeenCalled()
+  })
+
+  test("queries each connected toolkit without the important-only default", async () => {
+    accounts.push({ id: "ca_linear", owner: "user_1", status: "ACTIVE", toolkit: { slug: "linear" }, isDisabled: false })
+    await service.listTools("user_1")
+    expect(client.tools.getRawComposioTools).toHaveBeenCalledWith({ toolkits: ["googlecalendar"], important: false, limit: 1000 })
+    expect(client.tools.getRawComposioTools).toHaveBeenCalledWith({ toolkits: ["linear"], important: false, limit: 1000 })
   })
 
   test("requires authentication and validates input", async () => {

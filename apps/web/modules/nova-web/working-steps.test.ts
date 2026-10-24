@@ -30,6 +30,27 @@ test("status and reasoning build a live working log", () => {
   expect(steps.at(-1)?.label.startsWith("Thought for")).toBe(true)
 })
 
+test("cloud patch activity identifies the actual edited path", () => {
+  const steps = reduceWorkingSteps([], {
+    type: "activity",
+    activity: { type: "tool_result", title: "nova_sandbox_patch", body: "nova_sandbox_patch · src/index.ts · completed", status: "completed" },
+  })
+  expect(steps[0]?.kind).toBe("write")
+  expect(steps[0]?.meta?.path).toBe("src/index.ts")
+})
+
+test("failed cloud writes and denied commands never appear as successful edits", () => {
+  for (const status of ["failed", "denied"]) {
+    const steps = reduceWorkingSteps([], {
+      type: "activity",
+      activity: { type: "tool_result", title: "nova_sandbox_write", body: "src/index.ts · failed (exit 1)", status },
+    })
+    expect(steps[0]?.kind).toBe("tool")
+    expect(steps[0]?.label).toStartWith(status === "failed" ? "Failed" : "Denied")
+    expect(steps[0]?.label).toContain("src/index.ts")
+  }
+})
+
 test("consecutive file reads collapse into an explore group", () => {
   let steps = reduceWorkingSteps([], {
     type: "activity",

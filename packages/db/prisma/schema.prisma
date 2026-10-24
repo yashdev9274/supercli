@@ -472,11 +472,41 @@ model AgentSession {
   auditEvents    NovaAuditEvent[]
   usageLedger    NovaUsageLedger[]
   automationRun  NovaAutomationRun?
+  sandboxSessions NovaSandboxSession[]
 
   @@index([organizationId, status, updatedAt])
   @@index([initiatorMembershipId])
   @@index([localProjectId])
   @@map("agent_session")
+}
+
+model NovaSandboxSession {
+  id                 String       @id @default(cuid())
+  agentSessionId     String
+  agentSession       AgentSession @relation(fields: [agentSessionId], references: [id], onDelete: Cascade)
+  organizationId     String
+  userId             String
+  repositoryFullName String
+  sandboxName        String       @unique
+  provider           String       @default("vercel")
+  providerSandboxId  String?
+  providerSessionId  String?
+  snapshotId         String?
+  baseSha            String?
+  branch             String?
+  status             String       @default("provisioning")
+  leaseRunId         String?      @unique
+  leaseExpiresAt     DateTime?
+  expiresAt          DateTime
+  lastUsedAt         DateTime     @default(now())
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@unique([userId, agentSessionId, repositoryFullName, provider], map: "nova_sandbox_workspace_provider_key")
+  @@index([organizationId, leaseExpiresAt])
+  @@index([status, leaseExpiresAt])
+  @@index([expiresAt])
+  @@map("nova_sandbox_session")
 }
 
 model SessionSurface {

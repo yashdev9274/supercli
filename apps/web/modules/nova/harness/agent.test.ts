@@ -198,6 +198,32 @@ test("catalog failures stop the turn instead of claiming no integration exists",
   expect(executions).toHaveLength(0)
 })
 
+test("large GitHub catalogs do not crowd other connected apps out of the model tools", async () => {
+  catalog = [
+    ...Array.from({ length: 100 }, (_, index) => ({ ...tools[0]!, name: `GITHUB_GET_ITEM_${index}`, toolkit: "github" })),
+    ...tools,
+    { ...tools[0]!, name: "GOOGLECALENDAR_LIST_EVENTS", toolkit: "googlecalendar" },
+  ]
+  responses = [[{ type: "text", content: "Connected apps are available." }]]
+  await collect()
+  const names = chats[0]?.tools?.map((tool) => tool.function.name) ?? []
+  expect(names).toContain("LINEAR_GET_WORKSPACE")
+  expect(names).toContain("GOOGLECALENDAR_LIST_EVENTS")
+  expect(names.length).toBeLessThanOrEqual(64)
+})
+
+test("isolated workspaces still do not expose or execute connected-app tools", async () => {
+  responses = [[call("LINEAR_GET_WORKSPACE")], [{ type: "text", content: "That tool is not available in this isolated run." }]]
+  const events = []
+  for await (const event of streamHarnessAgent({
+    token: "authenticated-cli-account", provider: "supercode", model: "test-model", mode: "agent",
+    isolatedTools: true, messages: [{ role: "user", content: "Read Linear" }],
+  })) events.push(event)
+  expect(executions).toHaveLength(0)
+  expect(chats[0]?.tools).toBeUndefined()
+  expect(events.some((event) => event.type === "tool-result" && event.status === "denied")).toBe(true)
+})
+
 test("tool-free accounts still support normal chat", async () => {
   catalog = []
   responses = [[{ type: "text", content: "Hello." }, { type: "finish", reason: "stop" }]]

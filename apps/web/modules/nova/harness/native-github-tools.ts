@@ -5,6 +5,7 @@ import { getGithubTokenForUser } from "@/modules/github/lib/github"
 import type { HarnessChatTool } from "@/modules/nova/harness/client"
 
 export const NATIVE_GITHUB_TOOL_NAMES = [
+  "nova_github_list_repositories",
   "nova_github_list_pull_requests",
   "nova_github_get_pull_request",
   "nova_github_get_viewer",
@@ -15,14 +16,28 @@ export function nativeGithubHarnessTools(): HarnessChatTool[] {
     {
       type: "function",
       function: {
+        name: "nova_github_list_repositories",
+        description: "Discover repositories accessible to the signed-in GitHub account. Use returned full_name values instead of guessing a repository for PR queries.",
+        parameters: {
+          type: "object",
+          properties: {
+            page: { type: "integer", minimum: 1 },
+            per_page: { type: "integer", minimum: 1, maximum: 30 },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
         name: "nova_github_list_pull_requests",
         description:
           "List pull requests for a GitHub repository the signed-in user can access. Use this to find the latest PR (sort created desc). Defaults to open PRs; pass state=all for everything.",
         parameters: {
           type: "object",
           properties: {
-            owner: { type: "string", description: "Org or user, e.g. supercodeai" },
-            repo: { type: "string", description: "Repository name, e.g. supercli" },
+            owner: { type: "string", description: "Exact repository owner supplied by the user or repository discovery" },
+            repo: { type: "string", description: "Exact repository name supplied by the user or repository discovery" },
             state: { type: "string", enum: ["open", "closed", "all"], description: "PR state filter" },
             per_page: { type: "number", description: "1–30, default 10" },
             sort: { type: "string", enum: ["created", "updated", "popularity", "long-running"] },
@@ -83,6 +98,15 @@ export async function executeNativeGithubTool(
   args: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   const github = await octokitForUser(userId)
+
+  if (toolName === "nova_github_list_repositories") {
+    const { data } = await github.rest.repos.listForAuthenticatedUser({
+      sort: "updated",
+      per_page: Math.min(30, Math.max(1, Math.floor(Number(args.per_page) || 20))),
+      page: Math.max(1, Math.floor(Number(args.page) || 1)),
+    })
+    return { successful: true, data: { repositories: data.map((repo) => ({ full_name: repo.full_name, private: repo.private, html_url: repo.html_url, description: repo.description })) } }
+  }
 
   if (toolName === "nova_github_get_viewer") {
     const { data } = await github.rest.users.getAuthenticated()
