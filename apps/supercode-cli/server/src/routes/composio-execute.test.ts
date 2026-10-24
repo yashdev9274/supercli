@@ -9,7 +9,7 @@ const execute = mock(async (_name: string, _args: unknown) => ({ successful: tru
 const client = {
   connectedAccounts: { list: async () => ({ items: [{ id: "ca_linear", status: "ACTIVE", isDisabled: false, toolkit: { slug: "linear" } }], nextCursor: null }) },
   tools: {
-    getRawComposioTools: async () => [{ slug: "LINEAR_GET_WORKSPACE", toolkit: { slug: "linear" } }],
+    getRawComposioTools: async () => [{ slug: "LINEAR_GET_WORKSPACE", toolkit: { slug: "linear" }, version: "20261020_01" }],
     execute,
   },
 } as unknown as Composio
@@ -32,7 +32,7 @@ test("accepts desktop’s toolName execute contract", async () => {
   expect(response.status).toBe(200)
   expect((await response.json()).successful).toBe(true)
   expect(execute).toHaveBeenCalledWith("LINEAR_GET_WORKSPACE", {
-    userId: "cli_user", connectedAccountId: "ca_linear", arguments: {}, version: "latest",
+    userId: "cli_user", connectedAccountId: "ca_linear", arguments: {}, version: "20261020_01",
   })
 })
 

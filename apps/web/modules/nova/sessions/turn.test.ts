@@ -51,7 +51,7 @@ const server = Bun.serve({
     }
     if (path === "/api/ai/chat") {
       rounds++
-      expect(body.tools[0].function.name).toBe("LINEAR_GET_WORKSPACE")
+      expect(body.tools.some((tool: { function: { name: string } }) => tool.function.name === "LINEAR_GET_WORKSPACE")).toBe(true)
       if (rounds === 1) {
         return new Response(JSON.stringify({ type: "tool-call", toolName: "LINEAR_GET_WORKSPACE", toolCallId: "call_1", args: {} }) + "\n" + JSON.stringify({ type: "finish", reason: "tool_calls" }) + "\n")
       }

@@ -21,7 +21,7 @@ const turnSchema = z.object({
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
-export const maxDuration = 120
+export const maxDuration = 600
 
 export async function POST(
   request: NextRequest,
@@ -71,10 +71,17 @@ export async function POST(
     responseHeaders.append("Set-Cookie", harnessAuth.setCookie)
   }
 
+  const cancellation = new AbortController()
+  const signal = AbortSignal.any([request.signal, cancellation.signal])
+  let cancelled = false
   const stream = new ReadableStream({
+    cancel() {
+      cancelled = true
+      cancellation.abort()
+    },
     async start(controller) {
       const write = (payload: unknown) => {
-        controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`))
+        if (!cancelled) controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`))
       }
       try {
         for await (const event of runWebTurn({
@@ -87,7 +94,7 @@ export async function POST(
           effort: parsed.data.effort,
           mode: parsed.data.mode ?? "agent",
           harnessToken: harnessAuth.token,
-          signal: request.signal,
+          signal,
           references: parsed.data.references,
           localAttachments: parsed.data.localAttachments,
         })) {
@@ -100,7 +107,7 @@ export async function POST(
         })
         write({ type: "finish", reason: "error" })
       } finally {
-        controller.close()
+        if (!cancelled) controller.close()
       }
     },
   })

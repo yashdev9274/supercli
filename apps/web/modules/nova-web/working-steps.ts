@@ -179,7 +179,7 @@ function parseToolActivity(title: string | null | undefined, body: string | null
     detail.match(/(?:^|[\s`"'])([A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,8})/)?.[1]
     || name.match(/([A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,8})/)?.[1]
 
-  if (writeMatch || /write|edit|create/i.test(name)) {
+  if (writeMatch || /write|edit|create|nova_sandbox_patch/i.test(name)) {
     const filePath = path || "file"
     const add = detail.match(/\+(\d+)/)?.[1]
     const del = detail.match(/-(\d+)/)?.[1]
@@ -268,6 +268,12 @@ export function reduceWorkingSteps(
     }
     if (event.activity.type === "acknowledgement") {
       return closed
+    }
+    if (event.activity.status === "failed" || event.activity.status === "denied") {
+      return [...closed, {
+        id: newId(), kind: "tool", status: "done", startedAt: now, endedAt: now,
+        label: `${event.activity.status === "failed" ? "Failed" : "Denied"} · ${event.activity.body || event.activity.title || "Tool"}`,
+      }]
     }
     const step = parseToolActivity(event.activity.title, event.activity.body)
     // Merge consecutive reads into an explore group

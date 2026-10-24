@@ -1,4 +1,5 @@
 import { serve } from "inngest/next"
+import { reconcileNovaSandboxes } from "@/inngest/functions/sandbox"
 import { processNovaAutomation, scheduleNovaAutomations } from "@/inngest/functions/automations"
 import { inngest } from "../../../inngest/client"
 import { indexRepo } from "@/inngest/functions"
@@ -22,6 +23,7 @@ export const { GET, POST, PUT } = serve({
   functions: [
     indexRepo,
     generateReview,
+    reconcileNovaSandboxes,
     processNovaAutomation,
     scheduleNovaAutomations,
     processNovaInboundEvent,

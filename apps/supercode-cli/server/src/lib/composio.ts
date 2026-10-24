@@ -123,7 +123,11 @@ export class ServerComposioService {
     const accounts = await this.activeAccounts(userId)
     const toolkits = [...new Set(accounts.map((account) => account.toolkit.slug))]
     if (toolkits.length === 0) return []
-    const raw = await this.composio.tools.getRawComposioTools({ toolkits })
+    // Toolkit-only queries default to important tools and can omit entire apps.
+    const catalogs = await Promise.all(toolkits.map((toolkit) =>
+      this.composio.tools.getRawComposioTools({ toolkits: [toolkit], important: false, limit: 1000 }),
+    ))
+    const raw = [...new Map(catalogs.flat().map((tool) => [tool.slug, tool])).values()]
     return raw.filter((tool) => !tool.isDeprecated && tool.toolkit && toolkits.includes(tool.toolkit.slug)).map((tool) => ({
       name: tool.slug,
       displayName: tool.name,
@@ -148,9 +152,15 @@ export class ServerComposioService {
     if (!account) {
       throw Object.assign(new Error(`Connect ${toolkit} before using this tool`), { statusCode: 403 })
     }
-    const version = process.env[`COMPOSIO_TOOLKIT_VERSION_${toolkit.toUpperCase()}`]?.trim()
+    const configuredVersion = process.env[`COMPOSIO_TOOLKIT_VERSION_${toolkit.toUpperCase()}`]?.trim()
       || process.env.COMPOSIO_TOOLKIT_VERSION?.trim()
-      || "latest"
+    // The SDK rejects "latest" for manual execution, even with a valid account.
+    const version = configuredVersion && configuredVersion !== "latest"
+      ? configuredVersion
+      : tool.version?.trim() || (await this.composio.tools.getRawComposioToolBySlug(name)).version?.trim()
+    if (!version || version === "latest") {
+      throw Object.assign(new Error(`No concrete tool version available for ${toolkit}; configure COMPOSIO_TOOLKIT_VERSION_${toolkit.toUpperCase()}`), { statusCode: 503 })
+    }
     return this.composio.tools.execute(name, {
       userId,
       connectedAccountId: account.id,
