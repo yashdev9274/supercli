@@ -386,7 +386,7 @@ export function Composer({
       onDragOver={onComposerDragOver}
       onDrop={onComposerDrop}
       className={cn(
-        "relative rounded-2xl border border-white/[0.08] bg-[#1c1c1c] transition",
+        "relative rounded-2xl border border-[color:var(--chat-border,rgba(255,255,255,0.08))] bg-[var(--chat-surface,#1c1c1c)] transition",
         dragOver && "border-[#2dd4bf]/55 bg-[#2dd4bf]/[0.04] ring-1 ring-[#2dd4bf]/30",
         className,
       )}
@@ -474,7 +474,7 @@ export function Composer({
           rows={large ? 3 : 2}
           placeholder={placeholder ?? "Ask Nova, paste or drop files, @mention refs"}
           className={cn(
-            "w-full resize-none bg-transparent text-[14px] leading-6 text-[#ececec] outline-none placeholder:text-[#5a5a5a] disabled:opacity-60",
+            "w-full resize-none bg-transparent text-[14px] leading-6 text-[var(--chat-text,#ececec)] outline-none placeholder:text-[var(--chat-muted,#5a5a5a)] disabled:opacity-60",
             large ? "min-h-[72px]" : "min-h-[48px] max-h-[160px]",
           )}
         />
@@ -625,7 +625,7 @@ export function Composer({
                 "flex size-8 items-center justify-center rounded-full transition active:scale-[0.97]",
                 canSend
                   ? "bg-[#2dd4bf] text-[#0a0a0a] hover:bg-[#5eead4]"
-                  : "bg-[#2a2a2a] text-[#555]",
+                  : "bg-[var(--chat-hover,#2a2a2a)] text-[var(--chat-muted,#555)]",
               )}
               aria-label="Send"
             >
@@ -678,7 +678,7 @@ function IconBtn({ children, label, buttonRef, disabled, onClick, onMouseDown }:
       onMouseDown={onMouseDown}
       aria-label={label}
       title={label}
-      className="flex size-8 items-center justify-center rounded-lg text-[#6b6b6b] transition hover:bg-white/[0.04] hover:text-[#c8c8c8] focus-visible:outline-2 focus-visible:outline-[#2dd4bf] disabled:opacity-40"
+      className="flex size-8 items-center justify-center rounded-lg text-[var(--chat-muted,#6b6b6b)] transition hover:bg-[var(--chat-hover,rgba(255,255,255,0.04))] hover:text-[var(--chat-text,#c8c8c8)] focus-visible:outline-2 focus-visible:outline-[#2dd4bf] disabled:opacity-40"
     >
       {children}
     </button>
@@ -689,7 +689,7 @@ function Pill({ children, open }: { children: React.ReactNode; open?: boolean })
   return (
     <span
       className={cn(
-        "inline-flex h-8 max-w-[240px] items-center gap-1.5 rounded-lg px-2 text-[12.5px] text-[#b8b8b8] transition hover:bg-white/[0.04] hover:text-[#e8e8e8]",
+        "inline-flex h-8 max-w-[240px] items-center gap-1.5 rounded-lg px-2 text-[12.5px] text-[var(--chat-muted,#b8b8b8)] transition hover:bg-[var(--chat-hover,rgba(255,255,255,0.04))] hover:text-[var(--chat-text,#e8e8e8)]",
         open && "bg-white/[0.05] text-white",
       )}
     >

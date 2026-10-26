@@ -1,9 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type CSSProperties } from "react"
 import { ChevronDown, Cloud } from "lucide-react"
 
+import { AsciiBackground } from "@/modules/nova-web/components/ascii-background"
 import { Composer } from "@/modules/nova-web/components/composer"
+import { ChatAppearancePicker, useChatAppearance } from "@/modules/nova-web/components/chat-appearance"
+import { contrastingText } from "@/modules/nova-web/chat-appearance"
 import { ProjectPicker, type ProjectSelection } from "@/modules/nova-web/components/project-picker"
 import type { LocalAttachment } from "@/modules/nova/attachments/contracts"
 import type { LocalProjectDto } from "@/modules/nova-web/api"
@@ -19,26 +22,6 @@ const STARTERS = [
   "Summarize what changed across Linear this week",
   "Draft a release plan for the current branch",
 ]
-
-/** Dot-field canvas matching Capy's empty new-thread state. */
-function DotField() {
-  return (
-    <div
-      aria-hidden
-      className="pointer-events-none absolute inset-0 overflow-hidden"
-      style={{
-        backgroundImage:
-          "radial-gradient(circle at center, rgba(45,212,191,0.55) 0.55px, transparent 0.65px)",
-        backgroundSize: "14px 14px",
-        maskImage:
-          "radial-gradient(ellipse 70% 55% at 70% 18%, black 0%, transparent 72%)",
-        WebkitMaskImage:
-          "radial-gradient(ellipse 70% 55% at 70% 18%, black 0%, transparent 72%)",
-        opacity: 0.35,
-      }}
-    />
-  )
-}
 
 export function EmptyHome({
   onStart,
@@ -67,6 +50,18 @@ export function EmptyHome({
   onManageProjects?: () => void
   localProject?: LocalProjectDto | null
 }) {
+  const { appearance, update } = useChatAppearance()
+  const text = appearance.text ?? contrastingText(appearance.background)
+  const theme = {
+    "--chat-bg": appearance.background,
+    "--chat-text": text,
+    "--chat-muted": `color-mix(in srgb, ${text} 65%, ${appearance.background})`,
+    "--chat-border": `color-mix(in srgb, ${text} 18%, ${appearance.background})`,
+    "--chat-surface": `color-mix(in srgb, ${text} 6%, ${appearance.background})`,
+    "--chat-hover": `color-mix(in srgb, ${text} 12%, ${appearance.background})`,
+    backgroundColor: appearance.background,
+    color: text,
+  } as CSSProperties
   const [draft, setDraft] = useState("")
   const [references, setReferences] = useState<NovaReference[]>([])
   const [localFiles, setLocalFiles] = useState<LocalAttachment[]>([])
@@ -86,11 +81,13 @@ export function EmptyHome({
   }
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col">
-      <DotField />
+    <div style={theme} className="relative isolate flex h-full min-h-0 flex-col">
+      <AsciiBackground color={appearance.ascii} />
+      <ChatAppearancePicker appearance={appearance} onChange={update} />
       <div className="relative z-[1] flex flex-1 flex-col items-center justify-center px-5 pb-24">
-        <div className="mb-3 flex items-center gap-3 text-[12px] text-[#5c5c5c]">
+        <div className="mb-3 flex items-center gap-3 text-[12px] text-[var(--chat-muted)]">
           <ProjectPicker
+            className="[&>button]:text-[var(--chat-muted)] [&>button:hover]:bg-[var(--chat-hover)] [&>button:hover]:text-[var(--chat-text)]"
             value={localProject}
             disabled={busy}
             onChange={(selection) => onProjectChange?.(selection)}
@@ -98,7 +95,7 @@ export function EmptyHome({
           />
           <button
             type="button"
-            className="flex items-center gap-1.5 rounded-md px-1.5 py-1 transition hover:bg-white/[0.04] hover:text-[#a0a0a0]"
+            className="flex items-center gap-1.5 rounded-md px-1.5 py-1 transition hover:bg-[var(--chat-hover)] hover:text-[var(--chat-text)]"
           >
             <Cloud className="size-3.5" strokeWidth={1.75} />
             Web harness
@@ -137,7 +134,7 @@ export function EmptyHome({
                 type="button"
                 disabled={busy}
                 onClick={() => submit(starter)}
-                className="rounded-full border border-white/[0.06] bg-white/[0.02] px-3 py-1.5 text-[12px] text-[#5c5c5c] transition hover:border-white/[0.1] hover:bg-white/[0.04] hover:text-[#a0a0a0] disabled:opacity-50"
+                className="rounded-full border border-[var(--chat-border)] bg-[var(--chat-surface)] px-3 py-1.5 text-[12px] text-[var(--chat-muted)] transition hover:bg-[var(--chat-hover)] hover:text-[var(--chat-text)] disabled:opacity-50"
               >
                 {starter}
               </button>
