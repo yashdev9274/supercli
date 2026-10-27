@@ -1,16 +1,21 @@
 "use client"
 
-import { memo, useEffect, useRef, useState } from "react"
+import { memo, useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { motion, useReducedMotion } from "framer-motion"
 import { Pause, Play } from "lucide-react"
 
 const GLYPHS = " .,:;~+=*#"
 const FRAME_MS = 1000 / 30
 
+const subscribeToHydration = () => () => {}
+const clientSnapshot = () => true
+const serverSnapshot = () => false
+
 export const AsciiBackground = memo(function AsciiBackground({ color = "#a3aaa7" }: { color?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const elapsedRef = useRef(0)
   const reducedMotion = useReducedMotion()
+  const hydrated = useSyncExternalStore(subscribeToHydration, clientSnapshot, serverSnapshot)
   const [paused, setPaused] = useState(false)
 
   useEffect(() => {
@@ -119,11 +124,11 @@ export const AsciiBackground = memo(function AsciiBackground({ color = "#a3aaa7"
         className="pointer-events-none absolute inset-0 overflow-hidden select-none"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: reducedMotion ? 0 : 1.4 }}
+        transition={{ duration: hydrated && reducedMotion ? 0 : 1.4 }}
       >
         <canvas ref={canvasRef} className="block h-full w-full" />
       </motion.div>
-      {reducedMotion === false ? (
+      {hydrated && reducedMotion === false ? (
         <button
           type="button"
           onClick={() => setPaused((value) => !value)}

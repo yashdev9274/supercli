@@ -42,8 +42,10 @@ export function proxy(request: NextRequest) {
   }
 
   const url = request.nextUrl.clone()
-  if (path === "/" || path === "/app") {
+  if (path === "/") {
     url.pathname = NOVA_INTERNAL_PATH
+  } else if (path === "/app") {
+    url.pathname = `${NOVA_INTERNAL_PATH}/app`
   } else if (path.startsWith(NOVA_INTERNAL_PATH)) {
     return NextResponse.next()
   } else {
