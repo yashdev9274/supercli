@@ -31,15 +31,16 @@ export async function startOpenTui(options: OpenTuiLaunchOptions = {}): Promise<
     }
 
     try {
-      let rootRef: { unmount: () => void; render: (node: unknown) => void } | undefined
+      let rootRef: ReturnType<typeof createRoot> | undefined
       const renderer = await createCliRenderer({
         exitOnCtrlC: true,
         targetFps: 30,
         onDestroy: () => finish(rootRef),
       })
 
-      rootRef = createRoot(renderer)
-      rootRef.render(
+      const root = createRoot(renderer)
+      rootRef = root
+      root.render(
         <App
           subtitle={options.subtitle}
           session={options.session}

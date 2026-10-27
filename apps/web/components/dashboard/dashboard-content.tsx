@@ -153,32 +153,37 @@ export function DashboardContent() {
   })
 
   // Keep a stable author catalog so filtering by author doesn't empty the dropdown.
+  // Adjusted during render (not in an effect): merge each response, preferring
+  // the unfiltered contributor set; when an author is selected the response
+  // only includes that author, so preserve prior options.
   const [authorOptions, setAuthorOptions] = useState<ContributorMetric[]>([])
-
-  useEffect(() => {
-    const contributors = analyticsData?.topContributors
-    if (!contributors?.length) return
-
-    // Prefer the unfiltered contributor set; when an author is selected the
-    // analytics response only includes that author, so preserve prior options.
-    if (!selectedAuthor) {
-      setAuthorOptions(contributors)
-      return
-    }
-
-    setAuthorOptions((prev) => {
-      const byLogin = new Map(prev.map((a) => [a.login, a]))
-      for (const c of contributors) byLogin.set(c.login, c)
-      if (!byLogin.has(selectedAuthor)) {
-        byLogin.set(selectedAuthor, {
-          login: selectedAuthor,
-          avatarUrl: "",
-          prs: 0,
-        })
+  const [cachedContributors, setCachedContributors] = useState<
+    ContributorMetric[] | undefined
+  >(undefined)
+  const [cachedAuthor, setCachedAuthor] = useState<string | null>(null)
+  const contributors = analyticsData?.topContributors
+  if (contributors !== cachedContributors || selectedAuthor !== cachedAuthor) {
+    setCachedContributors(contributors)
+    setCachedAuthor(selectedAuthor)
+    if (contributors?.length) {
+      if (!selectedAuthor) {
+        setAuthorOptions(contributors)
+      } else {
+        const byLogin = new Map(authorOptions.map((a) => [a.login, a]))
+        for (const c of contributors) byLogin.set(c.login, c)
+        if (!byLogin.has(selectedAuthor)) {
+          byLogin.set(selectedAuthor, {
+            login: selectedAuthor,
+            avatarUrl: "",
+            prs: 0,
+          })
+        }
+        setAuthorOptions(
+          Array.from(byLogin.values()).sort((a, b) => b.prs - a.prs),
+        )
       }
-      return Array.from(byLogin.values()).sort((a, b) => b.prs - a.prs)
-    })
-  }, [analyticsData?.topContributors, selectedAuthor])
+    }
+  }
 
   const filteredAuthors = authorOptions.filter((a) =>
     a.login.toLowerCase().includes(authorSearch.toLowerCase()),
