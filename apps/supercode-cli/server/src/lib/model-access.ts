@@ -14,6 +14,16 @@ type ModelRow = { slug: string; minTier: string }
  * them in the picker.
  */
 const STATIC_MODEL_CATALOG: ModelRow[] = [
+  // Neon catalog: exact provider-qualified slugs retain the existing open / Pro policy.
+  { slug: "neon/gpt-5-mini", minTier: "pro" },
+  { slug: "neon/gpt-5-3-codex", minTier: "pro" },
+  { slug: "neon/claude-sonnet-4-6", minTier: "pro" },
+  { slug: "neon/claude-opus-4-6", minTier: "pro" },
+  { slug: "neon/claude-haiku-4-5", minTier: "pro" },
+  { slug: "neon/gemini-3-flash", minTier: "pro" },
+  { slug: "neon/kimi-k3", minTier: "spark" },
+  { slug: "neon/glm-5-3", minTier: "spark" },
+  { slug: "neon/llama-4-maverick", minTier: "spark" },
   // Spark / open
   { slug: "deepseek-v4-flash", minTier: "spark" },
   { slug: "deepseek/deepseek-v4-flash", minTier: "spark" },

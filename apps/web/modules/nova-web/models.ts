@@ -1,4 +1,4 @@
-/** Auto-synced from supercode-cli slashCommands/model.ts — 133 models. */
+/** Model catalog mirrored by supercode-cli slashCommands/model.ts. */
 
 export type HarnessProvider =
   | "supercode"
@@ -9,6 +9,7 @@ export type HarnessProvider =
   | "nvidia"
   | "openrouter"
   | "orcarouter"
+  | "neon"
 
 export type NovaModelEntry = {
   id: string
@@ -28,6 +29,7 @@ export type NovaProviderMeta = {
 export const HARNESS_PROVIDERS: NovaProviderMeta[] = [
   { id: "supercode", label: "Supercode Cloud", shortLabel: "Cloud", isCloud: true },
   { id: "concentrateai", label: "ConcentrateAI", shortLabel: "Concentrate", isCloud: false },
+  { id: "neon", label: "Neon AI Gateway", shortLabel: "Neon", isCloud: false },
   { id: "mergedev", label: "Merge Dev Gateway", shortLabel: "Merge", isCloud: false },
   { id: "google", label: "Google Gemini", shortLabel: "Gemini", isCloud: false },
   { id: "minimax", label: "MiniMax", shortLabel: "MiniMax", isCloud: false },
@@ -36,7 +38,21 @@ export const HARNESS_PROVIDERS: NovaProviderMeta[] = [
   { id: "orcarouter", label: "OrcaRouter", shortLabel: "Orca", isCloud: false },
 ]
 
+// Released text models from neon.com/models.json; availability varies by branch.
+export const NEON_MODELS: NovaModelEntry[] = [
+  { id: "gpt-5-mini", provider: "neon", label: "GPT-5 Mini", desc: "OpenAI Responses via Neon" },
+  { id: "gpt-5-3-codex", provider: "neon", label: "GPT-5.3 Codex", desc: "Coding · OpenAI Responses via Neon" },
+  { id: "claude-sonnet-4-6", provider: "neon", label: "Claude Sonnet 4.6", desc: "Anthropic Messages via Neon" },
+  { id: "claude-opus-4-6", provider: "neon", label: "Claude Opus 4.6", desc: "Anthropic Messages via Neon" },
+  { id: "claude-haiku-4-5", provider: "neon", label: "Claude Haiku 4.5", desc: "Anthropic Messages via Neon" },
+  { id: "gemini-3-flash", provider: "neon", label: "Gemini 3 Flash", desc: "Text streaming · Gemini tools limited by gateway" },
+  { id: "kimi-k3", provider: "neon", label: "Kimi K3", desc: "Moonshot via Neon" },
+  { id: "glm-5-3", provider: "neon", label: "GLM 5.3", desc: "Z.ai via Neon" },
+  { id: "llama-4-maverick", provider: "neon", label: "Llama 4 Maverick", desc: "Meta via Neon" },
+]
+
 export const ALL_MODELS: NovaModelEntry[] = [
+  ...NEON_MODELS,
   { id: "deepseek-v4-flash", provider: "supercode", label: "DeepSeek V4 Flash", desc: "Fast & capable" },
   { id: "kimi-k2-6", provider: "supercode", label: "Kimi K2.6", desc: "Long context" },
   { id: "kimi-k2-7-code", provider: "supercode", label: "Kimi K2.7 Code", desc: "Code specialist" },

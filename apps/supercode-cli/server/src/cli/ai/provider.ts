@@ -6,10 +6,11 @@ import { NvidiaService } from "./nvidia-service.ts"
 import { ConcentrateService } from "./concentrate-service.ts"
 import { MergeDevService } from "./mergedev-service.ts"
 import { OrcaRouterService } from "./orcarouter-service.ts"
+import { NeonService } from "./neon-service.ts"
 import { ServerProxyService } from "./server-proxy-service.ts"
 
 
-export type ModelProvider = "supercode" | "google" | "minimax" | "openrouter" | "nvidia" | "concentrateai" | "mergedev" | "orcarouter"
+export type ModelProvider = "supercode" | "google" | "minimax" | "openrouter" | "nvidia" | "concentrateai" | "mergedev" | "orcarouter" | "neon"
 
 export type ConnectionType = "direct" | "proxy"
 
@@ -37,6 +38,7 @@ export interface AIProvider {
 }
 
 export const providerMeta: Record<ModelProvider, { env: string; label: string; defaultModel: string; link?: string }> = {
+  neon: { env: "NEON_AI_GATEWAY_TOKEN + NEON_AI_GATEWAY_BASE_URL", label: "Neon AI Gateway", defaultModel: "gpt-5-mini", link: "https://neon.com/docs/ai-gateway/authentication" },
   supercode: { env: "", label: "Supercode Cloud", defaultModel: "deepseek-v4-flash" },
   google: { env: "GOOGLE_BYOK_PROD_KEY / GOOGLE_BYOK_DEV_KEY", label: "Google Gemini", defaultModel: "gemini-2.5-flash", link: "https://aistudio.google.com/apikey" },
   minimax: { env: "MINIMAX_BYOK_PROD_KEY / MINIMAX_BYOK_DEV_KEY", label: "MiniMax", defaultModel: "MiniMax-M2", link: "https://platform.minimax.ai" },
@@ -48,6 +50,7 @@ export const providerMeta: Record<ModelProvider, { env: string; label: string; d
 }
 
 const providerConfigs: Record<ModelProvider, () => string> = {
+  neon: () => process.env.NEON_AI_GATEWAY_TOKEN || "",
   supercode: () => "",
   google: () => process.env.GOOGLE_BYOK_PROD_KEY || process.env.GOOGLE_BYOK_DEV_KEY || "",
   minimax: () => process.env.MINIMAX_BYOK_PROD_KEY || process.env.MINIMAX_BYOK_DEV_KEY || "",
@@ -115,6 +118,17 @@ export function createProvider(provider: ModelProvider, model?: string): AIProvi
   }
 
   switch (provider) {
+    case "neon": {
+      const svc = new NeonService(model)
+      return {
+        name: "neon",
+        modelName: svc.modelName,
+        connectionType: "direct",
+        model: svc.model,
+        sendMessage: svc.sendMessage,
+        generateObject: (schema, prompt) => svc.generateObject(schema, prompt),
+      }
+    }
     case "google": {
       const svc = new AIService(model)
       return {

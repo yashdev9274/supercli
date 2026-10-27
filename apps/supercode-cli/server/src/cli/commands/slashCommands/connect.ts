@@ -8,8 +8,10 @@ import {
 } from "src/lib/cli-config.ts"
 import type { ModelProvider } from "src/cli/ai/provider.ts"
 import { BYOK_MODELS, ALL_SECTIONS } from "./model.ts"
+import { connectNeon } from "./connect-neon"
 
 const PROVIDERS: Array<{ value: ModelProvider; label: string; hint: string; link: string }> = [
+  { value: "neon", label: "Neon AI Gateway", hint: "branch URL + invocation token", link: "https://neon.com/docs/ai-gateway/authentication" },
   { value: "concentrateai", label: "ConcentrateAI", hint: "deepseek-v4 & glm models", link: "https://concentrate.ai" },
   { value: "mergedev", label: "Merge Dev Gateway", hint: "unified API gateway", link: "https://app.merge.dev" },
   { value: "google", label: "Google Gemini", hint: "gemini-2.5 models", link: "https://aistudio.google.com/apikey" },
@@ -42,7 +44,9 @@ export async function connectProvider(): Promise<{ type: "connect"; provider?: M
   const config = await getCliConfig()
   const existingKey = config?.apiKeys?.[provider.value] || getByokSessionKey(provider.value)
 
-  if (existingKey) {
+  if (provider.value === "neon") {
+    if (!await connectNeon()) return { type: "connect" }
+  } else if (existingKey) {
     console.log(` ${chalk.hex(theme.green)("✓")} ${chalk.hex(theme.green)(`Already have a key for ${provider.label} — switching to direct mode (🔑)`)}`)
     console.log()
   } else {

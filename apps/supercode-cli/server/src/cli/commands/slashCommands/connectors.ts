@@ -1,4 +1,4 @@
-import { select, text, isCancel } from "@clack/prompts"
+import { password, text, isCancel } from "@clack/prompts"
 import chalk from "chalk"
 import { theme, heavyDivider } from "src/cli/utils/tui"
 import {
@@ -38,12 +38,18 @@ export async function connectorsCommand(
 ): Promise<
   { type: "message"; message: string } | { type: "help" }
 > {
-  const merged = mergeConnectorManager.getConnectorList()
-  const allEntries = [
-    ...merged,
-    ...BUILTIN_CONNECTORS.filter(
-      (b) => !merged.some((m) => m.slug === b.slug),
-    ),
+  const connected = getMcpManager().connectedServers.includes("mergedev")
+  const allEntries: ConnectorEntry[] = [
+    {
+      slug: "mergedev",
+      name: "Merge Agent Handler",
+      description: "Connect tools from your Merge Tool Pack.",
+      provider: "mergedev",
+      category: "search",
+      status: connected ? "connected" : "disconnected",
+      detail: connected ? "Tool Pack connected" : "Run /connectors connect to set up",
+    },
+    ...BUILTIN_CONNECTORS,
   ]
 
   if (args === "list" || !args) {
@@ -87,9 +93,8 @@ export async function connectorsCommand(
         ` 5. Add to your .env or run setup below\r\n\r\n`,
       )
 
-      const envKey = await text({
+      const envKey = await password({
         message: "Merge Agent Handler API key:",
-        placeholder: "ah_...",
         validate: (v) => (v ? undefined : "Required"),
       })
       if (isCancel(envKey)) return { type: "help" }
@@ -107,20 +112,16 @@ export async function connectorsCommand(
       if (isCancel(envUser)) return { type: "help" }
 
       mergeConnectorManager.setConfig({
-        agentHandlerApiKey: envKey as string,
-        toolPackId: envPack as string,
-        registeredUserId: envUser as string,
+        agentHandlerApiKey: envKey,
+        toolPackId: envPack,
+        registeredUserId: envUser,
       })
     }
 
     try {
-      const session = await mergeConnectorManager.connect("mergedev")
       const mcpConfig = mergeConnectorManager.getMcpConfig()
-
-      if (mcpConfig) {
-        const mgr = getMcpManager()
-        await mgr.reconnectServer("mergedev", mcpConfig)
-      }
+      if (!mcpConfig) throw new Error("Merge Agent Handler is not configured")
+      await getMcpManager().reconnectServer("mergedev", mcpConfig)
 
       await saveCliConfig({
         connectorConfigs: {
@@ -128,30 +129,23 @@ export async function connectorsCommand(
             provider: "mergedev",
             enabled: true,
           },
-        } as any,
+        },
       })
 
       process.stdout.write(
         ` ${chalk.green("✓")} Merge Agent Handler connected.\r\n` +
-          `    Tools: Firecrawl (search, scrape, crawl, map, extract) + Exa (search, research)\r\n`,
+          `    Tools from your configured Tool Pack are available.\r\n`,
       )
     } catch (err: any) {
       process.stdout.write(
         ` ${chalk.red("✗")} Connection failed: ${err.message}\r\n`,
       )
-      if (mergeConnectorManager.setupInstructions.length > 0) {
-        process.stdout.write(`\r\n Setup steps:\r\n`)
-        for (const step of mergeConnectorManager.setupInstructions) {
-          process.stdout.write(`  ${step}\r\n`)
-        }
-      }
     }
 
     return { type: "help" }
   }
 
   if (args === "disconnect") {
-    mergeConnectorManager.disconnect()
     const mgr = getMcpManager()
     await mgr.stopServer("mergedev")
 
@@ -161,7 +155,7 @@ export async function connectorsCommand(
           provider: "mergedev",
           enabled: false,
         },
-      } as any,
+      },
     })
 
     process.stdout.write(

@@ -42,6 +42,14 @@ The AI has access to file reading, searching, web fetching, and code execution t
 | `MINIMAX_API_KEY` | MiniMax API key | — |
 | `NVIDIA_API_KEY` | NVIDIA NIM API key | — |
 
+### Neon AI Gateway
+
+Requires Node 20.19+. In the CLI, run `/connect` → **Neon AI Gateway**, then supply your branch gateway URL and masked invocation token. Both are session-only; the token is never saved to CLI config. You can also set `NEON_AI_GATEWAY_BASE_URL` and `NEON_AI_GATEWAY_TOKEN` via your environment or secret manager.
+
+Nova uses those same variables on the **terminal harness server**, not in browser storage or `NEXT_PUBLIC_*` variables. Restart the harness after configuring them, then select Neon in Nova's model picker or Settings → Models.
+
+The URL must be the bare HTTPS branch origin from Neon Console → branch → AI Gateway, without `/v1`. The token needs `ai_gateway:invoke`; a Neon management API key will not work. Access requires a funded Neon project and varies by branch. The SDK routes Claude to Messages, OpenAI/Codex to Responses, and other models to Chat Completions. Gemini structured output and multi-step tools are currently unsupported; Responses tool continuations can fail upstream. Nova's normal plan and budget limits still apply.
+
 ### Voice Input
 
 Voice capture requires `ffmpeg` and a Smallest.ai API key.

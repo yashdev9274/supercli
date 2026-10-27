@@ -5,6 +5,7 @@ import {
   Activity,
   ArrowLeft,
   Copy,
+  Cpu,
   CreditCard,
   ExternalLink,
   FolderGit2,
@@ -26,6 +27,8 @@ import {
   type LocalProjectDto,
 } from "@/modules/nova-web/api"
 import { AccountMenu } from "@/modules/nova-web/components/account-menu"
+import { ModelsSection } from "@/modules/nova-web/components/settings-models"
+import type { HarnessProvider } from "@/modules/nova-web/models"
 import { getConnectedRepos } from "@/modules/dashboard/actions/analytics"
 import type { SettingsActivity, SettingsUsage } from "@/modules/nova/settings/service"
 import {
@@ -46,6 +49,7 @@ const SECTION_META: Array<{
   { id: "general", label: "General", icon: Settings2 },
   { id: "profile", label: "Profile", icon: UserRound },
   { id: "projects", label: "Projects", icon: FolderGit2 },
+  { id: "models", label: "Models", icon: Cpu },
   { id: "activity", label: "Activity", icon: Activity },
   { id: "usage", label: "Usage", icon: CreditCard },
 ]
@@ -87,7 +91,13 @@ export function SettingsView({
   onSectionChange,
   onBack,
   onNavigate,
+  provider,
+  model,
+  onUseModel,
 }: {
+  provider: HarnessProvider
+  model: string
+  onUseModel: (selection: { provider: HarnessProvider; model: string }) => void
   user: NovaUser
   section: SettingsSectionId
   onSectionChange: (section: SettingsSectionId) => void
@@ -238,8 +248,8 @@ export function SettingsView({
         </div>
       </aside>
 
-      <section className="min-h-0 flex-1 overflow-y-auto bg-[#0f0f0f]">
-        <div className="mx-auto max-w-[760px] px-8 py-10">
+      <section className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-[#0f0f0f]">
+        <div className={cn("mx-auto px-4 py-10 sm:px-8", section === "models" ? "max-w-[1040px]" : "max-w-[760px]")}>
           {section === "general" ? (
             <GeneralSection prefs={prefs} onChange={updatePrefs} />
           ) : null}
@@ -248,6 +258,9 @@ export function SettingsView({
           ) : null}
           {section === "projects" ? (
             <ProjectsSection onNavigate={onNavigate} />
+          ) : null}
+          {section === "models" ? (
+            <ModelsSection provider={provider} model={model} onUseModel={onUseModel} />
           ) : null}
           {section === "activity" ? (
             <ActivitySection

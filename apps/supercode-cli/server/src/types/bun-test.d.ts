@@ -49,9 +49,7 @@ declare module "bun:test" {
     spyOn: typeof spyOn
   }
 
-  // bun:test exposes a global `mock.module` for module mocking.
-  export const module: {
-    (specifier: string, factory: () => unknown): void
-    (specifier: string): { (factory: () => unknown): void }
+  export namespace mock {
+    function module(specifier: string, factory: () => unknown): void
   }
 }
