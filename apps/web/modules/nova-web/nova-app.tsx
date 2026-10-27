@@ -45,6 +45,7 @@ import {
   type NovaAgentMode,
   type NovaEffort,
 } from "@/modules/nova-web/models"
+import { parseModelSelection } from "@/modules/nova-web/model-settings"
 import { resolveNovaTurnMode } from "@/modules/nova-web/resolve-mode"
 import type {
   AgentSessionSummary,
@@ -251,6 +252,23 @@ export function NovaApp({
     },
     [router],
   )
+
+  useEffect(() => {
+    let cancelled = false
+    void Promise.resolve().then(() => {
+      if (cancelled || readPendingTurn()) return
+      try {
+        const selection = parseModelSelection(sessionStorage.getItem(`nova:model-selection:v1:${user.id}`))
+        if (selection) {
+          setProvider(selection.provider)
+          setModel(selection.model)
+        }
+      } catch {
+        // Storage can be unavailable in restricted browsers.
+      }
+    })
+    return () => { cancelled = true }
+  }, [user.id])
 
   const openSettingsSection = useCallback((next: SettingsSectionId) => {
     const href = next === "general" ? "/settings" : `/settings?section=${next}`
@@ -800,6 +818,11 @@ export function NovaApp({
   function handleModelChange(selection: { provider: HarnessProvider; model: string }) {
     setProvider(selection.provider)
     setModel(selection.model)
+    try {
+      sessionStorage.setItem(`nova:model-selection:v1:${user.id}`, JSON.stringify(selection))
+    } catch {
+      // The current page can still use the selection without browser storage.
+    }
   }
 
   function onDecision(approval: ApprovalRequest, decision: "approved" | "denied") {
@@ -840,6 +863,12 @@ export function NovaApp({
         <SettingsView
           user={user}
           section={settingsSection}
+          provider={provider}
+          model={model}
+          onUseModel={(selection) => {
+            handleModelChange(selection)
+            navigate("/")
+          }}
           onSectionChange={openSettingsSection}
           onBack={() => navigate("/")}
           onNavigate={navigate}

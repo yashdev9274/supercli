@@ -76,7 +76,8 @@ function askOne(item: z.infer<typeof questionItemSchema>): Promise<string | stri
 
     const rl = readline.createInterface({ input: stdin, output: process.stdout, terminal: true })
 
-    if (!item.options || item.options.length === 0) {
+    const options = item.options
+    if (!options || options.length === 0) {
       rl.question(chalk.hex(theme.green)("  Your answer: "), (answer) => {
         rl.close()
         if (stdin.isTTY && wasRaw) stdin.setRawMode(true)
@@ -86,7 +87,7 @@ function askOne(item: z.infer<typeof questionItemSchema>): Promise<string | stri
     }
 
     console.log()
-    item.options.forEach((opt, i) => {
+    options.forEach((opt, i) => {
       console.log(styledLabel(i + 1, opt.label))
       if (opt.description) {
         console.log(styledDesc(opt.description))
@@ -112,19 +113,23 @@ function askOne(item: z.infer<typeof questionItemSchema>): Promise<string | stri
         const indices = trimmed
           .split(",")
           .map((s) => parseInt(s.trim(), 10))
-          .filter((n) => !isNaN(n) && n >= 1 && n <= item.options!.length)
+          .filter((n) => !isNaN(n) && n >= 1 && n <= options.length)
         if (indices.length === 0) {
           resolve([])
           return
         }
-        resolve(indices.map((i) => item.options![i - 1].label))
+        resolve(indices.flatMap((i) => {
+          const option = options[i - 1]
+          return option ? [option.label] : []
+        }))
       } else {
         const num = parseInt(trimmed, 10)
-        if (isNaN(num) || num < 1 || num > item.options.length) {
+        const option = options[num - 1]
+        if (!option) {
           resolve("(invalid selection)")
           return
         }
-        resolve(item.options[num - 1].label)
+        resolve(option.label)
       }
     })
   })

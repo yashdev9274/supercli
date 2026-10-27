@@ -23,11 +23,15 @@ export class MergeConnectorManager {
   private config: MergeAhConfig | null = null
 
   get isConfigured(): boolean {
-    return (
+    return !!this.config || (
       !!process.env.MERGE_AH_API_KEY &&
       !!process.env.MERGE_TOOL_PACK_ID &&
       !!process.env.MERGE_REGISTERED_USER_ID
     )
+  }
+
+  setConfig(config: MergeAhConfig): void {
+    this.config = { ...config }
   }
 
   loadConfigFromEnv(): MergeAhConfig | null {

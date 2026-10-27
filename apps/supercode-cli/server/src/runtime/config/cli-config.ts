@@ -65,6 +65,7 @@ const API_KEY_ENV_MAP: Record<ModelProvider, string> = {
   concentrateai: "CONCENTRATEAI_API_KEY",
   mergedev: "MERGE_DEV_API_KEY",
   orcarouter: "ORCAROUTER_API_KEY",
+  neon: "NEON_AI_GATEWAY_TOKEN",
 }
 
 export function getProviderApiKeys(): Partial<Record<ModelProvider, string>> {

@@ -34,6 +34,8 @@ export type OpenAICompatibleAdapterOptions = {
   /** createOpenAICompatible name field. */
   clientName: string
   baseURL: string
+  /** Native SDK model override for gateways with family-specific endpoints. */
+  model?: LanguageModel
   apiKey: string
   modelName: string
   /** Missing-key error body (already formatted). */
@@ -98,7 +100,7 @@ export class OpenAICompatibleAdapter {
       },
       ...(opts.fetch ? { fetch: opts.fetch } : {}),
     })
-    this.model = client.chatModel(this.modelName)
+    this.model = opts.model ?? client.chatModel(this.modelName)
   }
 
   private maxOutputTokensOpts(): Record<string, unknown> {
@@ -279,6 +281,8 @@ export class OpenAICompatibleAdapter {
           opts.args.onChunk?.(event.text)
         } else if (event.type === "reasoning-delta") {
           if (event.text) opts.args.onReasoning?.(event.text)
+        } else if (event.type === "error") {
+          throw event.error
         }
       }
     } else {

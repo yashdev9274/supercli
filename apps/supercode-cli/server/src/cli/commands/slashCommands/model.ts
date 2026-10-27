@@ -7,6 +7,7 @@ import { getCliConfig, saveCliConfig, saveProviderApiKey, getByokSessionKey } fr
 import { getStoredToken } from "src/lib/token"
 import { getCurrentUser } from "src/lib/api-client"
 import prisma from "src/lib/prisma"
+import { connectNeon } from "./connect-neon"
 
 interface ModelEntry {
   value: string
@@ -52,13 +53,14 @@ const SECTION_MINIMAX = "__section_minimax__"
 const SECTION_NVIDIA = "__section_nvidia__"
 const SECTION_OPENROUTER = "__section_openrouter__"
 const SECTION_ORCAROUTER = "__section_orcarouter__"
+const SECTION_NEON = "__section_neon__"
 
 export const ALL_SECTIONS = new Set([
   SECTION_CLOUD, SECTION_BYOK,
   SECTION_CONCENTRATEAI, SECTION_MERGEDEV,
   SECTION_GOOGLE, SECTION_MINIMAX,
   SECTION_NVIDIA, SECTION_OPENROUTER,
-  SECTION_ORCAROUTER,
+  SECTION_ORCAROUTER, SECTION_NEON,
 ])
 
 const SECTION_LABELS: Record<string, string> = {
@@ -71,6 +73,7 @@ const SECTION_LABELS: Record<string, string> = {
   [SECTION_NVIDIA]: "NVIDIA NIM",
   [SECTION_OPENROUTER]: "OpenRouter",
   [SECTION_ORCAROUTER]: "OrcaRouter",
+  [SECTION_NEON]: "Neon AI Gateway",
 }
 
 const isMainSection = (v: string) => v === SECTION_CLOUD || v === SECTION_BYOK
@@ -94,6 +97,16 @@ export const CLOUD_MODELS: ModelEntry[] = [
 
 // Models available when you bring your own API key (BYOK)
 export const BYOK_MODELS: ModelEntry[] = [
+  { value: SECTION_NEON, label: "Neon AI Gateway", provider: "neon", cost: "", desc: "" },
+  { value: "gpt-5-mini", label: "GPT-5 Mini", provider: "neon", cost: "", desc: "OpenAI Responses via Neon" },
+  { value: "gpt-5-3-codex", label: "GPT-5.3 Codex", provider: "neon", cost: "", desc: "Coding · OpenAI Responses via Neon" },
+  { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", provider: "neon", cost: "", desc: "Anthropic Messages via Neon" },
+  { value: "claude-opus-4-6", label: "Claude Opus 4.6", provider: "neon", cost: "", desc: "Anthropic Messages via Neon" },
+  { value: "claude-haiku-4-5", label: "Claude Haiku 4.5", provider: "neon", cost: "", desc: "Anthropic Messages via Neon" },
+  { value: "gemini-3-flash", label: "Gemini 3 Flash", provider: "neon", cost: "", desc: "Text streaming · Gemini tools limited by gateway" },
+  { value: "kimi-k3", label: "Kimi K3", provider: "neon", cost: "", desc: "Moonshot via Neon" },
+  { value: "glm-5-3", label: "GLM 5.3", provider: "neon", cost: "", desc: "Z.ai via Neon" },
+  { value: "llama-4-maverick", label: "Llama 4 Maverick", provider: "neon", cost: "", desc: "Meta via Neon" },
   // ── ConcentrateAI (BYOK) ──────────────────────────────────────
   { value: SECTION_CONCENTRATEAI, label: "ConcentrateAI", provider: "concentrateai", cost: "", desc: "" },
   { value: "anthropic/claude-opus-5", label: "Claude Opus 5", provider: "concentrateai", cost: "", desc: "Most capable" },
@@ -653,6 +666,9 @@ export async function pickModel(
       return { provider: selected.provider, model: undefined }
     }
     const trimmed = (customName as string).trim()
+    if (selected.provider === "neon" && !await connectNeon()) {
+      return { provider: currentProvider as ModelProvider, model: currentModel }
+    }
     process.stdout.write(
       `  ${chalk.hex(theme.green)("✓")} model set to ${chalk.hex(theme.greenGlow)(trimmed)}\n\n`,
     )
@@ -684,7 +700,9 @@ export async function pickModel(
 
   // For BYOK providers, check if an API key is configured.
   // OpenRouter free models route through the server's key — skip BYOK check.
-  if (selected.provider !== "supercode" && selected.provider !== "openrouter") {
+  if (selected.provider === "neon") {
+    if (!await connectNeon()) return { provider: currentProvider as ModelProvider, model: currentModel }
+  } else if (selected.provider !== "supercode" && selected.provider !== "openrouter") {
     const config = await getCliConfig()
     const existingKey = config?.apiKeys?.[selected.provider] || getByokSessionKey(selected.provider)
     if (!existingKey) {
@@ -735,7 +753,7 @@ export async function pickModel(
 }
 
 export function formatModelChange(p: ModelProvider, m?: string): string {
-  const label = p === "supercode" ? "Supercode Cloud" :
+  const label = p === "neon" ? "Neon" : p === "supercode" ? "Supercode Cloud" :
     p === "concentrateai" ? "ConcentrateAI" :
     p === "google" ? "Gemini" :
     p === "nvidia" ? "NVIDIA" : p === "minimax" ? "MiniMax" :

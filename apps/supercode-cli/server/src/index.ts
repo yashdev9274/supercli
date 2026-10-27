@@ -37,6 +37,8 @@ import {
 } from "./lib/openai-compatible-stream"
 import { stripOrphanToolCalls } from "./cli/ai/sanitize-messages"
 import { registerComposioRoutes } from "./routes/composio"
+import { streamNeonChat } from "./runtime/stream/neon-stream"
+import { DEFAULT_NEON_MODEL } from "./config/neon.config"
 
 function toolParams(fn: any): object {
   const raw = fn.parameters ?? fn.inputSchema
@@ -701,7 +703,6 @@ res.status(200)
     res.setHeader("Cache-Control", "no-cache, no-transform")
     res.setHeader("X-Accel-Buffering", "no")
     res.setHeader("Connection", "keep-alive")
-    // @ts-expect-error Node flush exists on ServerResponse
     if (typeof (res as any).flushHeaders === "function") (res as any).flushHeaders()
     try {
       // Disable Nagle so tiny NDJSON status lines leave the socket immediately.
@@ -712,7 +713,6 @@ res.status(200)
       try {
         const line = JSON.stringify({ type: "status", phase, message: message || phase }) + "\n"
         res.write(line)
-        // @ts-expect-error flush is available on some Node response wrappers
         if (typeof (res as any).flush === "function") (res as any).flush()
         // Force the kernel to push the write even when the chunk is tiny.
         try {
@@ -725,7 +725,7 @@ res.status(200)
 
     // Paid-tier enforcement: subscription → model access → request cap → credits
     writeStatus("plan_gate", "checking plan limits")
-    const gate = await checkPlanGate(user.id, modelParam ?? "deepseek-v4-flash")
+    const gate = await checkPlanGate(user.id, provider === "neon" ? `neon/${modelParam || DEFAULT_NEON_MODEL}` : modelParam ?? "deepseek-v4-flash")
     if (!gate.allowed) {
       res.write(JSON.stringify({
         type: "error",
@@ -759,6 +759,31 @@ res.status(200)
     writeStatus("provider", `routing to ${provider || "unknown"}`)
 
     switch (provider) {
+      case "neon": {
+        const modelName = modelParam || DEFAULT_NEON_MODEL
+        const started = Date.now()
+        const controller = new AbortController()
+        const onClose = () => controller.abort()
+        res.on("close", onClose)
+        try {
+          const usage = await streamNeonChat({
+            model: modelName, messages, tools,
+            signal: AbortSignal.any([controller.signal, AbortSignal.timeout(120_000)]),
+            write: (event) => res.write(JSON.stringify(event) + "\n"),
+          })
+          const inputTokens = usage.inputTokens ?? 0
+          const outputTokens = usage.outputTokens ?? 0
+          const cachedInputTokens = usage.inputTokenDetails?.cacheReadTokens ?? 0
+          recordUsage({ provider: "neon", model: modelName, inputTokens, outputTokens, cachedInputTokens,
+            totalTokens: usage.totalTokens ?? inputTokens + outputTokens,
+            costUsd: computeCost(modelName, inputTokens, outputTokens, cachedInputTokens),
+            durationMs: Date.now() - started, userId: user.id })
+          res.end()
+        } finally {
+          res.off("close", onClose)
+        }
+        break
+      }
       case "google": {
         const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY
         if (!apiKey) { endChatStreamError(res, "Google Gemini not configured on server"); return }
@@ -1455,9 +1480,18 @@ app.post("/api/ai/generate-object", async (req, res) => {
       await checkDailyTokenBudget(user.id)
     }
 
-    const { generateObject } = await import("ai")
+    const { generateObject, jsonSchema } = await import("ai")
 
     switch (provider) {
+      case "neon": {
+        const modelName = modelParam || DEFAULT_NEON_MODEL
+        const gate = await checkPlanGate(user.id, `neon/${modelName}`)
+        if (!gate.allowed) { res.status(403).json({ error: gate.message }); return }
+        const { createNeonModel } = await import("./cli/ai/neon-service")
+        const result = await generateObject({ model: createNeonModel(modelName), schema: jsonSchema(schema), prompt, abortSignal: AbortSignal.timeout(120_000) })
+        res.json({ object: result.object })
+        break
+      }
       case "google": {
         const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY
         if (!apiKey) { res.status(500).json({ error: "Google Gemini not configured on server" }); return }
