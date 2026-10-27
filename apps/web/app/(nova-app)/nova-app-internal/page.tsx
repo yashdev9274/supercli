@@ -1,23 +1,5 @@
-import { requireAuth } from "@/modules/components/utils/auth-utils"
-import { NovaApp } from "@/modules/nova-web/nova-app"
-import { listAgentSessions } from "@/modules/nova/sessions/service"
+import { NovaEntry } from "@/modules/nova-web/nova-entry"
 
-export const dynamic = "force-dynamic"
-
-export default async function NovaHomePage() {
-  const session = await requireAuth()
-  const sessions = await listAgentSessions(session.user.id)
-
-  return (
-    <NovaApp
-      initialSessions={sessions}
-      initialView="home"
-      user={{
-        id: session.user.id,
-        name: session.user.name,
-        email: session.user.email,
-        image: session.user.image,
-      }}
-    />
-  )
+export default function NovaEntryPage() {
+  return <NovaEntry />
 }
