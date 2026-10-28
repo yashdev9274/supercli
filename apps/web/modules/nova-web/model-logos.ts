@@ -12,6 +12,7 @@ function mark(name: string): BrandLogo {
 }
 
 export const PROVIDER_LOGOS: Record<HarnessProvider, BrandLogo> = {
+  codex: mark("openai"),
   supercode: { src: "/supercode-logo.png", monochrome: false },
   concentrateai: mark("concentrateai"),
   neon: mark("neon"),

@@ -46,6 +46,9 @@ import {
   type NovaEffort,
 } from "@/modules/nova-web/models"
 import { parseModelSelection } from "@/modules/nova-web/model-settings"
+import { CodexCatalogContext, useAccountCodexCatalog } from "@/modules/nova-web/codex-catalog"
+import { MachineSettingsContext, useAccountMachineSettings } from "@/modules/nova-web/machine-settings"
+import { machineSizeSchema, type MachineSize } from "@/modules/nova/sandbox/machine-sizes"
 import { resolveNovaTurnMode } from "@/modules/nova-web/resolve-mode"
 import type {
   AgentSessionSummary,
@@ -87,6 +90,7 @@ type PendingTurn = {
   provider: HarnessProvider
   effort: NovaEffort
   mode: NovaAgentMode
+  machineSize?: MachineSize
   references?: NovaReference[]
   localAttachments?: LocalAttachment[]
 }
@@ -241,6 +245,9 @@ export function NovaApp({
   const selectedId = route.sessionId
   const selectedPullId = route.pullId
   const view = route.view
+  const codexCatalog = useAccountCodexCatalog(user.id, view)
+  const machineSettings = useAccountMachineSettings(user.id)
+  const { size: machineSize, select: selectMachineSize } = machineSettings
   const pendingApprovals = approvals.filter((item) => item.status === "pending").length
 
   const navigate = useCallback(
@@ -258,10 +265,13 @@ export function NovaApp({
     void Promise.resolve().then(() => {
       if (cancelled || readPendingTurn()) return
       try {
-        const selection = parseModelSelection(sessionStorage.getItem(`nova:model-selection:v1:${user.id}`))
+        const selection = parseModelSelection(localStorage.getItem(`nova:model-selection:v2:${user.id}`))
+          ?? parseModelSelection(sessionStorage.getItem(`nova:model-selection:v1:${user.id}`))
         if (selection) {
           setProvider(selection.provider)
           setModel(selection.model)
+          if (selection.effort) setEffort(selection.effort)
+          localStorage.setItem(`nova:model-selection:v2:${user.id}`, JSON.stringify(selection))
         }
       } catch {
         // Storage can be unavailable in restricted browsers.
@@ -537,6 +547,7 @@ export function NovaApp({
           provider,
           effort,
           mode: agentMode,
+          machineSize,
           references: selectedReferences,
           localAttachments: selectedLocalFiles,
         })
@@ -556,6 +567,7 @@ export function NovaApp({
       provider?: HarnessProvider
       effort?: NovaEffort
       mode?: NovaAgentMode
+      machineSize?: MachineSize
       references?: NovaReference[]
       localAttachments?: LocalAttachment[]
     },
@@ -644,6 +656,7 @@ export function NovaApp({
         model: opts?.model ?? model,
         provider: opts?.provider ?? provider,
         effort: opts?.effort ?? effort,
+        machineSize: opts?.machineSize ?? machineSize,
         mode: turnMode,
         references: opts?.references ?? [],
         localAttachments: packedAttachments,
@@ -773,7 +786,7 @@ export function NovaApp({
       // Keep workingSteps + workingSince so ThreadView can show the completed process
       // until the next turn starts (which clears them above).
     }
-  }, [agentMode, effort, loadSharedState, localProject?.id, model, provider, pullSync, setSyncCursor])
+  }, [agentMode, effort, loadSharedState, localProject?.id, machineSize, model, provider, pullSync, setSyncCursor])
 
   // Keep "Thinking for Xs" labels live while reasoning is in flight.
   useEffect(() => {
@@ -795,7 +808,11 @@ export function NovaApp({
     if (pending.provider) setProvider(pending.provider)
     if (pending.effort) setEffort(pending.effort)
     if (pending.mode) setAgentMode(pending.mode)
+    const pendingSize = machineSizeSchema.safeParse(pending.machineSize)
+    const size = pendingSize.success ? pendingSize.data : "default"
+    selectMachineSize(size)
     void runTurn(selectedId, pending.content, {
+      machineSize: size,
       model: pending.model,
       provider: pending.provider,
       effort: pending.effort,
@@ -803,7 +820,7 @@ export function NovaApp({
       references: pending.references,
       localAttachments: pending.localAttachments,
     })
-  }, [runTurn, selectedId])
+  }, [runTurn, selectedId, selectMachineSize])
 
   function submitFollowUp() {
     if (!selectedId || streamingRef.current) return
@@ -815,14 +832,25 @@ export function NovaApp({
     })
   }
 
+  function saveSelection(selection: { provider: HarnessProvider; model: string; effort: NovaEffort }) {
+    try { localStorage.setItem(`nova:model-selection:v2:${user.id}`, JSON.stringify(selection)) }
+    catch { /* Selection remains usable when browser storage is disabled. */ }
+  }
+
   function handleModelChange(selection: { provider: HarnessProvider; model: string }) {
+    const entry = selection.provider === "codex" ? codexCatalog.models.find((item) => item.id === selection.model) : null
+    const nextEffort = entry
+      ? entry.efforts.includes(effort) ? effort : entry.defaultEffort ?? "high"
+      : effort === "none" || effort === "minimal" ? "high" : effort
     setProvider(selection.provider)
     setModel(selection.model)
-    try {
-      sessionStorage.setItem(`nova:model-selection:v1:${user.id}`, JSON.stringify(selection))
-    } catch {
-      // The current page can still use the selection without browser storage.
-    }
+    setEffort(nextEffort)
+    saveSelection({ ...selection, effort: nextEffort })
+  }
+
+  function handleEffortChange(next: NovaEffort) {
+    setEffort(next)
+    saveSelection({ provider, model, effort: next })
   }
 
   function onDecision(approval: ApprovalRequest, decision: "approved" | "denied") {
@@ -852,7 +880,8 @@ export function NovaApp({
   )
 
   const content = (
-    <>
+    <MachineSettingsContext.Provider value={machineSettings}>
+    <CodexCatalogContext.Provider value={codexCatalog}>
       {view === "connections" ? (
         <ConnectionsView
           connectors={connectors}
@@ -941,7 +970,7 @@ export function NovaApp({
           mode={agentMode}
           onDraftChange={setDraft}
           onModelChange={handleModelChange}
-          onEffortChange={setEffort}
+          onEffortChange={handleEffortChange}
           onModeChange={setAgentMode}
           onSubmit={submitFollowUp}
           onRefresh={() => {
@@ -965,14 +994,15 @@ export function NovaApp({
           effort={effort}
           mode={agentMode}
           onModelChange={handleModelChange}
-          onEffortChange={setEffort}
+          onEffortChange={handleEffortChange}
           onModeChange={setAgentMode}
           onProjectChange={(selection) => void applyProjectSelection(selection)}
           onManageProjects={() => openSettingsSection("projects")}
           localProject={localProject}
         />
       )}
-    </>
+    </CodexCatalogContext.Provider>
+    </MachineSettingsContext.Provider>
   )
 
   if (view === "settings") {

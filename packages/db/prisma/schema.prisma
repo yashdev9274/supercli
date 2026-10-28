@@ -355,6 +355,7 @@ model OrganizationMembership {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
+  codexConnection         NovaCodexConnection?
   externalIdentities      ExternalIdentity[]
   delegatedConnections    UserDelegatedConnection[]
   initiatedAgentSessions  AgentSession[]
@@ -420,6 +421,27 @@ model UserDelegatedConnection {
   @@index([organizationId, provider, status])
   @@index([installationId])
   @@map("user_delegated_connection")
+}
+
+model NovaCodexConnection {
+  membershipId         String                 @id
+  membership           OrganizationMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  state                String                 @default("disconnected")
+  version              Int                    @default(0)
+  attemptId            String?
+  sessionHash          String?
+  encryptedAttempt     String?                @db.Text
+  encryptedCredentials String?                @db.Text
+  intervalSeconds      Int                    @default(5)
+  expiresAt            DateTime?
+  nextPollAt           DateTime?
+  lastStartedAt        DateTime?
+  connectedAt          DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  @@index([state, expiresAt])
+  @@map("nova_codex_connection")
 }
 
 model ExternalIdentity {

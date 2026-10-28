@@ -20,6 +20,9 @@ import {
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { MACHINE_SIZES, isPremiumMachineSize, machineSizeLabel, machineSizeSchema } from "@/modules/nova/sandbox/machine-sizes"
+import { useMachineSettings } from "@/modules/nova-web/machine-settings"
 import { imageDataUrl, type LocalAttachment } from "@/modules/nova/attachments/contracts"
 import type { NovaReference, ReferenceKind } from "@/modules/nova/references/contracts"
 import {
@@ -56,12 +59,14 @@ import {
   modelChipLabel,
   modelsForProvider,
   NOVA_EFFORTS,
+  CODEX_EFFORT_LABELS,
   type HarnessProvider,
   type NovaAgentMode,
   type NovaEffort,
   type NovaModelEntry,
 } from "@/modules/nova-web/models"
 
+import { useCodexCatalog } from "../codex-catalog"
 import { MentionPicker, mentionOptionId, ReferenceIcon, useReferenceSearch } from "./mention-picker"
 
 const EMPTY_REFERENCES: NovaReference[] = []
@@ -122,7 +127,7 @@ export function Composer({
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const attachRef = useRef<HTMLButtonElement>(null)
-  const attachMenuRef = useRef<HTMLDivElement>(null)
+  const machine = useMachineSettings()
   const pickerRef = useRef<HTMLDivElement>(null)
   const composingRef = useRef(false)
   const [attachMenuOpen, setAttachMenuOpen] = useState(false)
@@ -138,29 +143,31 @@ export function Composer({
   const hintId = `${pickerId}-hint`
   const referencesEnabled = !!onReferencesChange && !disabled && !streaming
   const localFilesEnabled = !!onLocalFilesChange && !disabled && !streaming && !localFileBusy
-  const attachEnabled = referencesEnabled || localFilesEnabled
+  const attachEnabled = !disabled && !streaming
   const pickerOpen = referencesEnabled && mention !== null && mention.draft === value
   const categories = filterReferenceCategories(pickerOpen ? mention.range.query : "")
   const search = useReferenceSearch(pickerOpen ? mention.kind : null, pickerOpen ? mention.range.query : "", mention?.session ?? 0)
   const optionCount = pickerOpen && mention.kind ? search.items.length : categories.length
   const activeIndex = Math.max(0, Math.min(mention?.activeIndex ?? 0, optionCount - 1))
   const canSend = (value.trim().length > 0 || localFiles.length > 0) && !disabled && !streaming && !localFileBusy
-  const effortMeta = NOVA_EFFORTS.find((item) => item.id === effort) ?? NOVA_EFFORTS[2]!
-  const chip = modelChipLabel(provider, model)
+  const codex = useCodexCatalog()
+  const codexModel = codex.models.find((item) => item.id === model)
+  const effortOptions = provider === "codex" ? CODEX_EFFORT_LABELS.filter((item) => codexModel?.efforts.includes(item.id)) : NOVA_EFFORTS
+  const effortMeta = CODEX_EFFORT_LABELS.find((item) => item.id === effort)!
+  const chip = provider === "codex" ? `Codex · ${codexModel?.label ?? model}` : modelChipLabel(provider, model)
 
   const dismissMention = useCallback(() => setMention(null), [])
 
   useEffect(() => {
-    if (!pickerOpen && !attachMenuOpen) return
+    if (!pickerOpen) return
     function onPointer(event: PointerEvent) {
       const target = event.target as Node
-      if (pickerRef.current?.contains(target) || textareaRef.current?.contains(target) || attachRef.current?.contains(target) || attachMenuRef.current?.contains(target)) return
+      if (pickerRef.current?.contains(target) || textareaRef.current?.contains(target) || attachRef.current?.contains(target)) return
       dismissMention()
-      setAttachMenuOpen(false)
     }
     document.addEventListener("pointerdown", onPointer)
     return () => document.removeEventListener("pointerdown", onPointer)
-  }, [attachMenuOpen, dismissMention, pickerOpen])
+  }, [dismissMention, pickerOpen])
 
   useLayoutEffect(() => {
     const pending = pendingCaretRef.current
@@ -209,19 +216,6 @@ export function Composer({
     if (edit.value !== value) onChange(edit.value)
   }
 
-  function openAttachMenu() {
-    if (!attachEnabled) return
-    if (localFilesEnabled && referencesEnabled) {
-      setAttachMenuOpen((open) => !open)
-      dismissMention()
-      return
-    }
-    if (localFilesEnabled) {
-      void handlePickLocalFiles()
-      return
-    }
-    openMention()
-  }
 
   async function ingestLocalFiles(picked: File[], source: "picker" | "paste" | "drop") {
     if (!localFilesEnabled || !onLocalFilesChange || picked.length === 0) return
@@ -547,46 +541,69 @@ export function Composer({
       <p role="status" aria-live="polite" className="sr-only">{referenceAnnouncement}</p>
 
       <div className="relative flex items-center gap-1.5 px-2.5 pb-2.5">
-        <IconBtn
-          buttonRef={attachRef}
-          label={localFileBusy ? "Reading local files…" : "Attach files or mentions"}
-          disabled={!attachEnabled}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={openAttachMenu}
-        >
-          <Plus className="size-4" strokeWidth={1.75} />
-        </IconBtn>
-        {attachMenuOpen ? (
-          <div
-            ref={attachMenuRef}
-            role="menu"
-            aria-label="Attach"
-            className="absolute bottom-[calc(100%+6px)] left-0 z-30 min-w-[200px] overflow-hidden rounded-xl border border-white/[0.1] bg-[#1a1a1a] p-1 shadow-2xl"
-          >
+        <DropdownMenu open={attachMenuOpen && attachEnabled} onOpenChange={(open) => {
+          setAttachMenuOpen(open)
+          if (open) dismissMention()
+        }}>
+          <DropdownMenuTrigger asChild>
+            <button ref={attachRef} type="button" disabled={!attachEnabled}
+              aria-label="Attachments and machine size"
+              title={`Machine size: ${machineSizeLabel(machine.size)}`}
+              className="flex size-7 items-center justify-center rounded-md text-[#999] hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-[#2dd4bf] disabled:opacity-40">
+              <Plus className="size-4" strokeWidth={1.75} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="top" align="start" collisionPadding={12}
+            onCloseAutoFocus={(event) => event.preventDefault()}
+            className="dark min-w-[240px] rounded-xl border-white/10 bg-[#1a1a1a] text-[#d6d6d6] shadow-2xl">
             {localFilesEnabled ? (
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => void handlePickLocalFiles()}
-                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12.5px] text-[#d6d6d6] transition hover:bg-white/[0.05]"
-              >
-                <File className="size-3.5 text-[#2dd4bf]" />
-                Files, photos, documents
-              </button>
+              <DropdownMenuItem onSelect={() => void handlePickLocalFiles()}>
+                <File className="size-3.5 text-[#2dd4bf]" />Files, photos, documents
+              </DropdownMenuItem>
             ) : null}
             {referencesEnabled ? (
-              <button
-                type="button"
-                role="menuitem"
-                onClick={openMention}
-                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12.5px] text-[#d6d6d6] transition hover:bg-white/[0.05]"
-              >
-                <AtSign className="size-3.5 text-[#999]" />
-                Mention @
-              </button>
+              <DropdownMenuItem onSelect={openMention}>
+                <AtSign className="size-3.5" />Mention @
+              </DropdownMenuItem>
             ) : null}
-          </div>
-        ) : null}
+            {localFilesEnabled || referencesEnabled ? <DropdownMenuSeparator /> : null}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Cpu className="size-3.5" />Machine size
+                <span className="ml-auto text-[11px] text-[#999]">{machineSizeLabel(machine.size)}</span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuPortal>
+                <DropdownMenuSubContent collisionPadding={12} sideOffset={6}
+                  className="dark max-h-[var(--radix-dropdown-menu-content-available-height)] w-[280px] max-w-[calc(100vw-24px)] overflow-y-auto rounded-xl border-white/10 bg-[#1a1a1a] text-[#d6d6d6] shadow-2xl">
+                  <p className="px-3 py-2 text-[11px] text-[#999]">E2B cloud Agent workspaces only. Existing threads keep their machine and files.</p>
+                  <DropdownMenuRadioGroup value={machine.size} onValueChange={(value) => {
+                    const parsed = machineSizeSchema.safeParse(value)
+                    if (parsed.success) machine.select(parsed.data)
+                  }}>
+                    {MACHINE_SIZES.map((size) => {
+                      const available = machine.available.includes(size.id)
+                      return (
+                        <DropdownMenuRadioItem key={size.id} value={size.id}
+                          disabled={size.id !== "default" && (machine.loading || !available)}>
+                          {size.label}
+                          <span className="ml-auto flex items-center gap-1.5 text-[10px] text-[#999]">
+                            {isPremiumMachineSize(size.id) ? <span className="rounded border border-amber-300/20 px-1 text-amber-200">Premium</span> : null}
+                            <span>{size.id === "default" ? "Template default" : machine.loading ? "Loading…" : !available ? "Not configured" : ""}</span>
+                          </span>
+                        </DropdownMenuRadioItem>
+                      )
+                    })}
+                  </DropdownMenuRadioGroup>
+                  {machine.error ? <>
+                    <p role="status" className="px-3 py-2 text-[11px] text-amber-300">{machine.error}</p>
+                    <DropdownMenuItem onSelect={(event) => { event.preventDefault(); machine.retry() }}>Retry loading sizes</DropdownMenuItem>
+                  </> : null}
+                  {!machine.loading && !machine.available.includes(machine.size) ? <p role="status" className="px-3 py-2 text-[11px] text-amber-300">Saved size is unavailable. Choose Default or an available size.</p> : null}
+                </DropdownMenuSubContent>
+              </DropdownMenuPortal>
+            </DropdownMenuSub>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <ModelPicker
           provider={provider}
@@ -598,8 +615,10 @@ export function Composer({
 
         <EffortPicker
           value={effort}
-          label={effortMeta.label}
-          disabled={streaming}
+          label={effortOptions.length ? effortMeta.label : "Default"}
+          options={effortOptions}
+          showFast={provider !== "codex"}
+          disabled={streaming || !effortOptions.length}
           onChange={onEffortChange}
         />
 
@@ -704,9 +723,13 @@ function EffortPicker({
   label,
   disabled,
   onChange,
+  options = NOVA_EFFORTS,
+  showFast = true,
 }: {
   value: NovaEffort
   label: string
+  options?: Array<{ id: NovaEffort; label: string }>
+  showFast?: boolean
   disabled?: boolean
   onChange?: (effort: NovaEffort) => void
 }) {
@@ -725,7 +748,7 @@ function EffortPicker({
           <div className="px-2.5 pb-1 pt-2 text-[10px] font-medium uppercase tracking-[0.08em] text-[#5c5c5c]">
             Reasoning
           </div>
-          {NOVA_EFFORTS.map((item) => (
+          {options.map((item) => (
             <button
               key={item.id}
               type="button"
@@ -742,7 +765,7 @@ function EffortPicker({
               {item.id === value ? <Check className="size-3.5 text-[#2dd4bf]" /> : null}
             </button>
           ))}
-          <div className="my-1 border-t border-white/[0.06]" />
+          {showFast ? <><div className="my-1 border-t border-white/[0.06]" />
           <div className="px-2.5 pb-1 pt-1 text-[10px] font-medium uppercase tracking-[0.08em] text-[#5c5c5c]">
             Modes
           </div>
@@ -766,7 +789,7 @@ function EffortPicker({
                 )}
               />
             </span>
-          </button>
+          </button></> : null}
         </Panel>
       ) : null}
     </div>
@@ -788,7 +811,9 @@ function ModelPicker({
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
-  const [activeProvider, setActiveProvider] = useState<HarnessProvider | "all">("all")
+  const [activeProvider, setActiveProvider] = useState<HarnessProvider | "all">(provider === "codex" ? "codex" : "all")
+  const codex = useCodexCatalog()
+  const codexEntries: NovaModelEntry[] = useMemo(() => codex.models.map((item) => ({ id: item.id, provider: "codex", label: item.label, desc: item.description })), [codex.models])
   const ref = useRef<HTMLDivElement>(null)
   useDismiss(ref, open, () => {
     setOpen(false)
@@ -799,7 +824,8 @@ function ModelPicker({
     const q = query.trim().toLowerCase()
     let list =
       activeProvider === "all"
-        ? [...CLOUD_MODELS, ...BYOK_PROVIDERS.flatMap((p) => modelsForProvider(p.id))]
+        ? [...codexEntries, ...CLOUD_MODELS, ...BYOK_PROVIDERS.flatMap((p) => modelsForProvider(p.id))]
+        : activeProvider === "codex" ? codexEntries
         : activeProvider === "supercode"
           ? CLOUD_MODELS
           : modelsForProvider(activeProvider)
@@ -813,7 +839,7 @@ function ModelPicker({
       )
     }
     return list
-  }, [activeProvider, query])
+  }, [activeProvider, query, codexEntries])
 
   function pick(entry: NovaModelEntry) {
     onChange?.({ provider: entry.provider, model: entry.id })
@@ -845,6 +871,7 @@ function ModelPicker({
               label="Supercode Cloud"
               onClick={() => setActiveProvider("supercode")}
             />
+            <ProviderRailItem active={activeProvider === "codex"} label="OpenAI Codex" onClick={() => setActiveProvider("codex")} />
             {BYOK_PROVIDERS.map((item) => (
               <ProviderRailItem
                 key={item.id}
@@ -868,6 +895,14 @@ function ModelPicker({
               />
             </div>
             <div className="max-h-[320px] overflow-y-auto py-1">
+              {activeProvider === "codex" || activeProvider === "all" ? <>
+                <div className="flex items-center justify-between px-2.5 py-1 text-[10px] uppercase tracking-wide text-[#888]">OpenAI Codex <button type="button" onClick={codex.retry} className="normal-case hover:text-white">Refresh</button></div>
+                {codex.loading ? <p role="status" className="px-3 py-3 text-xs text-[#999]">Loading account models…</p>
+                  : codex.error ? <p role="alert" className="px-3 py-3 text-xs text-amber-300">{codex.error}</p>
+                  : !codex.connected ? <p className="px-3 py-3 text-xs text-[#999]">Connect Codex in Settings → Models.</p>
+                  : !codexEntries.length ? <p className="px-3 py-3 text-xs text-[#999]">No models available for this account.</p> : null}
+                {activeProvider === "all" ? filtered.filter((entry) => entry.provider === "codex").map((entry) => <ModelRow key={menuId(entry)} entry={entry} active={provider === "codex" && model === entry.id} onClick={() => pick(entry)} />) : null}
+              </> : null}
               {activeProvider === "all" || activeProvider === "supercode" ? (
                 <>
                   <div className="px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.08em] text-[#5c5c5c]">
@@ -929,7 +964,7 @@ function ModelPicker({
               ) : null}
             </div>
             <div className="border-t border-white/[0.06] px-2.5 py-1.5 text-[10px] text-[#4a4a4a]">
-              {HARNESS_PROVIDERS.length} providers · harness `/api/ai/chat`
+              {HARNESS_PROVIDERS.length} providers · Codex subscription + cloud gateways
             </div>
           </div>
         </Panel>
@@ -980,7 +1015,10 @@ function ModelRow({
         active && "bg-white/[0.05]",
       )}
     >
-      <Cpu className="size-3.5 shrink-0 text-[#6b6b6b]" strokeWidth={1.75} />
+      {entry.provider === "codex" ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src="/logos/models/openai.svg" alt="" className="size-3.5 shrink-0 invert" />
+      ) : <Cpu className="size-3.5 shrink-0 text-[#6b6b6b]" strokeWidth={1.75} />}
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[12.5px] text-[#e4e4e4]">{entry.label}</span>
         <span className="block truncate text-[10px] text-[#5c5c5c]">

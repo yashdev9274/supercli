@@ -4,6 +4,8 @@ import { useMemo, useState } from "react"
 import Image from "next/image"
 import { Check, ChevronDown, Search } from "lucide-react"
 
+import { ChatGPTConnectionCard } from "@/modules/nova-web/components/chatgpt-connection-card"
+import { CodexDeviceConnectionCard } from "@/modules/nova-web/components/codex-device-connection-card"
 import { filterSettingsModels, PROVIDER_CONFIGURATION } from "@/modules/nova-web/model-settings"
 import { modelLogo, PROVIDER_LOGOS, type BrandLogo } from "@/modules/nova-web/model-logos"
 import { ALL_MODELS, HARNESS_PROVIDERS, menuId, modelsForProvider, type HarnessProvider } from "@/modules/nova-web/models"
@@ -22,6 +24,12 @@ export function ModelsSection({ provider, model, onUseModel }: {
     <div>
       <h1 className="text-[28px] font-medium tracking-tight">Models</h1>
       <p className="mt-2 text-[13px] leading-5 text-[#8a8a8a]">Every model and provider in Nova, with the configuration that serves it.</p>
+
+      <CodexDeviceConnectionCard />
+      <details className="mt-5 text-[12px] text-[#8a8a8a]">
+        <summary className="cursor-pointer hover:text-[#ededed]">Advanced · Local Codex companion</summary>
+        <ChatGPTConnectionCard />
+      </details>
 
       <section aria-labelledby="providers-heading" className="mt-10">
         <h2 id="providers-heading" className="text-[13px] font-medium">Providers & connections</h2>

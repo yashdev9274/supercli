@@ -20,7 +20,7 @@ describe("Nova link previews", () => {
   })
 
   test("uses the Nova domain and image for both social preview formats", () => {
-    expect(metadata.metadataBase?.href).toBe("https://nova.supercodeai.tech/")
+    expect(metadata.metadataBase?.toString()).toBe("https://nova.supercodeai.tech/")
     expect(metadata.openGraph?.images).toEqual([{
       url: "/Nova-OG-image.jpg",
       width: 1200,
