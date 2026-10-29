@@ -9,6 +9,7 @@ import { theme } from "./utils/tui"
 import { supercodeInit } from "./commands/ai/init"
 import { skillCommand } from "./commands/skill"
 import { renderWelcome } from "./utils/welcome"
+import { novaCommand } from "./commands/nova"
 
 process.on("unhandledRejection", (reason) => {
   try {
@@ -33,13 +34,14 @@ async function main() {
     .addCommand(loginCommand)
     .addCommand(supercodeInit)
     .addCommand(skillCommand)
+    .addCommand(novaCommand)
 
   program.action(async () => {
     renderWelcome(version)
     program.help()
   })
 
-  program.parse()
+  await program.parseAsync()
 }
 
 main().catch((err) => {

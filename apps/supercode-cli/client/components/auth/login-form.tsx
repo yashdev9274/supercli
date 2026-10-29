@@ -11,6 +11,7 @@ import { PixelLogo } from '@/components/ui/pixel-logo'
 
 const ALLOWED_REDIRECT_ORIGINS = new Set([
   "https://nova.supercodeai.tech",
+  "http://nova.localhost:3000",
   "http://nova.localhost:3003",
 ])
 
@@ -45,17 +46,23 @@ const LoginForm = () => {
 
     let cancelled = false
     const transferSession = async () => {
-      const { data: tokenData, error: tokenError } = await authClient.oneTimeToken.generate()
-      if (cancelled) return
-      if (tokenError || !tokenData?.token) {
-        setError("Failed to create the Nova login session. Please try again.")
-        return
-      }
+      try {
+        const { data: tokenData, error: tokenError } = await authClient.oneTimeToken.generate()
+        if (cancelled) return
+        if (tokenError || !tokenData?.token) {
+          setError("Failed to create the Nova login session. Please reload to try again.")
+          return
+        }
 
-      const callbackUrl = new URL("/api/auth/cli/callback", novaUrl.origin)
-      callbackUrl.searchParams.set("token", tokenData.token)
-      callbackUrl.searchParams.set("redirect", novaUrl.pathname)
-      window.location.replace(callbackUrl.toString())
+        const callbackUrl = new URL("/api/auth/cli/callback", novaUrl.origin)
+        callbackUrl.searchParams.set("token", tokenData.token)
+        callbackUrl.searchParams.set("redirect", novaUrl.pathname)
+        window.location.replace(callbackUrl.toString())
+      } catch {
+        if (!cancelled) {
+          setError("The authentication service is unavailable. Please reload to try again.")
+        }
+      }
     }
 
     void transferSession()
@@ -78,7 +85,15 @@ const LoginForm = () => {
   }
 
   if (data?.session) {
-    return null
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-950 p-4">
+        {error ? (
+          <p role="alert" className="text-sm text-red-400">{error}</p>
+        ) : (
+          <Spinner className="size-8 text-amber-500" />
+        )}
+      </div>
+    )
   }
 
   const handleGitHubSignIn = async () => {
@@ -89,14 +104,16 @@ const LoginForm = () => {
       const callbackURL = novaUrl
         ? `${window.location.origin}/sign-in?redirect=${encodeURIComponent(novaUrl.toString())}`
         : window.location.origin
-      await authClient.signIn.social({
+      const { error: signInError } = await authClient.signIn.social({
         provider: 'github',
         callbackURL,
         errorCallbackURL: `${window.location.origin}/sign-in`,
       })
-    } catch (err) {
-      console.error('Sign in error:', err)
-      setError('Failed to connect to authentication server. Make sure the terminal server is running.')
+      if (signInError) {
+        setError("GitHub sign-in could not be started. Please try again.")
+      }
+    } catch {
+      setError("The authentication service is unavailable. Please try again shortly.")
     } finally {
       setIsLoading(false)
     }
@@ -170,7 +187,7 @@ const LoginForm = () => {
                   </button>
 
                   {error && (
-                    <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3">
+                    <div role="alert" className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3">
                       <p className="text-xs text-red-400 leading-relaxed">{error}</p>
                     </div>
                   )}

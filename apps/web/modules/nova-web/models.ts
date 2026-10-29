@@ -1,6 +1,7 @@
 /** Model catalog mirrored by supercode-cli slashCommands/model.ts. */
 
 export type HarnessProvider =
+  | "codex"
   | "supercode"
   | "concentrateai"
   | "mergedev"
@@ -27,6 +28,7 @@ export type NovaProviderMeta = {
 }
 
 export const HARNESS_PROVIDERS: NovaProviderMeta[] = [
+  { id: "codex", label: "OpenAI Codex", shortLabel: "Codex", isCloud: false },
   { id: "supercode", label: "Supercode Cloud", shortLabel: "Cloud", isCloud: true },
   { id: "concentrateai", label: "ConcentrateAI", shortLabel: "Concentrate", isCloud: false },
   { id: "neon", label: "Neon AI Gateway", shortLabel: "Neon", isCloud: false },
@@ -190,13 +192,21 @@ export const ALL_MODELS: NovaModelEntry[] = [
 
 export const CLOUD_MODELS = ALL_MODELS.filter((m) => m.provider === "supercode")
 export const BYOK_MODELS = ALL_MODELS.filter((m) => m.provider !== "supercode")
-export const BYOK_PROVIDERS = HARNESS_PROVIDERS.filter((p) => !p.isCloud)
+export const BYOK_PROVIDERS = HARNESS_PROVIDERS.filter((p) => !p.isCloud && p.id !== "codex")
 export const NOVA_MODELS = CLOUD_MODELS
 
 export const DEFAULT_NOVA_PROVIDER: HarnessProvider = "supercode"
 export const DEFAULT_NOVA_MODEL = CLOUD_MODELS[0]!.id
 
-export type NovaEffort = "low" | "medium" | "high" | "xhigh"
+export type NovaEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh"
+export const CODEX_EFFORT_LABELS: Array<{ id: NovaEffort; label: string }> = [
+  { id: "none", label: "None" },
+  { id: "minimal", label: "Minimal" },
+  { id: "low", label: "Low" },
+  { id: "medium", label: "Medium" },
+  { id: "high", label: "High" },
+  { id: "xhigh", label: "Extra high" },
+]
 export const NOVA_EFFORTS: Array<{ id: NovaEffort; label: string }> = [
   { id: "low", label: "Low" },
   { id: "medium", label: "Medium" },

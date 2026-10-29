@@ -1,6 +1,8 @@
 import { CommandExitError, Sandbox, type SandboxNetworkOpts } from "e2b"
 
 import { MAX_OUTPUT_BYTES, VM_MS, WORKSPACE } from "./policy"
+import { assertMachineResources, resolveMachine } from "./machine-config"
+import type { MachineSize } from "./machine-sizes"
 
 export type CommandOptions = { signal?: AbortSignal; timeoutMs?: number; cwd?: string; maxBytes?: number }
 export type CommandResult = { successful: boolean; exitCode: number; stdout: string; stderr: string; truncated: boolean }
@@ -97,15 +99,17 @@ export class E2BWorkspace implements CommandRunner {
   }
 }
 
-export async function createE2BWorkspace(name: string, signal: AbortSignal): Promise<E2BWorkspace> {
-  const sandbox = await Sandbox.create(process.env.NOVA_E2B_TEMPLATE || "base", {
+export async function createE2BWorkspace(name: string, signal: AbortSignal, machineSize: MachineSize = "default"): Promise<E2BWorkspace> {
+  const machine = resolveMachine(machineSize)
+  const sandbox = await Sandbox.create(machine.template, {
     ...e2bCredentials(), timeoutMs: VM_MS, signal, requestTimeoutMs: 60_000,
-    metadata: { app: "nova", workspace: name },
+    metadata: { app: "nova", workspace: name, machineSize },
     network: e2bNetwork(),
     lifecycle: { onTimeout: { action: "pause", mode: "filesystem" }, autoResume: false },
   })
   const workspace = new E2BWorkspace(sandbox)
   try {
+    if (machineSize !== "default") assertMachineResources(machineSize, await sandbox.getInfo({ signal, requestTimeoutMs: 10_000 }))
     const identity = await workspace.runBounded("/usr/bin/id", [], { cwd: "/", signal, timeoutMs: 10_000 })
     const uid = /^uid=(\d+)\b/.exec(identity.stdout)?.[1]
     const gid = /\bgid=(\d+)\b/.exec(identity.stdout)?.[1]

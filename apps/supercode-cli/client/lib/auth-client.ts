@@ -5,7 +5,10 @@ import {
 } from "better-auth/client/plugins"
 
 export const authClient = createAuthClient({
-  baseURL: process.env.NEXT_PUBLIC_AUTH_URL || "http://localhost:3004",
+  // Always use the Next.js/Vercel proxy, not the backend URL inferred from env.
+  fetchOptions: {
+    baseURL: "/api/auth",
+  },
   plugins: [
     deviceAuthorizationClient(),
     oneTimeTokenClient(),

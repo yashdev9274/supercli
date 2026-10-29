@@ -9,6 +9,7 @@ const clientUrl = process.env.CLIENT_URL || "http://localhost:3000"
 const isProduction = serverUrl.startsWith("https://")
 const novaOrigins = [
   "https://nova.supercodeai.tech",
+  "http://nova.localhost:3000",
   "http://nova.localhost:3003",
 ]
 

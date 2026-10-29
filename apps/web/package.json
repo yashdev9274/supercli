@@ -9,6 +9,7 @@
     "start": "next start --port 3003",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "sandbox:build-machines": "bun --env-file=../.env.local --env-file=.env --env-file=.env.local scripts/build-nova-machines.ts",
     "db:generate": "prisma generate --schema ../../packages/db/prisma/schema.prisma",
     "db:migrate": "bun run --cwd ../../packages/db db:migrate"
   },

@@ -50,6 +50,32 @@ Nova uses those same variables on the **terminal harness server**, not in browse
 
 The URL must be the bare HTTPS branch origin from Neon Console → branch → AI Gateway, without `/v1`. The token needs `ai_gateway:invoke`; a Neon management API key will not work. Access requires a funded Neon project and varies by branch. The SDK routes Claude to Messages, OpenAI/Codex to Responses, and other models to Chat Completions. Gemini structured output and multi-step tools are currently unsupported; Responses tool continuations can fail upstream. Nova's normal plan and budget limits still apply.
 
+### Local Codex in Nova
+
+Native Codex subscription login is supported only with **locally hosted Nova**, not the Vercel-hosted UI. Install the OpenAI Codex CLI separately, start Nova locally, then run from the workspace you want Codex to inspect:
+
+```bash
+# From this repository (development, no publish required)
+bun apps/supercode-cli/server/src/cli/main.ts nova connect --origin http://localhost:3003
+
+# Once the updated CLI is installed
+supercode nova connect --origin http://localhost:3003
+```
+
+Run `codex login` first if you are not already signed in. The companion defaults to your existing `CODEX_HOME` (or `~/.codex`) and detects the signed-in account through Codex app-server without reading or copying auth files. Keep the same `CODEX_HOME` when running both commands. Confirm the profile/workspace/origin in the terminal. In Nova **Settings → Models → Local Codex**, enter the companion port and single-use code, confirm workspace access, and pair. Your account and models appear automatically; choose **Open local Codex chat**. The browser cannot scan installed binaries directly.
+
+Existing-profile mode cannot sign in, switch accounts or sign out through Nova. Use `codex login` / `codex logout` in the terminal, then restart the companion and pair again. The existing credential-storage backend (including OS keyring) is preserved. Codex itself may renew credentials and write its normal session state.
+
+For a separate Nova account, add `--profile isolated`. This uses `~/.nova-codex` instead, enables **Continue with ChatGPT** and **Sign out of Nova Codex**, and does not reuse the CLI account. Complete sign-in and click **Refresh account & models**. Nova does not install Codex automatically.
+
+This is read-only chat/planning with native follow-up threads, not writable Nova agent tools. Read-only sandboxing does not restrict reads to the selected folder. Only normalized text and terminal events are exposed; unsupported native approval/permission requests are denied. Model catalogs are not entitlement guarantees. Failed/interrupted turns are explicitly incomplete.
+
+The companion binds only `127.0.0.1` (default port `43127`; override with `--port`). It accepts only the exact configured localhost origin and a paired credential. OpenAI credentials stay under Codex's control. Existing mode preserves your configured home and does not change its permissions or credential backend. Your existing Codex configuration may contain hooks, plugins or integrations; this preview does not isolate those. Use `--profile isolated` for a separate profile and avoid adding integrations there. API-key accounts are not supported by this subscription connection. Only one companion should use an isolated profile at a time.
+
+Pairing codes expire in five minutes, are single-use, and permit at most five attempts. Browser session credentials remain in memory for up to one hour. Reloading/navigating away requires restarting the companion and re-pairing. **Unpair** disconnects the browser; **Sign out of Nova Codex** logs out the dedicated profile and does not claim to revoke other OpenAI sessions. Ctrl+C stops the companion. Disconnects, deadline/overflow cancellation, or a failed native interruption may terminate Codex; restart/re-pair to recover.
+
+Browsers may require local-network permission or block HTTPS-to-HTTP loopback connections. Do not work around this by exposing the companion publicly or proxying subscription credentials through Vercel. Current OpenAI documentation directs hosted/commercial integrations to partner-provisioned Sign in with ChatGPT; this native-login path rejects remote origins.
+
 ### Voice Input
 
 Voice capture requires `ffmpeg` and a Smallest.ai API key.

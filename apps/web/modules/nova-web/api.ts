@@ -9,6 +9,8 @@ import type {
 } from "@/modules/nova-web/types"
 import type { LocalAttachment } from "@/modules/nova/attachments/contracts"
 import type { NovaReference } from "@/modules/nova/references/contracts"
+import type { NovaEffort } from "@/modules/nova-web/models"
+import type { MachineSize } from "@/modules/nova/sandbox/machine-sizes"
 
 export async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init)
@@ -179,7 +181,8 @@ export async function* streamTurn(
     clientMessageId?: string
     model?: string
     provider?: string
-    effort?: "low" | "medium" | "high" | "xhigh"
+    effort?: NovaEffort
+    machineSize?: MachineSize
     mode?: "agent" | "plan" | "chat"
     references?: NovaReference[]
     localAttachments?: LocalAttachment[]
@@ -194,6 +197,7 @@ export async function* streamTurn(
       model: options?.model,
       provider: options?.provider,
       effort: options?.effort,
+      machineSize: options?.machineSize,
       mode: options?.mode,
       // Local workspace ids are attached as localAttachments client-side; never send them as GitHub refs.
       references: options?.references

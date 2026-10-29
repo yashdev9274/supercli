@@ -8,6 +8,8 @@ import { createE2BWorkspace, e2bCredentials, e2bNetwork, E2BWorkspace } from "./
 import { checkoutE2B } from "./e2b-checkout"
 import { checkoutPolicy, executionPolicy, RETENTION_MS, sandboxCredentials, sandboxEnabled, sandboxProvider, VM_MS, WORKSPACE } from "./policy"
 import { createToolExecutor, exportPatch, runBounded, sandboxTools } from "./tools"
+import { assertMachineResources, validateMachineSelection } from "./machine-config"
+import type { MachineSize } from "./machine-sizes"
 
 export async function sandboxEligibility(userId: string, sessionId: string) {
   if (process.env.NOVA_SANDBOX_ENABLED !== "true") return null
@@ -22,10 +24,12 @@ export async function sandboxEligibility(userId: string, sessionId: string) {
   return { organizationId: session.organizationId, repositoryFullName: repository.fullName }
 }
 
-type WorkspaceInput = { userId: string; sessionId: string; runId: string; organizationId: string; repositoryFullName: string; signal: AbortSignal }
+type WorkspaceInput = { userId: string; sessionId: string; runId: string; organizationId: string; repositoryFullName: string; machineSize?: MachineSize; signal: AbortSignal }
 
 export async function openSandboxWorkspace(input: WorkspaceInput) {
   const provider = sandboxProvider()
+  const machineSize = validateMachineSelection(input.machineSize)
+  let resources: { cpuCount: number; memoryMB: number } | undefined
   const credentials = provider === "vercel" ? sandboxCredentials() : (e2bCredentials(), {})
   const policy = executionPolicy()
   const domains = typeof policy === "object" ? Object.keys(policy.allow ?? {}) : []
@@ -40,6 +44,11 @@ export async function openSandboxWorkspace(input: WorkspaceInput) {
     if (row?.leaseRunId || row?.status === "recovering") throw new Error("This cloud workspace is busy or awaiting recovery; retry after cleanup")
     if (row && row.expiresAt <= now) throw new Error("Cloud workspace retention expired; start a new thread to avoid losing prior edits silently")
     if (row && !row.baseSha) throw new Error("Cloud workspace setup was interrupted; start a new thread")
+    if (row?.baseSha && provider === "e2b" && machineSize !== "default") {
+      if (!row.providerSandboxId) throw new Error("E2B workspace identity is missing")
+      const info = await E2BSandbox.getInfo(row.providerSandboxId, { ...e2bCredentials(), signal: input.signal, requestTimeoutMs: 10_000 })
+      assertMachineResources(machineSize, info, true)
+    }
     if (!row) row = await tx.novaSandboxSession.create({ data: {
       sandboxName, provider, agentSessionId: input.sessionId, organizationId: input.organizationId,
       userId: input.userId, repositoryFullName: input.repositoryFullName, expiresAt: new Date(Date.now() + RETENTION_MS),
@@ -48,7 +57,7 @@ export async function openSandboxWorkspace(input: WorkspaceInput) {
       leaseRunId: input.runId, leaseExpiresAt: new Date(Date.now() + 660_000), status: "provisioning", lastUsedAt: now,
     } })
     if (claimed.count !== 1) throw new Error("Cloud workspace already claimed")
-    await tx.agentRun.update({ where: { id: input.runId }, data: { executionTarget: "remote_sandbox", policySnapshot: { mode: "cloud_coding", provider, connectedApps: false, publication: false, vmTimeoutMs: VM_MS } } })
+    await tx.agentRun.update({ where: { id: input.runId }, data: { executionTarget: "remote_sandbox", policySnapshot: { mode: "cloud_coding", provider, machineSize, connectedApps: false, publication: false, vmTimeoutMs: VM_MS } } })
     return row
   })
   let sandbox: Sandbox | E2BWorkspace | undefined
@@ -67,7 +76,7 @@ export async function openSandboxWorkspace(input: WorkspaceInput) {
       await tx.novaUsageLedger.upsert({ where: { reservationKey: `sandbox:${input.runId}` }, create: {
         organizationId: input.organizationId, agentSessionId: input.sessionId, runId: input.runId,
         kind: "sandbox_wall_time", quantity: (Date.now() - started) / 1000, unit: "seconds", reservationKey: `sandbox:${input.runId}`,
-        metadata: sandbox instanceof E2BWorkspace ? { provider } : { provider, vcpus: 2, memoryMb: 4096, activeCpuMs: sandbox?.activeCpuUsageMs ?? null, networkTransfer: sandbox?.networkTransfer ?? null },
+        metadata: sandbox instanceof E2BWorkspace ? { provider, machineSize, vcpus: resources?.cpuCount ?? null, memoryMb: resources?.memoryMB ?? null } : { provider, machineSize, vcpus: 2, memoryMb: 4096, activeCpuMs: sandbox?.activeCpuUsageMs ?? null, networkTransfer: sandbox?.networkTransfer ?? null },
       }, update: {} })
     })
     closed = true
@@ -84,7 +93,7 @@ export async function openSandboxWorkspace(input: WorkspaceInput) {
         if (!check.successful) throw new Error("Cloud workspace base commit is unavailable")
       } else {
         const token = await getGithubTokenForUser(input.userId)
-        sandbox = await createE2BWorkspace(sandboxName, input.signal)
+        sandbox = await createE2BWorkspace(sandboxName, input.signal, machineSize)
         await prisma.novaSandboxSession.updateMany({ where: { id: registry.id, leaseRunId: input.runId }, data: { providerSandboxId: sandbox.sandbox.sandboxId } })
         await checkoutE2B(sandbox, input.repositoryFullName, token, input.signal)
         const head = await runBounded(sandbox, "/usr/bin/git", ["rev-parse", "HEAD"], { signal: input.signal })
@@ -108,8 +117,12 @@ export async function openSandboxWorkspace(input: WorkspaceInput) {
       if (!head.successful || !/^[a-f0-9]{40}$/.test(baseSha)) throw new Error("Could not determine checkout base commit")
     }
     // No repository-controlled code is executed while the GitHub broker is active.
-    if (sandbox instanceof E2BWorkspace) await sandbox.sandbox.updateNetwork(e2bNetwork(domains), { signal: input.signal })
-    else await sandbox.update({ networkPolicy: policy }, { signal: input.signal })
+    if (sandbox instanceof E2BWorkspace) {
+      const info = await sandbox.sandbox.getInfo({ signal: input.signal, requestTimeoutMs: 10_000 })
+      resources = { cpuCount: info.cpuCount, memoryMB: info.memoryMB }
+      assertMachineResources(machineSize, info, Boolean(registry.baseSha))
+      await sandbox.sandbox.updateNetwork(e2bNetwork(domains), { signal: input.signal })
+    } else await sandbox.update({ networkPolicy: policy }, { signal: input.signal })
     await prisma.novaSandboxSession.updateMany({ where: { id: registry.id, leaseRunId: input.runId }, data: { baseSha, branch: "default", status: "running", providerSessionId: sandbox instanceof E2BWorkspace ? null : sandbox.currentSession().sessionId } })
     const activeSandbox = sandbox
     return {
