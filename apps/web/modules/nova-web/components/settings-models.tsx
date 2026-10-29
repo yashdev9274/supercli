@@ -8,7 +8,8 @@ import { ChatGPTConnectionCard } from "@/modules/nova-web/components/chatgpt-con
 import { CodexDeviceConnectionCard } from "@/modules/nova-web/components/codex-device-connection-card"
 import { filterSettingsModels, PROVIDER_CONFIGURATION } from "@/modules/nova-web/model-settings"
 import { modelLogo, PROVIDER_LOGOS, type BrandLogo } from "@/modules/nova-web/model-logos"
-import { ALL_MODELS, HARNESS_PROVIDERS, menuId, modelsForProvider, type HarnessProvider } from "@/modules/nova-web/models"
+import { HARNESS_PROVIDERS, menuId, type HarnessProvider, type NovaModelEntry } from "@/modules/nova-web/models"
+import { useCodexCatalog } from "@/modules/nova-web/codex-catalog"
 
 export function ModelsSection({ provider, model, onUseModel }: {
   provider: HarnessProvider
@@ -18,7 +19,9 @@ export function ModelsSection({ provider, model, onUseModel }: {
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState<HarnessProvider | "all">("all")
   const [expanded, setExpanded] = useState<string | null>(null)
-  const models = useMemo(() => filterSettingsModels(query, filter), [query, filter])
+  const codex = useCodexCatalog()
+  const catalog = useMemo(() => filterSettingsModels("", "all", codex.models), [codex.models])
+  const models = useMemo(() => filterSettingsModels(query, filter, codex.models), [query, filter, codex.models])
 
   return (
     <div>
@@ -26,6 +29,13 @@ export function ModelsSection({ provider, model, onUseModel }: {
       <p className="mt-2 text-[13px] leading-5 text-[#8a8a8a]">Every model and provider in Nova, with the configuration that serves it.</p>
 
       <CodexDeviceConnectionCard />
+      <div className="mt-3 flex items-center justify-between gap-3 text-[12px] text-[#8a8a8a]">
+        {codex.loading ? <p role="status">Loading Codex account models…</p>
+          : codex.error ? <p role="alert" className="text-amber-300">{codex.error}</p>
+          : !codex.connected ? <p>Connect Codex to load your account’s models.</p>
+          : <p>{codex.models.length ? `${codex.models.length} Codex account models available.` : "No models available for this Codex account."}</p>}
+        <button type="button" disabled={codex.loading} onClick={codex.retry} className="shrink-0 rounded-md border border-white/10 px-2.5 py-1 hover:bg-white/5 disabled:opacity-50">Refresh Codex models</button>
+      </div>
       <details className="mt-5 text-[12px] text-[#8a8a8a]">
         <summary className="cursor-pointer hover:text-[#ededed]">Advanced · Local Codex companion</summary>
         <ChatGPTConnectionCard />
@@ -43,7 +53,7 @@ export function ModelsSection({ provider, model, onUseModel }: {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13px]">{item.label}</span>
-                  <span className="mt-0.5 block text-[12px] text-[#8a8a8a]">{modelsForProvider(item.id).length} models · {item.isCloud ? "Managed cloud" : "Harness credential"}</span>
+                  <span className="mt-0.5 block text-[12px] text-[#8a8a8a]">{catalog.filter((entry) => entry.provider === item.id).length} models · {item.id === "codex" ? "ChatGPT subscription" : item.isCloud ? "Managed cloud" : "Harness credential"}</span>
                 </span>
                 <ChevronDown className="size-3.5 text-[#8a8a8a] transition-transform group-open:rotate-180" />
               </summary>
@@ -51,9 +61,9 @@ export function ModelsSection({ provider, model, onUseModel }: {
                 <p className="text-[#a0a0a0]">{PROVIDER_CONFIGURATION[item.id].description}</p>
                 <dl className="mt-3 space-y-2">
                   <div><dt className="text-[#8a8a8a]">Provider ID</dt><dd className="font-mono text-[#d0d0d0]">{item.id}</dd></div>
-                  <div><dt className="text-[#8a8a8a]">Harness environment variable</dt><dd className="break-all font-mono text-[#d0d0d0]">{PROVIDER_CONFIGURATION[item.id].credential}</dd></div>
+                  <div><dt className="text-[#8a8a8a]">{item.id === "codex" ? "Connection" : "Harness environment variable"}</dt><dd className="break-all font-mono text-[#d0d0d0]">{PROVIDER_CONFIGURATION[item.id].credential}</dd></div>
                   {PROVIDER_CONFIGURATION[item.id].baseUrl ? <div><dt className="text-[#8a8a8a]">Branch URL environment variable</dt><dd className="break-all font-mono text-[#d0d0d0]">{PROVIDER_CONFIGURATION[item.id].baseUrl}</dd></div> : null}
-                  <div><dt className="text-[#8a8a8a]">Transport</dt><dd className="font-mono text-[#d0d0d0]">POST /api/ai/chat · NDJSON streaming</dd></div>
+                  <div><dt className="text-[#8a8a8a]">Transport</dt><dd className="font-mono text-[#d0d0d0]">{item.id === "codex" ? "Nova backend · Codex Responses SSE" : "POST /api/ai/chat · NDJSON streaming"}</dd></div>
                 </dl>
                 <button type="button" onClick={() => { setFilter(item.id); setQuery("") }} className="mt-3 rounded-md border border-white/10 px-2.5 py-1 text-[#d0d0d0] hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-[#2dd4bf]">Show models</button>
               </div>
@@ -66,7 +76,7 @@ export function ModelsSection({ provider, model, onUseModel }: {
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
             <h2 id="model-catalog-heading" className="text-[13px] font-medium">Models</h2>
-            <p className="mt-1 text-[12px] text-[#8a8a8a]">{ALL_MODELS.length} catalog entries across {HARNESS_PROVIDERS.length} providers</p>
+            <p className="mt-1 text-[12px] text-[#8a8a8a]">{catalog.length} catalog entries across {HARNESS_PROVIDERS.length} providers</p>
           </div>
           <span className="text-[11px] text-[#8a8a8a]">{models.length} shown</span>
         </div>
@@ -94,7 +104,7 @@ export function ModelsSection({ provider, model, onUseModel }: {
                   <ModelRow key={id} entry={entry} selected={selected} expanded={expanded === id} onExpand={() => setExpanded(expanded === id ? null : id)} onUse={() => onUseModel({ provider: entry.provider, model: entry.id })} />
                 )
               })}
-              {models.length === 0 ? <tr><td colSpan={4} className="px-4 py-10 text-center text-[#999]">No models match your search.</td></tr> : null}
+              {models.length === 0 ? <tr><td colSpan={4} className="px-4 py-10 text-center text-[#999]">{filter === "codex" && !codex.models.length ? codex.loading ? "Loading account models…" : codex.error ? "Could not load Codex models. Retry above." : codex.connected ? "No models available for this account." : "Connect Codex to see your account models." : "No models match your search."}</td></tr> : null}
             </tbody>
           </table>
         </div>
@@ -112,7 +122,7 @@ function CompanyLogo({ logo }: { logo: BrandLogo }) {
 }
 
 function ModelRow({ entry, selected, expanded, onExpand, onUse }: {
-  entry: (typeof ALL_MODELS)[number]
+  entry: NovaModelEntry
   selected: boolean
   expanded: boolean
   onExpand: () => void

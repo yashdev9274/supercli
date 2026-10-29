@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 
-import { filterSettingsModels, parseModelSelection, PROVIDER_CONFIGURATION } from "./model-settings"
+import { codexModelEntries, filterSettingsModels, parseModelSelection, PROVIDER_CONFIGURATION } from "./model-settings"
+import { parseCodexModels } from "../nova/codex/models"
 import { ALL_MODELS, BYOK_PROVIDERS, HARNESS_PROVIDERS, menuId, modelsForProvider } from "./models"
 import { normalizeSettingsSection, SETTINGS_SECTIONS } from "./settings-sections"
 
@@ -35,6 +36,19 @@ describe("Models settings", () => {
     expect(filterSettingsModels("teaching optimized", "google").map((entry) => entry.id)).toEqual(["learnlm-1.5-pro"])
     expect(filterSettingsModels("claude", "openrouter").every((entry) => entry.provider === "openrouter")).toBe(true)
     expect(filterSettingsModels("no-such-model", "all")).toEqual([])
+  })
+
+  test("includes account models in settings without adding a hardcoded Codex catalog", () => {
+    const account = parseCodexModels({ models: [{ slug: "account-only", display_name: "Account Model", description: "Subscription coding", visibility: "list" }] })
+    const entries = codexModelEntries(account)
+    expect(filterSettingsModels("", "all", account)).toEqual([...entries, ...ALL_MODELS])
+    expect(filterSettingsModels("", "codex", account)).toEqual(entries)
+    for (const query of ["ACCOUNT-ONLY", "Account Model", "subscription coding", "OpenAI Codex"]) {
+      expect(filterSettingsModels(query, "all", account)).toEqual(entries)
+    }
+    expect(filterSettingsModels("account-only", "google", account)).toEqual([])
+    expect(filterSettingsModels("", "codex")).toEqual([])
+    expect(ALL_MODELS.some((entry) => entry.provider === "codex")).toBe(false)
   })
 
   test("restores only exact catalog provider/model pairs", () => {

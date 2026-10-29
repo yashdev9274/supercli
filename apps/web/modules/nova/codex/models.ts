@@ -16,28 +16,35 @@ export const codexCatalogSchema = z.object({ connected: z.boolean(), models: z.a
 
 export function parseCodexModels(body: unknown): CodexModel[] {
   const parsed = z.object({ models: z.array(z.object({
-    slug: z.string().min(1).max(128),
+    slug: z.string().min(1).max(128).optional(),
+    model: z.string().min(1).max(128).optional(),
+    id: z.string().min(1).max(128).optional(),
     display_name: z.string().min(1).max(160),
     description: z.string().max(2000).optional().default(""),
-    visibility: z.enum(["list", "hide", "hidden"]).optional().default("hide"),
+    visibility: z.enum(["list", "hide", "hidden", "none"]).optional(),
+    show_in_picker: z.boolean().optional(),
     priority: z.number().finite().optional().default(100),
     default_reasoning_level: z.string().nullable().optional(),
-    supported_reasoning_levels: z.array(z.object({ effort: z.string() })).max(16).optional().default([]),
-  })).max(200) }).safeParse(body)
+    default_reasoning_effort: z.string().nullable().optional(),
+    supported_reasoning_levels: z.array(z.object({ effort: z.string() })).max(16).optional(),
+    supported_reasoning_efforts: z.array(z.object({ effort: z.string() })).max(16).optional(),
+  }).refine((entry) => !!(entry.slug ?? entry.model ?? entry.id))).max(200) }).safeParse(body)
   if (!parsed.success) throw new Error("Invalid Codex model catalog")
   const seen = new Set<string>()
   return parsed.data.models.filter((entry) => {
-    if (entry.visibility !== "list" || seen.has(entry.slug)) return false
-    seen.add(entry.slug)
+    const id = (entry.slug ?? entry.model ?? entry.id)!
+    // Explicit hiding wins; omitted visibility must not hide an entire account catalog.
+    if ((entry.visibility !== undefined && entry.visibility !== "list") || entry.show_in_picker === false || seen.has(id)) return false
+    seen.add(id)
     return true
   }).map((entry) => {
-    const efforts = [...new Set(entry.supported_reasoning_levels.flatMap(({ effort }) => {
+    const efforts = [...new Set((entry.supported_reasoning_levels ?? entry.supported_reasoning_efforts ?? []).flatMap(({ effort }) => {
       const result = codexEffortSchema.safeParse(effort)
       return result.success ? [result.data] : []
     }))]
-    const preferred = codexEffortSchema.safeParse(entry.default_reasoning_level)
+    const preferred = codexEffortSchema.safeParse(entry.default_reasoning_level ?? entry.default_reasoning_effort)
     return {
-      id: entry.slug, label: entry.display_name, description: entry.description,
+      id: (entry.slug ?? entry.model ?? entry.id)!, label: entry.display_name, description: entry.description,
       efforts, defaultEffort: preferred.success && efforts.includes(preferred.data) ? preferred.data : efforts[0] ?? null,
       priority: entry.priority,
     }

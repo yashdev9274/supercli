@@ -67,6 +67,7 @@ import {
 } from "@/modules/nova-web/models"
 
 import { useCodexCatalog } from "../codex-catalog"
+import { codexModelEntries } from "../model-settings"
 import { MentionPicker, mentionOptionId, ReferenceIcon, useReferenceSearch } from "./mention-picker"
 
 const EMPTY_REFERENCES: NovaReference[] = []
@@ -813,7 +814,7 @@ function ModelPicker({
   const [query, setQuery] = useState("")
   const [activeProvider, setActiveProvider] = useState<HarnessProvider | "all">(provider === "codex" ? "codex" : "all")
   const codex = useCodexCatalog()
-  const codexEntries: NovaModelEntry[] = useMemo(() => codex.models.map((item) => ({ id: item.id, provider: "codex", label: item.label, desc: item.description })), [codex.models])
+  const codexEntries = useMemo(() => codexModelEntries(codex.models), [codex.models])
   const ref = useRef<HTMLDivElement>(null)
   useDismiss(ref, open, () => {
     setOpen(false)
@@ -959,7 +960,7 @@ function ModelPicker({
                     ))
                   : null}
 
-              {filtered.length === 0 ? (
+              {filtered.length === 0 && (activeProvider !== "codex" || (codexEntries.length > 0 && !codex.loading && !codex.error)) ? (
                 <p className="px-3 py-6 text-center text-[12px] text-[#5c5c5c]">No models match</p>
               ) : null}
             </div>

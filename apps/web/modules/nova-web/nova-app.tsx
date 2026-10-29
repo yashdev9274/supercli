@@ -75,6 +75,9 @@ import type { ProjectSelection } from "@/modules/nova-web/components/project-pic
 import type { LocalAttachment } from "@/modules/nova/attachments/contracts"
 import type { NovaReference } from "@/modules/nova/references/contracts"
 
+import { ACTIVE_REFRESH_MS, IDLE_REFRESH_MS, CONNECTOR_FRESH_MS, createRefreshGate } from "./refresh-policy"
+import { useVisiblePolling } from "./use-visible-polling"
+
 const PENDING_TURN_KEY = "nova:pending-turn"
 
 function mergeProposals(current: FileProposalDto[], incoming: FileProposalDto[]): FileProposalDto[] {
@@ -201,6 +204,7 @@ export function NovaApp({
     return parsed
   }, [pathname, initialPullId, initialSessionId, initialView])
 
+  const [refresh] = useState(() => createRefreshGate())
   const [sessions, setSessions] = useState(initialSessions)
   const [session, setSession] = useState<SessionDetail | null>(null)
   const [timeline, setTimeline] = useState<TimelineEntry[]>([])
@@ -243,9 +247,13 @@ export function NovaApp({
   const workingStepsRef = useRef<WorkingStep[]>([])
 
   const selectedId = route.sessionId
+  const selectedSessionRef = useRef(selectedId)
+  useEffect(() => {
+    selectedSessionRef.current = selectedId
+  }, [selectedId])
   const selectedPullId = route.pullId
   const view = route.view
-  const codexCatalog = useAccountCodexCatalog(user.id, view)
+  const codexCatalog = useAccountCodexCatalog(user.id)
   const machineSettings = useAccountMachineSettings(user.id)
   const { size: machineSize, select: selectMachineSize } = machineSettings
   const pendingApprovals = approvals.filter((item) => item.status === "pending").length
@@ -303,32 +311,47 @@ export function NovaApp({
     })
   }, [])
 
-  const loadSharedState = useCallback(async () => {
-    try {
-      const [sessionList, approvalList, connectorList] = await Promise.all([
-        listSessions(),
-        listApprovals(),
-        listConnectors(),
-      ])
-      setSessions(sessionList.sessions)
-      setApprovals(
-        Array.isArray(approvalList)
-          ? approvalList
-          : "approvals" in approvalList
-            ? approvalList.approvals
-            : [],
-      )
-      setConnectors(connectorList.connectors)
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Could not refresh Nova")
+  const hasActiveWork = streaming || pendingApprovals > 0 || sessions.some((item) => Boolean(item.activeRunId))
+  const refreshInterval = hasActiveWork ? ACTIVE_REFRESH_MS : IDLE_REFRESH_MS
+
+  const refreshConnectors = useCallback((force = false) => refresh(`${user.id}:connectors`, async () => {
+    const result = await listConnectors()
+    setConnectors(result.connectors)
+  }, CONNECTOR_FRESH_MS, force), [refresh, user.id])
+
+  const loadSharedState = useCallback(async (force = true) => {
+    const results = await Promise.allSettled([
+      refresh(`${user.id}:sessions`, async () => {
+        const result = await listSessions()
+        setSessions(result.sessions)
+      }, refreshInterval, force),
+      refresh(`${user.id}:approvals`, async () => {
+        const result = await listApprovals()
+        setApprovals(Array.isArray(result) ? result : result.approvals)
+      }, refreshInterval, force),
+      refreshConnectors(),
+    ])
+    const failure = results.find((result) => result.status === "rejected")
+    if (failure?.status === "rejected") {
+      setError(failure.reason instanceof Error ? failure.reason.message : "Could not refresh Nova")
     }
-  }, [])
+  }, [refresh, refreshConnectors, refreshInterval, user.id])
+
+  const refreshSharedState = useCallback(() => loadSharedState(false), [loadSharedState])
+  useVisiblePolling(refreshSharedState, refreshInterval, true)
+
+  const forceRefreshConnectors = useCallback(() => {
+    void refreshConnectors(true).catch((error) => {
+      setError(error instanceof Error ? error.message : "Could not refresh connectors")
+    })
+  }, [refreshConnectors])
 
   const loadSession = useCallback(async (sessionId: string, reset = false) => {
     const [detailResponse, sync] = await Promise.all([
       getSession(sessionId),
       syncSession(sessionId, reset ? 0 : cursorRef.current, 500),
     ])
+    if (selectedSessionRef.current !== sessionId) return detailResponse.session
     setSession(detailResponse.session)
     setLocalProject(detailResponse.session.localProject ?? null)
     if (detailResponse.session.localProject) {
@@ -368,12 +391,14 @@ export function NovaApp({
     return detailResponse.session
   }, [setSyncCursor])
 
-  const pullSync = useCallback(async (sessionId: string) => {
+  const pullSync = useCallback((sessionId: string, force = true) => refresh(`${user.id}:sync:${sessionId}`, async () => {
+    if (selectedSessionRef.current !== sessionId) return
     let after = cursorRef.current
     let guard = 0
     while (guard < 20) {
       guard += 1
       const page = await syncSession(sessionId, after, 200)
+      if (selectedSessionRef.current !== sessionId) return
       setTimeline((current) =>
         mergeTimeline(
           current,
@@ -386,17 +411,14 @@ export function NovaApp({
       if (!page.hasMore) break
     }
     const detail = await getSession(sessionId)
-    setSession(detail.session)
-  }, [setSyncCursor])
+    if (selectedSessionRef.current === sessionId) setSession(detail.session)
+  }, refreshInterval, force), [refresh, refreshInterval, setSyncCursor, user.id])
 
-  useEffect(() => {
-    void loadSharedState()
-    const timer = window.setInterval(() => {
-      void loadSharedState()
-      if (selectedId && !streaming) void pullSync(selectedId).catch(() => undefined)
-    }, 8_000)
-    return () => window.clearInterval(timer)
-  }, [loadSharedState, pullSync, selectedId, streaming])
+  const refreshSelectedSession = useCallback(async () => {
+    if (!selectedId || streamingRef.current) return
+    await pullSync(selectedId, false)
+  }, [pullSync, selectedId])
+  useVisiblePolling(refreshSelectedSession, refreshInterval)
 
   useEffect(() => {
     if (!selectedId) {
@@ -856,7 +878,7 @@ export function NovaApp({
   function onDecision(approval: ApprovalRequest, decision: "approved" | "denied") {
     setDecidingApprovalId(approval.id)
     void decideApproval(approval, decision)
-      .then(loadSharedState)
+      .then(() => loadSharedState())
       .catch((decisionError) => {
         setError(decisionError instanceof Error ? decisionError.message : "Could not record decision")
       })
@@ -886,7 +908,7 @@ export function NovaApp({
         <ConnectionsView
           connectors={connectors}
           loading={isPending}
-          onRefreshConnectors={() => void loadSharedState()}
+          onRefreshConnectors={forceRefreshConnectors}
         />
       ) : view === "settings" ? (
         <SettingsView

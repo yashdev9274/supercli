@@ -1,4 +1,4 @@
-import { codexEffortSchema } from "../nova/codex/models"
+import { codexEffortSchema, type CodexModel } from "../nova/codex/models"
 import { ALL_MODELS, HARNESS_PROVIDERS, findModel, type HarnessProvider, type NovaModelEntry, type NovaEffort } from "./models"
 
 export type ProviderConfiguration = {
@@ -38,9 +38,13 @@ export function parseModelSelection(raw: string | null): { provider: HarnessProv
   }
 }
 
-export function filterSettingsModels(query: string, provider: HarnessProvider | "all"): NovaModelEntry[] {
+export function codexModelEntries(models: CodexModel[]): NovaModelEntry[] {
+  return models.map((model) => ({ id: model.id, provider: "codex", label: model.label, desc: model.description }))
+}
+
+export function filterSettingsModels(query: string, provider: HarnessProvider | "all", codexModels: CodexModel[] = []): NovaModelEntry[] {
   const search = query.trim().toLowerCase()
-  return ALL_MODELS.filter((model) => {
+  return [...codexModelEntries(codexModels), ...ALL_MODELS].filter((model) => {
     if (provider !== "all" && model.provider !== provider) return false
     const label = HARNESS_PROVIDERS.find((item) => item.id === model.provider)?.label ?? model.provider
     return !search || `${model.label} ${model.id} ${model.desc} ${label}`.toLowerCase().includes(search)

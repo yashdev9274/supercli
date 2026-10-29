@@ -1,13 +1,14 @@
 import { readResponsesSSE } from "../chatgpt/sse"
-import type { CompletedResponse, ResponseItem } from "../chatgpt/responses"
+import { ResponsesAccumulator, type CompletedResponse, type ResponseItem } from "../chatgpt/responses"
 import type { ChatTransport } from "../harness/agent"
 import { codexAccountId, createCodexCredentials, type CodexCredentialContext } from "./credentials"
 import { parseCodexModels, validateCodexSelection } from "./models"
 import { boundedJson, CodexError, refreshCodexTokens } from "./provider"
 
 const BASE = "https://chatgpt.com/backend-api/codex"
-// Catalog protocol pinned to openai/codex; version is a protocol compatibility hint.
-const CLIENT_VERSION = "0.134.0"
+// The upstream catalog is client-version scoped. Keep this aligned with the
+// supported Codex release; an outdated version can receive an empty catalog.
+const CLIENT_VERSION = "0.164.0"
 
 export function createCodexRuntime(context: CodexCredentialContext, fetcher: typeof fetch = fetch) {
   const credentials = createCodexCredentials(context, (tokens) => refreshCodexTokens(tokens, fetcher))
@@ -97,10 +98,34 @@ export function createCodexRuntime(context: CodexCredentialContext, fetcher: typ
         ...(selectedEffort ? { reasoning: { effort: selectedEffort, summary: "auto" } } : {}),
       }
       const response = await request("/responses", body, deadline)
-      if (!response.body || !response.headers.get("content-type")?.includes("text/event-stream")) {
-        await response.body?.cancel()
-        throw new CodexError("Codex did not return a response stream")
+      if (!response.body) throw new CodexError("Codex returned an empty response. Please retry.")
+      const mediaType = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase()
+      if (mediaType === "application/json" || mediaType?.endsWith("+json")) {
+        // Some upstream routes return a completed Responses object instead of SSE.
+        // Use the same completion validator; never forward raw provider errors.
+        const accumulator = new ResponsesAccumulator()
+        let events
+        try {
+          const value = await boundedJson(response, 16_777_216)
+          if (!value || typeof value !== "object") throw new Error("Invalid response")
+          const event = "type" in value ? value : { type: "response.completed", response: value }
+          events = accumulator.accept(event)
+          completed = accumulator.completed()
+        } catch {
+          throw new CodexError("Codex returned an invalid or unsuccessful response. Retry or reconnect your account.")
+        }
+        for (const item of completed.output) {
+          if (item.type !== "message" || !Array.isArray(item.content)) continue
+          for (const part of item.content) {
+            if (part && part.type === "output_text" && typeof part.text === "string") yield { type: "text", content: part.text }
+          }
+        }
+        for (const event of events) yield event
+        round++
+        return
       }
+      // Codex's HTTP client parses SSE without requiring Content-Type. Proxies
+      // may omit or replace it; the bounded parser still requires completion.
       const stream = readResponsesSSE(response.body, deadline)
       while (true) {
         const next = await stream.next()
