@@ -19,6 +19,7 @@ import { useSidebarPreferences } from "@/modules/nova-web/use-sidebar-preference
 import { SidebarOptions } from "./sidebar-options"
 import { SidebarFolderDialog, SidebarThreads } from "./sidebar-threads"
 import { AccountMenu } from "@/modules/nova-web/components/account-menu"
+import { NovaChangelog } from "@/modules/nova-web/components/changelog"
 import { NovaIcon } from "@/modules/nova-web/components/nova-icon"
 import {
   type AgentSessionSummary,
@@ -221,7 +222,9 @@ export function NovaSidebar({
         </div>
       </div>
 
-      <div className="border-t border-white/[0.04] p-2">
+      <NovaChangelog />
+
+      <div className="shrink-0 border-t border-white/[0.04] p-2">
         <AccountMenu user={user} onNavigate={onNavigate} />
       </div>
       {folderDialog ? <SidebarFolderDialog folder={folderDialog} onClose={() => setFolderDialog(null)} onSave={(id, name) => {
