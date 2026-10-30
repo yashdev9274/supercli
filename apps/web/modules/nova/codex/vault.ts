@@ -42,7 +42,10 @@ type CodexVaultEnvironment = {
   NOVA_CODEX_ENCRYPTION_KEY_VERSION?: string
 }
 
-export function configuredCodexVault(env: CodexVaultEnvironment = process.env): CodexVault {
+export function configuredCodexVault(env: CodexVaultEnvironment = {
+  NOVA_CODEX_ENCRYPTION_KEYS: process.env.NOVA_CODEX_ENCRYPTION_KEYS,
+  NOVA_CODEX_ENCRYPTION_KEY_VERSION: process.env.NOVA_CODEX_ENCRYPTION_KEY_VERSION,
+}): CodexVault {
   const rawKeys = env.NOVA_CODEX_ENCRYPTION_KEYS?.trim()
   const active = env.NOVA_CODEX_ENCRYPTION_KEY_VERSION?.trim()
   function invalid(reason: string): never {
