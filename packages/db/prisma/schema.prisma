@@ -507,6 +507,9 @@ model AgentSession {
   budget                Json?
   nextSequence          Int                     @default(1)
   activeRunId           String?
+  parentSessionId       String?
+  parentSession         AgentSession?           @relation("SideThreads", fields: [parentSessionId], references: [id], onDelete: SetNull)
+  sideThreads           AgentSession[]          @relation("SideThreads")
   localProjectId        String?
   localProject          WebLocalProject?        @relation(fields: [localProjectId], references: [id], onDelete: SetNull)
   createdAt             DateTime                @default(now())
@@ -528,6 +531,7 @@ model AgentSession {
 
   @@index([organizationId, status, updatedAt])
   @@index([initiatorMembershipId])
+  @@index([parentSessionId, createdAt])
   @@index([localProjectId])
   @@map("agent_session")
 }

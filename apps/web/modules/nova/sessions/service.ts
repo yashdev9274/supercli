@@ -38,6 +38,7 @@ function serializeSurface(surface: {
 }
 
 function serializeSession(session: {
+  parentSessionId?: string | null
   id: string
   objective: string
   mode: string
@@ -45,6 +46,10 @@ function serializeSession(session: {
   activeRunId: string | null
   nextSequence: number
   updatedAt: Date
+  createdAt?: Date
+  localProject?: { id: string; displayName: string } | null
+  initiatorMembership?: { user: { id: string; name: string; image?: string | null } } | null
+  automationRun?: { id: string } | null
   surfaces: Array<{
     id: string
     provider: string
@@ -57,6 +62,11 @@ function serializeSession(session: {
   return {
     contractVersion: NOVA_CONTRACT_VERSION,
     id: session.id,
+    parentSessionId: session.parentSessionId ?? null,
+    createdAt: session.createdAt?.toISOString(),
+    project: session.localProject ? { id: session.localProject.id, name: session.localProject.displayName } : null,
+    creator: session.initiatorMembership?.user ?? null,
+    origin: session.automationRun ? "automation" : session.surfaces[0]?.provider as AgentSessionSummary["origin"],
     objective: session.objective,
     mode: session.mode,
     status: session.status as AgentSessionSummary["status"],
@@ -77,16 +87,48 @@ async function membershipForUser(userId: string, organizationId: string) {
   return membership
 }
 
-export async function listAgentSessions(userId: string): Promise<AgentSessionSummary[]> {
+export async function listAgentSessions(userId: string, parentSessionId: string | null = null): Promise<AgentSessionSummary[]> {
   const organizationId = await ensureUserOrganization(userId)
   await membershipForUser(userId, organizationId)
+  if (parentSessionId) {
+    const parent = await prisma.agentSession.findFirst({ where: { id: parentSessionId, organizationId }, select: { id: true } })
+    if (!parent) throw new Error("Parent thread not found")
+  }
   const sessions = await prisma.agentSession.findMany({
-    where: { organizationId },
-    include: { surfaces: { where: { status: { not: "archived" } } } },
+    where: { organizationId, parentSessionId },
+    include: {
+      surfaces: { where: { status: { not: "archived" } }, orderBy: { createdAt: "asc" } },
+      localProject: { select: { id: true, displayName: true } },
+      initiatorMembership: { select: { user: { select: { id: true, name: true, image: true } } } },
+      automationRun: { select: { id: true } },
+    },
     orderBy: { updatedAt: "desc" },
     take: 100,
   })
-  return sessions.map(serializeSession)
+  const messages = await prisma.agentSessionMessage.findMany({
+    where: { agentSessionId: { in: sessions.map((session) => session.id) }, senderType: "member", senderId: { not: null } },
+    select: { agentSessionId: true, senderId: true },
+    distinct: ["agentSessionId", "senderId"],
+  })
+  const memberships = await prisma.organizationMembership.findMany({
+    where: { organizationId, id: { in: messages.flatMap((message) => message.senderId ? [message.senderId] : []) } },
+    select: { id: true, user: { select: { id: true, name: true, image: true } } },
+  })
+  const members = new Map(memberships.map((member) => [member.id, member.user]))
+  const participants = new Map<string, Map<string, { id: string; name: string; image?: string | null }>>()
+  for (const message of messages) {
+    const user = message.senderId ? members.get(message.senderId) : null
+    if (!user) continue
+    const group = participants.get(message.agentSessionId) ?? new Map()
+    group.set(user.id, user)
+    participants.set(message.agentSessionId, group)
+  }
+  return sessions.map((session) => {
+    const summary = serializeSession(session)
+    const group = participants.get(session.id) ?? new Map()
+    if (summary.creator) group.set(summary.creator.id, summary.creator)
+    return { ...summary, participants: [...group.values()] }
+  })
 }
 
 export async function getAgentSession(userId: string, sessionId: string) {
@@ -136,6 +178,7 @@ export async function createAgentSession(input: {
   objective: string
   mode?: string
   surface?: NovaSurfaceProvider
+  parentSessionId?: string
   localProjectId?: string | null
 }): Promise<AgentSessionSummary> {
   const organizationId = await ensureUserOrganization(input.userId)
@@ -145,11 +188,17 @@ export async function createAgentSession(input: {
   const surfaceProvider = input.surface === "desktop" ? "desktop" : "web"
 
   return prisma.$transaction(async (tx) => {
+    const parent = input.parentSessionId
+      ? await tx.agentSession.findFirst({ where: { id: input.parentSessionId, organizationId }, select: { id: true, parentSessionId: true, localProjectId: true } })
+      : null
+    if (input.parentSessionId && !parent) throw new Error("Parent thread not found")
+    if (parent?.parentSessionId) throw new Error("Create side threads from the main thread")
+    const requestedProjectId = parent ? parent.localProjectId : input.localProjectId
     let localProjectId: string | null = null
-    if (input.localProjectId) {
+    if (requestedProjectId) {
       const project = await tx.webLocalProject.findFirst({
         where: {
-          id: input.localProjectId,
+          id: requestedProjectId,
           userId: input.userId,
           organizationId,
           status: "active",
@@ -166,6 +215,7 @@ export async function createAgentSession(input: {
         objective,
         mode: input.mode?.trim() || "agent",
         nextSequence: 2,
+        parentSessionId: parent?.id ?? null,
         localProjectId,
       },
     })

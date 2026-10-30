@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useContext, useEffect, useMemo, useRef, useState } from "react"
 import {
   ChevronDown,
   MoreHorizontal,
@@ -18,6 +18,7 @@ import {
 import { WorkingProcess } from "@/modules/nova-web/components/working-process"
 import { WorkspacePanel } from "@/modules/nova-web/components/workspace-panel"
 import { WorkspaceLayout } from "@/modules/nova-web/components/workspace-layout"
+import { ConversationSplitContext } from "@/modules/nova-web/components/side-thread-group"
 import type {
   HarnessProvider,
   NovaAgentMode,
@@ -52,6 +53,7 @@ function workedMsBetween(prev: TimelineEntry, next: TimelineEntry): number | nul
 
 export function ThreadView({
   session,
+  projectLocked = false,
   timeline,
   approvals,
   draft,
@@ -89,6 +91,7 @@ export function ThreadView({
   onDecision,
 }: {
   session: SessionDetail
+  projectLocked?: boolean
   timeline: TimelineEntry[]
   approvals: ApprovalRequest[]
   draft: string
@@ -125,6 +128,7 @@ export function ThreadView({
   onToggleDetails: () => void
   onDecision: (approval: ApprovalRequest, decision: "approved" | "denied") => void
 }) {
+  const conversationSplit = useContext(ConversationSplitContext)
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [now, setNow] = useState(() => Date.now())
@@ -184,7 +188,7 @@ export function ThreadView({
         <div className="hidden sm:block">
           <ProjectPicker
             value={localProject}
-            disabled={loading || streaming}
+            disabled={loading || streaming || projectLocked}
             onChange={(selection) => onProjectChange?.(selection)}
             onManageProjects={onManageProjects}
           />
@@ -232,7 +236,7 @@ export function ThreadView({
       </header>
 
       <WorkspaceLayout
-        open={detailsOpen}
+        open={detailsOpen && !conversationSplit}
         renderWorkspace={(expanded, onToggleExpanded) => (
           <WorkspacePanel
             key={session.id}
@@ -377,6 +381,7 @@ export function ThreadView({
             localFiles={localFiles}
             onLocalFilesChange={onLocalFilesChange}
             onLocalProjectChange={onLocalProjectChange}
+            projectLocked={projectLocked}
             onSubmit={onSubmit}
             streaming={streaming}
             disabled={loading}

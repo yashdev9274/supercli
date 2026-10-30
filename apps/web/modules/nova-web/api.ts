@@ -25,13 +25,13 @@ export async function requestJson<T>(url: string, init?: RequestInit): Promise<T
   return payload as T
 }
 
-export function listSessions() {
-  return requestJson<{ sessions: AgentSessionSummary[] }>("/api/nova/sessions")
+export function listSessions(parentSessionId?: string) {
+  return requestJson<{ sessions: AgentSessionSummary[] }>(`/api/nova/sessions${parentSessionId ? `?parentSessionId=${encodeURIComponent(parentSessionId)}` : ""}`)
 }
 
 export function createSession(
   objective: string,
-  options?: { localProjectId?: string | null; mode?: "agent" | "plan" | "chat" },
+  options?: { localProjectId?: string | null; mode?: "agent" | "plan" | "chat"; parentSessionId?: string },
 ) {
   return requestJson<{ session: AgentSessionSummary }>("/api/nova/sessions", {
     method: "POST",
@@ -41,6 +41,7 @@ export function createSession(
       mode: options?.mode ?? "agent",
       surface: "web",
       localProjectId: options?.localProjectId ?? undefined,
+      parentSessionId: options?.parentSessionId,
     }),
   })
 }

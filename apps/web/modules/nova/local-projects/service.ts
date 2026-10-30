@@ -155,9 +155,12 @@ export async function bindSessionLocalProject(
   const organizationId = await ensureOrg(userId)
   const session = await prisma.agentSession.findFirst({
     where: { id: sessionId, organizationId },
-    select: { id: true },
+    select: { id: true, localProjectId: true, parentSessionId: true, _count: { select: { sideThreads: true } } },
   })
   if (!session) return null
+  if (session.localProjectId !== projectId && (session.parentSessionId || session._count.sideThreads > 0)) {
+    throw new Error("Threads with side conversations share their original project")
+  }
 
   if (projectId) {
     const project = await prisma.webLocalProject.findFirst({

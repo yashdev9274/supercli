@@ -37,6 +37,8 @@ import {
 import { NovaSidebar } from "@/modules/nova-web/components/sidebar"
 import { NovaMark } from "@/modules/nova-web/components/timeline"
 import { ThreadView } from "@/modules/nova-web/components/thread"
+import { SideThreadGroup } from "@/modules/nova-web/components/side-thread-group"
+import { Composer } from "@/modules/nova-web/components/composer"
 import {
   DEFAULT_NOVA_AGENT_MODE,
   DEFAULT_NOVA_MODEL,
@@ -105,6 +107,9 @@ type NovaAppProps = {
   initialPullId?: string | null
   initialView?: WorkspaceView
   initialSettingsSection?: string | null
+  embedded?: boolean
+  parentSessionId?: string
+  onSideSessionCreated?: (session: AgentSessionSummary) => void
 }
 
 function readPendingTurn(): PendingTurn | null {
@@ -176,7 +181,13 @@ export function NovaApp({
   initialPullId = null,
   initialView = "home",
   initialSettingsSection = null,
+  embedded = false,
+  parentSessionId,
+  onSideSessionCreated,
 }: NovaAppProps) {
+  const [embeddedSessionId, setEmbeddedSessionId] = useState(initialSessionId)
+  const [embeddedPendingTurn, setEmbeddedPendingTurn] = useState<PendingTurn | null>(null)
+  const [projectLocked, setProjectLocked] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
   const search =
@@ -190,6 +201,7 @@ export function NovaApp({
   }, [initialSettingsSection, search])
 
   const route = useMemo(() => {
+    if (embedded) return { view: "session" as const, sessionId: embeddedSessionId, pullId: null }
     const parsed = parseRoute(pathname)
     if (!pathname || pathname === "/") {
       if (initialPullId) {
@@ -202,7 +214,7 @@ export function NovaApp({
       }
     }
     return parsed
-  }, [pathname, initialPullId, initialSessionId, initialView])
+  }, [embedded, embeddedSessionId, pathname, initialPullId, initialSessionId, initialView])
 
   const [refresh] = useState(() => createRefreshGate())
   const [sessions, setSessions] = useState(initialSessions)
@@ -227,7 +239,7 @@ export function NovaApp({
     try { localStorage.setItem(`nova:sidebar:v1:${user.id}`, open ? "open" : "closed") }
     catch { /* Optional preference. */ }
   }
-  const [detailsOpen, setDetailsOpen] = useState(true)
+  const [detailsOpen, setDetailsOpen] = useState(!embedded)
   const [draft, setDraft] = useState("")
   const [references, setReferences] = useState<NovaReference[]>([])
   const [localFiles, setLocalFiles] = useState<LocalAttachment[]>([])
@@ -368,7 +380,7 @@ export function NovaApp({
     if (selectedSessionRef.current !== sessionId) return detailResponse.session
     setSession(detailResponse.session)
     setLocalProject(detailResponse.session.localProject ?? null)
-    if (detailResponse.session.localProject) {
+    if (!embedded && detailResponse.session.localProject) {
       const project = detailResponse.session.localProject
       setVirtualProjectIndex({
         projectId: project.id,
@@ -380,7 +392,7 @@ export function NovaApp({
       if (!project.repositoryFullName) {
         void restoreLocalWorkspace(project.id).catch(() => undefined)
       }
-    } else {
+    } else if (!embedded) {
       setVirtualProjectIndex(null)
     }
     if (reset) {
@@ -403,7 +415,7 @@ export function NovaApp({
       setSyncCursor((value) => Math.max(value, sync.nextSequence))
     }
     return detailResponse.session
-  }, [setSyncCursor])
+  }, [embedded, setSyncCursor])
 
   const pullSync = useCallback((sessionId: string, force = true) => refresh(`${user.id}:sync:${sessionId}`, async () => {
     if (selectedSessionRef.current !== sessionId) return
@@ -464,6 +476,7 @@ export function NovaApp({
   }, [loadSession, selectedId, setSyncCursor])
 
   async function applyProjectSelection(selection: ProjectSelection) {
+    if (embedded || projectLocked) return
     if (selection.kind === "none") {
       setLocalProject(null)
       setVirtualProjectIndex(null)
@@ -570,13 +583,14 @@ export function NovaApp({
         const response = await createSession(objective, {
           localProjectId: projectId,
           mode: agentMode || DEFAULT_NOVA_AGENT_MODE,
+          parentSessionId,
         })
         setSessions((current) => [
           response.session,
           ...current.filter((item) => item.id !== response.session.id),
         ])
         // Survive the home → /s/:id remount so the harness turn actually starts.
-        writePendingTurn({
+        const pending: PendingTurn = {
           sessionId: response.session.id,
           content: objective,
           model,
@@ -586,8 +600,15 @@ export function NovaApp({
           machineSize,
           references: selectedReferences,
           localAttachments: selectedLocalFiles,
-        })
-        navigate(`/s/${response.session.id}`)
+        }
+        if (embedded) {
+          setEmbeddedPendingTurn(pending)
+          setEmbeddedSessionId(response.session.id)
+          onSideSessionCreated?.(response.session)
+        } else {
+          writePendingTurn(pending)
+          navigate(`/s/${response.session.id}`)
+        }
         setError(null)
       } catch (createError) {
         setError(createError instanceof Error ? createError.message : "Could not create thread")
@@ -626,8 +647,8 @@ export function NovaApp({
     setLocalFiles([])
     try {
       // Ensure the session is bound to the active project before the turn runs.
-      const activeProjectId = getActiveLocalProjectId() || localProject?.id || null
-      if (activeProjectId && !activeProjectId.startsWith("local-")) {
+      const activeProjectId = embedded ? localProject?.id ?? null : getActiveLocalProjectId() || localProject?.id || null
+      if (!embedded && activeProjectId && !activeProjectId.startsWith("local-")) {
         try {
           await bindSessionLocalProject(sessionId, activeProjectId)
         } catch {
@@ -642,10 +663,9 @@ export function NovaApp({
         workingStepsRef.current = next
         return next
       })
-      const packedAttachments = await packLocalProjectForTurn(
-        content,
-        opts?.localAttachments ?? [],
-      )
+      const packedAttachments = embedded && getActiveLocalProjectId() !== activeProjectId
+        ? opts?.localAttachments ?? []
+        : await packLocalProjectForTurn(content, opts?.localAttachments ?? [])
       if (packedAttachments.length > (opts?.localAttachments?.length ?? 0)) {
         const added = packedAttachments.length - (opts?.localAttachments?.length ?? 0)
         setWorkingSteps((steps) => {
@@ -664,7 +684,7 @@ export function NovaApp({
         message: content,
         explicitMode: opts?.mode ?? agentMode,
         lockExplicit: false,
-        hasProject: Boolean(localProject?.id || getActiveLocalProjectId()),
+        hasProject: Boolean(activeProjectId),
         hasAttachments: (opts?.localAttachments?.length ?? 0) > 0 || packedAttachments.length > 0,
         hasConnectedApps: true,
       })
@@ -770,7 +790,7 @@ export function NovaApp({
           })
           // Browsers block write permission without a user gesture — don't auto-apply.
           // Probe quietly; if write is already granted, apply. Otherwise wait for the button.
-          if ((opts?.mode ?? agentMode) === "agent") {
+          if (!embedded && (opts?.mode ?? agentMode) === "agent") {
             void applyFileProposalsLocally(event.proposals, { interactive: false }).then((batch) => {
               if (batch.applied > 0) {
                 setApplyStatus(batch.message)
@@ -822,7 +842,7 @@ export function NovaApp({
       // Keep workingSteps + workingSince so ThreadView can show the completed process
       // until the next turn starts (which clears them above).
     }
-  }, [agentMode, effort, loadSharedState, localProject?.id, machineSize, model, provider, pullSync, setSyncCursor])
+  }, [embedded, agentMode, effort, loadSharedState, localProject?.id, machineSize, model, provider, pullSync, setSyncCursor])
 
   // Keep "Thinking for Xs" labels live while reasoning is in flight.
   useEffect(() => {
@@ -835,11 +855,12 @@ export function NovaApp({
 
   // After navigating to a new thread, pick up the pending first turn.
   useEffect(() => {
-    if (!selectedId || streamingRef.current) return
-    const pending = readPendingTurn()
+    if (!selectedId || streamingRef.current || !session || isPending) return
+    const pending = embedded ? embeddedPendingTurn : readPendingTurn()
     if (!pending || pending.sessionId !== selectedId) return
     if (turnStartedRef.current === selectedId) return
-    clearPendingTurn()
+    if (embedded) setEmbeddedPendingTurn(null)
+    else clearPendingTurn()
     if (pending.model) setModel(pending.model)
     if (pending.provider) setProvider(pending.provider)
     if (pending.effort) setEffort(pending.effort)
@@ -856,7 +877,7 @@ export function NovaApp({
       references: pending.references,
       localAttachments: pending.localAttachments,
     })
-  }, [runTurn, selectedId, selectMachineSize])
+  }, [embedded, embeddedPendingTurn, isPending, session, runTurn, selectedId, selectMachineSize])
 
   function submitFollowUp() {
     if (!selectedId || streamingRef.current) return
@@ -962,6 +983,7 @@ export function NovaApp({
       ) : selectedId && session ? (
         <ThreadView
           session={session}
+          projectLocked={embedded || projectLocked}
           timeline={timeline}
           approvals={approvals}
           draft={draft}
@@ -983,6 +1005,10 @@ export function NovaApp({
           applyStatus={applyStatus}
           onApplyProposals={async () => {
             if (!fileProposals.length) return
+            if (embedded && (!localProject?.id || getActiveLocalProjectId() !== localProject.id)) {
+              setApplyStatus("Open the parent thread’s project folder before applying these changes.")
+              return
+            }
             setApplyStatus("Granting folder access and applying…")
             // interactive:true runs inside this click — browser allows write + picker.
             const batch = await applyFileProposalsLocally(fileProposals, { interactive: true })
@@ -1024,6 +1050,19 @@ export function NovaApp({
           <div className="mr-2 size-3 animate-spin rounded-full border border-[#2a2a2a] border-t-[#2dd4bf]" />
           {streaming ? "Nova is working…" : "Loading thread…"}
         </div>
+      ) : embedded ? (
+        <div className="flex h-full flex-col justify-center px-6">
+          <div className="mx-auto w-full max-w-[720px]">
+            <h2 className="mb-2 text-center text-xl font-medium">Start a side thread</h2>
+            <p className="mb-8 text-center text-sm text-[#888]">Explore a direction without adding it to this conversation.</p>
+            <Composer value={draft} onChange={setDraft} onSubmit={() => {
+              if (draft.trim() || localFiles.length) void startThread(draft.trim() || "Please review the attached local files.", references, localFiles)
+            }} disabled={isPending || Boolean(selectedId)} model={model} provider={provider} effort={effort} mode={agentMode}
+              onModelChange={handleModelChange} onEffortChange={handleEffortChange} onModeChange={setAgentMode}
+              references={references} onReferencesChange={setReferences} localFiles={localFiles} onLocalFilesChange={setLocalFiles} projectLocked
+              placeholder="Message your side thread…" />
+          </div>
+        </div>
       ) : (
         <EmptyHome
           onStart={startThread}
@@ -1042,6 +1081,13 @@ export function NovaApp({
       )}
     </CodexCatalogContext.Provider>
     </MachineSettingsContext.Provider>
+  )
+
+  if (embedded) return (
+    <div className="relative h-full min-h-0">
+      {content}
+      {error ? <button type="button" onClick={() => setError(null)} className="absolute bottom-2 left-2 right-2 rounded border border-red-500/20 bg-[#1a1010] p-2 text-xs text-red-300">{error}</button> : null}
+    </div>
   )
 
   if (view === "settings") {
@@ -1118,7 +1164,14 @@ export function NovaApp({
             </button>
           </div>
 
-          <div className="min-h-0 flex-1">{content}</div>
+          <div className="min-h-0 flex-1">
+            {selectedId && view === "session" ? (
+              <SideThreadGroup key={selectedId} parentId={selectedId} title={session?.objective ?? "Thread"} onProjectLock={setProjectLocked}
+                renderSideThread={(id, onCreated) => <NovaApp initialSessions={initialSessions} user={user} embedded parentSessionId={selectedId} initialSessionId={id} onSideSessionCreated={onCreated} />}>
+                {content}
+              </SideThreadGroup>
+            ) : content}
+          </div>
 
           {error ? (
             <button

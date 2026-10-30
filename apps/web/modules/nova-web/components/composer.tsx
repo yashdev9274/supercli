@@ -103,6 +103,7 @@ export function Composer({
   localFiles = EMPTY_LOCAL_FILES,
   onLocalFilesChange,
   onLocalProjectChange,
+  projectLocked = false,
 }: {
   value: string
   onChange: (value: string) => void
@@ -125,6 +126,7 @@ export function Composer({
   localFiles?: LocalAttachment[]
   onLocalFilesChange?: (files: LocalAttachment[]) => void
   onLocalProjectChange?: (project: LocalWorkspaceState) => void
+  projectLocked?: boolean
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const attachRef = useRef<HTMLButtonElement>(null)
@@ -353,7 +355,7 @@ export function Composer({
   }
 
   async function handleOpenLocalFolder() {
-    if (!localFilesEnabled) return
+    if (!localFilesEnabled || projectLocked) return
     setLocalFileBusy(true)
     setLocalFileError(null)
     try {
@@ -672,7 +674,7 @@ export function Composer({
           onReferenceSelect={(reference) => void pickReference(reference)}
           onBack={() => pickCategory(null)}
           onRetry={search.retry}
-          onOpenLocalFolder={localFilesEnabled ? () => void handleOpenLocalFolder() : undefined}
+          onOpenLocalFolder={localFilesEnabled && !projectLocked ? () => void handleOpenLocalFolder() : undefined}
           onAttachLocalFiles={localFilesEnabled ? () => void handlePickLocalFiles() : undefined}
           localFolderBusy={localFileBusy}
         />
