@@ -109,7 +109,7 @@ export function CodexDeviceConnectionCard() {
       <p className="mt-2 text-[12px] text-[#8a8a8a]">Connect your own subscriptions to model providers.</p>
       <div className="mt-3 flex min-h-16 items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#222222] px-4 py-3">
         <div role="status" className="min-w-0 text-[13px]">
-          {connected || active ? <div className="flex items-center gap-3"><span aria-hidden="true" className="flex size-8 items-center justify-center rounded-md bg-white/5 font-mono text-[#a0a0a0]">C</span><div>Codex<p className="mt-0.5 text-[12px] text-[#8a8a8a]">{connected ? "Connected · available in chat" : "Waiting for authorization"}</p></div></div> : !view && !error ? "Loading connections…" : !view ? "Connections unavailable" : "No connections"}
+          {connected || active ? <div className="flex items-center gap-3"><span aria-hidden="true" className="flex size-8 items-center justify-center rounded-md bg-white/5 font-mono text-[#a0a0a0]">C</span><div>Codex<p className="mt-0.5 text-[12px] text-[#8a8a8a]">{connected ? "Connection saved · model access checked separately" : "Waiting for authorization"}</p></div></div> : !view && !error ? "Loading connections…" : !view ? "Connections unavailable" : "No connections"}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {connected || active ? <>
