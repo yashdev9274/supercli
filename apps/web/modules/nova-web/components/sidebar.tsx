@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import {
   GitPullRequest,
   Link2,
@@ -9,18 +9,18 @@ import {
   PanelLeft,
   Pencil,
   Search,
-  Settings2,
   Zap,
   X,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { statusDot } from "@/modules/nova-web/theme"
+import { markThreadsRead } from "@/modules/nova-web/sidebar-state"
+import { useSidebarPreferences } from "@/modules/nova-web/use-sidebar-preferences"
+import { SidebarOptions } from "./sidebar-options"
+import { SidebarFolderDialog, SidebarThreads } from "./sidebar-threads"
 import { AccountMenu } from "@/modules/nova-web/components/account-menu"
 import { NovaIcon } from "@/modules/nova-web/components/nova-icon"
 import {
-  relativeTime,
-  sessionUiStatus,
   type AgentSessionSummary,
   type NovaUser,
   type WorkspaceView,
@@ -52,13 +52,13 @@ export function NovaSidebar({
 }) {
   const [searchOpen, setSearchOpen] = useState(false)
 
-  const filtered = useMemo(
-    () =>
-      sessions.filter((item) =>
-        item.objective.toLowerCase().includes(query.toLowerCase()),
-      ),
-    [query, sessions],
-  )
+  const [preferences, updatePreferences] = useSidebarPreferences(user.id)
+  const [folderDialog, setFolderDialog] = useState<{ id: string | null; name: string } | null>(null)
+
+  function clearFilters() {
+    onQueryChange("")
+    updatePreferences((current) => ({ ...current, filters: { project: "all", participant: "all", creator: "all", origin: "all" }, collapsed: [] }))
+  }
 
   const threadsActive = view === "home" || view === "session"
   const pullsActive = view === "pulls" || view === "pull"
@@ -147,13 +147,14 @@ export function NovaSidebar({
             >
               <Search className="size-3" />
             </IconBtn>
-            <IconBtn
-              label="Settings"
-              size="sm"
-              onClick={() => onNavigate("/more")}
-            >
-              <Settings2 className="size-3" />
-            </IconBtn>
+            <SidebarOptions
+              sessions={sessions}
+              preferences={preferences}
+              onChange={updatePreferences}
+              onNewFolder={() => setFolderDialog({ id: null, name: "" })}
+              onMarkRead={() => updatePreferences((current) => markThreadsRead(current, sessions))}
+              onViewAll={() => { clearFilters(); onNavigate("/") }}
+            />
           </div>
         </div>
 
@@ -206,49 +207,16 @@ export function NovaSidebar({
               </p>
             </div>
           ) : (
-            <>
-              {filtered.map((item, index) => {
-                const ui = sessionUiStatus(item)
-                const selected = selectedId === item.id && view === "session"
-                const code = `NOVA-${Math.max(1, sessions.length - index)}`
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => onNavigate(`/s/${item.id}`)}
-                    className={cn(
-                      "group flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left transition",
-                      selected ? "bg-white/[0.07]" : "hover:bg-white/[0.035]",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "mt-[7px] size-1.5 shrink-0 rounded-full",
-                        statusDot[ui] ?? statusDot[item.status] ?? "bg-zinc-600",
-                      )}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start gap-2">
-                        <p className="min-w-0 flex-1 truncate text-[13px] leading-5 text-[#c8c8c8]">
-                          {item.objective}
-                        </p>
-                        <span className="shrink-0 pt-0.5 font-mono text-[10px] text-[#3d3d3d]">
-                          {relativeTime(item.updatedAt)}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.04em] text-[#3d3d3d]">
-                        {code}
-                      </p>
-                    </div>
-                  </button>
-                )
-              })}
-              {filtered.length === 0 ? (
-                <p className="px-3 py-6 text-center text-[12px] text-[#3d3d3d]">
-                  No threads
-                </p>
-              ) : null}
-            </>
+            <SidebarThreads
+              sessions={sessions}
+              query={query}
+              selectedId={view === "session" ? selectedId : null}
+              preferences={preferences}
+              onChange={updatePreferences}
+              onOpen={(id) => onNavigate(`/s/${id}`)}
+              onRenameFolder={(id, name) => setFolderDialog({ id, name })}
+              onClear={clearFilters}
+            />
           )}
         </div>
       </div>
@@ -256,6 +224,11 @@ export function NovaSidebar({
       <div className="border-t border-white/[0.04] p-2">
         <AccountMenu user={user} onNavigate={onNavigate} />
       </div>
+      {folderDialog ? <SidebarFolderDialog folder={folderDialog} onClose={() => setFolderDialog(null)} onSave={(id, name) => {
+        const folderId = id ?? crypto.randomUUID()
+        updatePreferences((current) => ({ ...current, folders: id ? current.folders.map((folder) => folder.id === id ? { ...folder, name } : folder) : [...current.folders, { id: folderId, name }] }))
+        setFolderDialog(null)
+      }} /> : null}
     </aside>
   )
 }

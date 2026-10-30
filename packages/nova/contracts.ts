@@ -137,6 +137,12 @@ export const agentActivitySchema = z.object({
 export const agentSessionSummarySchema = z.object({
   contractVersion: z.literal(NOVA_CONTRACT_VERSION),
   id: z.string().min(1),
+  parentSessionId: z.string().nullable().optional(),
+  createdAt: z.string().datetime().optional(),
+  project: z.object({ id: z.string(), name: z.string() }).nullable().optional(),
+  creator: z.object({ id: z.string(), name: z.string(), image: z.string().nullable().optional() }).nullable().optional(),
+  participants: z.array(z.object({ id: z.string(), name: z.string(), image: z.string().nullable().optional() })).optional(),
+  origin: z.enum(["web", "desktop", "slack", "linear", "github", "automation"]).optional(),
   objective: z.string(),
   mode: z.string(),
   status: agentSessionStatusSchema,

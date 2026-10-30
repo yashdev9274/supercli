@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { MACHINE_SIZES, isPremiumMachineSize, machineSizeLabel, machineSizeSchema } from "@/modules/nova/sandbox/machine-sizes"
 import { useMachineSettings } from "@/modules/nova-web/machine-settings"
@@ -103,6 +104,7 @@ export function Composer({
   localFiles = EMPTY_LOCAL_FILES,
   onLocalFilesChange,
   onLocalProjectChange,
+  projectLocked = false,
 }: {
   value: string
   onChange: (value: string) => void
@@ -125,6 +127,7 @@ export function Composer({
   localFiles?: LocalAttachment[]
   onLocalFilesChange?: (files: LocalAttachment[]) => void
   onLocalProjectChange?: (project: LocalWorkspaceState) => void
+  projectLocked?: boolean
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const attachRef = useRef<HTMLButtonElement>(null)
@@ -353,7 +356,7 @@ export function Composer({
   }
 
   async function handleOpenLocalFolder() {
-    if (!localFilesEnabled) return
+    if (!localFilesEnabled || projectLocked) return
     setLocalFileBusy(true)
     setLocalFileError(null)
     try {
@@ -672,7 +675,7 @@ export function Composer({
           onReferenceSelect={(reference) => void pickReference(reference)}
           onBack={() => pickCategory(null)}
           onRetry={search.retry}
-          onOpenLocalFolder={localFilesEnabled ? () => void handleOpenLocalFolder() : undefined}
+          onOpenLocalFolder={localFilesEnabled && !projectLocked ? () => void handleOpenLocalFolder() : undefined}
           onAttachLocalFiles={localFilesEnabled ? () => void handlePickLocalFiles() : undefined}
           localFolderBusy={localFileBusy}
         />
@@ -815,11 +818,11 @@ function ModelPicker({
   const [activeProvider, setActiveProvider] = useState<HarnessProvider | "all">(provider === "codex" ? "codex" : "all")
   const codex = useCodexCatalog()
   const codexEntries = useMemo(() => codexModelEntries(codex.models), [codex.models])
-  const ref = useRef<HTMLDivElement>(null)
-  useDismiss(ref, open, () => {
-    setOpen(false)
-    setQuery("")
-  })
+  function changeOpen(nextOpen: boolean) {
+    setOpen(nextOpen)
+    if (!nextOpen) setQuery("")
+    else setActiveProvider(provider)
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -849,18 +852,20 @@ function ModelPicker({
   }
 
   return (
-    <div ref={ref} className="relative">
-      <button type="button" disabled={disabled} onClick={() => setOpen((v) => !v)} className="disabled:opacity-50">
-        <Pill open={open}>
-          <Cpu className="size-3.5 opacity-80" strokeWidth={1.75} />
-          <span className="truncate">{chip}</span>
-        </Pill>
-      </button>
-
-      {open ? (
-        <Panel className="left-0 flex w-[420px] overflow-hidden p-0">
+    <Popover open={open} onOpenChange={changeOpen}>
+      <PopoverTrigger asChild>
+        <button type="button" disabled={disabled} aria-label={`Select model: ${chip}`} className="rounded-lg focus-visible:outline-2 focus-visible:outline-[#2dd4bf] disabled:opacity-50">
+          <Pill open={open}>
+            <Cpu className="size-3.5 opacity-80" strokeWidth={1.75} />
+            <span className="truncate">{chip}</span>
+          </Pill>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="top" align="start" sideOffset={8} collisionPadding={12}
+        aria-label="Select model"
+        className="dark flex h-[min(420px,var(--radix-popover-content-available-height))] w-[520px] max-w-[calc(100vw-24px)] overflow-hidden rounded-xl border-white/10 bg-[#1a1a1a] p-0 text-[#e8e8e8] shadow-[0_20px_60px_rgba(0,0,0,0.55)]">
           {/* Provider rail */}
-          <div className="w-[148px] shrink-0 border-r border-white/[0.06] bg-[#141414] py-1.5">
+          <div className="w-[120px] shrink-0 overflow-y-auto overscroll-contain border-r border-white/[0.06] bg-[#141414] py-2 sm:w-[156px]">
             <ProviderRailItem
               active={activeProvider === "all"}
               label="All models"
@@ -884,18 +889,19 @@ function ModelPicker({
           </div>
 
           {/* Model list */}
-          <div className="flex min-w-0 flex-1 flex-col">
-            <div className="flex h-9 items-center gap-2 border-b border-white/[0.06] px-2.5">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className="flex h-11 shrink-0 items-center gap-2 border-b border-white/[0.06] px-3">
               <Search className="size-3.5 text-[#5c5c5c]" />
               <input
                 autoFocus
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search models"
-                className="min-w-0 flex-1 bg-transparent text-[12.5px] text-[#e8e8e8] outline-none placeholder:text-[#4a4a4a]"
+                aria-label="Search models"
+                className="min-w-0 flex-1 bg-transparent text-[12.5px] text-[#e8e8e8] outline-none placeholder:text-[#888]"
               />
             </div>
-            <div className="max-h-[320px] overflow-y-auto py-1">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1">
               {activeProvider === "codex" || activeProvider === "all" ? <>
                 <div className="flex items-center justify-between px-2.5 py-1 text-[10px] uppercase tracking-wide text-[#888]">OpenAI Codex <button type="button" onClick={codex.retry} className="normal-case hover:text-white">Refresh</button></div>
                 {codex.loading ? <p role="status" className="px-3 py-3 text-xs text-[#999]">Loading account models…</p>
@@ -909,11 +915,7 @@ function ModelPicker({
                   <div className="px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.08em] text-[#5c5c5c]">
                     Supercode Cloud
                   </div>
-                  {(activeProvider === "supercode" ? CLOUD_MODELS : CLOUD_MODELS.filter((e) =>
-                    !query.trim()
-                      || e.label.toLowerCase().includes(query.toLowerCase())
-                      || e.id.toLowerCase().includes(query.toLowerCase()),
-                  )).map((entry) => (
+                  {filtered.filter((entry) => entry.provider === "supercode").map((entry) => (
                     <ModelRow
                       key={menuId(entry)}
                       entry={entry}
@@ -964,13 +966,12 @@ function ModelPicker({
                 <p className="px-3 py-6 text-center text-[12px] text-[#5c5c5c]">No models match</p>
               ) : null}
             </div>
-            <div className="border-t border-white/[0.06] px-2.5 py-1.5 text-[10px] text-[#4a4a4a]">
-              {HARNESS_PROVIDERS.length} providers · Codex subscription + cloud gateways
+            <div className="shrink-0 border-t border-white/[0.06] px-3 py-2 text-[10px] leading-4 text-[#888]">
+              {HARNESS_PROVIDERS.length} providers · Subscription & cloud models
             </div>
           </div>
-        </Panel>
-      ) : null}
-    </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -987,8 +988,10 @@ function ProviderRailItem({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={!!active}
+      title={label}
       className={cn(
-        "flex h-8 w-full items-center gap-2 px-2.5 text-left text-[12px] transition",
+        "flex h-9 w-full items-center gap-2 px-3 text-left text-[12px] transition focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#2dd4bf]",
         active ? "bg-white/[0.06] text-white" : "text-[#8a8a8a] hover:bg-white/[0.03] hover:text-[#c8c8c8]",
       )}
     >
@@ -1012,7 +1015,7 @@ function ModelRow({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2 px-2.5 py-1.5 text-left transition hover:bg-white/[0.04]",
+        "flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#2dd4bf]",
         active && "bg-white/[0.05]",
       )}
     >
@@ -1022,7 +1025,7 @@ function ModelRow({
       ) : <Cpu className="size-3.5 shrink-0 text-[#6b6b6b]" strokeWidth={1.75} />}
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[12.5px] text-[#e4e4e4]">{entry.label}</span>
-        <span className="block truncate text-[10px] text-[#5c5c5c]">
+        <span className="mt-0.5 block truncate text-[11px] text-[#888]">
           {entry.desc}
           {entry.cost ? ` · ${entry.cost}` : ""}
         </span>

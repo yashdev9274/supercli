@@ -64,6 +64,7 @@ model Organization {
   desktopDevices           DesktopDevice[]
   webLocalProjects         WebLocalProject[]
   automations              NovaAutomation[]
+  browserSessions          NovaBrowserSession[]
 
   @@map("organization")
 }
@@ -89,6 +90,7 @@ model User {
   organizationMemberships OrganizationMembership[]
   desktopDevices          DesktopDevice[]
   webLocalProjects        WebLocalProject[]
+  browserSessions         NovaBrowserSession[]
 
   @@unique([email])
   @@index([organizationId])
@@ -464,6 +466,33 @@ model ExternalIdentity {
   @@map("external_identity")
 }
 
+model NovaBrowserSession {
+  id                    String       @id @default(cuid())
+  organizationId        String
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId                String
+  user                  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agentSessionId        String
+  agentSession          AgentSession @relation(fields: [agentSessionId], references: [id], onDelete: Cascade)
+  providerSessionId     String?      @unique
+  status                String       @default("provisioning")
+  control               String       @default("user")
+  controlVersion        Int          @default(0)
+  expiresAt             DateTime
+  quotaUntil            DateTime
+  leaseToken            String?
+  leaseUntil            DateTime?
+  screenshot            Bytes?
+  screenshotVersion     String?
+  screenshotExpiresAt   DateTime?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  @@index([organizationId, status, quotaUntil])
+  @@index([agentSessionId, userId, createdAt])
+  @@map("nova_browser_session")
+}
+
 model AgentSession {
   id                    String                  @id @default(cuid())
   organizationId        String
@@ -478,12 +507,16 @@ model AgentSession {
   budget                Json?
   nextSequence          Int                     @default(1)
   activeRunId           String?
+  parentSessionId       String?
+  parentSession         AgentSession?           @relation("SideThreads", fields: [parentSessionId], references: [id], onDelete: SetNull)
+  sideThreads           AgentSession[]          @relation("SideThreads")
   localProjectId        String?
   localProject          WebLocalProject?        @relation(fields: [localProjectId], references: [id], onDelete: SetNull)
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
   completedAt           DateTime?
 
+  browserSessions NovaBrowserSession[]
   surfaces       SessionSurface[]
   messages       AgentSessionMessage[]
   activities     AgentActivity[]
@@ -498,6 +531,7 @@ model AgentSession {
 
   @@index([organizationId, status, updatedAt])
   @@index([initiatorMembershipId])
+  @@index([parentSessionId, createdAt])
   @@index([localProjectId])
   @@map("agent_session")
 }

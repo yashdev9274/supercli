@@ -180,10 +180,10 @@ export default function HeroSection() {
 
         <div className="mt-9 flex flex-col items-center gap-3 sm:flex-row">
           <Link
-            href="/download"
+            href="https://nova.supercodeai.tech"
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-white px-5 text-[13px] font-semibold text-black transition-[transform,background-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hoverable:hover:bg-white/90 active:scale-[0.97]"
           >
-            Get Nova for Mac
+            Use Nova on Web
             <ArrowIcon />
           </Link>
           <a

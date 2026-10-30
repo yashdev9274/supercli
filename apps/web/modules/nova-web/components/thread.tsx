@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useContext, useEffect, useMemo, useRef, useState } from "react"
 import {
   ChevronDown,
   MoreHorizontal,
@@ -17,6 +17,8 @@ import {
 } from "@/modules/nova-web/components/timeline"
 import { WorkingProcess } from "@/modules/nova-web/components/working-process"
 import { WorkspacePanel } from "@/modules/nova-web/components/workspace-panel"
+import { WorkspaceLayout } from "@/modules/nova-web/components/workspace-layout"
+import { ConversationSplitContext } from "@/modules/nova-web/components/side-thread-group"
 import type {
   HarnessProvider,
   NovaAgentMode,
@@ -51,6 +53,7 @@ function workedMsBetween(prev: TimelineEntry, next: TimelineEntry): number | nul
 
 export function ThreadView({
   session,
+  projectLocked = false,
   timeline,
   approvals,
   draft,
@@ -88,6 +91,7 @@ export function ThreadView({
   onDecision,
 }: {
   session: SessionDetail
+  projectLocked?: boolean
   timeline: TimelineEntry[]
   approvals: ApprovalRequest[]
   draft: string
@@ -124,6 +128,7 @@ export function ThreadView({
   onToggleDetails: () => void
   onDecision: (approval: ApprovalRequest, decision: "approved" | "denied") => void
 }) {
+  const conversationSplit = useContext(ConversationSplitContext)
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [now, setNow] = useState(() => Date.now())
@@ -183,7 +188,7 @@ export function ThreadView({
         <div className="hidden sm:block">
           <ProjectPicker
             value={localProject}
-            disabled={loading || streaming}
+            disabled={loading || streaming || projectLocked}
             onChange={(selection) => onProjectChange?.(selection)}
             onManageProjects={onManageProjects}
           />
@@ -230,6 +235,24 @@ export function ThreadView({
         </button>
       </header>
 
+      <WorkspaceLayout
+        open={detailsOpen && !conversationSplit}
+        renderWorkspace={(expanded, onToggleExpanded) => (
+          <WorkspacePanel
+            key={session.id}
+            session={session}
+            timeline={visibleTimeline}
+            workingSteps={workingSteps}
+            streaming={streaming}
+            localProject={localProject}
+            localFiles={localFiles}
+            fileProposals={fileProposals}
+            expanded={expanded}
+            onToggleExpanded={onToggleExpanded}
+            onClose={onToggleDetails}
+          />
+        )}
+      >
       <div className="relative flex min-h-0 flex-1">
         <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-[720px] px-5 py-8 sm:px-8">
@@ -327,19 +350,6 @@ export function ThreadView({
           </button>
         ) : null}
 
-        {detailsOpen ? (
-          <div className="hidden h-full min-h-0 lg:flex">
-            <WorkspacePanel
-              session={session}
-              timeline={visibleTimeline}
-              workingSteps={workingSteps}
-              streaming={streaming}
-              localProject={localProject}
-              localFiles={localFiles}
-              fileProposals={fileProposals}
-            />
-          </div>
-        ) : null}
       </div>
 
       <div className="shrink-0 px-4 pb-4 pt-2 sm:px-6">
@@ -371,6 +381,7 @@ export function ThreadView({
             localFiles={localFiles}
             onLocalFilesChange={onLocalFilesChange}
             onLocalProjectChange={onLocalProjectChange}
+            projectLocked={projectLocked}
             onSubmit={onSubmit}
             streaming={streaming}
             disabled={loading}
@@ -385,6 +396,7 @@ export function ThreadView({
           />
         </div>
       </div>
+      </WorkspaceLayout>
     </div>
   )
 }
