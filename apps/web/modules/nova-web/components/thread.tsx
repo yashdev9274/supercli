@@ -17,6 +17,7 @@ import {
 } from "@/modules/nova-web/components/timeline"
 import { WorkingProcess } from "@/modules/nova-web/components/working-process"
 import { WorkspacePanel } from "@/modules/nova-web/components/workspace-panel"
+import { WorkspaceLayout } from "@/modules/nova-web/components/workspace-layout"
 import type {
   HarnessProvider,
   NovaAgentMode,
@@ -230,6 +231,24 @@ export function ThreadView({
         </button>
       </header>
 
+      <WorkspaceLayout
+        open={detailsOpen}
+        renderWorkspace={(expanded, onToggleExpanded) => (
+          <WorkspacePanel
+            key={session.id}
+            session={session}
+            timeline={visibleTimeline}
+            workingSteps={workingSteps}
+            streaming={streaming}
+            localProject={localProject}
+            localFiles={localFiles}
+            fileProposals={fileProposals}
+            expanded={expanded}
+            onToggleExpanded={onToggleExpanded}
+            onClose={onToggleDetails}
+          />
+        )}
+      >
       <div className="relative flex min-h-0 flex-1">
         <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-[720px] px-5 py-8 sm:px-8">
@@ -327,19 +346,6 @@ export function ThreadView({
           </button>
         ) : null}
 
-        {detailsOpen ? (
-          <div className="hidden h-full min-h-0 lg:flex">
-            <WorkspacePanel
-              session={session}
-              timeline={visibleTimeline}
-              workingSteps={workingSteps}
-              streaming={streaming}
-              localProject={localProject}
-              localFiles={localFiles}
-              fileProposals={fileProposals}
-            />
-          </div>
-        ) : null}
       </div>
 
       <div className="shrink-0 px-4 pb-4 pt-2 sm:px-6">
@@ -385,6 +391,7 @@ export function ThreadView({
           />
         </div>
       </div>
+      </WorkspaceLayout>
     </div>
   )
 }

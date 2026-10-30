@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { Menu, MessageSquare, X } from "lucide-react"
+import { Menu, MessageSquare, PanelLeft, X } from "lucide-react"
 
 import {
   bindSessionLocalProject,
@@ -213,6 +213,20 @@ export function NovaApp({
   const [connectors, setConnectors] = useState<ConnectorStatus[]>([])
   const [query, setQuery] = useState("")
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true)
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`nova:sidebar:v1:${user.id}`)
+      if (saved !== null) queueMicrotask(() => setDesktopSidebarOpen(saved !== "closed"))
+    } catch { /* Optional preference. */ }
+  }, [user.id])
+
+  function toggleDesktopSidebar(open: boolean) {
+    setDesktopSidebarOpen(open)
+    try { localStorage.setItem(`nova:sidebar:v1:${user.id}`, open ? "open" : "closed") }
+    catch { /* Optional preference. */ }
+  }
   const [detailsOpen, setDetailsOpen] = useState(true)
   const [draft, setDraft] = useState("")
   const [references, setReferences] = useState<NovaReference[]>([])
@@ -897,7 +911,10 @@ export function NovaApp({
       onQueryChange={setQuery}
       onNavigate={navigate}
       onNewSession={() => navigate("/")}
-      onClose={() => setSidebarOpen(false)}
+      onClose={() => {
+        if (window.matchMedia("(min-width: 768px)").matches) toggleDesktopSidebar(false)
+        else setSidebarOpen(false)
+      }}
     />
   )
 
@@ -1048,7 +1065,19 @@ export function NovaApp({
   return (
     <main className="dark flex h-dvh min-h-[560px] overflow-hidden bg-[#0a0a0a] text-[#e8e8e8]">
       {/* Desktop sidebar — flush left like Capy */}
-      <div className="hidden md:flex">{sidebar}</div>
+      {desktopSidebarOpen ? <div className="hidden md:flex">{sidebar}</div> : (
+        <div className="hidden w-11 shrink-0 flex-col items-center pt-2 md:flex">
+          <button
+            type="button"
+            aria-label="Open sidebar"
+            title="Open sidebar"
+            onClick={() => toggleDesktopSidebar(true)}
+            className="flex size-8 items-center justify-center rounded-md text-[#969696] hover:bg-white/[0.06] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/40"
+          >
+            <PanelLeft className="size-4" />
+          </button>
+        </div>
+      )}
 
       {/* Mobile drawer */}
       {sidebarOpen ? (

@@ -15,12 +15,16 @@ import {
   LayoutDashboard,
   ListTodo,
   Loader2,
+  Maximize2,
+  Minimize2,
+  PanelRightClose,
   Plus,
   Settings2,
   X,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { BrowserPane } from "@/modules/nova-web/components/browser-pane"
 import type { LocalProjectDto } from "@/modules/nova-web/api"
 import { languageFromPath, type WorkingStep } from "@/modules/nova-web/working-steps"
 import {
@@ -282,7 +286,11 @@ function OverviewPane({
   localProject,
   streaming,
   onOpenPath,
+  onOpenPanel,
+  proposalCount,
 }: {
+  onOpenPanel: (kind: "files" | "diffs" | "browser") => void
+  proposalCount: number
   session: SessionDetail
   todos: OverviewTodo[]
   tasks: OverviewTask[]
@@ -297,14 +305,30 @@ function OverviewPane({
   const [tasksOpen, setTasksOpen] = useState(true)
 
   return (
-    <div className="space-y-5 p-3">
-      <div>
-        <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-[#4a4a4a]">Thread</p>
-        <p className="mt-1 line-clamp-3 text-[13px] leading-5 text-[#d0d0d0]">{session.objective}</p>
-        <p className="mt-1.5 text-[12px] text-[#6b6b6b]">
-          {streaming ? "Working" : sessionUiLabel(session.activeRunId ? "working" : session.status)}
-          {localProject ? ` · ${localProject.displayName}` : ""}
-        </p>
+    <div className="mx-auto max-w-2xl space-y-5 px-5 pb-8 pt-7">
+      <div className="flex flex-col items-center px-5 py-8 text-center">
+        <div className="relative mb-5 flex h-16 w-20 -rotate-6 items-center justify-center rounded-xl border border-white/[0.1] bg-white/[0.025] shadow-[8px_8px_0_0_#ffffff04]">
+          <FolderOpen strokeWidth={1} className="size-8 text-[#777]" />
+          <span className="absolute -bottom-1 -right-1 flex size-6 items-center justify-center rounded-full border border-[#292929] bg-[#171717]">
+            {streaming ? <Loader2 className="size-3 animate-spin text-emerald-300" /> : <Check className="size-3 text-[#999]" />}
+          </span>
+        </div>
+        <h2 className="text-sm font-medium text-[#d7d7d7]">{streaming ? "Your workspace is in motion" : "Everything in one place"}</h2>
+        <p className="mt-2 max-w-64 text-xs leading-5 text-[#858585]">Files, changes, and your shared browser stay here as you work with Nova.</p>
+        <span className="mt-3 text-[10px] uppercase tracking-widest text-[#777]">{streaming ? "Working" : sessionUiLabel(session.activeRunId ? "working" : session.status)}</span>
+      </div>
+      <div className="space-y-2">
+        {([
+          { kind: "diffs", icon: Diff, title: "Diffs", detail: proposalCount ? `${proposalCount} proposed file${proposalCount === 1 ? "" : "s"}` : "No changes yet" },
+          { kind: "files", icon: FolderOpen, title: "Files", detail: localProject ? `${localProject.displayName} · ${localProject.fileCount} files` : "Link a project to explore files" },
+          { kind: "browser", icon: Globe, title: "Browser", detail: "A shared browser for you and Nova" },
+        ] as const).map(({ kind, icon: Icon, title, detail }) => (
+          <button key={kind} type="button" onClick={() => onOpenPanel(kind)} className="group flex w-full items-center gap-3 rounded-lg border border-white/[0.07] bg-white/[0.015] px-3.5 py-3 text-left transition hover:border-white/[0.14] hover:bg-white/[0.035] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/40">
+            <Icon className="size-4 shrink-0 text-[#999]" strokeWidth={1.5} />
+            <span className="min-w-0 flex-1"><span className="block text-xs font-medium text-[#d0d0d0]">{title}</span><span className="mt-1 block truncate text-[11px] text-[#858585]">{detail}</span></span>
+            <ChevronRight className="size-3.5 text-[#666] group-hover:text-[#bbb]" />
+          </button>
+        ))}
       </div>
 
       <section>
@@ -544,7 +568,13 @@ export function WorkspacePanel({
   localFiles = [],
   fileProposals = [],
   className,
+  expanded = false,
+  onToggleExpanded,
+  onClose,
 }: {
+  expanded?: boolean
+  onToggleExpanded?: () => void
+  onClose?: () => void
   session: SessionDetail
   timeline: TimelineEntry[]
   workingSteps: WorkingStep[]
@@ -698,7 +728,7 @@ export function WorkspacePanel({
   ]
 
   return (
-    <aside className={cn("flex h-full min-h-0 w-[320px] shrink-0 flex-col border-l border-white/[0.05] bg-[#0c0c0c]", className)}>
+    <aside aria-label="Workspace panel" className={cn("flex h-full min-h-0 w-full min-w-0 flex-col bg-[#101010] text-[#d0d0d0] [&_button]:focus-visible:outline [&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-white/40", className)}>
       {/* Tab strip */}
       <div className="flex h-10 shrink-0 items-center gap-0.5 border-b border-white/[0.05] px-1.5">
         <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
@@ -717,6 +747,7 @@ export function WorkspacePanel({
                   onClick={() => setActiveId(tab.id)}
                   className="flex min-w-0 items-center gap-1.5"
                   title={tab.kind === "file" ? tab.path : tab.title}
+                  aria-pressed={active}
                 >
                   {tab.kind === "overview" ? <LayoutDashboard className="size-3 shrink-0" /> : null}
                   {tab.kind === "files" ? <FolderOpen className="size-3 shrink-0" /> : null}
@@ -732,7 +763,7 @@ export function WorkspacePanel({
                     type="button"
                     aria-label={`Close ${tab.title}`}
                     onClick={() => closeTab(tab.id)}
-                    className="rounded p-0.5 opacity-0 transition hover:bg-white/[0.08] group-hover:opacity-100"
+                    className="rounded p-0.5 opacity-60 transition hover:bg-white/[0.08] group-hover:opacity-100 focus-visible:opacity-100"
                   >
                     <X className="size-3" />
                   </button>
@@ -799,6 +830,12 @@ export function WorkspacePanel({
             </>
           ) : null}
         </div>
+        <button type="button" aria-label={expanded ? "Restore workspace size" : "Expand workspace"} onClick={onToggleExpanded} className="hidden size-7 shrink-0 items-center justify-center rounded-md text-[#888] hover:bg-white/[0.05] hover:text-white lg:flex">
+          {expanded ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+        </button>
+        <button type="button" aria-label="Close workspace" onClick={onClose} className="flex size-7 shrink-0 items-center justify-center rounded-md text-[#888] hover:bg-white/[0.05] hover:text-white">
+          <PanelRightClose className="size-3.5" />
+        </button>
       </div>
 
       {/* Body */}
@@ -813,6 +850,12 @@ export function WorkspacePanel({
               localProject={localProject}
               streaming={streaming}
               onOpenPath={(path) => openFileTab(path)}
+              proposalCount={fileProposals.length}
+              onOpenPanel={(kind) => {
+                if (kind === "files") ensureTab({ id: "files", kind: "files", title: "Files" })
+                else if (kind === "diffs") ensureTab({ id: "diffs", kind: "diffs", title: "Diffs" })
+                else ensureTab({ id: "browser", kind: "browser", title: "Browser" })
+              }}
             />
           </div>
         ) : null}
@@ -832,10 +875,15 @@ export function WorkspacePanel({
           />
         ) : null}
         {activeTab.kind === "diffs" ? (
-          <PlaceholderPane
-            title="Diffs"
-            body="File diffs for this turn will show here when Nova records edits against the local project."
-          />
+          <div className="h-full overflow-y-auto p-4">
+            <h2 className="mb-1 text-xs font-medium">Proposed changes</h2>
+            <p className="mb-4 text-[11px] leading-5 text-[#888]">Proposed file bodies, not a baseline diff. Apply changes from the conversation.</p>
+            {fileProposals.length ? fileProposals.map((file) => (
+              <button key={file.path} type="button" onClick={() => openFileTab(file.path)} className="mb-2 flex w-full items-center gap-2 rounded-lg border border-white/[0.07] px-3 py-2 text-left text-xs hover:bg-white/[0.04]">
+                <FileBadge path={file.path} /><ChevronRight className="ml-auto size-3" />
+              </button>
+            )) : <p className="py-12 text-center text-xs text-[#888]">No changes yet</p>}
+          </div>
         ) : null}
         {activeTab.kind === "setup" ? (
           <PlaceholderPane
@@ -844,10 +892,7 @@ export function WorkspacePanel({
           />
         ) : null}
         {activeTab.kind === "browser" ? (
-          <PlaceholderPane
-            title="Browser"
-            body="Preview surfaces and live app windows will open in this panel."
-          />
+          <BrowserPane key={session.id} sessionId={session.id} />
         ) : null}
       </div>
     </aside>
