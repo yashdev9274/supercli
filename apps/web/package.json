@@ -101,7 +101,8 @@
     "tailwind-merge": "^3.4.0",
     "three": "^0.187.0",
     "vaul": "^1.1.2",
-    "zod": "^4.3.5"
+    "zod": "^4.3.5",
+    "@super/agent-runtime": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

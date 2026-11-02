@@ -3,6 +3,7 @@ import { afterAll, beforeEach, expect, test } from "bun:test"
 import { flattenHarnessContent, streamHarnessAgent, type HarnessAgentEvent } from "./agent"
 import type { HarnessChatMessage, HarnessChatTool, HarnessStreamEvent } from "./client"
 import type { ComposioTool } from "./composio-client"
+import { createBridgeFixture } from "./bridge-fixture.test-helper"
 
 function contentText(content: HarnessChatMessage["content"] | undefined): string {
   return flattenHarnessContent(content ?? "")
@@ -24,12 +25,15 @@ const chats: Array<{ messages: HarnessChatMessage[]; tools?: HarnessChatTool[] }
 const executions: Array<{ toolName: string; arguments: Record<string, unknown> }> = []
 const authorizations: Array<string | null> = []
 
+const bridgeFixture = createBridgeFixture()
 const server = Bun.serve({
   port: 0,
   async fetch(request) {
     authorizations.push(request.headers.get("authorization"))
     const path = new URL(request.url).pathname
     const body = await request.json()
+    const bridgeResponse = await bridgeFixture(request, body)
+    if (bridgeResponse) return bridgeResponse
     if (path === "/api/composio/tools") return Response.json({ tools: catalog, error: "CLI tools unavailable" }, { status: catalogStatus })
     if (path === "/api/composio/execute") {
       executions.push(body as typeof executions[number])
