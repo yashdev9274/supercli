@@ -19,6 +19,11 @@ export type HarnessChatMessage = {
   tool_calls?: unknown
 }
 
+export type DurableChatTransport = ((input: { token: string; messages: HarnessChatMessage[]; provider: string; model: string; tools?: HarnessChatTool[]; signal?: AbortSignal }) => AsyncGenerator<HarnessStreamEvent>) & {
+  checkpoint?: () => unknown
+  restore?: (state: unknown) => void
+}
+
 export type HarnessChatTool = {
   type: "function"
   function: {

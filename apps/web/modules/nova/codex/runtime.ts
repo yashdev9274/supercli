@@ -71,7 +71,7 @@ export function createCodexRuntime(context: CodexCredentialContext, fetcher: typ
     let completed: CompletedResponse | undefined
     let consumed = 0
     let round = 0
-    return async function* transport(input) {
+    const transport: ChatTransport = async function* (input) {
       const deadline = AbortSignal.any([...(input.signal ? [input.signal] : []), AbortSignal.timeout(180_000)])
       if (!completed) {
         items = input.messages.filter((message) => message.role !== "system").map((message) => {
@@ -134,6 +134,15 @@ export function createCodexRuntime(context: CodexCredentialContext, fetcher: typ
       }
       round++
     }
+    transport.checkpoint = () => ({ items, completed, consumed, round })
+    transport.restore = (state) => {
+      const saved = state as { items: ResponseItem[]; completed: CompletedResponse; consumed: number; round: number }
+      items = saved.items
+      completed = saved.completed
+      consumed = saved.consumed
+      round = saved.round
+    }
+    return transport
   }
   return { catalog, prepare }
 }

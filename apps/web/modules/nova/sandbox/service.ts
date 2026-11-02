@@ -7,7 +7,8 @@ import { getGithubTokenForUser } from "@/modules/github/lib/github"
 import { createE2BWorkspace, e2bCredentials, e2bNetwork, E2BWorkspace } from "./e2b"
 import { checkoutE2B } from "./e2b-checkout"
 import { checkoutPolicy, executionPolicy, RETENTION_MS, sandboxCredentials, sandboxEnabled, sandboxProvider, VM_MS, WORKSPACE } from "./policy"
-import { createToolExecutor, exportPatch, runBounded, sandboxTools } from "./tools"
+import { exportPatch, runBounded } from "./tools"
+import { canonicalSandboxTools, createCanonicalSandboxExecutor } from "./canonical-tools"
 import { assertMachineResources, validateMachineSelection } from "./machine-config"
 import type { MachineSize } from "./machine-sizes"
 
@@ -127,8 +128,8 @@ export async function openSandboxWorkspace(input: WorkspaceInput) {
     const activeSandbox = sandbox
     return {
       provider,
-      tools: sandboxTools(),
-      execute: createToolExecutor(activeSandbox, baseSha, input.signal),
+      tools: canonicalSandboxTools(),
+      execute: createCanonicalSandboxExecutor(activeSandbox, input.signal),
       close,
       async savePatch() {
         // Stop background writers before resuming only the export command.

@@ -14,11 +14,14 @@ import type { ChatTransport } from "@/modules/nova/harness/agent"
 import { ensureHarnessToken } from "@/modules/nova/harness/auth"
 import { referencesInputSchema } from "@/modules/nova/references/contracts"
 import { runWebTurn } from "@/modules/nova/sessions/turn"
+import { resumeHarnessInput } from "@/modules/nova/harness/durable-store"
 import { machineSizeSchema } from "@/modules/nova/sandbox/machine-sizes"
 import { validateMachineSelection } from "@/modules/nova/sandbox/machine-config"
+import { resolveNovaTurnMode } from "@/modules/nova-web/resolve-mode"
 
 const turnSchema = z.object({
   content: z.string().trim().min(1).max(20_000),
+  resumeRunId: z.string().min(1).max(128).optional(),
   clientMessageId: z.string().trim().min(1).max(128).optional(),
   model: z.string().trim().min(1).max(128).optional(),
   provider: z.string().trim().min(1).max(64).optional(),
@@ -45,7 +48,16 @@ export async function POST(
     })
   }
 
-  const parsed = turnSchema.safeParse(await request.json())
+  const { sessionId } = await context.params
+  let body: unknown
+  try {
+    body = await request.json()
+    const resume = z.object({ resumeRunId: z.string().min(1).max(128) }).safeParse(body)
+    if (resume.success) body = { ...await resumeHarnessInput(session.user.id, sessionId, resume.data.resumeRunId), resumeRunId: resume.data.resumeRunId }
+  } catch {
+    return Response.json({ error: "Resume unavailable or invalid request" }, { status: 409 })
+  }
+  const parsed = turnSchema.safeParse(body)
   if (!parsed.success) {
     return new Response(JSON.stringify({ error: "Invalid turn", issues: parsed.error.issues }), {
       status: 400,
@@ -83,7 +95,7 @@ export async function POST(
 
   let harnessAuth: Awaited<ReturnType<typeof ensureHarnessToken>> | undefined
   try {
-    if (!isCodex) harnessAuth = await ensureHarnessToken({
+    harnessAuth = await ensureHarnessToken({
       email: session.user.email,
       name: session.user.name,
       image: session.user.image,
@@ -97,7 +109,6 @@ export async function POST(
     )
   }
 
-  const { sessionId } = await context.params
   const encoder = new TextEncoder()
   const responseHeaders = new Headers({
     "Content-Type": "application/x-ndjson; charset=utf-8",
@@ -125,13 +136,14 @@ export async function POST(
         for await (const event of runWebTurn({
           userId: session.user.id,
           sessionId,
+          resumeRunId: parsed.data.resumeRunId,
           content: parsed.data.content,
           clientMessageId: parsed.data.clientMessageId,
           model: parsed.data.model,
           provider: parsed.data.provider,
           effort: parsed.data.effort,
           machineSize: parsed.data.machineSize,
-          mode: parsed.data.mode ?? "agent",
+          mode: parsed.data.mode ?? resolveNovaTurnMode({ message: parsed.data.content }).mode,
           harnessToken: harnessAuth?.token ?? "",
           chatTransport,
           signal,

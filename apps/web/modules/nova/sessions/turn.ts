@@ -1,4 +1,6 @@
 import prisma from "@super/db"
+import { createDurableJournal, InteractionPending } from "../harness/durable"
+import { authorizeHarnessRun, durableStore, harnessCheckpoint } from "../harness/durable-store"
 
 import { browserService } from "@/modules/nova/browser/server"
 import { browserHarnessTools, executeBrowserTool, isBrowserTool } from "@/modules/nova/browser/tools"
@@ -8,6 +10,7 @@ import { CHATGPT_PROVIDER, CHATGPT_UNAVAILABLE_MESSAGE } from "@/modules/nova/ch
 import { CODEX_PROVIDER } from "@/modules/nova/codex/models"
 import { streamHarnessAgent, type ChatTransport } from "@/modules/nova/harness/agent"
 import type { HarnessChatMessage } from "@/modules/nova/harness/client"
+import { executeWebSearch, webSearchHarnessTools } from "@/modules/nova/harness/web-search"
 import {
   executeNativeGithubTool,
   isNativeGithubTool,
@@ -34,6 +37,7 @@ import {
 } from "@/modules/nova/runs/prompt"
 import { postSessionMessage } from "@/modules/nova/sessions/service"
 import { resolveHarnessSelection } from "@/modules/nova-web/models"
+import { resolveNovaTurnMode } from "@/modules/nova-web/resolve-mode"
 import { WORK_MS } from "@/modules/nova/sandbox/policy"
 import { openSandboxWorkspace, sandboxEligibility } from "@/modules/nova/sandbox/service"
 import { validateMachineSelection } from "@/modules/nova/sandbox/machine-config"
@@ -107,7 +111,8 @@ function modeDirective(mode?: string | null): string {
 - Prefer short guidance over large patches unless the user asks for code.`
     default:
       return `Mode: AGENT (default — implement)
-- You are in agentic implement mode. Do the work, do not stop at a plan.
+- Complete the user's actual task with available tools. Research and web searches do not require a project or file changes.
+- For coding requests, implement rather than stopping at a plan.
 - When the user asks to fix/build/improve UI or code and sources are in <nova_local_files>, output concrete mergeable patches now:
   - Prefer full-file replacements fenced as \`\`\`ts path=relative/path.tsx\`\`\` (or the real language).
   - Or unified diffs with --- a/path +++ b/path.
@@ -360,6 +365,7 @@ async function completeRun(input: {
 export async function* runWebTurn(input: {
   userId: string
   sessionId: string
+  resumeRunId?: string
   content: string
   clientMessageId?: string
   model?: string
@@ -397,7 +403,7 @@ export async function* runWebTurn(input: {
   const selection = input.provider === CODEX_PROVIDER
     ? { provider: CODEX_PROVIDER, model: input.model! }
     : resolveHarnessSelection(input.model, input.provider)
-  const mode = (input.mode ?? "agent").toLowerCase()
+  const mode = (input.mode ?? resolveNovaTurnMode({ message: content }).mode).toLowerCase()
 
   yield {
     type: "status",
@@ -429,7 +435,13 @@ export async function* runWebTurn(input: {
     return
   }
 
-  const posted = await postSessionMessage({
+  const resumed = input.resumeRunId ? await authorizeHarnessRun(input.userId, input.sessionId, input.resumeRunId) : null
+  const original = resumed ? await prisma.agentSessionMessage.findFirstOrThrow({ where: { agentSessionId: input.sessionId, metadata: { path: ["runId"], equals: resumed.id } }, include: { agentSession: true } }) : null
+  const posted = resumed && original ? {
+    runId: resumed.id, surfaceId: original.surfaceId!, latestSequence: original.agentSession.nextSequence - 1,
+    message: { id: original.id, sessionId: input.sessionId, surfaceId: original.surfaceId, sequence: original.sequence, role: "user" as const, content: original.content, senderType: "member" as const, senderId: original.senderId!, createdAt: original.createdAt.toISOString() },
+    replayed: false,
+  } : await postSessionMessage({
     userId: input.userId,
     sessionId: input.sessionId,
     content,
@@ -456,7 +468,7 @@ export async function* runWebTurn(input: {
     return
   }
   const claim = await prisma.agentRun.updateMany({
-    where: { id: posted.runId, status: "queued" },
+    where: { id: posted.runId, status: resumed ? "awaiting_input" : "queued", ...(resumed ? { version: resumed.version, cancellationAt: null } : {}) },
     data: { status: "gathering_context", version: { increment: 1 } },
   })
   if (claim.count !== 1) {
@@ -623,7 +635,7 @@ export async function* runWebTurn(input: {
       if (imageNotes.length) {
         text += `\n\n${imageNotes.join("\n")}`
       }
-      if (mode === "agent" && !workspace) {
+      if (mode === "agent" && !workspace && localAttachments.length > 0) {
         text += `\n\n[Nova agent mode] Implement now. For EVERY file you change, emit a FULL file body in a fenced block with path=, e.g. \n\`\`\`tsx path=apps/web/modules/nova-web/components/workspace-panel.tsx\n...entire file...\n\`\`\`\nNova will apply those fences to the user's local folder. Do not claim you wrote a file unless you emitted its full path= fence. Do not reply with only a plan.`
       }
       userMessage.content = text
@@ -639,7 +651,7 @@ export async function* runWebTurn(input: {
     // Kick a thinking step on the client even when the provider emits no reasoning tokens.
     yield {
       type: "reasoning",
-      content: workspace ? "Working in the cloud checkout…" : mode === "agent" ? "Implementing against packed project sources…" : "Working…",
+      content: workspace ? "Working in the cloud checkout…" : mode === "agent" && localAttachments.length > 0 ? "Working with packed project sources…" : "Working…",
     }
     await prisma.agentRun.updateMany({
       where: { id: posted.runId, status: { in: ["queued", "gathering_context", "planning"] } },
@@ -655,6 +667,8 @@ export async function* runWebTurn(input: {
     for await (const event of streamHarnessAgent({
       token: input.harnessToken,
       chatTransport: input.chatTransport,
+      journal: createDurableJournal(durableStore(input.sessionId, posted.runId)),
+      checkpoint: (value) => harnessCheckpoint(input.sessionId, posted.runId, value, { content, provider: selection.provider, model: selection.model, effort: input.effort, mode, machineSize }, Boolean(workspace)),
       skipConnectedTools: !input.harnessToken,
       messages: context.messages,
       provider: selection.provider,
@@ -662,9 +676,10 @@ export async function* runWebTurn(input: {
       signal: turnSignal,
       mode,
       isolatedTools: Boolean(workspace),
-      extraTools: [...(workspace?.tools ?? nativeGithubHarnessTools()), ...(browserClaim ? browserHarnessTools() : [])],
+      extraTools: [...webSearchHarnessTools(), ...(workspace?.tools ?? nativeGithubHarnessTools()), ...(browserClaim ? browserHarnessTools() : [])],
       executeExtraTool: async (toolName, args, signal) => {
         signal?.throwIfAborted()
+        if (["exa_search", "firecrawl_search", "contextdev_search"].includes(toolName)) return executeWebSearch({ query: args.query, limit: Math.min(100, Number(args.maxResults ?? 10)), provider: toolName === "exa_search" ? "exa" : toolName === "firecrawl_search" ? "firecrawl" : "contextdev", includeDomains: args.includeDomains, excludeDomains: args.excludeDomains }, { token: input.harnessToken, signal })
         if (isBrowserTool(toolName)) {
           if (!browserClaim || mode !== "agent") return { successful: false, error: "Browser agent control is not enabled" }
           const { runCdpAction } = await import("@/modules/nova/browser/cdp")
@@ -757,7 +772,7 @@ export async function* runWebTurn(input: {
       proposals = remapProposals(proposals, context.localProject.paths)
     }
 
-    if (mode === "agent" && !workspace && proposals.length === 0) {
+    if (mode === "agent" && !workspace && localAttachments.length > 0 && proposals.length === 0) {
       // Soft nudge only in the working log — answer still delivers.
       yield {
         type: "status",
@@ -853,6 +868,11 @@ export async function* runWebTurn(input: {
       model: modelTag,
     }
   } catch (error) {
+    if (error instanceof InteractionPending) {
+      yield { type: "status", phase: "awaiting_input", message: "Waiting for your answer or approval", runId: posted.runId }
+      yield { type: "finish", reason: "awaiting_input", runId: posted.runId }
+      return
+    }
     let recovery = ""
     if (workspace && !patchSaved) {
       recovery = await workspace.savePatch().catch(() => "Cloud edits remain in the workspace, but patch export was unavailable.")

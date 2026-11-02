@@ -5,6 +5,8 @@ import { z } from "zod"
 
 import { harnessTokenCookieHeader } from "@/modules/nova/harness/cookies"
 
+import { getNovaLoginRedirectUrl } from "./redirect"
+
 const callbackQuerySchema = z.object({
   token: z.string().min(1).max(512),
   redirect: z.literal("/app").default("/app"),
@@ -50,6 +52,11 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   if (!query.success) {
     return errorResponse("Invalid or missing login token", 400)
+  }
+
+  const redirectUrl = getNovaLoginRedirectUrl(request)
+  if (!redirectUrl) {
+    return errorResponse("Invalid Nova login host", 400)
   }
 
   let cliResponse: Response
@@ -114,7 +121,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     ipAddress: forwardedFor?.split(",")[0]?.trim(),
     userAgent: request.headers.get("user-agent") ?? undefined,
   })
-  const response = NextResponse.redirect(new URL(query.data.redirect, request.url))
+  const response = NextResponse.redirect(redirectUrl)
   response.headers.append("Set-Cookie", sessionCookie)
 
   // Keep the CLI/harness session token so Nova web can call /api/ai/chat
