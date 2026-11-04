@@ -17,6 +17,7 @@ import {
   Search,
   Settings2,
   UserRound,
+  Wallet,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -27,6 +28,7 @@ import {
   type LocalProjectDto,
 } from "@/modules/nova-web/api"
 import { AccountMenu } from "@/modules/nova-web/components/account-menu"
+import { BillingSection } from "@/modules/nova-web/components/settings-billing"
 import { ModelsSection } from "@/modules/nova-web/components/settings-models"
 import type { HarnessProvider } from "@/modules/nova-web/models"
 import { getConnectedRepos } from "@/modules/dashboard/actions/analytics"
@@ -52,6 +54,7 @@ const SECTION_META: Array<{
   { id: "models", label: "Models", icon: Cpu },
   { id: "activity", label: "Activity", icon: Activity },
   { id: "usage", label: "Usage", icon: CreditCard },
+  { id: "billing", label: "Billing", icon: Wallet },
 ]
 
 const PREFS_KEY = "nova:settings:general"
@@ -275,6 +278,7 @@ export function SettingsView({
           {section === "usage" ? (
             <UsageSection loading={usageLoading} error={usageError} data={usage} />
           ) : null}
+          {section === "billing" ? <BillingSection /> : null}
         </div>
       </section>
     </div>
