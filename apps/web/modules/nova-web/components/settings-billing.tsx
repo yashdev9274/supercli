@@ -23,6 +23,7 @@ type BillingState = {
   balanceUsd: number | null
   totalCreditsUsd: number | null
   spentThisPeriodUsd: number | null
+  resetAt: string | null
   source: "harness" | "none" | null
 }
 
@@ -40,6 +41,7 @@ const INITIAL_BILLING: BillingState = {
   balanceUsd: 0,
   totalCreditsUsd: 0,
   spentThisPeriodUsd: 0,
+  resetAt: null,
   source: null,
 }
 
@@ -61,6 +63,7 @@ export function BillingSection() {
         balanceUsd?: number | null
         totalCreditsUsd?: number | null
         spentThisPeriodUsd?: number | null
+        resetAt?: string | null
         source?: "harness" | "none" | null
       }>("/api/nova/settings/billing")
       setState({
@@ -77,6 +80,7 @@ export function BillingSection() {
         balanceUsd: info.balanceUsd ?? 0,
         totalCreditsUsd: info.totalCreditsUsd ?? 0,
         spentThisPeriodUsd: info.spentThisPeriodUsd ?? 0,
+        resetAt: info.resetAt ?? null,
         source: info.source ?? null,
       })
     } catch (error) {
@@ -98,6 +102,9 @@ export function BillingSection() {
   const hasPlan = Boolean(state.plan.name && state.plan.name !== "Free")
   const renewsLabel = state.plan.renewsAt
     ? new Date(state.plan.renewsAt).toLocaleDateString()
+    : null
+  const resetsLabel = state.resetAt
+    ? new Date(state.resetAt).toLocaleDateString()
     : null
   const totalCredits = state.totalCreditsUsd ?? 0
   const hasCredits = totalCredits > 0
@@ -130,11 +137,11 @@ export function BillingSection() {
                 <Loader2 className="size-3.5 animate-spin" />
                 Loading plan…
               </p>
-            ) : hasPlan ? (
+            ) : (
               <>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-[15px] font-medium text-white">
-                    {state.plan.name} plan
+                    {state.plan.name ?? "Free"} plan
                   </p>
                   {state.plan.displayPrice ? (
                     <span className="rounded-md bg-white/[0.06] px-2 py-0.5 text-[11px] text-white/75 tabular-nums">
@@ -155,14 +162,9 @@ export function BillingSection() {
                   ) : null}
                 </div>
                 <p className="mt-1.5 text-[12.5px] leading-5 text-[#6b6b6b]">
-                  Recurring monthly subscription with included credits.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-[15px] font-medium text-white">No plan</p>
-                <p className="mt-1.5 text-[12.5px] leading-5 text-[#6b6b6b]">
-                  Credits only, no recurring plan
+                  {hasPlan
+                    ? "Recurring monthly subscription with included credits."
+                    : "Credits only, no recurring plan"}
                 </p>
               </>
             )}
@@ -231,6 +233,7 @@ export function BillingSection() {
               <span>
                 Used ${(state.spentThisPeriodUsd ?? 0).toFixed(2)} of $
                 {state.totalCreditsUsd?.toFixed(2)} this period
+                {resetsLabel ? ` · resets ${resetsLabel}` : null}
               </span>
               <button
                 type="button"
