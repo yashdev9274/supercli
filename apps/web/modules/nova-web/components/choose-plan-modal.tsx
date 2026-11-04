@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Check, Gift, Sparkles, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { NovaIcon } from "@/modules/nova-web/components/nova-icon"
 import {
   type BillingCycle,
   type Region,
@@ -89,10 +90,15 @@ export function ChoosePlanModal({
         </button>
 
         <div className="px-6 pb-2 pt-8 text-center">
-          <div className="mx-auto flex size-11 items-center justify-center rounded-xl bg-gradient-to-b from-emerald-500/20 to-emerald-500/5 ring-1 ring-emerald-500/30">
-            <Gift className="size-5 text-emerald-300" />
+          <div className="mx-auto flex flex-col items-center gap-3">
+            <div className="flex size-12 items-center justify-center rounded-2xl bg-gradient-to-b from-white/10 via-white/[0.04] to-transparent p-2 ring-1 ring-white/15">
+              <NovaIcon size="md" alt="Supercode" />
+            </div>
+            <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-b from-emerald-500/20 to-emerald-500/5 ring-1 ring-emerald-500/30">
+              <Gift className="size-4 text-emerald-300" />
+            </div>
           </div>
-          <h2 className="mt-4 text-[22px] font-semibold tracking-tight">
+          <h2 className="mt-5 text-[22px] font-semibold tracking-tight">
             Put Nova to work
           </h2>
           <p className="mt-1 text-[13px] text-white/55">
