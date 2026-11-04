@@ -34,8 +34,21 @@ router.post("/", async (req, res) => {
       return
     }
 
-    // Don't allow checkout for the grandfathered Spark plan (free, no Dodo product)
-    if (!plan.dodoProductId) {
+    // Resolve Dodo product — Spark IN/INT may share one product until separate SKUs exist
+    let dodoProductId = plan.dodoProductId
+    if (!dodoProductId && plan.tier === "spark-premium") {
+      const fallback = await prisma.plan.findFirst({
+        where: {
+          tier: "spark-premium",
+          interval: plan.interval ?? "month",
+          dodoProductId: { not: null },
+          active: true,
+        },
+      })
+      dodoProductId = fallback?.dodoProductId ?? null
+    }
+
+    if (!dodoProductId) {
       res.status(400).json({ error: "This plan cannot be purchased" })
       return
     }
@@ -61,7 +74,7 @@ router.post("/", async (req, res) => {
       : { email: user?.email ?? `${userId}@supercode.local`, name: user?.name ?? "Supercode User" }
 
     const checkoutSession = await dodo.checkoutSessions.create({
-      product_cart: [{ product_id: plan.dodoProductId, quantity: 1 }],
+      product_cart: [{ product_id: dodoProductId, quantity: 1 }],
       customer: customer as never,
       metadata: {
         userId,

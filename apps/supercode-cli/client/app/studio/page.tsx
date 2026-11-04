@@ -29,13 +29,11 @@ import { toast } from "sonner"
 import {
   ArrowUpRight,
   Loader2,
-  Sparkles,
   Shield,
   RefreshCw,
   ExternalLink,
   AlertTriangle,
   CheckCircle2,
-  Zap,
 } from "lucide-react"
 
 type Plan = {
@@ -95,47 +93,113 @@ function BackgroundGlow() {
   )
 }
 
+/** Feature lists — keep in sync with apps/web /pricing */
 function getFeatures(tier: string) {
   if (tier === "spark") return [
-    { label: "Open models only", included: true },
-    { label: "16K context window", included: true },
-    { label: "~10K requests/month", included: true },
-    { label: "Standard token limits", included: true },
-    { label: "$5 monthly credits + deals", included: true },
-    { label: "Memory (cross-session)", included: false },
-    { label: "Merge.dev Agent Handler", included: false },
-    { label: "Priority access", included: false },
+    { label: "Fixed credits — DeepSeek model", included: true },
+    { label: "Free bring-your-own API keys (BYOK)", included: true },
+    { label: "Connect Codex / Claude / OpenCode subs — free", included: true },
+    { label: "1 vCPU / 4 GB RAM cloud machines", included: true },
+    { label: "Unlimited members", included: true },
+    { label: "Discord community support", included: true },
+    { label: "App connectors", included: false },
+    { label: "PR reviews", included: false },
+    { label: "Machines up to 64 GB RAM", included: false },
   ]
   if (tier === "spark-premium") return [
-    { label: "Open models only", included: true },
-    { label: "32K context window", included: true },
-    { label: "~15K requests/month (resets)", included: true },
-    { label: "Standard token limits", included: true },
-    { label: "$10 monthly credits + deals", included: true },
-    { label: "Memory (cross-session)", included: false },
-    { label: "Merge.dev Agent Handler", included: false },
-    { label: "Priority access", included: false },
+    { label: "Everything in Free", included: true },
+    { label: "$5 monthly credits (INT & IN)", included: true },
+    { label: "Connect Codex / Claude / OpenCode subs — free", included: true },
+    { label: "Open Source models (weekly / monthly usage)", included: true },
+    { label: "Free bring-your-own API keys (BYOK)", included: true },
+    { label: "Up to 2 vCPU / 8 GB RAM cloud machines", included: true },
+    { label: "App connectors", included: true },
+    { label: "Monthly limited PR reviews", included: true },
+    { label: "Unlimited members", included: true },
   ]
   if (tier === "pro") return [
-    { label: "Open-source + premium models", included: true },
-    { label: "128K context window", included: true },
-    { label: "~25K requests/month", included: true },
-    { label: "Higher token limits", included: true },
+    { label: "Everything in Spark", included: true },
+    { label: "$25 credits (INT) / $20 credits (IN)", included: true },
+    { label: "Connect Codex / Claude / OpenCode subs — free", included: true },
+    { label: "Frontier models (weekly / monthly usage)", included: true },
+    { label: "Free bring-your-own API keys (BYOK)", included: true },
+    { label: "Up to 4 vCPU / 16 GB RAM", included: true },
+    { label: "App connectors", included: true },
+    { label: "Monthly PR reviews", included: true },
     { label: "Usage analytics", included: true },
-    { label: "Memory (cross-session)", included: true },
-    { label: "Merge.dev Agent Handler", included: true },
-    { label: "Priority access", included: true },
   ]
   return [
-    { label: "All models (unrestricted)", included: true },
-    { label: "1M context window", included: true },
-    { label: "~110K requests/month", included: true },
-    { label: "Maximum token limits", included: true },
-    { label: "Highest rate limits", included: true },
-    { label: "Usage analytics", included: true },
+    { label: "Everything in Pro", included: true },
+    { label: "$110 monthly credits", included: true },
+    { label: "Connect Codex / Claude / OpenCode subs — free", included: true },
+    { label: "Frontier models (weekly / monthly usage)", included: true },
+    { label: "Free bring-your-own API keys (BYOK)", included: true },
+    { label: "Up to 16 vCPU / 64 GB RAM", included: true },
+    { label: "App connectors", included: true },
+    { label: "Unlimited PR reviews", included: true },
     { label: "Priority support", included: true },
-    { label: "99.9% availability SLA", included: true },
+    { label: "Usage analytics + exports", included: true },
   ]
+}
+
+function displayPlanName(plan: Plan | null | undefined): string {
+  if (!plan) return "No active plan"
+  if (plan.tier === "spark") return "Free"
+  if (plan.tier === "spark-premium") return "Spark"
+  if (plan.tier === "pro") return "Pro"
+  if (plan.tier === "ultra") return "Ultra"
+  return plan.name
+}
+
+function tierVmLabel(tier: string): string {
+  if (tier === "spark") return "1 vCPU / 4 GB"
+  if (tier === "spark-premium") return "2 vCPU / 8 GB"
+  if (tier === "pro") return "4 vCPU / 16 GB"
+  if (tier === "ultra") return "16 vCPU / 64 GB"
+  return "—"
+}
+
+function modelAccessLabel(tier: string, access?: string): string {
+  if (tier === "spark") return "DeepSeek only"
+  if (tier === "spark-premium") return "Open Source only"
+  if (tier === "pro" || tier === "ultra" || access === "premium" || access === "all") {
+    return "Frontier models + BYOK"
+  }
+  return "DeepSeek only"
+}
+
+function creditsLabel(plan: Plan | null | undefined, region: "in" | "int"): string {
+  if (!plan) return "—"
+  if (plan.tier === "spark") return "Fixed DeepSeek"
+  if (plan.tier === "spark-premium") return "$5 / mo"
+  if (plan.tier === "pro") return region === "in" ? "$20 / mo" : "$25 / mo"
+  if (plan.tier === "ultra") return "$110 / mo"
+  if (plan.creditAmountCents) return `$${(plan.creditAmountCents / 100).toFixed(0)} / mo`
+  return "—"
+}
+
+function planBlurb(tier: string): string {
+  if (tier === "spark") {
+    return "Fixed DeepSeek credits, free BYOK, free Codex/Claude/OpenCode connect, and 1 vCPU / 4 GB machines."
+  }
+  if (tier === "spark-premium") {
+    return "Everything in Free, plus $5 credits, app connectors, and limited PR reviews."
+  }
+  if (tier === "pro") {
+    return "Everything in Spark, plus frontier models, $25/$20 credits, and machines up to 4 vCPU / 16 GB."
+  }
+  if (tier === "ultra") {
+    return "Everything in Pro, plus $110 credits, unlimited PR reviews, and machines up to 16 vCPU / 64 GB."
+  }
+  return ""
+}
+
+function tierRank(tier: string): number {
+  if (tier === "spark") return 0
+  if (tier === "spark-premium") return 1
+  if (tier === "pro") return 2
+  if (tier === "ultra") return 3
+  return -1
 }
 
 function StatBadge({ label, value }: { label: string; value: string }) {
@@ -222,8 +286,13 @@ function StudioPage() {
   const [cancelling, setCancelling] = useState(false)
   const [refunding, setRefunding] = useState(false)
   const [confirmingPlan, setConfirmingPlan] = useState<Plan | null>(null)
+  const [region, setRegion] = useState<"in" | "int">("int")
 
   const userId = session?.user?.id
+
+  useEffect(() => {
+    setRegion(detectVariant())
+  }, [])
 
   useEffect(() => {
     if (!sessionLoading && !session?.session) {
@@ -282,6 +351,7 @@ function StudioPage() {
 
   const currentTier = currentPlan?.tier ?? "spark"
   const isGrandfathered = subscription?.isGrandfathered ?? false
+  const variant = region
 
   const handleConfirmPayNow = useCallback(async () => {
     if (!confirmingPlan || !userId) return
@@ -370,10 +440,17 @@ function StudioPage() {
     )
   }
 
-  const upgradePlans = plans.filter(
-    (p) => p.tier !== currentTier && p.tier !== "spark",
-  )
-  const sparkPremiumPlan = plans.find((p) => p.tier === "spark-premium")
+  const currentRank = tierRank(currentTier)
+
+  // Monthly plans only, matching selected region (IN/INT), higher than current tier
+  const upgradePlans = plans
+    .filter((p) => {
+      if (p.interval && p.interval !== "month") return false
+      if (p.variant && p.variant !== variant) return false
+      if (p.tier === currentTier) return false
+      return tierRank(p.tier) > currentRank
+    })
+    .sort((a, b) => tierRank(a.tier) - tierRank(b.tier))
 
   return (
     <div className="relative min-h-screen bg-zinc-950 overflow-hidden">
@@ -431,7 +508,7 @@ function StudioPage() {
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <h2 className="text-lg font-semibold text-zinc-100">
-                        {currentPlan?.name ?? "No active plan"}
+                        {displayPlanName(currentPlan)}
                       </h2>
                       <Badge variant="outline" className="text-[10px] font-mono text-zinc-500 border-zinc-700">
                         {subscription?.status ?? "none"}
@@ -443,7 +520,7 @@ function StudioPage() {
                       )}
                     </div>
                     <p className="text-[13px] text-zinc-500">
-                      {currentPlan?.description ?? "Subscribe to a plan to get started."}
+                      {planBlurb(currentTier) || currentPlan?.description || "Subscribe to a plan to get started."}
                     </p>
                   </div>
                   {subscription && (
@@ -454,12 +531,19 @@ function StudioPage() {
                   )}
                 </div>
 
-                {/* Stats grid */}
+                {/* Stats grid — mirrors /pricing card chips */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-5">
-                  <StatBadge label="Requests" value={`~${(currentPlan?.requestLimit ?? 10000).toLocaleString()}/mo`} />
-                  <StatBadge label="Context" value={`${(currentPlan?.contextLimit ?? 16384).toLocaleString()} tokens`} />
-                  <StatBadge label="Model access" value={currentPlan?.modelAccess === "all" ? "All models" : currentPlan?.modelAccess === "premium" ? "Open + Premium" : "Open models"} />
-                  <StatBadge label="Credits" value={currentPlan?.creditAmountCents ? `$${(currentPlan.creditAmountCents / 100).toFixed(0)}/mo` : "—"} />
+                  <StatBadge label="Credits" value={creditsLabel(currentPlan, variant)} />
+                  <StatBadge label="Max VM" value={tierVmLabel(currentTier)} />
+                  <StatBadge label="Models" value={modelAccessLabel(currentTier, currentPlan?.modelAccess)} />
+                  <StatBadge
+                    label="Price"
+                    value={
+                      currentPlan && currentPlan.priceCents > 0
+                        ? `${formatPrice(currentPlan)}/mo`
+                        : "$0/mo"
+                    }
+                  />
                 </div>
 
                 {/* Request usage bar */}
@@ -511,8 +595,8 @@ function StudioPage() {
                           <AlertDialogDescription>
                             Your plan will remain active until the end of the billing period.
                             {isGrandfathered
-                              ? " You will fall back to the free Spark plan (10K requests, 16K context)."
-                              : " Without a paid plan, you will need Spark Premium to keep using the CLI."}
+                              ? " You will fall back to Free (fixed DeepSeek credits, 1 vCPU / 4 GB)."
+                              : " Without a paid plan, you fall back to Free — Spark is needed for connectors and PR reviews."}
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -529,129 +613,145 @@ function StudioPage() {
               </CardContent>
             </Card>
 
-            {/* Spark Premium upgrade card (Spark users only) */}
-            {currentTier === "spark" && sparkPremiumPlan && (
-              <Card id="plan-card-spark-premium" className="border-cyan-500/30 bg-cyan-500/[0.03] backdrop-blur-xl scroll-mt-24">
-                <CardContent className="p-6">
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div className="flex items-start gap-4">
-                      <div className="size-10 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
-                        <Zap className="size-5 text-cyan-400" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-[15px] font-semibold text-zinc-100 font-mono">Spark Premium</h3>
-                          <Badge variant="outline" className="text-[10px] font-mono text-cyan-400 border-cyan-500/30">
-                            Recommended
-                          </Badge>
-                        </div>
-                        <p className="text-[12px] text-zinc-500 leading-relaxed max-w-md">
-                          Upgrade for $1/month — unlock 15K requests, 32K context, and $10 monthly credits with deal multipliers.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4 shrink-0">
-                      <div className="text-right">
-                        <span className="text-xl font-semibold text-zinc-100">$1</span>
-                        <span className="text-[12px] text-zinc-500 font-mono">/month</span>
-                        <span className="text-[10px] text-zinc-600 font-mono block">+ processing fee</span>
-                      </div>
-                      <Button
-                        onClick={() => setConfirmingPlan(sparkPremiumPlan)}
-                        className="bg-cyan-600 hover:bg-cyan-500 text-white"
-                      >
-                        Upgrade
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Mini stats */}
-                  <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-cyan-500/10">
-                    <div className="text-center">
-                      <div className="text-[11px] font-mono text-cyan-400 font-medium">15K</div>
-                      <div className="text-[10px] text-zinc-500">Requests</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-[11px] font-mono text-cyan-400 font-medium">32K</div>
-                      <div className="text-[10px] text-zinc-500">Context</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-[11px] font-mono text-cyan-400 font-medium">$10</div>
-                      <div className="text-[10px] text-zinc-500">Credits</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* No active plan → show sign-up prompt for new users */}
-            {!currentPlan && (
-              <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-xl">
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="size-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
-                      <Sparkles className="size-5 text-amber-400" />
-                    </div>
-                    <div>
-                      <h3 className="text-[15px] font-semibold text-zinc-100 font-mono">Get started with Spark Premium</h3>
-                      <p className="text-[12px] text-zinc-500 leading-relaxed mt-1">
-                        $1/month + processing fee — 15K requests, 32K context, $10 monthly credits, open models.
-                        Fully refundable if you use less than $5 of credits and 7.5K requests.
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Other plan options */}
+            {/* Plan catalog — matches /pricing Free · Spark · Pro · Ultra */}
             {upgradePlans.length > 0 && (
               <div>
-                <h3 className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider mb-3">
-                  Available upgrades
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {upgradePlans.map((plan) => (
-                    <Card key={plan.id} id={`plan-card-${plan.tier}`} className="border-zinc-800 bg-zinc-900/40 backdrop-blur-xl scroll-mt-24">
-                      <CardContent className="p-5">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <h4 className="text-sm font-semibold text-zinc-100 font-mono">{plan.name}</h4>
-                            <p className="text-[11px] text-zinc-500 mt-0.5">{plan.description}</p>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+                  <h3 className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">
+                    Available upgrades
+                  </h3>
+                  <div className="flex items-center gap-1 p-1 rounded-lg bg-zinc-900 border border-zinc-800 w-fit">
+                    {(["in", "int"] as const).map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setRegion(r)}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-mono transition-all ${
+                          region === r
+                            ? "bg-amber-500 text-black"
+                            : "text-zinc-500 hover:text-zinc-300"
+                        }`}
+                      >
+                        {r === "in" ? "IN 🇮🇳" : "INT 🌍"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                  {upgradePlans.map((plan) => {
+                    const isPro = plan.tier === "pro"
+                    const isSpark = plan.tier === "spark-premium"
+                    return (
+                      <Card
+                        key={plan.id}
+                        id={`plan-card-${plan.tier}`}
+                        className={`backdrop-blur-xl scroll-mt-24 ${
+                          isPro
+                            ? "border-amber-500/40 bg-amber-500/[0.04]"
+                            : isSpark
+                              ? "border-cyan-500/30 bg-cyan-500/[0.03]"
+                              : "border-zinc-800 bg-zinc-900/40"
+                        }`}
+                      >
+                        <CardContent className="p-5">
+                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className="text-sm font-semibold text-zinc-100 font-mono">
+                                  {displayPlanName(plan)}
+                                </h4>
+                                {isPro && (
+                                  <Badge className="text-[10px] font-mono bg-amber-500 text-black border-0">
+                                    Most popular
+                                  </Badge>
+                                )}
+                                {isSpark && (
+                                  <Badge variant="outline" className="text-[10px] font-mono text-cyan-400 border-cyan-500/30">
+                                    For getting started
+                                  </Badge>
+                                )}
+                                {plan.tier === "ultra" && (
+                                  <Badge variant="outline" className="text-[10px] font-mono text-purple-400 border-purple-500/30">
+                                    For daily shipping
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-[12px] text-zinc-500 leading-relaxed">
+                                {planBlurb(plan.tier)}
+                              </p>
+                            </div>
+                            <div className="text-left sm:text-right shrink-0">
+                              <div>
+                                <span className="text-xl font-semibold text-zinc-100">
+                                  {formatPrice(plan)}
+                                </span>
+                                <span className="text-[12px] text-zinc-500 font-mono">/month</span>
+                              </div>
+                              <div className="text-[11px] font-mono text-cyan-400/90 mt-0.5">
+                                {creditsLabel(plan, variant)} credits included
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-right shrink-0">
-                            <span className="text-lg font-semibold text-zinc-100">
-                              {formatPrice(plan)}
-                            </span>
-                            <span className="text-[11px] text-zinc-500 font-mono">/{plan.interval}</span>
+
+                          <div className="grid grid-cols-2 gap-2 mb-4 p-3 rounded-lg bg-zinc-950/50 border border-zinc-800/80">
+                            <div>
+                              <div className="text-[10px] font-mono text-zinc-600 uppercase tracking-wider">Credits</div>
+                              <div className="text-[12px] font-mono text-zinc-300">{creditsLabel(plan, variant)}</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] font-mono text-zinc-600 uppercase tracking-wider">Models</div>
+                              <div className="text-[12px] font-mono text-zinc-300">
+                                {modelAccessLabel(plan.tier, plan.modelAccess)}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] font-mono text-zinc-600 uppercase tracking-wider">Max VM</div>
+                              <div className="text-[12px] font-mono text-zinc-300">{tierVmLabel(plan.tier)}</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] font-mono text-zinc-600 uppercase tracking-wider">Region</div>
+                              <div className="text-[12px] font-mono text-zinc-300">
+                                {plan.variant === "in" ? "India" : plan.variant === "int" ? "International" : "Global"}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-1 mb-3">
-                          <div className="text-[10px] text-zinc-500">
-                            <span className="block text-zinc-300 font-medium">{plan.requestLimit.toLocaleString()}</span>
-                            requests
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 mb-4">
+                            {getFeatures(plan.tier).filter((f) => f.included).map((f) => (
+                              <div key={f.label} className="flex items-start gap-2 text-[11px] text-zinc-400">
+                                <CheckCircle2 className="size-3 text-emerald-500 shrink-0 mt-0.5" />
+                                <span>{f.label}</span>
+                              </div>
+                            ))}
                           </div>
-                          <div className="text-[10px] text-zinc-500">
-                            <span className="block text-zinc-300 font-medium">{(plan.contextLimit / 1000).toFixed(0)}K</span>
-                            context
-                          </div>
-                        </div>
-                        <Button
-                          onClick={() => setConfirmingPlan(plan)}
-                          className="w-full text-[12px]"
-                          variant={plan.tier === "pro" ? "default" : "outline"}
-                          size="sm"
-                        >
-                          Subscribe to {plan.tier === "pro" ? "Pro" : "Ultra"}
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
+
+                          <Button
+                            onClick={() => setConfirmingPlan(plan)}
+                            className={`w-full text-[12px] ${
+                              isPro ? "bg-amber-500 hover:bg-amber-400 text-black" : ""
+                            }`}
+                            variant={isPro ? "default" : "outline"}
+                            size="sm"
+                          >
+                            {isSpark ? "Upgrade to Spark" : `Subscribe to ${displayPlanName(plan)}`}
+                            <ArrowUpRight className="size-3.5 ml-1" />
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
                 </div>
               </div>
             )}
 
-            {/* Refund section (Spark Premium only) */}
+            {currentTier === "ultra" && (
+              <p className="text-center text-[12px] font-mono text-zinc-600">
+                You&apos;re on Ultra — the highest public plan. Need more? Contact sales for Enterprise.
+              </p>
+            )}
+
+            {/* Refund section (Spark only) */}
             {currentTier === "spark-premium" && (
               <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-xl">
                 <CardContent className="p-5">
@@ -661,8 +761,8 @@ function StudioPage() {
                       <div>
                         <h4 className="text-sm font-medium text-zinc-300">Request Refund</h4>
                         <p className="text-[12px] text-zinc-600 mt-1 leading-relaxed">
-                          Refundable if credits consumed &lt; $5 and requests used &lt; 7.5K.
-                          Otherwise, refunds are handled on a case-by-case basis.
+                          Refundable if credits consumed &lt; $2.50. Otherwise, refunds are
+                          handled on a case-by-case basis.
                         </p>
                       </div>
                     </div>
@@ -697,9 +797,15 @@ function StudioPage() {
               {/* Plan + price */}
               <div className="flex items-start justify-between">
                 <div>
-                  <span className="text-[15px] font-semibold text-zinc-100">{confirmingPlan.name}</span>
+                  <span className="text-[15px] font-semibold text-zinc-100">
+                    {displayPlanName(confirmingPlan)}
+                  </span>
                   <p className="text-[12px] text-zinc-500 mt-0.5">
-                    Billed {confirmingPlan.interval === "year" ? "yearly" : "monthly"}, starting today
+                    {planBlurb(confirmingPlan.tier)}
+                  </p>
+                  <p className="text-[11px] text-zinc-600 mt-1 font-mono">
+                    {creditsLabel(confirmingPlan, variant)} credits · {tierVmLabel(confirmingPlan.tier)} · billed{" "}
+                    {confirmingPlan.interval === "year" ? "yearly" : "monthly"}
                   </p>
                 </div>
                 <span className="text-[15px] font-semibold text-zinc-100">{formatPrice(confirmingPlan)}</span>
