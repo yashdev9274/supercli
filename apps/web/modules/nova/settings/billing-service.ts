@@ -18,22 +18,28 @@ export type BillingInfo = {
   balanceUsd: number | null
   totalCreditsUsd: number | null
   spentThisPeriodUsd: number | null
+  resetAt: string | null
   requestsUsed: number | null
   requestLimit: number | null
   isGrandfathered: boolean
   source: "harness" | "none"
 }
 
+// Mirror apps/supercode-cli/server/prisma/seed.ts plan names:
+//   spark            → "Free"
+//   spark-premium    → "Spark"
+//   pro              → "Pro"
+//   ultra            → "Ultra"
 const HARNESS_TIER_TO_NAME: Record<string, BillingPlanName> = {
-  spark: "Spark",
+  spark: "Free",
   "spark-premium": "Spark",
   pro: "Pro",
   ultra: "Ultra",
 }
 
 const HARNESS_TIER_TO_PRICE: Record<string, { price: string; credits: string }> = {
-  spark: { price: "$5/mo", credits: "$5 credits" },
-  "spark-premium": { price: "$5/mo", credits: "$10 credits" },
+  spark: { price: "$0/mo", credits: "Fixed DeepSeek" },
+  "spark-premium": { price: "$5/mo", credits: "$5 credits" },
   pro: { price: "$20/mo", credits: "$25 credits" },
   ultra: { price: "$100/mo", credits: "$110 credits" },
 }
@@ -108,6 +114,7 @@ export async function getBillingInfo(input: {
       creditBalance?: {
         balanceCents?: number | null
         totalCredits?: number | null
+        resetAt?: string | null
       } | null
       requestsUsed?: number
       requestLimit?: number | null
@@ -139,6 +146,7 @@ export async function getBillingInfo(input: {
       balanceUsd,
       totalCreditsUsd,
       spentThisPeriodUsd: spentUsd,
+      resetAt: status.creditBalance?.resetAt ?? null,
       requestsUsed: status.requestsUsed ?? null,
       requestLimit: status.plan?.requestLimit ?? null,
       isGrandfathered: Boolean(status.subscription?.isGrandfathered),
@@ -162,6 +170,7 @@ function emptyBilling(): BillingInfo {
     balanceUsd: 0,
     totalCreditsUsd: 0,
     spentThisPeriodUsd: 0,
+    resetAt: null,
     requestsUsed: null,
     requestLimit: null,
     isGrandfathered: false,
