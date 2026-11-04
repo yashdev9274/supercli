@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Check, Gift, Sparkles, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -22,6 +22,15 @@ const TERMINAL_URL =
   (process.env.NODE_ENV === "production"
     ? "https://supercode-terminal.vercel.app"
     : "http://localhost:3000")
+
+function paidTierHref(tier: Tier, billing: BillingCycle, region: Region) {
+  const params = new URLSearchParams({
+    plan: tier.name.toLowerCase(),
+    cycle: billing,
+    region,
+  })
+  return `${TERMINAL_URL}/studio?${params.toString()}`
+}
 
 const REGION_LABEL: Record<Region, string> = {
   in: "India",
@@ -58,18 +67,6 @@ export function ChoosePlanModal({
   }, [open, onClose])
 
   const visibleTiers = useMemo(() => TIERS, [])
-
-  const handleSelectPaid = useCallback(
-    (tier: Tier, billing: BillingCycle, region: Region) => {
-      const params = new URLSearchParams({
-        plan: tier.name.toLowerCase(),
-        cycle: billing,
-        region,
-      })
-      window.location.href = `${TERMINAL_URL}/studio?${params.toString()}`
-    },
-    [],
-  )
 
   if (!open) return null
 
@@ -118,7 +115,6 @@ export function ChoosePlanModal({
                 billing={billing}
                 region={region}
                 onClose={onClose}
-                onSelectPaid={handleSelectPaid}
               />
             ))}
           </div>
@@ -207,13 +203,11 @@ function PlanCard({
   billing,
   region,
   onClose,
-  onSelectPaid,
 }: {
   tier: Tier
   billing: BillingCycle
   region: Region
   onClose: () => void
-  onSelectPaid: (tier: Tier, billing: BillingCycle, region: Region) => void
 }) {
   const accent = TIER_ACCENTS[tier.accent]
   const priceLabel = formatPrice(tier.price, billing, region)
@@ -291,20 +285,35 @@ function PlanCard({
           </p>
         ) : null}
 
-        <button
-          type="button"
-          onClick={() => (isFree ? onClose() : onSelectPaid(tier, billing, region))}
-          className={cn(
-            "mt-4 inline-flex h-9 w-full items-center justify-center rounded-lg text-[13px] font-semibold transition active:scale-[0.98]",
-            tier.popular
-              ? "bg-amber-400 text-black hover:bg-amber-300"
-              : isFree
-                ? "bg-white/[0.08] text-white hover:bg-white/[0.12]"
+        {isFree ? (
+          <button
+            type="button"
+            onClick={onClose}
+            className={cn(
+              "mt-4 inline-flex h-9 w-full items-center justify-center rounded-lg text-[13px] font-semibold transition active:scale-[0.98]",
+              "bg-white/[0.08] text-white hover:bg-white/[0.12]",
+            )}
+          >
+            {tier.ctaLabel}
+          </button>
+        ) : (
+          <a
+            href={paidTierHref(tier, billing, region)}
+            target="_self"
+            rel="noopener noreferrer"
+            data-tier={tier.name.toLowerCase()}
+            data-cycle={billing}
+            data-region={region}
+            className={cn(
+              "mt-4 inline-flex h-9 w-full cursor-pointer items-center justify-center rounded-lg text-[13px] font-semibold no-underline transition active:scale-[0.98]",
+              tier.popular
+                ? "bg-amber-400 text-black hover:bg-amber-300"
                 : "bg-white text-black hover:bg-white/90",
-          )}
-        >
-          {tier.ctaLabel}
-        </button>
+            )}
+          >
+            {tier.ctaLabel}
+          </a>
+        )}
 
         <div className="mt-5 h-px w-full bg-white/[0.08]" />
 
