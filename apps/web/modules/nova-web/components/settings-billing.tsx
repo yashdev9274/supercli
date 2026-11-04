@@ -99,14 +99,12 @@ export function BillingSection() {
   const renewsLabel = state.plan.renewsAt
     ? new Date(state.plan.renewsAt).toLocaleDateString()
     : null
-  const hasCredits =
-    state.totalCreditsUsd != null && state.totalCreditsUsd > 0
+  const totalCredits = state.totalCreditsUsd ?? 0
+  const hasCredits = totalCredits > 0
+  const spentThisPeriod = state.spentThisPeriodUsd ?? 0
   const spentPct =
     hasCredits && state.spentThisPeriodUsd != null
-      ? Math.min(
-          100,
-          Math.round((state.spentThisPeriodUsd / state.totalCreditsUsd) * 100),
-        )
+      ? Math.min(100, Math.round((spentThisPeriod / totalCredits) * 100))
       : null
 
   return (

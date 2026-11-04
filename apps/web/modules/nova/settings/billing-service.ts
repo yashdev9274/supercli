@@ -104,7 +104,7 @@ export async function getBillingInfo(input: {
         metadata?: Record<string, unknown> | null
         isGrandfathered?: boolean
       } | null
-      plan?: { tier?: string; name?: string } | null
+      plan?: { tier?: string; name?: string; requestLimit?: number | null } | null
       creditBalance?: {
         balanceCents?: number | null
         totalCredits?: number | null

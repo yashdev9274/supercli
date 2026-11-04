@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Check, Gift, Sparkles, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -15,6 +15,13 @@ import {
   formatPrice,
   isRegional,
 } from "@/modules/nova-web/plans"
+
+// Terminal / harness auth URL — where /studio lives. Override per environment.
+const TERMINAL_URL =
+  process.env.NEXT_PUBLIC_TERMINAL_URL ??
+  (process.env.NODE_ENV === "production"
+    ? "https://supercode-terminal.vercel.app"
+    : "http://localhost:3000")
 
 const REGION_LABEL: Record<Region, string> = {
   in: "India",
@@ -51,6 +58,18 @@ export function ChoosePlanModal({
   }, [open, onClose])
 
   const visibleTiers = useMemo(() => TIERS, [])
+
+  const handleSelectPaid = useCallback(
+    (tier: Tier, billing: BillingCycle, region: Region) => {
+      const params = new URLSearchParams({
+        plan: tier.name.toLowerCase(),
+        cycle: billing,
+        region,
+      })
+      window.location.href = `${TERMINAL_URL}/studio?${params.toString()}`
+    },
+    [],
+  )
 
   if (!open) return null
 
@@ -99,6 +118,7 @@ export function ChoosePlanModal({
                 billing={billing}
                 region={region}
                 onClose={onClose}
+                onSelectPaid={handleSelectPaid}
               />
             ))}
           </div>
@@ -187,17 +207,20 @@ function PlanCard({
   billing,
   region,
   onClose,
+  onSelectPaid,
 }: {
   tier: Tier
   billing: BillingCycle
   region: Region
   onClose: () => void
+  onSelectPaid: (tier: Tier, billing: BillingCycle, region: Region) => void
 }) {
   const accent = TIER_ACCENTS[tier.accent]
   const priceLabel = formatPrice(tier.price, billing, region)
   const creditLabel = formatCredits(tier.credits, billing, region)
   const regional = isRegional(tier.price, billing)
   const showRegionSwitchOnCard = tier.popular || tier.name === "Spark"
+  const isFree = tier.name === "Free"
 
   return (
     <div
@@ -270,12 +293,12 @@ function PlanCard({
 
         <button
           type="button"
-          onClick={onClose}
+          onClick={() => (isFree ? onClose() : onSelectPaid(tier, billing, region))}
           className={cn(
             "mt-4 inline-flex h-9 w-full items-center justify-center rounded-lg text-[13px] font-semibold transition active:scale-[0.98]",
             tier.popular
               ? "bg-amber-400 text-black hover:bg-amber-300"
-              : tier.name === "Free"
+              : isFree
                 ? "bg-white/[0.08] text-white hover:bg-white/[0.12]"
                 : "bg-white text-black hover:bg-white/90",
           )}
