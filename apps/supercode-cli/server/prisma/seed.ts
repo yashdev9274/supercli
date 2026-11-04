@@ -41,8 +41,8 @@ console.log(`[seed] DODO_MODE=${process.env.DODO_MODE ?? "live"} — using ${isT
 const PLANS = [
   {
     tier: "spark",
-    name: "Spark (Grandfathered)",
-    description: "Free plan for existing users — open models, standard limits.",
+    name: "Free",
+    description: "Fixed DeepSeek credits, free BYOK, free Codex/Claude/OpenCode connect, 1 vCPU / 4 GB.",
     variant: null,
     interval: null,
     priceCents: 0,
@@ -50,89 +50,104 @@ const PLANS = [
     requestLimit: 10000,
     contextLimit: 16000,
     modelAccess: "open",
-    creditAmountCents: 500,
+    creditAmountCents: 100,
     dodoProductId: null,
     sortOrder: 1,
   },
   {
     tier: "spark-premium",
-    name: "Spark Premium",
-    description: "Open models, higher limits, $10 in monthly credits.",
-    variant: null,
+    name: "Spark Monthly (India)",
+    description: "Everything in Free, plus $5 credits, open-source models, connectors, limited PR reviews, up to 2 vCPU / 8 GB.",
+    variant: "in",
     interval: "month",
-    priceCents: 100,
-    currency: "USD",
+    priceCents: 44900,
+    currency: "INR",
     requestLimit: 15000,
     contextLimit: 32000,
     modelAccess: "open",
-    creditAmountCents: 1000,
+    creditAmountCents: 500,
     dodoProductId: DODO_PRODUCT_IDS.sparkPremium,
     sortOrder: 2,
   },
   {
-    tier: "pro",
-    name: "Pro Monthly (India)",
-    description: "Premium models, 128K context, $30 in monthly credits.",
-    variant: "in",
+    tier: "spark-premium",
+    name: "Spark Monthly (International)",
+    description: "Everything in Free, plus $5 credits, open-source models, connectors, limited PR reviews, up to 2 vCPU / 8 GB.",
+    variant: "int",
     interval: "month",
-    priceCents: 65900,
-    currency: "INR",
-    requestLimit: 25000,
-    contextLimit: 128000,
-    modelAccess: "premium",
-    creditAmountCents: 3000,
-    dodoProductId: DODO_PRODUCT_IDS.proMonthlyIn,
+    priceCents: 500,
+    currency: "USD",
+    requestLimit: 15000,
+    contextLimit: 32000,
+    modelAccess: "open",
+    creditAmountCents: 500,
+    dodoProductId: DODO_PRODUCT_IDS.sparkPremium,
     sortOrder: 3,
   },
   {
     tier: "pro",
-    name: "Pro Monthly (International)",
-    description: "Premium models, 128K context, $30 in monthly credits.",
-    variant: "int",
-    interval: "month",
-    priceCents: 1200,
-    currency: "USD",
-    requestLimit: 25000,
-    contextLimit: 128000,
-    modelAccess: "premium",
-    creditAmountCents: 3000,
-    dodoProductId: DODO_PRODUCT_IDS.proMonthlyInt,
-    sortOrder: 4,
-  },
-  {
-    tier: "pro",
-    name: "Pro Yearly (India)",
-    description: "Premium models, 128K context, $30 in monthly credits.",
+    name: "Pro Monthly (India)",
+    description: "Everything in Spark, plus frontier models, $20 credits, up to 4 vCPU / 16 GB.",
     variant: "in",
-    interval: "year",
-    priceCents: 770000, // ₹7,700
+    interval: "month",
+    priceCents: 154900,
     currency: "INR",
     requestLimit: 25000,
     contextLimit: 128000,
     modelAccess: "premium",
-    creditAmountCents: 3000,
-    dodoProductId: DODO_PRODUCT_IDS.proYearlyIn,
-    sortOrder: 5,
+    creditAmountCents: 2000,
+    dodoProductId: DODO_PRODUCT_IDS.proMonthlyIn,
+    sortOrder: 4,
   },
   {
     tier: "pro",
-    name: "Pro Yearly (International)",
-    description: "Premium models, 128K context, $30 in monthly credits.",
+    name: "Pro Monthly (International)",
+    description: "Everything in Spark, plus frontier models, $25 credits, up to 4 vCPU / 16 GB.",
     variant: "int",
-    interval: "year",
-    priceCents: 14000,
+    interval: "month",
+    priceCents: 2000,
     currency: "USD",
     requestLimit: 25000,
     contextLimit: 128000,
     modelAccess: "premium",
-    creditAmountCents: 3000,
-    dodoProductId: DODO_PRODUCT_IDS.proYearlyInt,
+    creditAmountCents: 2500,
+    dodoProductId: DODO_PRODUCT_IDS.proMonthlyInt,
+    sortOrder: 5,
+  },
+  {
+    tier: "pro",
+    name: "Pro Yearly (India)",
+    description: "Everything in Spark, plus frontier models, $20 credits, up to 4 vCPU / 16 GB.",
+    variant: "in",
+    interval: "year",
+    priceCents: 1850000,
+    currency: "INR",
+    requestLimit: 25000,
+    contextLimit: 128000,
+    modelAccess: "premium",
+    creditAmountCents: 2000,
+    dodoProductId: DODO_PRODUCT_IDS.proYearlyIn,
     sortOrder: 6,
+  },
+  {
+    tier: "pro",
+    name: "Pro Yearly (International)",
+    description: "Everything in Spark, plus frontier models, $25 credits, up to 4 vCPU / 16 GB.",
+    variant: "int",
+    interval: "year",
+    priceCents: 20000,
+    currency: "USD",
+    requestLimit: 25000,
+    contextLimit: 128000,
+    modelAccess: "premium",
+    creditAmountCents: 2500,
+    dodoProductId: DODO_PRODUCT_IDS.proYearlyInt,
+    sortOrder: 7,
   },
   {
     tier: "ultra",
     name: "Ultra Monthly",
-    description: "All models, 1M context, $150 in monthly credits.",
+    description: "Everything in Pro, plus $110 credits, unlimited PR reviews, up to 16 vCPU / 64 GB.",
     variant: null,
     interval: "month",
     priceCents: 10000,
@@ -140,14 +155,14 @@ const PLANS = [
     requestLimit: 110000,
     contextLimit: 1048576,
     modelAccess: "all",
-    creditAmountCents: 15000,
+    creditAmountCents: 11000,
     dodoProductId: DODO_PRODUCT_IDS.ultraMonthly,
-    sortOrder: 7,
+    sortOrder: 8,
   },
   {
     tier: "ultra",
     name: "Ultra Yearly",
-    description: "All models, 1M context, $150 in monthly credits.",
+    description: "Everything in Pro, plus $110 credits, unlimited PR reviews, up to 16 vCPU / 64 GB.",
     variant: null,
     interval: "year",
     priceCents: 100000,
@@ -155,9 +170,9 @@ const PLANS = [
     requestLimit: 110000,
     contextLimit: 1048576,
     modelAccess: "all",
-    creditAmountCents: 15000,
+    creditAmountCents: 11000,
     dodoProductId: DODO_PRODUCT_IDS.ultraYearly,
-    sortOrder: 8,
+    sortOrder: 9,
   },
 ]
 
@@ -200,36 +215,94 @@ const MODELS = [
   { slug: "minimax/minimax-m3.5",     displayName: "MiniMax M3.5",            provider: "minimax",    minTier: "ultra",  inputPrice: 0.25,  outputPrice: 1.00,  cachedPrice: 0 },
 ]
 
+async function upsertPlan(plan: (typeof PLANS)[number]) {
+  // Prefer exact regional key (tier + variant + interval)
+  let existing = await prisma.plan.findFirst({
+    where: {
+      tier: plan.tier,
+      variant: plan.variant ?? null,
+      interval: plan.interval ?? null,
+    },
+  })
+
+  // Migrate legacy single-row plans (null variant) once per tier+interval+currency
+  if (!existing && plan.variant) {
+    existing = await prisma.plan.findFirst({
+      where: {
+        tier: plan.tier,
+        interval: plan.interval ?? null,
+        variant: null,
+        currency: plan.currency,
+      },
+    })
+  }
+
+  // dodoProductId is unique — free it from another row of the same tier if needed
+  if (plan.dodoProductId) {
+    const owner = await prisma.plan.findFirst({
+      where: {
+        dodoProductId: plan.dodoProductId,
+        ...(existing ? { id: { not: existing.id } } : {}),
+      },
+    })
+    if (owner && owner.tier === plan.tier) {
+      await prisma.plan.update({
+        where: { id: owner.id },
+        data: { dodoProductId: null },
+      })
+    }
+  }
+
+  const data = { ...plan, active: true }
+
+  if (existing) {
+    // Avoid unique clash if another tier still owns this product id
+    if (plan.dodoProductId) {
+      const clash = await prisma.plan.findFirst({
+        where: {
+          dodoProductId: plan.dodoProductId,
+          id: { not: existing.id },
+        },
+      })
+      if (clash) {
+        data.dodoProductId = null
+      }
+    }
+    await prisma.plan.update({ where: { id: existing.id }, data })
+    return existing.id
+  }
+
+  try {
+    const created = await prisma.plan.create({ data })
+    return created.id
+  } catch {
+    // Last resort: create without product id (checkout can be wired later)
+    const created = await prisma.plan.create({
+      data: { ...data, dodoProductId: null },
+    })
+    return created.id
+  }
+}
+
 async function main() {
   console.log("Seeding plans...")
 
+  const keptIds: string[] = []
   for (const plan of PLANS) {
-    if (plan.dodoProductId) {
-      // Look up by stable key (tier + variant + interval) so switching
-      // DODO_MODE between test/live updates the same row instead of
-      // creating a duplicate.
-      const existing = await prisma.plan.findFirst({
-        where: {
-          tier: plan.tier,
-          variant: plan.variant ?? null,
-          interval: plan.interval ?? null,
-        },
-      })
-      if (existing) {
-        await prisma.plan.update({ where: { id: existing.id }, data: plan })
-      } else {
-        await prisma.plan.create({ data: plan })
-      }
-    } else {
-      const existing = await prisma.plan.findFirst({
-        where: { tier: "spark", name: "Spark (Grandfathered)" },
-      })
-      if (existing) {
-        await prisma.plan.update({ where: { id: existing.id }, data: plan })
-      } else {
-        await prisma.plan.create({ data: plan })
-      }
-    }
+    const id = await upsertPlan(plan)
+    keptIds.push(id)
+  }
+
+  // Deactivate legacy / duplicate plan rows not in the current catalog
+  const deactivated = await prisma.plan.updateMany({
+    where: {
+      id: { notIn: keptIds },
+      active: true,
+    },
+    data: { active: false },
+  })
+  if (deactivated.count > 0) {
+    console.log(`Deactivated ${deactivated.count} legacy plan row(s).`)
   }
 
   console.log(`Seeded ${PLANS.length} plans.`)
