@@ -152,6 +152,117 @@ export const agentSessionSummarySchema = z.object({
   updatedAt: z.string().datetime(),
 })
 
+/** Per-message feedback packet posted by the harness recorder during the
+ * response process. The endpoint stores the events and the closeout body
+ * into a `NovaFeedback` row plus a `.md` render on disk. */
+export const NOVA_FEEDBACK_CONTRACT_VERSION = "1" as const
+
+export const novaFeedbackKindSchema = z.enum([
+  "open",
+  "batch",
+  "closeout",
+  "user_feedback",
+])
+
+export const novaFeedbackSeveritySchema = z.enum(["info", "warn", "error"])
+
+export const novaFeedbackEventTypeSchema = z.enum([
+  "turn_started",
+  "status",
+  "status_transition",
+  "text",
+  "reasoning",
+  "tool_call",
+  "tool_result",
+  "approval_request",
+  "approval_decision",
+  "child_run",
+  "finish",
+  "error",
+])
+
+export const novaFeedbackEventSchema = z.object({
+  sequence: z.number().int().nonnegative(),
+  type: novaFeedbackEventTypeSchema,
+  ts: z.number().int().nonnegative(),
+  payload: z.record(z.string(), z.unknown()),
+})
+
+export const novaFeedbackImprovementSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  detail: z.string().trim().min(1).max(4_000),
+})
+
+export const novaFeedbackPerceivedIssueSchema = z.object({
+  kind: z.string().trim().min(1).max(64),
+  detail: z.string().trim().min(1).max(2_000),
+  atSequence: z.number().int().nonnegative().optional(),
+})
+
+/** Open: client announces a fresh user→Nova exchange; server upserts a row. */
+export const novaFeedbackOpenSchema = z.object({
+  contractVersion: z.literal(NOVA_FEEDBACK_CONTRACT_VERSION),
+  kind: z.literal("open"),
+  organizationId: z.string().min(1),
+  agentSessionId: z.string().min(1).nullable(),
+  runId: z.string().min(1).nullable(),
+  userMessageId: z.string().min(1).nullable().optional(),
+  userId: z.string().min(1).nullable().optional(),
+  title: z.string().trim().min(1).max(500),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+})
+
+/** Batch: shovel of events mid-turn. The server is idempotent on
+ * `(feedbackId, sequence)` so retried POSTs collapse to no-ops. */
+export const novaFeedbackBatchPayloadSchema = z.object({
+  contractVersion: z.literal(NOVA_FEEDBACK_CONTRACT_VERSION),
+  kind: z.literal("batch"),
+  feedbackId: z.string().min(1),
+  events: z.array(novaFeedbackEventSchema).min(1).max(500),
+})
+
+/** Closeout: terminal state of the exchange with the rendered Markdown. */
+export const novaFeedbackCloseoutSchema = z.object({
+  contractVersion: z.literal(NOVA_FEEDBACK_CONTRACT_VERSION),
+  kind: z.literal("closeout"),
+  feedbackId: z.string().min(1),
+  summary: z.string().trim().min(1).max(500),
+  body: z.string().trim().min(1).max(64_000),
+  improvements: z.array(novaFeedbackImprovementSchema).default([]),
+  perceivedIssues: z.array(novaFeedbackPerceivedIssueSchema).default([]),
+  severity: novaFeedbackSeveritySchema,
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  timeTakenMs: z.number().int().nonnegative().optional(),
+})
+
+/** User feedback: rating/comment from the UI, may arrive after closeout. */
+export const novaFeedbackUserFeedbackSchema = z.object({
+  contractVersion: z.literal(NOVA_FEEDBACK_CONTRACT_VERSION),
+  kind: z.literal("user_feedback"),
+  feedbackId: z.string().min(1),
+  rating: z.number().int().min(-1).max(1).optional(),
+  comment: z.string().trim().min(1).max(8_000).optional(),
+})
+
+export const novaFeedbackEnvelopeSchema = z.discriminatedUnion("kind", [
+  novaFeedbackOpenSchema,
+  novaFeedbackBatchPayloadSchema,
+  novaFeedbackCloseoutSchema,
+  novaFeedbackUserFeedbackSchema,
+])
+
+export type NovaFeedbackKind = z.infer<typeof novaFeedbackKindSchema>
+export type NovaFeedbackSeverity = z.infer<typeof novaFeedbackSeveritySchema>
+export type NovaFeedbackEventType = z.infer<typeof novaFeedbackEventTypeSchema>
+export type NovaFeedbackEvent = z.infer<typeof novaFeedbackEventSchema>
+export type NovaFeedbackImprovement = z.infer<typeof novaFeedbackImprovementSchema>
+export type NovaFeedbackPerceivedIssue = z.infer<typeof novaFeedbackPerceivedIssueSchema>
+export type NovaFeedbackOpen = z.infer<typeof novaFeedbackOpenSchema>
+export type NovaFeedbackBatch = z.infer<typeof novaFeedbackBatchPayloadSchema>
+export type NovaFeedbackCloseout = z.infer<typeof novaFeedbackCloseoutSchema>
+export type NovaFeedbackUserFeedback = z.infer<typeof novaFeedbackUserFeedbackSchema>
+export type NovaFeedbackEnvelope = z.infer<typeof novaFeedbackEnvelopeSchema>
+
 export const normalizedInboundEventSchema = z.object({
   contractVersion: z.literal(NOVA_CONTRACT_VERSION),
   organizationId: z.string().min(1),
