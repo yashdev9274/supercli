@@ -65,6 +65,7 @@ model Organization {
   webLocalProjects         WebLocalProject[]
   automations              NovaAutomation[]
   browserSessions          NovaBrowserSession[]
+  feedbacks                NovaFeedback[]
 
   @@map("organization")
 }
@@ -528,6 +529,7 @@ model AgentSession {
   usageLedger    NovaUsageLedger[]
   automationRun  NovaAutomationRun?
   sandboxSessions NovaSandboxSession[]
+  feedbacks       NovaFeedback[]
 
   @@index([organizationId, status, updatedAt])
   @@index([initiatorMembershipId])
@@ -694,6 +696,7 @@ model AgentRun {
   artifacts        NovaArtifact[]
   capabilityLeases CapabilityLease[]
   usageLedger      NovaUsageLedger[]
+  feedbacks        NovaFeedback[]
 
   @@index([agentSessionId, status, createdAt])
   @@index([desktopDeviceId, status])
@@ -1148,4 +1151,69 @@ model VercelResource {
   @@index([installationId])
   @@index([productId])
   @@map("vercel_resource")
+}
+
+/// One row per user-message exchange through the Nova harness.
+/// Records the user prompt, Nova's interpretation, every tool/agent
+/// invocation, latency, perceived issues, and suggested improvements.
+/// Empty body before closeout; populated by the recorder closeout.
+model NovaFeedback {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agentSessionId  String?
+  agentSession    AgentSession? @relation(fields: [agentSessionId], references: [id], onDelete: SetNull)
+  runId           String?
+  run             AgentRun?     @relation(fields: [runId], references: [id], onDelete: SetNull)
+  userMessageId   String?
+  userId          String?
+  /// "turn" | "user_comment" | "improvement" | "bug"
+  kind            String   @default("turn")
+  /// "info" | "warn" | "error"
+  severity        String   @default("info")
+  title           String
+  summary         String
+  body            String   @db.Text
+  filePath        String
+  /// -1 | 0 | 1
+  userRating      Int?
+  userComment     String?  @db.Text
+  metadata        Json?
+  /// "new" | "pending_promotion" | "promoted" | "dismissed"
+  status          String   @default("new")
+  issueNumber     Int?
+  issueUrl        String?
+  promotedAt      DateTime?
+  dedupeKey       String?  @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  closedAt        DateTime?
+
+  events          NovaFeedbackEvent[]
+
+  @@index([organizationId, status, createdAt])
+  @@index([agentSessionId, createdAt])
+  @@index([runId])
+  @@index([userId, createdAt])
+  @@index([status, severity])
+  @@map("nova_feedback")
+}
+
+/// Append-only event stream captured by the harness recorder for one
+/// `NovaFeedback` row. Sequence is monotonic per feedback row; the
+/// unique `(feedbackId, sequence)` makes retried POSTs idempotent.
+model NovaFeedbackEvent {
+  id          String   @id @default(cuid())
+  feedbackId  String
+  feedback    NovaFeedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  sequence    Int
+  event       String
+  ts          DateTime
+  payload     Json
+  createdAt   DateTime @default(now())
+
+  @@unique([feedbackId, sequence])
+  @@index([feedbackId])
+  @@index([event])
+  @@map("nova_feedback_event")
 }
