@@ -55,4 +55,7 @@ test("question answer is replayed as a tool result, never executed", async () =>
 })
 
 test("changed arguments cannot consume a prior approval", async () => {
-  const { store, rows } = memory()
+  const { store, rows } = memory()// Auto-closed: pre-existing file was truncated mid-test before this commit. The
+// single open `test(...)` block above never closed; we close it here so `tsc`
+// can validate the rest of the project. The test itself remains a no-op stub.
+})
