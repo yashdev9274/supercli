@@ -690,7 +690,7 @@ export async function* runWebTurn(input: {
     const exchangeStartMs = Date.now()
     const feedbackRecorder = buildRecorder(undefined)
     const exchangeContext: NovaExchangeContext = {
-      organizationId: organizationId ?? "unscoped",
+      organizationId: organizationId ?? "",
       agentSessionId: input.sessionId,
       runId: posted.runId,
       userMessageId: posted.message.id,
@@ -703,11 +703,13 @@ export async function* runWebTurn(input: {
       },
     }
     try {
-      await feedbackRecorder.open(exchangeContext)
-      feedbackRecorder.recordEvent("turn_started", {
-        userPrompt: posted.message.content,
-        postedRunId: posted.runId,
-      }, exchangeStartMs)
+      if (organizationId) {
+        await feedbackRecorder.open(exchangeContext)
+        feedbackRecorder.recordEvent("turn_started", {
+          userPrompt: posted.message.content,
+          postedRunId: posted.runId,
+        }, exchangeStartMs)
+      }
     } catch {
       // recorder failures must never interrupt the response
     }
@@ -830,6 +832,13 @@ export async function* runWebTurn(input: {
       const perceived = perceivedIssues.slice(0, 8)
       const improvements = buildDefaultImprovements(perceived)
       const severity = deriveSeverityFromOutcome(outcome, perceived)
+      const feedbackId = feedbackRecorder.stats().feedbackId ?? ""
+      const recorded = feedbackRecorder.events().map((event) => ({
+        sequence: event.sequence,
+        type: event.type,
+        ts: event.ts,
+        payload: event.payload,
+      }))
       const body = renderNovaFeedbackMarkdown({
         title: exchangeContext.title,
         exchange: {
@@ -843,13 +852,13 @@ export async function* runWebTurn(input: {
         },
         summary,
         severity,
-        events: [],
+        events: recorded,
         improvements,
         perceivedIssues: perceived,
-        feedbackId: "",
+        feedbackId,
       })
-      void feedbackRecorder
-        .closeout({
+      try {
+        await feedbackRecorder.closeout({
           summary,
           body,
           severity,
@@ -857,7 +866,11 @@ export async function* runWebTurn(input: {
           perceivedIssues: perceived,
           timeTakenMs: Date.now() - exchangeStartMs,
         })
-        .catch(() => undefined)
+      } catch {
+        // recorder failures must never interrupt the response
+      } finally {
+        await feedbackRecorder.dispose().catch(() => undefined)
+      }
     }
 
     if (!text.trim()) {

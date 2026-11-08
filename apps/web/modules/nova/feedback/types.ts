@@ -35,10 +35,12 @@ export type NovaFeedbackRecorder = {
   open(context: NovaExchangeContext): Promise<void>
   record(event: NovaFeedbackEventInput): void
   recordEvent(type: string, payload: Record<string, unknown>, ts?: number): void
+  /** Snapshot of recorded events for markdown closeout. */
+  events(): NovaFeedbackEventInput[]
   closeout(payload: NovaRecorderCloseout): Promise<void>
   attachUserFeedback(payload: NovaRecorderUserFeedback): Promise<void>
   stats(): NovaRecorderStats
-  /** Detaches the recorder, draining any pending work. */
+  /** Detaches the recorder, draining any pending work. Call after closeout. */
   dispose(): Promise<void>
 }
 

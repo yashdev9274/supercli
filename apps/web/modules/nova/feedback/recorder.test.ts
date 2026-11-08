@@ -10,7 +10,7 @@ const ORIGINAL_ENV = { ...process.env }
 
 function makeRecorder(fetchImpl: typeof fetch, envToken?: string, maxAttempts = 6) {
   if (envToken) process.env.NOVA_FEEDBACK_TOKEN = envToken
-  const client = new NovaFeedbackClient({ endpoint: "/api/nova-feedback", fetchImpl, token: envToken, maxAttempts })
+  const client = new NovaFeedbackClient({ endpoint: "/api/nova/feedback", fetchImpl, token: envToken, maxAttempts })
   return new ActiveNovaFeedbackRecorder(client)
 }
 
@@ -27,7 +27,7 @@ describe("active feedback recorder", () => {
     const calls: Array<{ body: Record<string, unknown>; auth?: string | null }> = []
     const fetchImpl = (async (input: unknown, init?: { body?: unknown; headers?: unknown }) => {
       const url = typeof input === "string" ? input : (input as { url?: string })?.url ?? ""
-      if (url.includes("/api/nova-feedback")) {
+      if (url.includes("/api/nova/feedback")) {
         calls.push({
           body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>,
           auth: ((init?.headers as Record<string, string> | undefined)?.Authorization ?? null) as string | null,
@@ -62,7 +62,7 @@ describe("active feedback recorder", () => {
     let attempts = 0
     const fetchImpl = (async (input: unknown) => {
       const url = typeof input === "string" ? input : (input as { url?: string })?.url ?? ""
-      if (url.includes("/api/nova-feedback")) {
+      if (url.includes("/api/nova/feedback")) {
         attempts += 1
         if (attempts % 2 === 1) {
           return new Response("transient", { status: 503 })

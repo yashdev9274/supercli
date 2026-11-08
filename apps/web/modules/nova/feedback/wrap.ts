@@ -88,24 +88,17 @@ export async function* withFeedbackRecording<T extends Record<string, unknown>>(
   source: AsyncGenerator<T>,
   recorder: NovaFeedbackRecorder,
 ): AsyncGenerator<T> {
-  try {
-    for await (const event of source) {
-      try {
-        const mapped = adaptHarnessEventToFeedback(event as Record<string, unknown>)
-        if (mapped) {
-          recorder.record(mapped)
-        }
-      } catch {
-        // never let feedback observation interfere with the response path
-      }
-      yield event
-    }
-  } finally {
+  // Do not dispose here — closeout must run after the stream, then the caller disposes.
+  for await (const event of source) {
     try {
-      await recorder.dispose()
+      const mapped = adaptHarnessEventToFeedback(event as Record<string, unknown>)
+      if (mapped) {
+        recorder.record(mapped)
+      }
     } catch {
-      // swallowed: the recorder has its own internal retry/dispose logic
+      // never let feedback observation interfere with the response path
     }
+    yield event
   }
 }
 

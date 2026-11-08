@@ -149,7 +149,14 @@ export async function closeoutNovaFeedback(input: NovaFeedbackCloseout): Promise
       input.severity === "warn" ||
       (Array.isArray(input.improvements) && input.improvements.length > 0)
     const status = eligible ? "pending_promotion" : "new"
+    await ensureDir(path.dirname(row.filePath))
     await fs.writeFile(row.filePath, input.body, "utf8").catch(() => undefined)
+    const metadata = {
+      ...((input.metadata as Record<string, unknown> | undefined) ?? {}),
+      improvements: input.improvements,
+      perceivedIssues: input.perceivedIssues,
+      timeTakenMs: input.timeTakenMs,
+    }
     await prisma.novaFeedback.update({
       where: { id: row.id },
       data: {
@@ -157,7 +164,7 @@ export async function closeoutNovaFeedback(input: NovaFeedbackCloseout): Promise
         summary: input.summary,
         severity: input.severity,
         status,
-        metadata: input.metadata as never,
+        metadata: metadata as never,
         closedAt: new Date(),
         updatedAt: new Date(),
       },
