@@ -1,6 +1,7 @@
 import { Router } from "express"
 import prisma from "../../lib/prisma"
 import { getDodo } from "../../lib/dodo"
+import { billing } from "../../lib/credit-meter"
 
 const router = Router()
 
@@ -28,13 +29,8 @@ router.post("/", async (req, res) => {
     }
 
     // Credits consumed this period
-    const creditBalance = await prisma.creditBalance.findFirst({
-      where: { userId },
-      orderBy: { updatedAt: "desc" },
-    })
-    const creditsConsumed = creditBalance
-      ? Math.max(0, (creditBalance.totalCredits ?? 0) - (creditBalance.balanceCents ?? 0))
-      : 0
+    const creditBalance = await billing.getBalance(userId)
+    const creditsConsumed = Math.max(0, creditBalance.allowanceCredits - creditBalance.balanceCredits)
 
     // Queries used this period
     const startOfPeriod = subscription.currentPeriodStart ?? new Date()
@@ -55,7 +51,7 @@ router.post("/", async (req, res) => {
         eligible: false,
         reason: creditsUnderLimit
           ? `Exceeded query limit (${queriesUsed}/7500 used).`
-          : `Exceeded credit consumption ($${(creditsConsumed / 100).toFixed(2)}/$5.00 used).`,
+          : `Exceeded credit consumption (${creditsConsumed.toFixed(2)}/500 product credits used).`,
         creditsUsed: creditsConsumed,
         queriesUsed,
       })

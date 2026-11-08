@@ -9,6 +9,8 @@ datasource db {
 }
 
 model User {
+  creditAccount CreditAccount?
+  creditReservations CreditReservation[]
   id            String    @id
   name          String
   email         String
@@ -26,6 +28,38 @@ model User {
 
   @@unique([email])
   @@map("user")
+}
+
+model CreditAccount {
+  userId                 String   @id
+  balanceMicrocredits    BigInt
+  allowanceMicrocredits  BigInt
+  committedMicrocredits  BigInt @default(0)
+  periodStart            DateTime
+  resetAt                DateTime
+  updatedAt              DateTime @updatedAt
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("credit_account")
+}
+
+model CreditReservation {
+  id                     String   @id
+  userId                 String
+  key                    String
+  kind                   String
+  periodStart            DateTime
+  status                 String
+  reservedMicrocredits   BigInt
+  actualMicrocredits     BigInt?
+  metadata               Json
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId, status])
+  @@map("credit_reservation")
 }
 
 model Session {
@@ -156,6 +190,7 @@ model Plan {
   contextLimit      Int
   modelAccess       String
   creditAmountCents Int            @default(0)
+  monthlyCredits   Int            @default(1000)
   dodoProductId     String?        @unique
   active            Boolean        @default(true)
   sortOrder         Int            @default(0)

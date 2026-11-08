@@ -5,15 +5,7 @@ const router = Router()
 
 router.get("/", async (req, res) => {
   try {
-    const isGrandfathered = req.query.isGrandfathered === "true"
-
     const where: Record<string, unknown> = { active: true }
-
-    // Grandfathered users see all plans including Spark (Free)
-    // Non-grandfathered users see Spark Premium + Pro + Ultra (no free plan)
-    if (!isGrandfathered) {
-      where.tier = { not: "spark" }
-    }
 
     // All regional variants (Indian + International) and null-variant plans
     // (Spark Premium, Ultra) are always returned — the studio shows every plan.
@@ -34,6 +26,7 @@ router.get("/", async (req, res) => {
         contextLimit: true,
         modelAccess: true,
         creditAmountCents: true,
+        monthlyCredits: true,
         dodoProductId: true,
         sortOrder: true,
       },

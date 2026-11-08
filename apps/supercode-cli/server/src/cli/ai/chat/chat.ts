@@ -1956,7 +1956,7 @@ export async function chatLoop(
               await addMessage(conversation.id, "user", triggerMsg)
               try {
                 const totalTokens = await loadContextTokens(conversation.id)
-                const gate = await checkPlanGate(conversation.userId, provider.modelName, { totalTokens })
+                const gate = await checkPlanGate(conversation.userId, provider.modelName, { totalTokens, nativeDeepSeek: (provider.name === "supercode" || provider.name === "concentrateai") && (provider.modelName === "deepseek-v4-flash" || provider.modelName === "deepseek/deepseek-v4-flash") })
                 if (!gate.allowed) {
                   process.stdout.write(`\r\n ${chalk.hex(theme.amber)("◆")} ${chalk.hex(theme.amber)(gate.message)}\r\n\n`)
                 } else {
@@ -2058,7 +2058,7 @@ export async function chatLoop(
           }
           try {
             const totalTokens = await loadContextTokens(conversation.id)
-            const gate = await checkPlanGate(conversation.userId, provider.modelName, { totalTokens })
+            const gate = await checkPlanGate(conversation.userId, provider.modelName, { totalTokens, nativeDeepSeek: (provider.name === "supercode" || provider.name === "concentrateai") && (provider.modelName === "deepseek-v4-flash" || provider.modelName === "deepseek/deepseek-v4-flash") })
             if (!gate.allowed) {
               process.stdout.write(`\r\n ${chalk.hex(theme.amber)("◆")} ${chalk.hex(theme.amber)(gate.message)}\r\n\n`)
             } else {
@@ -2131,7 +2131,7 @@ export async function chatLoop(
 
       try {
         const totalTokens = await loadContextTokens(conversation.id)
-        const gate = await checkPlanGate(conversation.userId, provider.modelName, { totalTokens })
+        const gate = await checkPlanGate(conversation.userId, provider.modelName, { totalTokens, nativeDeepSeek: (provider.name === "supercode" || provider.name === "concentrateai") && (provider.modelName === "deepseek-v4-flash" || provider.modelName === "deepseek/deepseek-v4-flash") })
         if (!gate.allowed) {
           process.stdout.write(`\r\n ${chalk.hex(theme.amber)("◆")} ${chalk.hex(theme.amber)(gate.message)}\r\n\n`)
           footer.renderLine()

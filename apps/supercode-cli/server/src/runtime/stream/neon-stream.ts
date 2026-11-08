@@ -37,10 +37,11 @@ export async function streamNeonChat(options: {
   messages: Array<Record<string, any>>
   tools?: Record<string, any>
   signal?: AbortSignal
+  fetcher?: typeof fetch
   write: (event: Record<string, unknown>) => void
 }) {
   const result = streamText({
-    model: createNeonModel(options.model),
+    model: createNeonModel(options.model, options.fetcher),
     messages: neonMessages(options.messages),
     tools: neonTools(options.tools),
     abortSignal: options.signal,

@@ -5,12 +5,17 @@ export type ModelPricing = {
 }
 
 export const MODEL_PRICING: Record<string, ModelPricing> = {
+  "gpt-5-mini":              { inputPrice: 0.25, outputPrice: 2.00, cachedPrice: 0.025 },
+  "openai/gpt-5-mini":       { inputPrice: 0.25, outputPrice: 2.00, cachedPrice: 0.025 },
+  "neon/gpt-5-mini":         { inputPrice: 0.25, outputPrice: 2.00, cachedPrice: 0.025 },
+  "gpt-4o-mini":             { inputPrice: 0.15, outputPrice: 0.60, cachedPrice: 0.075 },
+  "openai/gpt-4o-mini":      { inputPrice: 0.15, outputPrice: 0.60, cachedPrice: 0.075 },
   "gemini-2.5-flash":          { inputPrice: 0.15,   outputPrice: 0.60,   cachedPrice: 0.025 },
   "gemini-2.5-pro":            { inputPrice: 1.25,   outputPrice: 10.00,  cachedPrice: 0.3125 },
   "openai/gpt-oss-120b:free":  { inputPrice: 0,      outputPrice: 0,      cachedPrice: 0 },
-  "deepseek-v4-flash":         { inputPrice: 0.15,   outputPrice: 0.60,   cachedPrice: 0 },
-  "deepseek/deepseek-v4-flash": { inputPrice: 0.15,  outputPrice: 0.60,   cachedPrice: 0 },
-  "deepseek-ai/deepseek-v4-flash": { inputPrice: 0.15, outputPrice: 0.60, cachedPrice: 0 },
+  "deepseek-v4-flash":         { inputPrice: 0.30,   outputPrice: 1.20,   cachedPrice: 0.006 },
+  "deepseek/deepseek-v4-flash": { inputPrice: 0.30,  outputPrice: 1.20,   cachedPrice: 0.006 },
+  "deepseek-ai/deepseek-v4-flash": { inputPrice: 0.30, outputPrice: 1.20, cachedPrice: 0.006 },
   "MiniMax-M2":                { inputPrice: 0.15,   outputPrice: 0.60,   cachedPrice: 0.025 },
   "MiniMax-M3":                { inputPrice: 0.20,   outputPrice: 0.80,   cachedPrice: 0.04 },
   "MiniMax-M2.5":              { inputPrice: 0.15,   outputPrice: 0.60,   cachedPrice: 0.025 },
@@ -35,7 +40,6 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   "deepseek/deepseek-chat":  { inputPrice: 0.15,   outputPrice: 0.60,   cachedPrice: 0 },
   "deepseek/deepseek-reasoner": { inputPrice: 0.50, outputPrice: 2.00,  cachedPrice: 0 },
   "grok/grok-4-fast-reasoning": { inputPrice: 1.00, outputPrice: 5.00,  cachedPrice: 0 },
-  "orcarouter/auto":         { inputPrice: 0,      outputPrice: 0,      cachedPrice: 0 },
   "mimo-v2.5":              { inputPrice: 0.15,   outputPrice: 0.60,   cachedPrice: 0 },
   "stealth/ox-alpha":        { inputPrice: 0,      outputPrice: 0,      cachedPrice: 0 },
   "fireworks/nemotron-3-ultra-nvfp4": { inputPrice: 0.60, outputPrice: 2.40, cachedPrice: 0.12 },
@@ -46,20 +50,31 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
 export function computeCost(model: string, inputTokens: number, outputTokens: number, cachedInputTokens: number): number {
   const pricing = lookupPricing(model)
   if (!pricing) return 0
+  const input = Math.max(0, inputTokens)
+  const cached = Math.min(input, Math.max(0, cachedInputTokens))
   return (
-    (inputTokens / 1_000_000) * pricing.inputPrice +
-    (outputTokens / 1_000_000) * pricing.outputPrice +
-    (cachedInputTokens / 1_000_000) * pricing.cachedPrice
+    ((input - cached) / 1_000_000) * pricing.inputPrice +
+    (Math.max(0, outputTokens) / 1_000_000) * pricing.outputPrice +
+    (cached / 1_000_000) * pricing.cachedPrice
   )
 }
 
 export function lookupPricing(model: string): ModelPricing | null {
-  const exact = MODEL_PRICING[model]
-  if (exact) return exact
-  for (const [key, pricing] of Object.entries(MODEL_PRICING)) {
-    if (model.includes(key) || key.includes(model)) return pricing
+  const configured = process.env.BILLING_MODEL_RATES_JSON
+  if (configured) {
+    let rates: Record<string, ModelPricing>
+    try {
+      rates = JSON.parse(configured)
+      if (!rates || Array.isArray(rates) || typeof rates !== "object") throw new Error("Invalid rates")
+      for (const [name, rate] of Object.entries(rates)) {
+        if (!name.trim() || !rate || [rate.inputPrice, rate.outputPrice, rate.cachedPrice].some(value => typeof value !== "number" || !Number.isFinite(value) || value < 0) || rate.cachedPrice > rate.inputPrice) throw new Error("Invalid rate")
+      }
+    } catch {
+      throw Object.assign(new Error("BILLING_MODEL_RATES_JSON must contain valid per-million inputPrice, outputPrice and cachedPrice rates"), { statusCode: 503 })
+    }
+    if (Object.hasOwn(rates, model)) return rates[model]!
   }
-  return null
+  return Object.hasOwn(MODEL_PRICING, model) ? MODEL_PRICING[model]! : null
 }
 
 export function getProviderDisplayNameFromRaw(raw: string): string {

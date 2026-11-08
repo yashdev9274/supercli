@@ -72,22 +72,6 @@ export class ServerComposioService {
         : a.connected ? -1 : 1)
   }
 
-  async createSession(userId: string) {
-    const accounts = await this.activeAccounts(userId)
-    const connectedAccounts = Object.fromEntries(accounts.map((account) => [account.toolkit.slug, account.id]))
-    const session = await this.composio.sessions.create(userId, {
-      mcp: true,
-      connectedAccounts,
-      toolkits: Object.keys(connectedAccounts),
-      manageConnections: false,
-    })
-    return {
-      url: session.mcp.url,
-      headers: session.mcp.headers,
-      sessionId: session.sessionId,
-    }
-  }
-
   async connect(userId: string, slug: string, callbackUrl: string) {
     const accounts = await this.activeAccounts(userId)
     const existing = accounts.find((account) => account.toolkit.slug === slug)

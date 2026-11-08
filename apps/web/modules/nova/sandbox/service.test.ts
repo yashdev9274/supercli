@@ -32,6 +32,18 @@ const db = {
 }
 mock.module("@super/db", () => ({ default: db }))
 mock.module("@/modules/github/lib/github", () => ({ getGithubTokenForUser: async () => "fixture-token" }))
+const creditSettlements: unknown[] = []
+let creditFailure = false
+mock.module("./billing", () => ({
+  reserveSandboxCredits: async () => {
+    if (creditFailure) throw new Error("Monthly product credits exhausted")
+    return {
+      settle: async (usage: unknown) => { creditSettlements.push(usage) },
+      cancel: async () => {},
+    }
+  },
+  recoverSandboxCredits: async () => {},
+}))
 const { openSandboxWorkspace, reconcileSandboxWorkspaces, sandboxEligibility, stopSandbox } = await import("./service")
 const originalEnabled = process.env.NOVA_SANDBOX_ENABLED
 const originalUsers = process.env.NOVA_SANDBOX_USER_IDS
@@ -47,6 +59,8 @@ beforeEach(() => {
   connected = true
   updates.length = 0
   runUpdates.length = 0
+  creditSettlements.length = 0
+  creditFailure = false
 })
 afterEach(() => {
   mock.restore()
@@ -114,7 +128,19 @@ test("resume preserves base and dirty workspace; failed stop can be retried", as
   await workspace.close()
   await workspace.close()
   expect(stops).toBe(2)
+  expect(creditSettlements).toHaveLength(1)
   expect(updates.some((data) => data.status === "stopped" && data.leaseRunId === null)).toBe(true)
+})
+
+test("exhausted credits block provider acquisition and release the workspace lease", async () => {
+  row = retained()
+  creditFailure = true
+  const get = spyOn(Sandbox, "get")
+  const create = spyOn(Sandbox, "create")
+  await expect(openSandboxWorkspace(input())).rejects.toThrow("credits exhausted")
+  expect(get).not.toHaveBeenCalled()
+  expect(create).not.toHaveBeenCalled()
+  expect(updates.some((data) => data.leaseRunId === null)).toBe(true)
 })
 
 test("confirmed missing provider releases abandoned lease and fails the run", async () => {

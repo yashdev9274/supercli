@@ -30,6 +30,7 @@ export function mergeKnownTools(extra?: Iterable<string> | null): Set<string> {
 export interface StreamUsage {
   inputTokens: number
   outputTokens: number
+  cachedInputTokens: number
 }
 
 export interface StreamChatResult {
@@ -164,6 +165,7 @@ export async function streamOpenAICompatibleChat(
   let buffer = ""
   let inputTokens = 0
   let outputTokens = 0
+  let cachedInputTokens = 0
   let fullContent = ""
   let reasoningContent = ""
   let sawToolCalls = false
@@ -312,6 +314,7 @@ const contentChunk = extractDeltaContent(delta)
           if (data.usage) {
             inputTokens = data.usage.prompt_tokens ?? 0
             outputTokens = data.usage.completion_tokens ?? 0
+            cachedInputTokens = Math.min(inputTokens, data.usage.prompt_tokens_details?.cached_tokens ?? data.usage.prompt_cache_hit_tokens ?? 0)
           }
         } catch {
           /* skip malformed */
@@ -410,7 +413,7 @@ const contentChunk = extractDeltaContent(delta)
     fullContent,
     reasoningContent,
     emittedToolCalls,
-    usage: { inputTokens, outputTokens },
+    usage: { inputTokens, outputTokens, cachedInputTokens },
   }
 }
 
@@ -504,9 +507,10 @@ export function writeFinish(
     emittedToolCalls: boolean
     inputTokens: number
     outputTokens: number
+    cachedInputTokens?: number
   },
 ) {
-  const { emittedToolCalls, inputTokens, outputTokens } = opts
+  const { emittedToolCalls, inputTokens, outputTokens, cachedInputTokens = 0 } = opts
   res.write(
     JSON.stringify({
       type: "finish",
@@ -515,7 +519,7 @@ export function writeFinish(
         inputTokens,
         outputTokenDetails: { textTokens: outputTokens, reasoningTokens: 0 },
         outputTokens,
-        inputTokenDetails: { noCacheTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+        inputTokenDetails: { noCacheTokens: inputTokens - cachedInputTokens, cacheReadTokens: cachedInputTokens, cacheWriteTokens: 0 },
         totalTokens: inputTokens + outputTokens,
       },
     }) + "\n",

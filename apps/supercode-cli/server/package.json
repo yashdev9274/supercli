@@ -47,6 +47,7 @@
     "node": ">=20.19.0"
   },
   "dependencies": {
+    "@super/billing": "workspace:*",
     "@ai-sdk/google": "^3.0.80",
     "@ai-sdk/mcp": "^2.0.10",
     "@ai-sdk/openai-compatible": "^2.0.48",
