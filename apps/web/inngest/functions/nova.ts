@@ -2,6 +2,7 @@ import {
   approvalContinuationIsTerminal,
 } from "@super/nova"
 
+import { novaMaintenanceCronsEnabled, skipMaintenanceCron } from "@/inngest/cron-guard"
 import {
   expirePendingApprovals,
 } from "@/modules/nova/approvals/service"
@@ -192,8 +193,9 @@ export const reconcileNovaRuns = inngest.createFunction(
     id: "nova-reconcile-runs",
     retries: 2,
   },
-  { cron: "*/1 * * * *" },
+  { cron: "*/5 * * * *" },
   async ({ step }) => {
+    if (!novaMaintenanceCronsEnabled()) return skipMaintenanceCron()
     return step.run("publish-pending-runs", () => reconcileRunOutbox())
   },
 )
@@ -203,8 +205,9 @@ export const reconcileNovaApprovalContinuations = inngest.createFunction(
     id: "nova-reconcile-approval-continuations",
     retries: 2,
   },
-  { cron: "*/1 * * * *" },
+  { cron: "*/5 * * * *" },
   async ({ step }) => {
+    if (!novaMaintenanceCronsEnabled()) return skipMaintenanceCron()
     return step.run("publish-pending-approval-continuations", () =>
       reconcileApprovalContinuations(),
     )
@@ -216,8 +219,9 @@ export const expireNovaApprovals = inngest.createFunction(
     id: "nova-expire-approvals",
     retries: 2,
   },
-  { cron: "*/1 * * * *" },
+  { cron: "*/5 * * * *" },
   async ({ step }) => {
+    if (!novaMaintenanceCronsEnabled()) return skipMaintenanceCron()
     return step.run("expire-pending-approvals", () => expirePendingApprovals())
   },
 )
@@ -227,8 +231,9 @@ export const reconcileNovaActivityDelivery = inngest.createFunction(
     id: "nova-reconcile-activity-delivery",
     retries: 2,
   },
-  { cron: "*/1 * * * *" },
+  { cron: "*/5 * * * *" },
   async ({ step }) => {
+    if (!novaMaintenanceCronsEnabled()) return skipMaintenanceCron()
     return step.run("publish-pending-deliveries", async () => {
       return reconcileActivityDeliveryOutbox()
     })

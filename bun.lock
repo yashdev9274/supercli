@@ -147,7 +147,6 @@
         "@prisma/client": "^7.8.0",
         "@prisma/client-runtime-utils": "^7.8.0",
         "@prisma/driver-adapter-utils": "^7.8.0",
-        "@super/billing": "workspace:*",
         "@vercel/connect": "^0.3.2",
         "ai": "^6.0.195",
         "better-auth": "^1.6.23",

@@ -1,4 +1,5 @@
 import { inngest } from "@/inngest/client"
+import { novaMaintenanceCronsEnabled, skipMaintenanceCron } from "@/inngest/cron-guard"
 import {
   claimAutomationRun, classifyAutomationRun, createAutomationSession,
   executeAutomationRun, failAutomationRun, reconcileAutomations,
@@ -26,7 +27,8 @@ export const processNovaAutomation = inngest.createFunction({
 
 export const scheduleNovaAutomations = inngest.createFunction({
   id: "nova-schedule-automations", retries: 2, concurrency: { limit: 1 },
-}, { cron: "*/1 * * * *" }, async ({ event, step }) => {
+}, { cron: "*/5 * * * *" }, async ({ event, step }) => {
+  if (!novaMaintenanceCronsEnabled()) return skipMaintenanceCron()
   // Use the event timestamp, not worker wall clock, to keep retries in the same slot.
   return step.run("dispatch-scheduled-and-pending", () => reconcileAutomations(new Date(event.ts ?? Date.now())))
 })
