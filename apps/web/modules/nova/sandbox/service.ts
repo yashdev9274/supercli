@@ -11,6 +11,7 @@ import { exportPatch, runBounded } from "./tools"
 import { canonicalSandboxTools, createCanonicalSandboxExecutor } from "./canonical-tools"
 import { assertMachineResources, validateMachineSelection } from "./machine-config"
 import type { MachineSize } from "./machine-sizes"
+import { recoverSandboxCredits, reserveSandboxCredits } from "./billing"
 
 export async function sandboxEligibility(userId: string, sessionId: string) {
   if (process.env.NOVA_SANDBOX_ENABLED !== "true") return null
@@ -64,11 +65,20 @@ export async function openSandboxWorkspace(input: WorkspaceInput) {
   let sandbox: Sandbox | E2BWorkspace | undefined
   let baseSha = registry.baseSha ?? ""
   let closed = false
-  const started = Date.now()
+  let providerStarted = false
+  let credits: Awaited<ReturnType<typeof reserveSandboxCredits>> | undefined
+  let finalUsage: { vcpus: number; memoryMb: number; seconds: number } | undefined
+  let started = Date.now()
   const close = async () => {
     if (closed) return
     if (!sandbox) return // Keep lease for the reconciler if provider creation was ambiguous.
     await stopSandbox(sandbox)
+    finalUsage ??= {
+      vcpus: resources?.cpuCount ?? (provider === "vercel" ? 2 : 16),
+      memoryMb: resources?.memoryMB ?? (provider === "vercel" ? 4096 : 65_536),
+      seconds: (Date.now() - started) / 1000,
+    }
+    await credits?.settle(finalUsage)
     await prisma.$transaction(async (tx) => {
       await tx.novaSandboxSession.updateMany({ where: { id: registry.id, leaseRunId: input.runId }, data: {
         status: baseSha ? "stopped" : "failed", leaseRunId: null, leaseExpiresAt: null,
@@ -83,7 +93,10 @@ export async function openSandboxWorkspace(input: WorkspaceInput) {
     closed = true
   }
   try {
+    credits = await reserveSandboxCredits(input.userId, input.runId, provider)
     input.signal.throwIfAborted()
+    started = Date.now()
+    providerStarted = true
     if (provider === "e2b") {
       if (registry.baseSha) {
         if (!registry.providerSandboxId) throw new Error("E2B workspace identity is missing")
@@ -121,6 +134,7 @@ export async function openSandboxWorkspace(input: WorkspaceInput) {
     if (sandbox instanceof E2BWorkspace) {
       const info = await sandbox.sandbox.getInfo({ signal: input.signal, requestTimeoutMs: 10_000 })
       resources = { cpuCount: info.cpuCount, memoryMB: info.memoryMB }
+      if (resources.cpuCount > 16 || resources.memoryMB > 65_536) throw new Error("Cloud machine exceeds the prepaid resource limit")
       assertMachineResources(machineSize, info, Boolean(registry.baseSha))
       await sandbox.sandbox.updateNetwork(e2bNetwork(domains), { signal: input.signal })
     } else await sandbox.update({ networkPolicy: policy }, { signal: input.signal })
@@ -144,7 +158,14 @@ export async function openSandboxWorkspace(input: WorkspaceInput) {
         return `Cloud workspace · [Download patch](/api/nova/sessions/${input.sessionId}/artifacts/${artifact.id}). Your local files were not modified.`
       },
     }
-  } catch {
+  } catch (error) {
+    if (!providerStarted) {
+      await credits?.cancel()
+      await prisma.novaSandboxSession.updateMany({ where: { id: registry.id, leaseRunId: input.runId }, data: {
+        status: baseSha ? "stopped" : "failed", leaseRunId: null, leaseExpiresAt: null,
+      } })
+      throw error
+    }
     await close().catch(() => {})
     // Provider errors may contain request bodies with brokered credentials.
     throw new Error("Cloud workspace could not be prepared. Check sandbox configuration and GitHub access; existing work was not reset.")
@@ -216,6 +237,7 @@ export async function reconcileSandboxWorkspaces() {
         if (!(error instanceof NotFoundError) && (!(error instanceof APIError) || error.response.status !== 404)) throw error
         missing = true
       }
+      if (row.leaseRunId) await recoverSandboxCredits(row.userId, row.leaseRunId)
       await prisma.$transaction(async (tx) => {
         await tx.novaSandboxSession.updateMany({ where: { id: row.id, leaseRunId: row.leaseRunId, status: "recovering" }, data: { status: missing || !row.leaseRunId ? "expired" : "stopped", leaseRunId: null, leaseExpiresAt: null, snapshotId, ...(missing ? { expiresAt: new Date(0) } : {}) } })
         if (row.leaseRunId) {

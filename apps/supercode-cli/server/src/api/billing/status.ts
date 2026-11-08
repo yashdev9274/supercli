@@ -1,6 +1,8 @@
 import { Router } from "express"
 import prisma from "../../lib/prisma"
 import { getDodo } from "../../lib/dodo"
+import { billing } from "../../lib/credit-meter"
+import { getSubscriptionPlan } from "../../lib/subscription-check"
 
 const router = Router()
 
@@ -16,6 +18,7 @@ const PLAN_SELECT = {
   contextLimit: true,
   modelAccess: true,
   creditAmountCents: true,
+  monthlyCredits: true,
 } as const
 
 async function getActiveSubscription(userId: string) {
@@ -54,13 +57,9 @@ router.get("/", async (req, res) => {
       return
     }
 
+    await getSubscriptionPlan(userId)
     const subscription = await getActiveSubscription(userId)
-
-    const creditBalance = await prisma.creditBalance.findFirst({
-      where: { userId },
-      orderBy: { updatedAt: "desc" },
-      select: { balanceCents: true, totalCredits: true, resetAt: true },
-    })
+    const productCreditBalance = await billing.getBalance(userId)
 
     // Monthly request usage (calendar month, matching request-counter)
     const startOfMonth = new Date()
@@ -71,7 +70,7 @@ router.get("/", async (req, res) => {
     })
 
     if (!subscription) {
-      res.json({ subscription: null, plan: null, creditBalance: null, requestsUsed: 0 })
+      res.json({ subscription: null, plan: null, creditBalance: null, productCreditBalance, requestsUsed })
       return
     }
 
@@ -92,11 +91,12 @@ router.get("/", async (req, res) => {
           },
           plan: fallback.plan,
           creditBalance: null,
+          productCreditBalance,
           requestsUsed,
         })
         return
       }
-      res.json({ subscription: null, plan: null, creditBalance: null, requestsUsed })
+      res.json({ subscription: null, plan: null, creditBalance: null, productCreditBalance, requestsUsed })
       return
     }
 
@@ -112,12 +112,13 @@ router.get("/", async (req, res) => {
         isGrandfathered: isGrandfathered(subscription),
       },
       plan: subscription.plan,
-      creditBalance,
+      creditBalance: null,
+      productCreditBalance,
       requestsUsed,
     })
   } catch (error) {
     console.error("[billing/status] Failed to fetch subscription status:", error)
-    res.json({ subscription: null, plan: null, creditBalance: null, requestsUsed: 0 })
+    res.status(503).json({ error: "Billing is temporarily unavailable" })
   }
 })
 

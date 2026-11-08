@@ -8,6 +8,11 @@ datasource db {
 }
 
 model User {
+  subscriptions Subscription[]
+  creditBalances CreditBalance[]
+  dodoCustomerId String? @unique
+  creditAccount CreditAccount?
+  creditReservations CreditReservation[]
   id            String    @id
   name          String?
   email         String
@@ -24,6 +29,38 @@ model User {
 
   @@unique([email])
   @@map("user")
+}
+
+model CreditAccount {
+  userId                 String   @id
+  balanceMicrocredits    BigInt
+  allowanceMicrocredits  BigInt
+  committedMicrocredits  BigInt @default(0)
+  periodStart            DateTime
+  resetAt                DateTime
+  updatedAt              DateTime @updatedAt
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("credit_account")
+}
+
+model CreditReservation {
+  id                     String   @id
+  userId                 String
+  key                    String
+  kind                   String
+  periodStart            DateTime
+  status                 String
+  reservedMicrocredits   BigInt
+  actualMicrocredits     BigInt?
+  metadata               Json
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId, status])
+  @@map("credit_reservation")
 }
 
 model Session {
@@ -164,6 +201,94 @@ model UsageEvent {
   @@index([model])
   @@index([provider])
   @@map("usage_event")
+}
+
+model Plan {
+  id                String         @id @default(cuid())
+  tier              String
+  name              String
+  description       String?
+  variant           String?
+  interval          String?
+  priceCents        Int
+  currency          String         @default("USD")
+  requestLimit      Int
+  contextLimit      Int
+  modelAccess       String
+  creditAmountCents Int            @default(0)
+  monthlyCredits   Int            @default(1000)
+  dodoProductId     String?        @unique
+  active            Boolean        @default(true)
+  sortOrder         Int            @default(0)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  subscriptions     Subscription[]
+  creditBalances    CreditBalance[]
+
+  @@index([tier])
+  @@map("plan")
+}
+
+model Subscription {
+  id                 String   @id @default(cuid())
+  userId             String
+  planId             String
+  dodoSubscriptionId String   @unique
+  dodoCustomerId     String?
+  status             String
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  trialEndsAt        DateTime?
+  cancelAtPeriodEnd  Boolean  @default(false)
+  metadata           Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planId], references: [id])
+
+  @@index([userId])
+  @@index([planId])
+  @@index([dodoSubscriptionId])
+  @@index([status])
+  @@map("subscription")
+}
+
+model CreditBalance {
+  userId       String
+  planId       String
+  balanceCents Int      @default(0)
+  totalCredits Int      @default(0)
+  resetAt      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planId], references: [id])
+
+  @@id([userId, planId])
+  @@index([userId])
+  @@index([planId])
+  @@map("credit_balance")
+}
+
+model Model {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  displayName  String
+  provider     String
+  minTier      String
+  inputPrice   Float
+  outputPrice  Float
+  cachedPrice  Float
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([minTier])
+  @@index([provider])
+  @@index([slug])
+  @@map("model")
 }
 
 model WaitlistEntry {

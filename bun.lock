@@ -254,6 +254,7 @@
         "@radix-ui/react-tooltip": "^1.2.8",
         "@super/agent-runtime": "workspace:*",
         "@super/auth": "workspace:*",
+        "@super/billing": "workspace:*",
         "@super/claude-sdk": "workspace:*",
         "@super/db": "workspace:*",
         "@super/db-terminal": "workspace:*",
@@ -343,6 +344,13 @@
         "better-auth": "1.6.11",
         "better-call": "^1.3.7",
         "kysely": "^0.28.17",
+      },
+    },
+    "packages/billing": {
+      "name": "@super/billing",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@electric-sql/pglite": "^0.4.1",
       },
     },
     "packages/claude-sdk": {
@@ -1630,6 +1638,8 @@
     "@super/agent-runtime": ["@super/agent-runtime@workspace:packages/agent-runtime"],
 
     "@super/auth": ["@super/auth@workspace:packages/auth"],
+
+    "@super/billing": ["@super/billing@workspace:packages/billing"],
 
     "@super/claude-sdk": ["@super/claude-sdk@workspace:packages/claude-sdk"],
 

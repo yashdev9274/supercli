@@ -6,7 +6,7 @@ import prisma from "./lib/prisma"
 import { loadEnvOnce } from "./lib/load-env"
 import { recordUsage } from "./lib/track-usage"
 import { computeCost } from "./lib/pricing"
-import { checkDailyTokenBudget } from "./lib/token-budget"
+import { getCreditBalance, withToolCredits } from "./lib/credit-meter"
 import { registerAnalyticsRoutes } from "./routes/analytics"
 import plansRouter from "./api/billing/plans"
 import checkoutRouter from "./api/billing/checkout"
@@ -40,6 +40,7 @@ import { registerComposioRoutes } from "./routes/composio"
 import { registerNovaHarnessRoutes } from "./routes/nova-harness"
 import { streamNeonChat } from "./runtime/stream/neon-stream"
 import { DEFAULT_NEON_MODEL } from "./config/neon.config"
+import { clientInferenceKey, createInferenceFetch, inferenceErrorStatus } from "./runtime/inference-meter"
 
 function toolParams(fn: any): object {
   const raw = fn.parameters ?? fn.inputSchema
@@ -243,9 +244,6 @@ const MODEL_MAX_TOKENS: Record<string, number> = {
 function getModelMaxTokens(model: string): number {
   const exact = MODEL_MAX_TOKENS[model]
   if (exact !== undefined) return exact
-  for (const [key, value] of Object.entries(MODEL_MAX_TOKENS)) {
-    if (model.includes(key) || key.includes(model)) return value
-  }
   return 8192
 }
 
@@ -349,9 +347,24 @@ app.use(
 registerAnalyticsRoutes(app, prisma)
 
 app.use("/api/billing/plans", plansRouter)
-app.use("/api/billing/checkout", checkoutRouter)
-app.use("/api/billing/status", statusRouter)
-app.use("/api/billing/refund", refundRouter)
+const requireBillingIdentity: express.RequestHandler = async (req, res, next) => {
+  const user = await getUserFromBearer(req)
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" })
+    return
+  }
+  const query = req.query
+  if ((query.userId !== undefined && query.userId !== user.id) || (req.body?.userId !== undefined && req.body.userId !== user.id)) {
+    res.status(403).json({ error: "Billing identity does not match authenticated user" })
+    return
+  }
+  Object.defineProperty(req, "query", { value: { ...query, userId: user.id }, configurable: true })
+  req.body = { ...req.body, userId: user.id }
+  next()
+}
+app.use("/api/billing/checkout", requireBillingIdentity, checkoutRouter)
+app.use("/api/billing/status", requireBillingIdentity, statusRouter)
+app.use("/api/billing/refund", requireBillingIdentity, refundRouter)
 app.use("/api/billing/webhook", webhookRouter)
 // Alias so the Dodo dashboard's configured webhook URL works as documented in the plan
 app.use("/api/webhooks/dodo-payments", webhookRouter)
@@ -511,7 +524,8 @@ app.get("/api/user/me", async (req, res) => {
       res.status(401).json({ error: "Unauthorized" })
       return
     }
-    res.json(user)
+    const productCreditBalance = await getCreditBalance(user.id)
+    res.json({ ...user, productCreditBalance })
   } catch (error) {
     res.status(500).json({ error: "Failed to get user" })
   }
@@ -681,6 +695,10 @@ app.post("/api/ai/chat", async (req, res) => {
     }
 
     const { messages: rawMessages, provider, model: modelParam, tools: rawTools } = req.body
+    const clientKey = clientInferenceKey(req.body)
+    const controller = new AbortController()
+    res.on("close", () => controller.abort())
+    const fetch = createInferenceFetch({ userId: user.id, provider, model: modelParam, clientKey, signal: controller.signal, maxOutputTokens: getModelMaxTokens })
     // Accept both OpenAI tool arrays (desktop) and name→def maps (CLI).
     const tools = normalizeToolsMap(rawTools)
     if (!rawMessages || !Array.isArray(rawMessages)) {
@@ -738,22 +756,6 @@ res.status(200)
       return
     }
 
-    const isByok = provider === "concentrateai" && !!req.body.concentrateAiKey
-    if (!isByok) {
-      writeStatus("budget", "checking daily budget")
-      try {
-        await checkDailyTokenBudget(user.id)
-      } catch (budgetErr: any) {
-        res.write(JSON.stringify({
-          type: "error",
-          message: budgetErr?.message || String(budgetErr),
-        }) + "\n")
-        res.write(JSON.stringify({ type: "finish", reason: "error" }) + "\n")
-        res.end()
-        return
-      }
-    }
-
     const systemMessages = messages.filter((m: any) => m.role === "system")
     const nonSystemMessages = messages.filter((m: any) => m.role !== "system")
     const system = systemMessages.map((m: any) => m.content).join("\n")
@@ -770,13 +772,14 @@ res.status(200)
         try {
           const usage = await streamNeonChat({
             model: modelName, messages, tools,
+            fetcher: fetch,
             signal: AbortSignal.any([controller.signal, AbortSignal.timeout(120_000)]),
             write: (event) => res.write(JSON.stringify(event) + "\n"),
           })
           const inputTokens = usage.inputTokens ?? 0
           const outputTokens = usage.outputTokens ?? 0
           const cachedInputTokens = usage.inputTokenDetails?.cacheReadTokens ?? 0
-          recordUsage({ provider: "neon", model: modelName, inputTokens, outputTokens, cachedInputTokens,
+          await recordUsage({ provider: "neon", model: modelName, inputTokens, outputTokens, cachedInputTokens,
             totalTokens: usage.totalTokens ?? inputTokens + outputTokens,
             costUsd: computeCost(modelName, inputTokens, outputTokens, cachedInputTokens),
             durationMs: Date.now() - started, userId: user.id })
@@ -793,7 +796,7 @@ res.status(200)
         const googleStart = Date.now()
         const { createGoogleGenerativeAI } = await import("@ai-sdk/google")
         const { streamText } = await import("ai")
-        const google = createGoogleGenerativeAI({ apiKey })
+        const google = createGoogleGenerativeAI({ apiKey, fetch })
         const opts: any = { model: google(modelName), messages: nonSystemMessages }
         if (system) opts.system = system
         if (tools) { opts.tools = tools; opts.maxSteps = 5 }
@@ -844,7 +847,7 @@ res.status(200)
         const outputTokens = usage.outputTokens ?? 0
         const cachedInputTokens = usage.inputTokenDetails?.cacheReadTokens ?? 0
         const totalTokens = usage.totalTokens ?? (inputTokens + outputTokens)
-        recordUsage({
+        await recordUsage({
           provider: "google", model: modelName,
           inputTokens, outputTokens, cachedInputTokens, totalTokens,
           costUsd: computeCost(modelName, inputTokens, outputTokens, cachedInputTokens),
@@ -908,16 +911,17 @@ res.status(200)
         const streamed = await streamOpenAICompatibleChat({ res, reader, knownTools: knownToolsFromRequest(tools) })
         const inputTokens = streamed.usage.inputTokens
         const outputTokens = streamed.usage.outputTokens
+        const cachedInputTokens = streamed.usage.cachedInputTokens
         const emittedToolCalls = streamed.emittedToolCalls
-        recordUsage({
+        await recordUsage({
           provider: "openrouter", model: modelName,
-          inputTokens, outputTokens, cachedInputTokens: 0,
+          inputTokens, outputTokens, cachedInputTokens,
           totalTokens: inputTokens + outputTokens,
-          costUsd: computeCost(modelName, inputTokens, outputTokens, 0),
+          costUsd: computeCost(modelName, inputTokens, outputTokens, cachedInputTokens),
           durationMs: Date.now() - orStart,
           userId: user.id,
         })
-        writeFinish(res, { emittedToolCalls, inputTokens, outputTokens })
+        writeFinish(res, { emittedToolCalls, inputTokens, outputTokens, cachedInputTokens })
         break
       }
       case "minimax": {
@@ -927,7 +931,7 @@ res.status(200)
         const mmStart = Date.now()
         const { createMinimax } = await import("vercel-minimax-ai-provider")
         const { streamText } = await import("ai")
-        const minimax = createMinimax({ apiKey })
+        const minimax = createMinimax({ apiKey, fetch })
         const opts: any = {
           model: minimax(modelName),
           messages: nonSystemMessages,
@@ -984,7 +988,7 @@ res.status(200)
         const outputTokens = usage.outputTokens ?? 0
         const cachedInputTokens = usage.inputTokenDetails?.cacheReadTokens ?? 0
         const totalTokens = usage.totalTokens ?? (inputTokens + outputTokens)
-        recordUsage({
+        await recordUsage({
           provider: "minimax", model: modelName,
           inputTokens, outputTokens, cachedInputTokens, totalTokens,
           costUsd: computeCost(modelName, inputTokens, outputTokens, cachedInputTokens),
@@ -1039,16 +1043,17 @@ res.status(200)
         const streamed = await streamOpenAICompatibleChat({ res, reader, knownTools: knownToolsFromRequest(tools) })
         const inputTokens = streamed.usage.inputTokens
         const outputTokens = streamed.usage.outputTokens
+        const cachedInputTokens = streamed.usage.cachedInputTokens
         const emittedToolCalls = streamed.emittedToolCalls
-        recordUsage({
+        await recordUsage({
           provider: "nvidia", model: modelName,
-          inputTokens, outputTokens, cachedInputTokens: 0,
+          inputTokens, outputTokens, cachedInputTokens,
           totalTokens: inputTokens + outputTokens,
-          costUsd: computeCost(modelName, inputTokens, outputTokens, 0),
+          costUsd: computeCost(modelName, inputTokens, outputTokens, cachedInputTokens),
           durationMs: Date.now() - nvidiaStart,
           userId: user.id,
         })
-        writeFinish(res, { emittedToolCalls, inputTokens, outputTokens })
+        writeFinish(res, { emittedToolCalls, inputTokens, outputTokens, cachedInputTokens })
         break
       }
       case "mergedev": {
@@ -1091,16 +1096,17 @@ res.status(200)
         const streamed = await streamOpenAICompatibleChat({ res, reader, knownTools: knownToolsFromRequest(tools) })
         const inputTokens = streamed.usage.inputTokens
         const outputTokens = streamed.usage.outputTokens
+        const cachedInputTokens = streamed.usage.cachedInputTokens
         const emittedToolCalls = streamed.emittedToolCalls
-        recordUsage({
+        await recordUsage({
           provider: "mergedev", model: modelName,
-          inputTokens, outputTokens, cachedInputTokens: 0,
+          inputTokens, outputTokens, cachedInputTokens,
           totalTokens: inputTokens + outputTokens,
-          costUsd: computeCost(modelName, inputTokens, outputTokens, 0),
+          costUsd: computeCost(modelName, inputTokens, outputTokens, cachedInputTokens),
           durationMs: Date.now() - mdStart,
           userId: user.id,
         })
-        writeFinish(res, { emittedToolCalls, inputTokens, outputTokens })
+        writeFinish(res, { emittedToolCalls, inputTokens, outputTokens, cachedInputTokens })
         break
       }
       case "orcarouter": {
@@ -1144,20 +1150,21 @@ res.status(200)
         const streamed = await streamOpenAICompatibleChat({ res, reader, knownTools: knownToolsFromRequest(tools) })
         const inputTokens = streamed.usage.inputTokens
         const outputTokens = streamed.usage.outputTokens
+        const cachedInputTokens = streamed.usage.cachedInputTokens
         const emittedToolCalls = streamed.emittedToolCalls
-        recordUsage({
+        await recordUsage({
           provider: "orcarouter", model: modelName,
-          inputTokens, outputTokens, cachedInputTokens: 0,
+          inputTokens, outputTokens, cachedInputTokens,
           totalTokens: inputTokens + outputTokens,
-          costUsd: computeCost(modelName, inputTokens, outputTokens, 0),
+          costUsd: computeCost(modelName, inputTokens, outputTokens, cachedInputTokens),
           durationMs: Date.now() - orStart,
           userId: user.id,
         })
-        writeFinish(res, { emittedToolCalls, inputTokens, outputTokens })
+        writeFinish(res, { emittedToolCalls, inputTokens, outputTokens, cachedInputTokens })
         break
       }
       case "concentrateai": {
-        const { concentrateAiKey: forwardedKey } = req.body
+        const forwardedKey = clientKey
         const apiKey = forwardedKey || process.env.CONCENTRATEAI_API_KEY
 if (!apiKey) { endChatStreamError(res, "ConcentrateAI not configured on server"); return }
         const modelName = modelParam || "deepseek-v4-flash"
@@ -1226,6 +1233,7 @@ if (!reader) { endChatStreamError(res, "No response body"); return }
         let emittedToolCalls = streamed.emittedToolCalls
         let inputTokens = streamed.usage.inputTokens
         let outputTokens = streamed.usage.outputTokens
+        let cachedInputTokens = streamed.usage.cachedInputTokens
 
         // If streaming didn't include usage data, estimate from content.
         if (inputTokens === 0 && outputTokens === 0) {
@@ -1274,6 +1282,7 @@ if (!reader) { endChatStreamError(res, "No response body"); return }
             if (fb.emittedToolCalls) emittedToolCalls = true
             inputTokens = fbData?.usage?.prompt_tokens ?? 0
             outputTokens = fbData?.usage?.completion_tokens ?? 0
+            cachedInputTokens = fbData?.usage?.prompt_tokens_details?.cached_tokens ?? fbData?.usage?.prompt_cache_hit_tokens ?? 0
           }
         }
 
@@ -1291,15 +1300,15 @@ if (!reader) { endChatStreamError(res, "No response body"); return }
           }
         }
 
-        recordUsage({
+        await recordUsage({
           provider: "concentrateai", model: modelName,
-          inputTokens, outputTokens, cachedInputTokens: 0,
+          inputTokens, outputTokens, cachedInputTokens,
           totalTokens: inputTokens + outputTokens,
-          costUsd: computeCost(modelName, inputTokens, outputTokens, 0),
+          costUsd: computeCost(modelName, inputTokens, outputTokens, cachedInputTokens),
           durationMs: Date.now() - caStart,
           userId: user.id,
         })
-        writeFinish(res, { emittedToolCalls, inputTokens, outputTokens })
+        writeFinish(res, { emittedToolCalls, inputTokens, outputTokens, cachedInputTokens })
         break
       }
       case "supercode": {
@@ -1365,6 +1374,7 @@ if (!reader) { endChatStreamError(res, "No response body"); return }
         let emittedToolCalls = streamed.emittedToolCalls
         let inputTokens = streamed.usage.inputTokens
         let outputTokens = streamed.usage.outputTokens
+        let cachedInputTokens = streamed.usage.cachedInputTokens
 
         // If streaming didn't include usage data, estimate from content.
         if (inputTokens === 0 && outputTokens === 0) {
@@ -1413,6 +1423,7 @@ if (!reader) { endChatStreamError(res, "No response body"); return }
             if (fb.emittedToolCalls) emittedToolCalls = true
             inputTokens = fbData?.usage?.prompt_tokens ?? 0
             outputTokens = fbData?.usage?.completion_tokens ?? 0
+            cachedInputTokens = fbData?.usage?.prompt_tokens_details?.cached_tokens ?? fbData?.usage?.prompt_cache_hit_tokens ?? 0
           }
         }
 
@@ -1429,15 +1440,15 @@ if (!reader) { endChatStreamError(res, "No response body"); return }
           }
         }
 
-        recordUsage({
+        await recordUsage({
           provider: "supercode", model: modelName,
-          inputTokens, outputTokens, cachedInputTokens: 0,
+          inputTokens, outputTokens, cachedInputTokens,
           totalTokens: inputTokens + outputTokens,
-          costUsd: computeCost(modelName, inputTokens, outputTokens, 0),
+          costUsd: computeCost(modelName, inputTokens, outputTokens, cachedInputTokens),
           durationMs: Date.now() - scStart,
           userId: user.id,
         })
-        writeFinish(res, { emittedToolCalls, inputTokens, outputTokens })
+        writeFinish(res, { emittedToolCalls, inputTokens, outputTokens, cachedInputTokens })
         break
       }
       default: {
@@ -1446,19 +1457,11 @@ if (!reader) { endChatStreamError(res, "No response body"); return }
     }
 } catch (error) {
     const msg = String(error)
-    let out = msg
-    if (msg.includes("insufficient balance") || msg.includes("402")) {
-      out = "MiniMax API: insufficient balance. Top up at https://platform.minimax.ai"
-    }
     // Headers may already be NDJSON — finish via stream events when possible.
     if (res.headersSent) {
-      endChatStreamError(res, out)
-    } else if (msg.includes("insufficient balance") || msg.includes("402")) {
-      res.status(402).json({ error: out })
-    } else if (msg.includes("daily limit of")) {
-      res.status(429).json({ error: out })
+      endChatStreamError(res, msg)
     } else {
-      res.status(500).json({ error: out })
+      res.status(msg.includes("daily limit of") ? 429 : inferenceErrorStatus(error)).json({ error: msg })
     }
   }
 })
@@ -1472,14 +1475,13 @@ app.post("/api/ai/generate-object", async (req, res) => {
     }
 
     const { provider, model: modelParam, schema, prompt } = req.body
+    const clientKey = clientInferenceKey(req.body)
+    const controller = new AbortController()
+    res.on("close", () => controller.abort())
+    const fetch = createInferenceFetch({ userId: user.id, provider, model: modelParam, clientKey, signal: controller.signal, maxOutputTokens: getModelMaxTokens })
     if (!prompt) {
       res.status(400).json({ error: "Prompt is required" })
       return
-    }
-
-    const isByok = provider === "concentrateai" && !!req.body.concentrateAiKey
-    if (!isByok) {
-      await checkDailyTokenBudget(user.id)
     }
 
     const { generateObject, jsonSchema } = await import("ai")
@@ -1490,7 +1492,7 @@ app.post("/api/ai/generate-object", async (req, res) => {
         const gate = await checkPlanGate(user.id, `neon/${modelName}`)
         if (!gate.allowed) { res.status(403).json({ error: gate.message }); return }
         const { createNeonModel } = await import("./cli/ai/neon-service")
-        const result = await generateObject({ model: createNeonModel(modelName), schema: jsonSchema(schema), prompt, abortSignal: AbortSignal.timeout(120_000) })
+        const result = await generateObject({ model: createNeonModel(modelName, fetch), schema: jsonSchema(schema), prompt, abortSignal: AbortSignal.timeout(120_000) })
         res.json({ object: result.object })
         break
       }
@@ -1498,7 +1500,7 @@ app.post("/api/ai/generate-object", async (req, res) => {
         const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY
         if (!apiKey) { res.status(500).json({ error: "Google Gemini not configured on server" }); return }
         const { createGoogleGenerativeAI } = await import("@ai-sdk/google")
-        const google = createGoogleGenerativeAI({ apiKey })
+        const google = createGoogleGenerativeAI({ apiKey, fetch })
         const modelName = modelParam || "gemini-2.5-flash"
         const result = await generateObject({ model: google(modelName), schema: schema as any, prompt })
         res.json({ object: result.object })
@@ -1532,7 +1534,7 @@ app.post("/api/ai/generate-object", async (req, res) => {
         const apiKey = process.env.MINIMAX_API_KEY
         if (!apiKey) { res.status(500).json({ error: "MiniMax not configured on server" }); return }
         const { createMinimax } = await import("vercel-minimax-ai-provider")
-        const minimax = createMinimax({ apiKey })
+        const minimax = createMinimax({ apiKey, fetch })
         const modelName = modelParam || "MiniMax-M2"
         const result = await generateObject({ model: minimax(modelName), schema: schema as any, prompt })
         res.json({ object: result.object })
@@ -1585,7 +1587,7 @@ app.post("/api/ai/generate-object", async (req, res) => {
         break
       }
       case "concentrateai": {
-        const { concentrateAiKey: forwardedKey } = req.body
+        const forwardedKey = clientKey
         const apiKey = forwardedKey || process.env.CONCENTRATEAI_API_KEY
         if (!apiKey) { res.status(500).json({ error: "ConcentrateAI not configured on server" }); return }
         const modelName = modelParam || "deepseek-v4-flash"
@@ -1647,13 +1649,7 @@ app.post("/api/ai/generate-object", async (req, res) => {
     }
   } catch (error) {
     const msg = String(error)
-    if (msg.includes("insufficient balance") || msg.includes("402")) {
-      res.status(402).json({ error: "MiniMax API: insufficient balance. Top up at https://platform.minimax.ai" })
-    } else if (msg.includes("daily limit of")) {
-      res.status(429).json({ error: msg })
-    } else {
-      res.status(500).json({ error: msg })
-    }
+    res.status(msg.includes("daily limit of") ? 429 : inferenceErrorStatus(error)).json({ error: msg })
   }
 })
 
@@ -1697,6 +1693,7 @@ function summarizeToolEvent(data: unknown, error: unknown, successful: boolean):
 /// Web search for the voice agent. Prefers the provider the model called, then
 /// falls back to the other configured provider so a single key still works.
 async function runWebSearch(
+  userId: string,
   query: string,
   numResults: number,
   preferred: "context_dev_search" | "exa_search",
@@ -1712,12 +1709,12 @@ async function runWebSearch(
   for (const provider of order) {
     if (provider === "contextdev" && contextDevKey) {
       try {
-        const res = await fetch(`${CONTEXT_DEV_BASE}/web/search`, {
+        const res = await withToolCredits(userId, "context_dev_search", () => globalThis.fetch(`${CONTEXT_DEV_BASE}/web/search`, {
           method: "POST",
           headers: { Authorization: `Bearer ${contextDevKey}`, "Content-Type": "application/json" },
           body: JSON.stringify({ query, numResults }),
           signal: AbortSignal.timeout(15_000),
-        })
+        }))
         if (!res.ok) continue
         const data = (await res.json()) as {
           results?: Array<{ title?: string; description?: string; url?: string }>
@@ -1734,12 +1731,12 @@ async function runWebSearch(
     }
     if (provider === "exa" && exaKey) {
       try {
-        const res = await fetch(`${EXA_BASE}/search`, {
+        const res = await withToolCredits(userId, "exa_search", () => globalThis.fetch(`${EXA_BASE}/search`, {
           method: "POST",
           headers: { "x-api-key": exaKey, "Content-Type": "application/json" },
           body: JSON.stringify({ query, numResults }),
           signal: AbortSignal.timeout(15_000),
-        })
+        }))
         if (!res.ok) continue
         const data = (await res.json()) as {
           results?: Array<{ title?: string; text?: string; snippet?: string; url?: string }>
@@ -1856,16 +1853,16 @@ app.post("/api/tools/firecrawl-search", async (req, res) => {
     const apiKey = process.env.FIRECRAWL_API_KEY
     if (!apiKey) { res.status(500).json({ error: "Firecrawl not configured on server" }); return }
 
-    const response = await fetch(`${FIRECRAWL_BASE}/search`, {
+    const response = await withToolCredits(user.id, "firecrawl_search", () => globalThis.fetch(`${FIRECRAWL_BASE}/search`, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify(req.body),
       signal: AbortSignal.timeout(30000),
-    })
+    }))
     const data = await response.json()
     res.status(response.status).json(data)
   } catch (error: any) {
-    res.status(500).json({ error: error.message || "Firecrawl search proxy failed" })
+    res.status(inferenceErrorStatus(error)).json({ error: error.message || "Firecrawl search proxy failed" })
   }
 })
 
@@ -1877,16 +1874,16 @@ app.post("/api/tools/firecrawl-scrape", async (req, res) => {
     const apiKey = process.env.FIRECRAWL_API_KEY
     if (!apiKey) { res.status(500).json({ error: "Firecrawl not configured on server" }); return }
 
-    const response = await fetch(`${FIRECRAWL_BASE}/scrape`, {
+    const response = await withToolCredits(user.id, "firecrawl_scrape", () => globalThis.fetch(`${FIRECRAWL_BASE}/scrape`, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify(req.body),
       signal: AbortSignal.timeout(30000),
-    })
+    }))
     const data = await response.json()
     res.status(response.status).json(data)
   } catch (error: any) {
-    res.status(500).json({ error: error.message || "Firecrawl scrape proxy failed" })
+    res.status(inferenceErrorStatus(error)).json({ error: error.message || "Firecrawl scrape proxy failed" })
   }
 })
 
@@ -1898,16 +1895,16 @@ app.post("/api/tools/firecrawl-map", async (req, res) => {
     const apiKey = process.env.FIRECRAWL_API_KEY
     if (!apiKey) { res.status(500).json({ error: "Firecrawl not configured on server" }); return }
 
-    const response = await fetch(`${FIRECRAWL_BASE}/map`, {
+    const response = await withToolCredits(user.id, "firecrawl_map", () => globalThis.fetch(`${FIRECRAWL_BASE}/map`, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify(req.body),
       signal: AbortSignal.timeout(60000),
-    })
+    }))
     const data = await response.json()
     res.status(response.status).json(data)
   } catch (error: any) {
-    res.status(500).json({ error: error.message || "Firecrawl map proxy failed" })
+    res.status(inferenceErrorStatus(error)).json({ error: error.message || "Firecrawl map proxy failed" })
   }
 })
 
@@ -1919,16 +1916,16 @@ app.post("/api/tools/exa-search", async (req, res) => {
     const apiKey = process.env.EXA_API_KEY
     if (!apiKey) { res.status(500).json({ error: "Exa search not configured on server" }); return }
 
-    const response = await fetch(`${EXA_BASE}/search`, {
+    const response = await withToolCredits(user.id, "exa_search", () => globalThis.fetch(`${EXA_BASE}/search`, {
       method: "POST",
       headers: { "x-api-key": apiKey, "Content-Type": "application/json" },
       body: JSON.stringify(req.body),
       signal: AbortSignal.timeout(30000),
-    })
+    }))
     const data = await response.json()
     res.status(response.status).json(data)
   } catch (error: any) {
-    res.status(500).json({ error: error.message || "Exa search proxy failed" })
+    res.status(inferenceErrorStatus(error)).json({ error: error.message || "Exa search proxy failed" })
   }
 })
 
@@ -1940,16 +1937,16 @@ app.post("/api/tools/exa-fetch", async (req, res) => {
     const apiKey = process.env.EXA_API_KEY
     if (!apiKey) { res.status(500).json({ error: "Exa fetch not configured on server" }); return }
 
-    const response = await fetch(`${EXA_BASE}/contents`, {
+    const response = await withToolCredits(user.id, "exa_fetch", () => globalThis.fetch(`${EXA_BASE}/contents`, {
       method: "POST",
       headers: { "x-api-key": apiKey, "Content-Type": "application/json" },
       body: JSON.stringify(req.body),
       signal: AbortSignal.timeout(30000),
-    })
+    }))
     const data = await response.json()
     res.status(response.status).json(data)
   } catch (error: any) {
-    res.status(500).json({ error: error.message || "Exa fetch proxy failed" })
+    res.status(inferenceErrorStatus(error)).json({ error: error.message || "Exa fetch proxy failed" })
   }
 })
 
@@ -1964,11 +1961,11 @@ app.post("/api/tools/web-search", async (req, res) => {
 
     const { query, maxResults = 5 } = req.body
     const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}`
-    const response = await fetch(url)
+    const response = await withToolCredits(user.id, "web_search", () => globalThis.fetch(url))
     const data = await response.json()
     res.status(response.status).json(data)
   } catch (error: any) {
-    res.status(500).json({ error: error.message || "Web search proxy failed" })
+    res.status(inferenceErrorStatus(error)).json({ error: error.message || "Web search proxy failed" })
   }
 })
 
@@ -2059,6 +2056,14 @@ app.post("/api/voice/tts", async (req, res) => {
 // ---------------------------------------------------------------------------
 app.post("/api/voice/chat", async (req, res) => {
   try {
+    const user = await getUserFromBearer(req)
+    if (!user) {
+      res.status(401).json({ error: "Unauthorized" })
+      return
+    }
+    const controller = new AbortController()
+    res.on("close", () => controller.abort())
+    const fetch = createInferenceFetch({ userId: user.id, provider: req.body.provider || "concentrateai", model: req.body.model, signal: controller.signal, maxOutputTokens: getModelMaxTokens })
     const {
       messages,
       model: modelParam,
@@ -2156,26 +2161,19 @@ app.post("/api/voice/chat", async (req, res) => {
       : ""
 
     // --- Composio context: expose the user's connected apps as tools ---
-    // The app may pass its own Composio key + user id; otherwise fall back to
-    // the server-level key and all active connected accounts.
     let composio: any = null
     let composioConnected: Array<{ slug: string; name: string; accountId: string }> = []
     let composioTools: any[] = []
+    const clientComposioKey = typeof composioApiKey === "string" ? composioApiKey.trim() : ""
+    const composioIdentity = clientComposioKey && typeof composioUserId === "string" ? composioUserId : user.id
     if (useTools) {
-      const resolvedKey = (composioApiKey as string)?.trim() || process.env.COMPOSIO_API_KEY
+      const resolvedKey = clientComposioKey || process.env.COMPOSIO_API_KEY
       if (resolvedKey) {
         try {
           const { Composio } = await import("@composio/core")
           composio = new Composio({ apiKey: resolvedKey })
 
-          const listParams: any = {}
-          if (composioUserId) listParams.userIds = [String(composioUserId)]
-          let connectedRes = await (composio.connectedAccounts as any).list(listParams)
-          // Accounts may have been created without a userId; fall back to all
-          // accounts if the userId filter returned nothing.
-          if ((connectedRes.items ?? []).length === 0 && composioUserId) {
-            connectedRes = await (composio.connectedAccounts as any).list({})
-          }
+          const connectedRes = await (composio.connectedAccounts as any).list({ userIds: [composioIdentity] })
 
           const toolkitSlugs = new Set<string>()
           for (const acct of connectedRes.items ?? []) {
@@ -2239,8 +2237,7 @@ app.post("/api/voice/chat", async (req, res) => {
 
     // --- Conversational state: track prepared-but-unconfirmed actions so the
     // agent can draft first and only finalize after explicit user confirmation.
-    const sessionUserId = String(composioUserId || "voice-user")
-    const session = getVoiceSession(sessionUserId)
+    const session = getVoiceSession(user.id)
     const lastUserMessage = [...nonSystemMessages].reverse().find((m: any) => m.role === "user")
     const lastUserText = typeof lastUserMessage?.content === "string" ? lastUserMessage.content : ""
     const confirmed = hasConfirmation(lastUserText)
@@ -2449,7 +2446,7 @@ app.post("/api/voice/chat", async (req, res) => {
           if (fnName === "exa_search" || fnName === "context_dev_search") {
             const query = String(fnArgs.query ?? "")
             const numResults = Math.min((fnArgs.maxResults as number) ?? 5, 10)
-            const { results, provider, error } = await runWebSearch(query, numResults, fnName)
+            const { results, provider, error } = await runWebSearch(user.id, query, numResults, fnName)
             toolResult = error
               ? JSON.stringify({ error })
               : JSON.stringify({ results })
@@ -2475,12 +2472,12 @@ app.post("/api/voice/chat", async (req, res) => {
               error = "Firecrawl not configured on server"
             } else {
               try {
-                const response = await fetch(`${FIRECRAWL_BASE}/search`, {
+                const response = await withToolCredits(user.id, "firecrawl_search", () => globalThis.fetch(`${FIRECRAWL_BASE}/search`, {
                   method: "POST",
                   headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
                   body: JSON.stringify({ query, limit: numResults, sources: [{ type: "web" }] }),
                   signal: AbortSignal.timeout(30000),
-                })
+                }))
                 const data: any = await response.json()
                 if (!response.ok) {
                   error = data?.error || `Firecrawl search failed (${response.status})`
@@ -2596,12 +2593,13 @@ app.post("/api/voice/chat", async (req, res) => {
                 session.pendingAction = null
               }
               try {
-                const execRes = await composio.tools.execute(fnName, {
+                if (!conn) throw Object.assign(new Error("Connected account not available for this user"), { statusCode: 403 })
+                const execRes = await withToolCredits(user.id, fnName, () => composio.tools.execute(fnName, {
                   connectedAccountId: conn?.accountId,
-                  userId: sessionUserId,
+                  userId: composioIdentity,
                   arguments: fnArgs,
                   dangerouslySkipVersionCheck: true,
-                })
+                })) as any
                 toolResult = JSON.stringify({
                   data: execRes?.data ?? null,
                   error: execRes?.error ?? null,
@@ -2686,12 +2684,13 @@ app.post("/api/voice/chat", async (req, res) => {
           const tool = composioTools.find((t: any) => t.slug === pending.slug)
           const conn = composioConnected.find((c) => c.slug === pending.toolkit)
           try {
-            const execRes = await composio.tools.execute(pending.slug, {
+            if (!conn) throw Object.assign(new Error("Connected account not available for this user"), { statusCode: 403 })
+            const execRes = await withToolCredits(user.id, pending.slug, () => composio.tools.execute(pending.slug, {
               connectedAccountId: conn?.accountId,
-              userId: sessionUserId,
+              userId: composioIdentity,
               arguments: pending.args,
               dangerouslySkipVersionCheck: true,
-            })
+            })) as any
             const text = JSON.stringify({
               data: execRes?.data ?? null,
               error: execRes?.error ?? null,
@@ -2818,7 +2817,7 @@ app.post("/api/voice/chat", async (req, res) => {
 
     res.status(400).json({ error: `Unsupported provider: ${provider}` })
   } catch (error) {
-    res.status(500).json({ error: String(error) })
+    res.status(inferenceErrorStatus(error)).json({ error: String(error) })
   }
 })
 

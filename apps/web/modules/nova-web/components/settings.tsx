@@ -29,6 +29,7 @@ import {
 } from "@/modules/nova-web/api"
 import { AccountMenu } from "@/modules/nova-web/components/account-menu"
 import { BillingSection } from "@/modules/nova-web/components/settings-billing"
+import { UsageSection } from "@/modules/nova-web/components/settings-usage"
 import { ModelsSection } from "@/modules/nova-web/components/settings-models"
 import type { HarnessProvider } from "@/modules/nova-web/models"
 import { getConnectedRepos } from "@/modules/dashboard/actions/analytics"
@@ -117,6 +118,7 @@ export function SettingsView({
   const [usage, setUsage] = useState<SettingsUsage | null>(null)
   const [usageLoading, setUsageLoading] = useState(false)
   const [usageError, setUsageError] = useState<string | null>(null)
+  const [usageRefresh, setUsageRefresh] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -166,6 +168,7 @@ export function SettingsView({
         if (!cancelled) setUsage(payload)
       } catch (error) {
         if (!cancelled) {
+          setUsage(null)
           setUsageError(error instanceof Error ? error.message : "Could not load usage")
         }
       } finally {
@@ -175,7 +178,7 @@ export function SettingsView({
     return () => {
       cancelled = true
     }
-  }, [section])
+  }, [section, usageRefresh])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -252,7 +255,7 @@ export function SettingsView({
       </aside>
 
       <section className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-[#0f0f0f]">
-        <div className={cn("mx-auto px-4 py-10 sm:px-8", section === "models" ? "max-w-[1040px]" : "max-w-[760px]")}>
+        <div className={cn("mx-auto px-4 py-10 sm:px-8", section === "models" || section === "usage" ? "max-w-[1040px]" : "max-w-[760px]")}>
           {section === "general" ? (
             <GeneralSection prefs={prefs} onChange={updatePrefs} />
           ) : null}
@@ -276,7 +279,7 @@ export function SettingsView({
             />
           ) : null}
           {section === "usage" ? (
-            <UsageSection loading={usageLoading} error={usageError} data={usage} />
+            <UsageSection loading={usageLoading} error={usageError} data={usage} onRefresh={() => setUsageRefresh((value) => value + 1)} />
           ) : null}
           {section === "billing" ? <BillingSection /> : null}
         </div>
@@ -823,129 +826,6 @@ function ActivitySection({
   )
 }
 
-function UsageSection({
-  loading,
-  error,
-  data,
-}: {
-  loading: boolean
-  error: string | null
-  data: SettingsUsage | null
-}) {
-  const maxBar = Math.max(1, ...(data?.daily.map((day) => day.spendUsd || day.requests) ?? [1]))
-
-  return (
-    <>
-      <div>
-        <h1 className="text-[28px] font-medium tracking-tight">Usage</h1>
-        <p className="mt-1 text-[13px] text-[#6b6b6b]">Spend across models and Nova turns</p>
-      </div>
-
-      {error ? (
-        <p className="mt-6 rounded-xl border border-red-500/20 bg-red-500/[0.06] px-4 py-3 text-[13px] text-red-300">
-          {error}
-        </p>
-      ) : null}
-
-      <div className="mt-8 overflow-hidden rounded-xl border border-white/[0.08] bg-[#141414]">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] px-4 py-3.5">
-          <div>
-            <p className="text-[13px] text-[#e4e4e4]">Current month</p>
-            <p className="mt-0.5 text-[12px] text-[#6b6b6b]">{data?.periodLabel ?? "—"}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-[13px] text-[#e4e4e4]">
-              {data?.balanceUsd != null ? `$${data.balanceUsd.toFixed(2)} balance` : data?.planName ?? "Harness plan"}
-            </p>
-            <p className="mt-0.5 text-[12px] text-[#6b6b6b]">
-              {data?.requestLimit != null
-                ? `${data.requestsUsed ?? 0} / ${data.requestLimit} requests`
-                : `${data?.totalRequests ?? 0} turns`}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-6 overflow-hidden rounded-xl border border-white/[0.08] bg-[#141414] p-4">
-        <div className="flex items-baseline justify-between gap-3">
-          <p className="text-[22px] font-medium tracking-tight">
-            {data?.source === "harness"
-              ? `$${(data.totalSpendUsd ?? 0).toFixed(2)}`
-              : String(data?.totalRequests ?? (loading ? "—" : 0))}
-            <span className="ml-2 text-[13px] font-normal text-[#6b6b6b]">
-              {data?.source === "harness" ? "total spend" : "total turns"}
-              {data ? `, ${new Date(data.periodStart).toLocaleDateString()} – ${new Date(data.periodEnd).toLocaleDateString()}` : ""}
-            </span>
-          </p>
-        </div>
-
-        <div className="mt-6 flex h-40 items-end gap-1.5">
-          {(data?.daily ?? Array.from({ length: 7 }, (_, index) => ({
-            date: `d${index}`,
-            spendUsd: 0,
-            tokens: 0,
-            requests: 0,
-          }))).map((day) => {
-            const value = data?.source === "harness" ? day.spendUsd : day.requests
-            const height = Math.max(4, Math.round((value / maxBar) * 100))
-            return (
-              <div key={day.date} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1">
-                <div
-                  className={cn(
-                    "w-full rounded-sm",
-                    value > 0 ? "bg-[#2dd4bf]" : "bg-white/[0.04]",
-                  )}
-                  style={{ height: `${height}%` }}
-                  title={`${day.date}: ${data?.source === "harness" ? `$${day.spendUsd.toFixed(2)}` : `${day.requests} turns`}`}
-                />
-              </div>
-            )
-          })}
-        </div>
-        {data?.message ? (
-          <p className="mt-4 text-[12px] leading-5 text-[#6b6b6b]">{data.message}</p>
-        ) : null}
-      </div>
-
-      <h2 className="mt-10 text-[13px] font-medium text-[#a0a0a0]">Breakdown</h2>
-      <div className="mt-3 overflow-hidden rounded-xl border border-white/[0.08] bg-[#141414]">
-        <div className="grid grid-cols-[1.4fr_0.8fr_0.8fr_0.6fr] gap-2 border-b border-white/[0.06] px-4 py-2.5 text-[11px] uppercase tracking-[0.06em] text-[#5c5c5c]">
-          <span>Item</span>
-          <span className="text-right">Spend</span>
-          <span className="text-right">Tokens</span>
-          <span className="text-right">Share</span>
-        </div>
-        <div className="grid grid-cols-[1.4fr_0.8fr_0.8fr_0.6fr] gap-2 border-b border-white/[0.06] px-4 py-3 text-[13px]">
-          <span className="text-[#e4e4e4]">Billed</span>
-          <span className="text-right text-[#c8c8c8]">
-            {data?.source === "harness" ? `$${(data.totalSpendUsd ?? 0).toFixed(2)}` : "—"}
-          </span>
-          <span className="text-right text-[#c8c8c8]">
-            {formatTokens(data?.totalTokens ?? 0)}
-          </span>
-          <span className="text-right text-[#c8c8c8]">100%</span>
-        </div>
-        {(data?.models ?? []).length === 0 ? (
-          <p className="px-4 py-6 text-[13px] text-[#6b6b6b]">
-            {loading ? "Loading usage…" : "No model spend recorded this period."}
-          </p>
-        ) : (
-          data?.models.map((model) => (
-            <div
-              key={`${model.provider}:${model.model}`}
-              className="grid grid-cols-[1.4fr_0.8fr_0.8fr_0.6fr] gap-2 border-b border-white/[0.06] px-4 py-3 text-[13px] last:border-b-0"
-            >
-              <span className="truncate text-[#e4e4e4]">{model.model}</span>
-              <span className="text-right text-[#c8c8c8]">${model.spendUsd.toFixed(2)}</span>
-              <span className="text-right text-[#c8c8c8]">{formatTokens(model.tokens)}</span>
-              <span className="text-right text-[#c8c8c8]">{Math.round(model.share * 1000) / 10}%</span>
-            </div>
-          ))
-        )}
-      </div>
-    </>
-  )
-}
 
 function Heatmap({ days }: { days: SettingsActivity["heatmap"] }) {
   const weeks: SettingsActivity["heatmap"][] = []
@@ -1001,12 +881,6 @@ function deltaLabel(current: number, previous: number) {
   const diff = current - previous
   if (diff === 0) return "0 vs last period"
   return `${diff > 0 ? "+" : ""}${diff} vs last period`
-}
-
-function formatTokens(value: number) {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`
-  return String(value)
 }
 
 function Row({

@@ -18,6 +18,9 @@ export type BillingInfo = {
   balanceUsd: number | null
   totalCreditsUsd: number | null
   spentThisPeriodUsd: number | null
+  balanceCredits: number | null
+  totalCredits: number | null
+  spentThisPeriodCredits: number | null
   resetAt: string | null
   requestsUsed: number | null
   requestLimit: number | null
@@ -38,7 +41,7 @@ const HARNESS_TIER_TO_NAME: Record<string, BillingPlanName> = {
 }
 
 const HARNESS_TIER_TO_PRICE: Record<string, { price: string; credits: string }> = {
-  spark: { price: "$0/mo", credits: "Fixed DeepSeek" },
+  spark: { price: "$0/mo", credits: "1,000 monthly credits" },
   "spark-premium": { price: "$5/mo", credits: "$5 credits" },
   pro: { price: "$20/mo", credits: "$25 credits" },
   ultra: { price: "$100/mo", credits: "$110 credits" },
@@ -116,6 +119,11 @@ export async function getBillingInfo(input: {
         totalCredits?: number | null
         resetAt?: string | null
       } | null
+      productCreditBalance?: {
+        balanceCredits: number
+        allowanceCredits: number
+        resetAt: string
+      } | null
       requestsUsed?: number
       requestLimit?: number | null
     }
@@ -146,7 +154,12 @@ export async function getBillingInfo(input: {
       balanceUsd,
       totalCreditsUsd,
       spentThisPeriodUsd: spentUsd,
-      resetAt: status.creditBalance?.resetAt ?? null,
+      balanceCredits: status.productCreditBalance?.balanceCredits ?? null,
+      totalCredits: status.productCreditBalance?.allowanceCredits ?? null,
+      spentThisPeriodCredits: status.productCreditBalance
+        ? Math.max(0, status.productCreditBalance.allowanceCredits - status.productCreditBalance.balanceCredits)
+        : null,
+      resetAt: status.productCreditBalance?.resetAt ?? status.creditBalance?.resetAt ?? null,
       requestsUsed: status.requestsUsed ?? null,
       requestLimit: status.plan?.requestLimit ?? null,
       isGrandfathered: Boolean(status.subscription?.isGrandfathered),
@@ -170,6 +183,9 @@ function emptyBilling(): BillingInfo {
     balanceUsd: 0,
     totalCreditsUsd: 0,
     spentThisPeriodUsd: 0,
+    balanceCredits: null,
+    totalCredits: null,
+    spentThisPeriodCredits: null,
     resetAt: null,
     requestsUsed: null,
     requestLimit: null,

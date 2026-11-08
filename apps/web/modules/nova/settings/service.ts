@@ -2,7 +2,7 @@ import prisma from "@super/db"
 
 import { ensureUserOrganization } from "@/modules/integrations/lib/org"
 import { ensureHarnessToken } from "@/modules/nova/harness/auth"
-import { terminalHarnessUrl } from "@/modules/nova/harness/client"
+import { readSettingsUsage } from "./usage-reporting"
 
 export type SettingsActivity = {
   rangeDays: number
@@ -28,24 +28,31 @@ export type SettingsUsage = {
   periodLabel: string
   periodStart: string
   periodEnd: string
-  totalSpendUsd: number
-  totalTokens: number
-  totalRequests: number
-  balanceUsd: number | null
+  resetAt: string | null
+  allowanceCredits: number | null
+  balanceCredits: number | null
+  spentCredits: number | null
+  reservedCredits: number | null
   planName: string | null
   planTier: string | null
-  requestsUsed: number | null
-  requestLimit: number | null
-  daily: Array<{ date: string; spendUsd: number; tokens: number; requests: number }>
-  models: Array<{
-    model: string
-    provider: string
-    spendUsd: number
-    tokens: number
+  isGrandfathered: boolean
+  categories: Array<{
+    kind: "models" | "machines" | "mcp"
+    label: string
+    spentCredits: number
+    reservedCredits: number
     requests: number
-    share: number
   }>
-  source: "harness" | "sessions"
+  daily: Array<{ date: string; modelCredits: number; machineCredits: number; mcpCredits: number }>
+  history: Array<{
+    id: string
+    kind: "models" | "machines" | "mcp"
+    label: string
+    credits: number
+    status: "reserved" | "settled"
+    createdAt: string
+  }>
+  source: "ledger" | "unavailable"
   message?: string
 }
 
@@ -194,193 +201,19 @@ export async function getSettingsUsage(input: {
   name?: string | null
   image?: string | null
 }): Promise<SettingsUsage> {
-  const now = new Date()
-  const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-  const periodEnd = now
-  const periodLabel = periodStart.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })
-
-  let planName: string | null = null
-  let planTier: string | null = null
-  let balanceUsd: number | null = null
-  let requestsUsed: number | null = null
-  let requestLimit: number | null = null
-  let harnessToken: string | null = null
-
-  try {
-    const harness = await ensureHarnessToken({
-      email: input.email,
-      name: input.name,
-      image: input.image,
-    })
-    harnessToken = harness.token
-  } catch {
-    harnessToken = null
-  }
-
-  if (harnessToken) {
-    try {
-      const response = await fetch(`${terminalHarnessUrl()}/api/user/me`, {
-        headers: { Authorization: `Bearer ${harnessToken}`, Accept: "application/json" },
-        cache: "no-store",
-        signal: AbortSignal.timeout(8_000),
+  return readSettingsUsage(input, {
+    authenticate: async () => {
+      const { token } = await ensureHarnessToken({
+        email: input.email,
+        name: input.name,
+        image: input.image,
       })
-      if (response.ok) {
-        const me = await response.json() as { id?: string }
-        if (me.id) {
-          const statusResponse = await fetch(
-            `${terminalHarnessUrl()}/api/billing/status?userId=${encodeURIComponent(me.id)}`,
-            {
-              headers: { Authorization: `Bearer ${harnessToken}`, Accept: "application/json" },
-              cache: "no-store",
-              signal: AbortSignal.timeout(8_000),
-            },
-          )
-          if (statusResponse.ok) {
-            const status = await statusResponse.json() as {
-              plan?: { name?: string; tier?: string; requestLimit?: number | null } | null
-              creditBalance?: { balanceCents?: number | null } | null
-              requestsUsed?: number
-            }
-            planName = status.plan?.name ?? null
-            planTier = status.plan?.tier ?? null
-            requestLimit = status.plan?.requestLimit ?? null
-            requestsUsed = status.requestsUsed ?? null
-            if (typeof status.creditBalance?.balanceCents === "number") {
-              balanceUsd = Math.round(status.creditBalance.balanceCents) / 100
-            }
-          }
-
-          try {
-            const terminalPrisma = (await import("@super/db-terminal")).default as {
-              $queryRawUnsafe: <T>(query: string, ...values: unknown[]) => Promise<T>
-            }
-            const events = await terminalPrisma.$queryRawUnsafe<Array<{
-              model: string
-              provider: string
-              totalTokens: number
-              costUsd: number | null
-              createdAt: Date
-            }>>(
-              `SELECT "model", "provider", "totalTokens", "costUsd", "createdAt"
-               FROM "usage_event"
-               WHERE "createdAt" >= $1 AND "createdAt" <= $2
-                 AND (
-                   CASE WHEN EXISTS (
-                     SELECT 1 FROM information_schema.columns
-                     WHERE table_name = 'usage_event' AND column_name = 'userId'
-                   ) THEN "userId" = $3 ELSE FALSE END
-                 )
-               ORDER BY "createdAt" ASC
-               LIMIT 10000`,
-              periodStart,
-              periodEnd,
-              me.id,
-            )
-            if (events.length > 0) {
-              const dailyMap = new Map<string, { spendUsd: number; tokens: number; requests: number }>()
-              const modelMap = new Map<string, { model: string; provider: string; spendUsd: number; tokens: number; requests: number }>()
-              let totalSpendUsd = 0
-              let totalTokens = 0
-              for (const event of events) {
-                const spend = event.costUsd ?? 0
-                totalSpendUsd += spend
-                totalTokens += event.totalTokens
-                const day = isoDay(startOfDay(event.createdAt))
-                const dayBucket = dailyMap.get(day) ?? { spendUsd: 0, tokens: 0, requests: 0 }
-                dayBucket.spendUsd += spend
-                dayBucket.tokens += event.totalTokens
-                dayBucket.requests += 1
-                dailyMap.set(day, dayBucket)
-                const key = `${event.provider}::${event.model}`
-                const modelBucket = modelMap.get(key) ?? {
-                  model: event.model,
-                  provider: event.provider,
-                  spendUsd: 0,
-                  tokens: 0,
-                  requests: 0,
-                }
-                modelBucket.spendUsd += spend
-                modelBucket.tokens += event.totalTokens
-                modelBucket.requests += 1
-                modelMap.set(key, modelBucket)
-              }
-              const daily: SettingsUsage["daily"] = []
-              for (let cursor = new Date(periodStart); cursor <= periodEnd; cursor = new Date(cursor.getTime() + 86_400_000)) {
-                const key = isoDay(startOfDay(cursor))
-                const bucket = dailyMap.get(key) ?? { spendUsd: 0, tokens: 0, requests: 0 }
-                daily.push({ date: key, ...bucket })
-              }
-              const models = [...modelMap.values()]
-                .sort((a, b) => b.spendUsd - a.spendUsd || b.tokens - a.tokens)
-                .map((item) => ({
-                  ...item,
-                  share: totalSpendUsd > 0 ? item.spendUsd / totalSpendUsd : totalTokens > 0 ? item.tokens / totalTokens : 0,
-                }))
-              return {
-                periodLabel,
-                periodStart: periodStart.toISOString(),
-                periodEnd: periodEnd.toISOString(),
-                totalSpendUsd: Math.round(totalSpendUsd * 100) / 100,
-                totalTokens,
-                totalRequests: events.length,
-                balanceUsd,
-                planName,
-                planTier,
-                requestsUsed,
-                requestLimit,
-                daily,
-                models,
-                source: "harness",
-              }
-            }
-          } catch {
-            // Fall through to session-based usage.
-          }
-        }
-      }
-    } catch {
-      // Fall through.
-    }
-  }
-
-  const { organizationId, membershipId } = await membershipContext(input.userId)
-  const runs = await prisma.agentRun.findMany({
-    where: {
-      createdAt: { gte: periodStart, lte: periodEnd },
-      agentSession: { organizationId, initiatorMembershipId: membershipId },
+      const terminalPrisma = (await import("@super/db-terminal")).default
+      return terminalPrisma.session.findUnique({
+        where: { token },
+        select: { userId: true, expiresAt: true, user: { select: { email: true } } },
+      })
     },
-    select: { status: true, createdAt: true, completedAt: true, startedAt: true },
+    database: async () => (await import("@super/db-terminal")).default,
   })
-  const dailyMap = new Map<string, { spendUsd: number; tokens: number; requests: number }>()
-  for (const run of runs) {
-    const key = isoDay(startOfDay(run.createdAt))
-    const bucket = dailyMap.get(key) ?? { spendUsd: 0, tokens: 0, requests: 0 }
-    bucket.requests += 1
-    dailyMap.set(key, bucket)
-  }
-  const daily: SettingsUsage["daily"] = []
-  for (let cursor = new Date(periodStart); cursor <= periodEnd; cursor = new Date(cursor.getTime() + 86_400_000)) {
-    const key = isoDay(startOfDay(cursor))
-    daily.push({ date: key, ...(dailyMap.get(key) ?? { spendUsd: 0, tokens: 0, requests: 0 }) })
-  }
-
-  return {
-    periodLabel,
-    periodStart: periodStart.toISOString(),
-    periodEnd: periodEnd.toISOString(),
-    totalSpendUsd: 0,
-    totalTokens: 0,
-    totalRequests: runs.length,
-    balanceUsd,
-    planName,
-    planTier,
-    requestsUsed: requestsUsed ?? runs.length,
-    requestLimit,
-    daily,
-    models: [],
-    source: "sessions",
-    message: harnessToken
-      ? "Harness usage detail is not available for this account yet. Showing Nova turn counts for the current month."
-      : "Sign in to the CLI harness to see token spend and plan balance. Showing Nova turn counts for now.",
-  }
 }

@@ -14,6 +14,7 @@
     "db:migrate": "bun run --cwd ../../packages/db db:migrate"
   },
   "dependencies": {
+    "@super/billing": "workspace:*",
     "@ai-sdk/anthropic": "^4.0.49",
     "@ai-sdk/google": "^4.0.64",
     "@ai-sdk/openai": "^4.0.46",

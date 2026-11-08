@@ -2,6 +2,7 @@ import { Router } from "express"
 import prisma from "../../lib/prisma"
 import { getDodo } from "../../lib/dodo"
 import { invalidateModelCache } from "../../lib/model-access"
+import { billing } from "../../lib/credit-meter"
 import type { Prisma } from "../../generated"
 
 const router = Router()
@@ -65,22 +66,8 @@ function toDate(iso?: string): Date | null {
   return isNaN(d.getTime()) ? null : d
 }
 
-async function resetCredits(userId: string, planId: string, amountCents: number, periodEnd: Date) {
-  await prisma.creditBalance.upsert({
-    where: { userId_planId: { userId, planId } },
-    update: {
-      balanceCents: amountCents,
-      totalCredits: amountCents,
-      resetAt: periodEnd,
-    },
-    create: {
-      userId,
-      planId,
-      balanceCents: amountCents,
-      totalCredits: amountCents,
-      resetAt: periodEnd,
-    },
-  })
+async function ensureCredits(userId: string) {
+  await billing.getBalance(userId)
 }
 
 async function handleSubscriptionActive(event: DodoSubscriptionEvent) {
@@ -158,8 +145,7 @@ async function handleSubscriptionActive(event: DodoSubscriptionEvent) {
 
   // Init / reset credit balance
   if (plan.creditAmountCents > 0) {
-    const end = periodEnd ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-    await resetCredits(userId, plan.id, plan.creditAmountCents, end)
+    await ensureCredits(userId)
   }
 
   // Link the Dodo customer to the user
@@ -194,8 +180,7 @@ async function handleSubscriptionRenewed(event: DodoSubscriptionEvent) {
   })
 
   if (sub && sub.plan.creditAmountCents > 0) {
-    const end = periodEnd ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-    await resetCredits(sub.userId, sub.planId, sub.plan.creditAmountCents, end)
+    await ensureCredits(sub.userId)
   }
 }
 

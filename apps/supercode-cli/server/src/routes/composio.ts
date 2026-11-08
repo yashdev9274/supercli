@@ -1,8 +1,9 @@
-import { createHmac, timingSafeEqual } from "node:crypto"
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto"
 import type { Express, Request, Response } from "express"
 import { z } from "zod"
 
 import { ServerComposioService } from "../lib/composio"
+import { reserveTool, settleTool } from "../lib/credit-meter"
 
 type Authenticate = (req: Request) => Promise<{ id: string } | null>
 
@@ -17,6 +18,12 @@ const executeSchema = z.object({
 }).refine((input) => Boolean(input.toolName || input.name) && (!input.toolName || !input.name || input.toolName === input.name))
   .transform((input) => ({ name: input.toolName ?? input.name ?? "", arguments: input.arguments }))
 const stateSchema = connectSchema.extend({ userId: z.string().min(1), expiresAt: z.number() })
+const rpcSchema = z.object({
+  jsonrpc: z.literal("2.0"),
+  id: z.union([z.string(), z.number()]).optional(),
+  method: z.string().min(1),
+  params: z.record(z.unknown()).optional(),
+}).refine((input) => input.id !== undefined || input.method.startsWith("notifications/"))
 
 function stateSecret(): string {
   const secret = process.env.BETTER_AUTH_SECRET
@@ -67,7 +74,90 @@ export function registerComposioRoutes(
   app: Express,
   authenticate: Authenticate,
   service = new ServerComposioService(),
+  meter: {
+    reserveTool: (userId: string, toolName: string, key?: string) => Promise<{ id: string; replayed: boolean }>
+    settleTool: (id: string, toolName: string) => Promise<unknown>
+  } = { reserveTool, settleTool },
 ): void {
+  async function executeTool(userId: string, input: z.infer<typeof executeSchema>, req: Request) {
+    const key = z.string().min(1).max(256).parse(req.get("Idempotency-Key") ?? randomUUID())
+    const reservation = await meter.reserveTool(userId, input.name, key)
+    if (reservation.replayed) {
+      throw Object.assign(new Error("This tool execution has already been reserved"), { statusCode: 409 })
+    }
+    try {
+      return await service.executeTool(userId, input.name, input.arguments)
+    } finally {
+      await meter.settleTool(reservation.id, input.name)
+    }
+  }
+
+  app.post("/api/composio/mcp", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store")
+    let id: string | number | null = null
+    try {
+      const user = await authenticate(req)
+      if (!user) throw Object.assign(new Error("Unauthorized"), { statusCode: 401 })
+      const input = rpcSchema.parse(req.body)
+      id = input.id ?? null
+      if (input.id === undefined) {
+        res.status(202).end()
+        return
+      }
+
+      let result: unknown
+      switch (input.method) {
+        case "initialize": {
+          const version = input.params?.protocolVersion
+          result = {
+            protocolVersion: typeof version === "string" && ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"].includes(version) ? version : "2025-11-25",
+            capabilities: { tools: {} },
+            serverInfo: { name: "supercode-composio", version: "1.0.0" },
+          }
+          break
+        }
+        case "ping":
+          result = {}
+          break
+        case "tools/list":
+          result = {
+            tools: (await service.listTools(user.id)).map((tool) => ({
+              name: tool.name,
+              description: tool.description,
+              inputSchema: tool.parameters,
+            })),
+          }
+          break
+        case "tools/call": {
+          const tool = await executeTool(user.id, executeSchema.parse(input.params), req)
+          result = {
+            content: [{ type: "text", text: JSON.stringify(tool) }],
+            isError: tool.successful === false,
+          }
+          break
+        }
+        default:
+          res.json({ jsonrpc: "2.0", id, error: { code: -32601, message: "Method not found" } })
+          return
+      }
+      res.json({ jsonrpc: "2.0", id, result })
+    } catch (error) {
+      const status = error instanceof z.ZodError ? 400 : (error as { statusCode?: number })?.statusCode ?? 502
+      res.status(status).json({
+        jsonrpc: "2.0",
+        id,
+        error: {
+          code: error instanceof z.ZodError ? -32602 : -32000,
+          message: status === 502 ? "The CLI server could not complete the Composio request" : error instanceof z.ZodError ? "Invalid MCP request" : error instanceof Error ? error.message : "MCP request failed",
+          data: { statusCode: status },
+        },
+      })
+    }
+  })
+
+  app.get("/api/composio/mcp", (_req, res) => { res.status(405).end() })
+  app.delete("/api/composio/mcp", (_req, res) => { res.status(405).end() })
+
   for (const action of ["session", "apps", "connect", "disconnect", "tools", "execute"] as const) {
     app.post(`/api/composio/${action}`, async (req, res) => {
       res.setHeader("Cache-Control", "no-store")
@@ -78,9 +168,18 @@ export function registerComposioRoutes(
           return
         }
         switch (action) {
-          case "session":
-            res.json(await service.createSession(user.id))
+          case "session": {
+            const serverUrl = process.env.BETTER_AUTH_URL || process.env.SUPERCODE_SERVER_URL
+            if (!serverUrl) throw Object.assign(new Error("The CLI server public URL is not configured"), { statusCode: 503 })
+            const authorization = req.get("Authorization")
+            if (!authorization) throw Object.assign(new Error("Unauthorized"), { statusCode: 401 })
+            res.json({
+              url: new URL("/api/composio/mcp", serverUrl).toString(),
+              headers: { Authorization: authorization },
+              sessionId: randomUUID(),
+            })
             return
+          }
           case "apps":
             res.json({ apps: await service.listApps(user.id) })
             return
@@ -106,7 +205,8 @@ export function registerComposioRoutes(
           }
           case "execute": {
             const input = executeSchema.parse(req.body)
-            res.json(await service.executeTool(user.id, input.name, input.arguments))
+            res.json(await executeTool(user.id, input, req))
+            return
           }
         }
       } catch (error) {

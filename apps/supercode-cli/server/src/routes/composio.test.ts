@@ -83,7 +83,10 @@ describe("CLI Composio connections", () => {
     registerComposioRoutes(app, async (req) => {
       const token = req.headers.authorization?.replace("Bearer ", "")
       return token === "user_1" || token === "user_2" ? { id: token } : null
-    }, service)
+    }, service, {
+      reserveTool: async () => ({ id: "test-tool-reservation", replayed: false }),
+      settleTool: async () => ({}),
+    })
     await new Promise<void>((resolve) => { server = app.listen(0, "127.0.0.1", () => resolve()) })
     const address = server.address()
     if (!address || typeof address === "string") throw new Error("No test server address")
@@ -110,13 +113,15 @@ describe("CLI Composio connections", () => {
     expect(client.connectedAccounts.list.mock.calls[0]?.[0].userIds).toEqual(["user_1"])
   })
 
-  test("creates MCP sessions only from the same user’s CLI accounts", async () => {
+  test("returns an authenticated server MCP proxy without upstream session credentials", async () => {
     const response = await post("session")
     expect(response.status).toBe(200)
-    expect((await response.json()).sessionId).toBe("session_1")
-    expect(client.sessions.create).toHaveBeenCalledWith("user_1", {
-      mcp: true, connectedAccounts: { googlecalendar: "ca_calendar" }, toolkits: ["googlecalendar"], manageConnections: false,
-    })
+    const session = await response.json()
+    expect(session.url).toBe("http://localhost:3004/api/composio/mcp")
+    expect(session.headers).toEqual({ Authorization: "Bearer user_1" })
+    expect(session.sessionId).toMatch(/^[0-9a-f-]{36}$/)
+    expect(client.sessions.create).not.toHaveBeenCalled()
+    expect(client.connectedAccounts.list).not.toHaveBeenCalled()
   })
 
   test("web OAuth returns to Nova and the new account appears for desktop too", async () => {

@@ -23,6 +23,9 @@ type BillingState = {
   balanceUsd: number | null
   totalCreditsUsd: number | null
   spentThisPeriodUsd: number | null
+  balanceCredits: number | null
+  totalCredits: number | null
+  spentThisPeriodCredits: number | null
   resetAt: string | null
   source: "harness" | "none" | null
 }
@@ -41,6 +44,9 @@ const INITIAL_BILLING: BillingState = {
   balanceUsd: 0,
   totalCreditsUsd: 0,
   spentThisPeriodUsd: 0,
+  balanceCredits: null,
+  totalCredits: null,
+  spentThisPeriodCredits: null,
   resetAt: null,
   source: null,
 }
@@ -63,6 +69,9 @@ export function BillingSection() {
         balanceUsd?: number | null
         totalCreditsUsd?: number | null
         spentThisPeriodUsd?: number | null
+        balanceCredits?: number | null
+        totalCredits?: number | null
+        spentThisPeriodCredits?: number | null
         resetAt?: string | null
         source?: "harness" | "none" | null
       }>("/api/nova/settings/billing")
@@ -80,6 +89,9 @@ export function BillingSection() {
         balanceUsd: info.balanceUsd ?? 0,
         totalCreditsUsd: info.totalCreditsUsd ?? 0,
         spentThisPeriodUsd: info.spentThisPeriodUsd ?? 0,
+        balanceCredits: info.balanceCredits ?? null,
+        totalCredits: info.totalCredits ?? null,
+        spentThisPeriodCredits: info.spentThisPeriodCredits ?? null,
         resetAt: info.resetAt ?? null,
         source: info.source ?? null,
       })
@@ -106,11 +118,12 @@ export function BillingSection() {
   const resetsLabel = state.resetAt
     ? new Date(state.resetAt).toLocaleDateString()
     : null
-  const totalCredits = state.totalCreditsUsd ?? 0
+  const productCredits = state.balanceCredits != null
+  const totalCredits = state.totalCredits ?? state.totalCreditsUsd ?? 0
   const hasCredits = totalCredits > 0
-  const spentThisPeriod = state.spentThisPeriodUsd ?? 0
+  const spentThisPeriod = state.spentThisPeriodCredits ?? state.spentThisPeriodUsd ?? 0
   const spentPct =
-    hasCredits && state.spentThisPeriodUsd != null
+    hasCredits
       ? Math.min(100, Math.round((spentThisPeriod / totalCredits) * 100))
       : null
 
@@ -164,7 +177,7 @@ export function BillingSection() {
                 <p className="mt-1.5 text-[12.5px] leading-5 text-[#6b6b6b]">
                   {hasPlan
                     ? "Recurring monthly subscription with included credits."
-                    : "Credits only, no recurring plan"}
+                    : "1,000 credits each month, shared across hosted DeepSeek, cloud machines, and app queries."}
                 </p>
               </>
             )}
@@ -209,8 +222,10 @@ export function BillingSection() {
           <p className="text-[14px] font-medium text-white">Balance</p>
           <p className="text-[18px] font-medium tracking-tight tabular-nums">
             {state.loading
-              ? "$0.00"
-              : `$${(state.balanceUsd ?? 0).toFixed(2)}`}
+              ? "Loading…"
+              : productCredits
+                ? `${state.balanceCredits?.toLocaleString(undefined, { maximumFractionDigits: 2 })} credits`
+                : `$${(state.balanceUsd ?? 0).toFixed(2)}`}
           </p>
         </div>
 
@@ -231,8 +246,9 @@ export function BillingSection() {
             </div>
             <div className="flex items-center justify-between gap-3 px-5 py-3 text-[12px] text-[#6b6b6b]">
               <span>
-                Used ${(state.spentThisPeriodUsd ?? 0).toFixed(2)} of $
-                {state.totalCreditsUsd?.toFixed(2)} this period
+                {productCredits
+                  ? `Used ${spentThisPeriod.toLocaleString(undefined, { maximumFractionDigits: 2 })} of ${totalCredits.toLocaleString()} credits this period`
+                  : `Used $${spentThisPeriod.toFixed(2)} of $${totalCredits.toFixed(2)} this period`}
                 {resetsLabel ? ` · resets ${resetsLabel}` : null}
               </span>
               <button
