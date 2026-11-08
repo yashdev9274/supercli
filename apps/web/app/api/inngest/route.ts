@@ -14,6 +14,10 @@ import {
   reconcileNovaApprovalContinuations,
   reconcileNovaRuns,
 } from "@/inngest/functions/nova"
+import {
+  aggregateNovaFeedbackDaily,
+  promoteNovaFeedback,
+} from "@/inngest/functions/feedback"
 
 // Allow long-running index batches on platforms that honor maxDuration
 export const maxDuration = 300
@@ -34,5 +38,7 @@ export const { GET, POST, PUT } = serve({
     reconcileNovaActivityDelivery,
     deliverNovaActivity,
     expireNovaApprovals,
+    promoteNovaFeedback,
+    aggregateNovaFeedbackDaily,
   ],
 })
