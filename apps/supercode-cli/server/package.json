@@ -47,7 +47,6 @@
     "node": ">=20.19.0"
   },
   "dependencies": {
-    "@super/billing": "workspace:*",
     "@ai-sdk/google": "^3.0.80",
     "@ai-sdk/mcp": "^2.0.10",
     "@ai-sdk/openai-compatible": "^2.0.48",
@@ -61,6 +60,7 @@
     "@prisma/client": "^7.8.0",
     "@prisma/client-runtime-utils": "^7.8.0",
     "@prisma/driver-adapter-utils": "^7.8.0",
+    "@super/billing": "workspace:*",
     "@vercel/connect": "^0.3.2",
     "ai": "^6.0.195",
     "better-auth": "^1.6.23",
