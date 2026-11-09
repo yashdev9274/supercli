@@ -1,10 +1,10 @@
 <div align="center">
 
-  # Supercode
+  # Nova
 
-  **AI-Powered SWE Agent**
+  **Your AI engineering workspace**
 
-  A monorepo containing the Supercode dashboard, documentation, terminal web client, CLI coding agent, and shared packages.
+  Nova brings coding agents, repositories, pull requests, connected apps, and cloud workspaces into one place. This repository contains the Nova dashboard, documentation, terminal client, coding-agent CLI, and shared packages.
 
   [![Website](https://img.shields.io/badge/Website-supercli.com-blue)](https://supercli.vercel.app)
   [![Built with Bun](https://img.shields.io/badge/Runtime-Bun-black)](https://bun.sh)
@@ -64,14 +64,70 @@ No database? Set one up later — `bun install` skips Prisma client generation g
 
 ## Overview
 
-Supercode is a full-stack AI-powered development platform built as a Bun + Turborepo monorepo. It includes a web dashboard, an MDX documentation site, an AI coding agent CLI, a terminal-style web client, and a parallel project for fine-tuning open-source LLMs.
+Nova is a full-stack AI engineering workspace built as a Bun + Turborepo monorepo. It gives developers a single surface for asking agents to change code, reviewing the result, and connecting the services those agents need to get work done.
 
-- **Dashboard** (`apps/web`) — Next.js dashboard for managing repositories, viewing analytics, and GitHub OAuth
+- **Nova Web** (`apps/web`) — The main workspace for projects, threads, pull requests, reviews, and connected apps
 - **Documentation** (`apps/docs`) — MDX-based documentation site
-- **Terminal Web Client** (`apps/supercode-cli/client`) — Browser UI that mirrors the CLI experience
-- **Supercode CLI** (`apps/supercode-cli/server`) — AI-powered coding agent published to npm as `supercode`
-- **API Server** (`apps/api`) — Scaffolding for a shared backend
-- **Open Model** (`supercode-openmodel/`) — Fine-tuning open-source LLMs (Qwen3, GLM-4) for coding tasks
+- **Terminal Web Client** (`apps/supercode-cli/client`) — Browser UI for the terminal workflow
+- **Coding Agent CLI** (`apps/supercode-cli/server`) — Installable `supercode` CLI with file, shell, search, and repository tools
+- **API Server** (`apps/api`) — Shared backend scaffolding
+
+## Why Nova?
+
+Most coding-agent tools stop at a chat box or a terminal. Nova is designed as the control surface around the whole engineering loop:
+
+- Start a thread with the right project and working context.
+- Ask Nova to inspect a repository, implement a change, or explain a codebase.
+- Review pull requests and diffs across connected repositories.
+- Connect the tools your team already uses, then let Nova work across them with explicit approvals.
+- Keep the workflow local-first where it matters, while still supporting hosted runtimes and remote collaboration.
+
+The goal is simple: fewer tabs, less context switching, and a clear path from idea to reviewed change.
+
+## Features
+
+### 🧠 A workspace built around Nova threads
+
+Create focused threads for projects, repositories, and engineering tasks. Nova keeps the conversation, selected model, tools, and working context together so every request starts from the right place.
+
+![Nova workspace and threads](./docs/screenshots/nova-home.png)
+
+### 🔀 Review pull requests across repositories
+
+Search and review pull requests from connected repositories in one place. Nova surfaces review status, summaries, diffs, and actionable findings without making you jump between repository tabs.
+
+![Nova pull request review](./docs/screenshots/nova-pull-requests.png)
+
+### 🛠️ Make changes, then inspect the diff
+
+Nova can work against a project, propose changes, and present the result for review. The desktop workflow keeps the repository tree, change summary, checks, and review context close together.
+
+![Nova desktop review workflow](./docs/screenshots/nova-desktop-review.png)
+
+### 🔌 Connect the tools your team already uses
+
+Connect GitHub, Linear, and other services from one workspace. Once connected, Nova can use the approved apps as part of engineering workflows while keeping connection state visible.
+
+![Nova connections](./docs/screenshots/nova-connections.png)
+
+### 🤖 Bring your own models and agents
+
+Nova is designed to work with the providers and agent runtimes you already use. Choose the model that fits the task, run the coding-agent CLI locally, or use the hosted Nova workflow when you want a managed environment.
+
+### ✅ Review before anything consequential happens
+
+Tool calls, repository changes, and external actions should be inspectable before they land. Nova keeps the human in the loop with review surfaces, approval flows, and pull-request-based collaboration.
+
+## Powered by
+
+Nova is built with the open tools and services that make the workspace useful:
+
+- **Bun, Turborepo, TypeScript, and Next.js** for the monorepo and application runtime
+- **React, Tailwind CSS, Radix UI, and Framer Motion** for the product interface
+- **AI SDK, Anthropic, OpenRouter, and Google** for model and provider integrations
+- **GitHub, Linear, and Composio** for repositories, issues, and connected tools
+- **PostgreSQL, Prisma, and Inngest** for data and background jobs
+- **Vercel** for hosting and deployment
 
 ## Architecture
 
@@ -124,74 +180,6 @@ bun run dev:terminal           # run the web client
 bun run dev:terminal-server    # run the CLI dev loop
 ```
 
-## Supercode Open Model 🧠
-
-We're building a **coding-focused LLM** by fine-tuning open-source models for the Supercode CLI. This project runs in parallel with the main platform.
-
-### Goal
-
-Fine-tune open models to create an AI assistant specialized in:
-- Code generation and completion
-- Debugging and error fixing
-- Code explanation and documentation
-- Multi-language programming support
-
-### Training Strategy
-
-We're using a **dual-track approach** to train two models simultaneously:
-
-| Track | Infrastructure | Model | Method | Estimated Cost |
-|-------|----------------|-------|--------|----------------|
-| **Track 1** | [Tinker](https://thinkingmachines.ai/tinker/) (Managed) | Qwen3-8B | LoRA | $150 free credits |
-| **Track 2** | [Modal](https://modal.com) + Axolotl | GLM-4-9B | LoRA/QLoRA | ~$15-20 |
-
-### Project Structure
-
-```
-supercode-openmodel/
-├── training/
-│   ├── data/                    # Dataset preparation scripts
-│   ├── tinker_qwen3/            # Tinker + Qwen3 training code
-│   └── evaluation/              # Model evaluation scripts
-├── models/                      # Model checkpoints
-├── config/                      # Training configurations
-└── pyrightconfig.json
-```
-
-### Training Datasets
-
-We use high-quality coding datasets:
-
-| Dataset | Size | Purpose |
-|---------|------|---------|
-| [CodeAlpaca](https://huggingface.co/datasets/HuggingFaceH4/CodeAlpaca_20K) | 20K | Instruction tuning |
-| [OpenCodeReasoning](https://huggingface.co/datasets/nvidia/OpenCodeReasoning) | 100K+ | Reasoning + coding |
-| [CodeFeedback](https://huggingface.co/datasets/m-a-p/CodeFeedback-Filtered-Instruction) | 156K | Instruction-response |
-
-### Quick Start
-
-1. **Set up Tinker (Track 1)**
-   ```bash
-   pip install tinker
-   export TINKER_API_KEY="your-key"
-   cd supercode-openmodel/training/tinker_qwen3
-   python train.py
-   ```
-
-2. **Set up Modal (Track 2)**
-   ```bash
-   pip install modal
-   modal token new
-   # Configure HuggingFace token in Modal secrets
-   modal run --detach src.train --config=config/glm4.yml
-   ```
-
-### Current Status
-
-🚧 **In Progress** — Actively training and evaluating models. The best-performing model will be deployed to the Supercode CLI.
-
----
-
 ## Tech Stack
 
 ### Framework & Runtime
@@ -227,12 +215,12 @@ We use high-quality coding datasets:
 - **React Hook Form** — Form handling
 - **Zod** — Schema validation
 
-### AI & ML
+### AI & Agents
 - **AI SDK v6** — Unified AI provider interface
 - **OpenRouter** — Multi-model routing
-- **Anthropic Claude** — Default model
-- **Google Gemini** — Embeddings
-- **Vercel Minimax AI Provider** — Additional model provider
+- **Anthropic Claude** — Agent provider integration
+- **Google Gemini** — Embeddings and supporting AI workflows
+- **Nova runtime** — Threads, tool calls, approvals, and workspace context
 
 ### CLI
 - **Commander** — CLI argument parsing
@@ -377,14 +365,6 @@ supercli/
 │   ├── config/                       # Shared ESLint/TS config
 │   └── dashboard/                    # Dashboard-specific components
 │
-├── supercode-openmodel/              # LLM fine-tuning project
-│   ├── training/
-│   │   ├── data/
-│   │   ├── tinker_qwen3/
-│   │   └── evaluation/
-│   ├── models/                       # Checkpoints
-│   └── config/
-│
 ├── scripts/                          # Repo-level scripts
 ├── turbo.json                        # Turborepo config
 ├── package.json                      # Root package (workspaces, scripts)
@@ -472,5 +452,5 @@ This project is licensed under the **MIT License** — see [`LICENSE`](./LICENSE
 ---
 
 <div align="center">
-  <strong>Built with ❤️ by the Supercode team!</strong>
+  <strong>Built for the future of software engineering by the Nova team.</strong>
 </div>
