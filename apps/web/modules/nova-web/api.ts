@@ -26,12 +26,20 @@ export async function requestJson<T>(url: string, init?: RequestInit): Promise<T
   return payload as T
 }
 
-export function listSessions(parentSessionId?: string) {
-  return requestJson<{ sessions: AgentSessionSummary[] }>(`/api/nova/sessions${parentSessionId ? `?parentSessionId=${encodeURIComponent(parentSessionId)}` : ""}`)
+export function listSessions(parentSessionId?: string, agentId?: string) {
+  const params = new URLSearchParams()
+  if (parentSessionId) params.set("parentSessionId", parentSessionId)
+  if (agentId) params.set("agentId", agentId)
+  const query = params.toString()
+  return requestJson<{ sessions: AgentSessionSummary[] }>(`/api/nova/sessions${query ? `?${query}` : ""}`)
 }
 
 export function listAgents() {
   return requestJson<{ agents: NovaAgent[] }>("/api/nova/agents")
+}
+
+export function getAgent(id: string) {
+  return requestJson<{ agent: NovaAgent }>(`/api/nova/agents/${encodeURIComponent(id)}`)
 }
 
 export function createAgent(input: {
@@ -50,7 +58,7 @@ export function createAgent(input: {
 
 export function createSession(
   objective: string,
-  options?: { localProjectId?: string | null; mode?: "agent" | "plan" | "chat"; parentSessionId?: string },
+  options?: { localProjectId?: string | null; mode?: "agent" | "plan" | "chat"; parentSessionId?: string; agentId?: string },
 ) {
   return requestJson<{ session: AgentSessionSummary }>("/api/nova/sessions", {
     method: "POST",
@@ -61,6 +69,7 @@ export function createSession(
       surface: "web",
       localProjectId: options?.localProjectId ?? undefined,
       parentSessionId: options?.parentSessionId,
+      agentId: options?.agentId,
     }),
   })
 }

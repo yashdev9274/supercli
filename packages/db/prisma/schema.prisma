@@ -227,6 +227,7 @@ model NovaAgent {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   archivedAt     DateTime?
+  sessions       AgentSession[]
 
   @@index([organizationId, ownerUserId, status, updatedAt])
   @@index([ownerUserId, createdAt])
@@ -540,6 +541,8 @@ model AgentSession {
   organization          Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   initiatorMembershipId String?
   initiatorMembership   OrganizationMembership? @relation(fields: [initiatorMembershipId], references: [id], onDelete: SetNull)
+  agentId               String?
+  agent                 NovaAgent?              @relation(fields: [agentId], references: [id], onDelete: SetNull)
   objective             String                  @db.Text
   mode                  String                  @default("chat")
   status                String                  @default("active") // active | sleeping | completed | cancelled | failed
@@ -572,6 +575,7 @@ model AgentSession {
   feedbacks       NovaFeedback[]
 
   @@index([organizationId, status, updatedAt])
+  @@index([agentId, updatedAt])
   @@index([initiatorMembershipId])
   @@index([parentSessionId, createdAt])
   @@index([localProjectId])
