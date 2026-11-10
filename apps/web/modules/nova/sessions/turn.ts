@@ -255,7 +255,7 @@ async function buildTurnContext(
     : null
 
   const memoryContext = session.agentId
-    ? await searchAgentMemory({ userId, agentId: session.agentId, query: fallbackUserContent, limit: 5 }).catch(() => [])
+    ? await searchAgentMemory({ userId, agentId: session.agentId, query: fallbackUserContent, limit: 5 }).then((matches) => matches.map((match) => match.content)).catch(() => [])
     : []
 
   const localProjectNote = localProject
@@ -996,6 +996,16 @@ export async function* runWebTurn(input: {
         memoryType: "task-result",
         source: "agent",
       }).catch(() => undefined)
+      if (/\\b(remember this|remember that|save this|keep this in mind)\\b/i.test(content)) {
+        void rememberAgentMemory({
+          userId: input.userId,
+          agentId: context.agentId,
+          sessionId: input.sessionId,
+          content: content.replace(/^\\s*(please\\s+)?(remember this|remember that|save this|keep this in mind)[:,-]?\\s*/i, "").slice(0, 4000),
+          memoryType: "preference",
+          source: "user",
+        }).catch(() => undefined)
+      }
     }
     yield { type: "activity", activity: completed.activity }
     yield {

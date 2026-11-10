@@ -42,6 +42,21 @@ export function getAgent(id: string) {
   return requestJson<{ agent: NovaAgent }>(`/api/nova/agents/${encodeURIComponent(id)}`)
 }
 
+export type AgentMemoryMatch = {
+  id: string
+  content: string
+  metadata: Record<string, unknown>
+  similarity: number
+}
+
+export function searchAgentMemory(agentId: string, query: string) {
+  return requestJson<{ memories: AgentMemoryMatch[] }>(`/api/nova/agents/${encodeURIComponent(agentId)}/memory?q=${encodeURIComponent(query)}`)
+}
+
+export function deleteAgentMemory(agentId: string, memoryId: string) {
+  return requestJson<void>(`/api/nova/agents/${encodeURIComponent(agentId)}/memory/${encodeURIComponent(memoryId)}`, { method: "DELETE" })
+}
+
 export function createAgent(input: {
   name: string
   description?: string

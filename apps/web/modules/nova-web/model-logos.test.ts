@@ -7,7 +7,7 @@ import { ALL_MODELS, HARNESS_PROVIDERS } from "./models"
 
 describe("model company logos", () => {
   test("every model and provider resolves to a local logo asset", () => {
-    const logos = [...HARNESS_PROVIDERS.map((provider) => PROVIDER_LOGOS[provider.id]), ...ALL_MODELS.map(modelLogo)]
+    const logos = [...HARNESS_PROVIDERS.map((provider) => PROVIDER_LOGOS[provider.id]!), ...ALL_MODELS.map(modelLogo)]
     for (const logo of logos) {
       expect(logo.src.startsWith("/")).toBe(true)
       expect(existsSync(resolve(import.meta.dir, "../../public", logo.src.slice(1)))).toBe(true)
@@ -35,7 +35,7 @@ describe("model company logos", () => {
 
   test("does not invent a maker for stealth models", () => {
     for (const entry of ALL_MODELS.filter((model) => model.id === "stealth/ox-alpha")) {
-      expect(modelLogo(entry)).toEqual(PROVIDER_LOGOS[entry.provider])
+      expect(modelLogo(entry)).toEqual(PROVIDER_LOGOS[entry.provider]!)
     }
   })
 })

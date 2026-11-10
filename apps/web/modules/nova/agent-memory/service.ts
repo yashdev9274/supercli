@@ -29,12 +29,19 @@ export type AgentMemoryType =
   | "task-result"
   | "error-pattern"
 
+export type AgentMemoryMatch = {
+  id: string
+  content: string
+  metadata: Record<string, unknown>
+  similarity: number
+}
+
 export async function searchAgentMemory(input: {
   userId: string
   agentId: string
   query: string
   limit?: number
-}) {
+}): Promise<AgentMemoryMatch[]> {
   await ownedAgent(input.userId, input.agentId)
   if (!input.query.trim()) return []
 
@@ -45,8 +52,34 @@ export async function searchAgentMemory(input: {
   })
 
   return result.results
-    .map((item) => item.memory ?? item.chunk ?? "")
-    .filter(Boolean)
+    .map((item) => ({
+      id: item.id,
+      content: item.memory ?? item.chunk ?? "",
+      metadata: item.metadata,
+      similarity: item.similarity,
+    }))
+    .filter((item) => item.content)
+}
+
+export async function forgetAgentMemory(input: {
+  userId: string
+  agentId: string
+  documentId: string
+}) {
+  await ownedAgent(input.userId, input.agentId)
+  const link = await prisma.novaAgentMemoryLink.findFirst({
+    where: {
+      ownerUserId: input.userId,
+      agentId: input.agentId,
+      supermemoryDocumentId: input.documentId,
+      status: { not: "deleted" },
+    },
+    select: { id: true },
+  })
+  if (!link) throw new Error("Memory not found")
+
+  await client().memories.forget(namespaceFor(input.userId, input.agentId), { ids: [input.documentId] })
+  await prisma.novaAgentMemoryLink.update({ where: { id: link.id }, data: { status: "deleted" } })
 }
 
 export async function rememberAgentMemory(input: {
