@@ -44,6 +44,7 @@ import {
   MAX_NOVA_CONTEXT_ENTRIES,
 } from "@/modules/nova/runs/prompt"
 import { postSessionMessage } from "@/modules/nova/sessions/service"
+import { rememberAgentMemory, searchAgentMemory } from "@/modules/nova/agent-memory/service"
 import { resolveHarnessSelection } from "@/modules/nova-web/models"
 import { resolveNovaTurnMode } from "@/modules/nova-web/resolve-mode"
 import { WORK_MS } from "@/modules/nova/sandbox/policy"
@@ -135,6 +136,7 @@ function buildSystemPrompt(
   effort?: string | null,
   localProjectNote?: string | null,
   mode?: string | null,
+  memoryContext?: string[],
 ) {
   return `You are Nova, Supercode's AI software engineer.
 
@@ -146,10 +148,11 @@ On the web you reason, review, draft, coordinate company work, and in Agent mode
 - Keep prose tight and senior. No filler.
 - ${effortHint(effort)}
 - ${modeDirective(mode)}
-- Session objective: ${objective}${localProjectNote ? `\n- ${localProjectNote}` : ""}`
+- Session objective: ${objective}${localProjectNote ? `\n- ${localProjectNote}` : ""}${memoryContext?.length ? `\n\nRelevant long-term agent memory:\n${memoryContext.map((item) => `- ${item}`).join("\n")}` : ""}`
 }
 
 async function buildTurnContext(
+  userId: string,
   sessionId: string,
   triggerSequence: number,
   fallbackUserContent: string,
@@ -161,6 +164,7 @@ async function buildTurnContext(
       where: { id: sessionId },
       select: {
         objective: true,
+        agentId: true,
         localProject: {
           select: {
             id: true,
@@ -250,6 +254,10 @@ async function buildTurnContext(
       }
     : null
 
+  const memoryContext = session.agentId
+    ? await searchAgentMemory({ userId, agentId: session.agentId, query: fallbackUserContent, limit: 5 }).catch(() => [])
+    : []
+
   const localProjectNote = localProject
     ? localProject.repositoryFullName
       ? `Active project “${localProject.displayName}” is GitHub repo ${localProject.repositoryFullName} (${localProject.fileCount} indexed paths). Packed sources land in <nova_local_files>. Implement against them with concrete diffs — do not ask the user to re-attach those files.`
@@ -257,14 +265,14 @@ async function buildTurnContext(
     : null
 
   const chatMessages: HarnessChatMessage[] = [
-    { role: "system", content: buildSystemPrompt(session.objective, effort, localProjectNote, mode) },
+    { role: "system", content: buildSystemPrompt(session.objective, effort, localProjectNote, mode, memoryContext) },
     ...window.map((entry) => ({
       role: entry.role,
       content: entry.content,
     })),
   ]
 
-  return { objective: session.objective, messages: chatMessages, localProject }
+  return { objective: session.objective, messages: chatMessages, localProject, agentId: session.agentId }
 }
 
 function harnessContentToText(content: HarnessChatMessage["content"]): string {
@@ -512,6 +520,7 @@ export async function* runWebTurn(input: {
     }
 
     const context = await buildTurnContext(
+      input.userId,
       input.sessionId,
       posted.message.sequence,
       content,
@@ -978,6 +987,16 @@ export async function* runWebTurn(input: {
       body,
       model: modelTag,
     })
+    if (context.agentId) {
+      void rememberAgentMemory({
+        userId: input.userId,
+        agentId: context.agentId,
+        sessionId: input.sessionId,
+        content: `User request:\n${content.slice(0, 2000)}\n\nAgent result:\n${text.slice(0, 4000)}`,
+        memoryType: "task-result",
+        source: "agent",
+      }).catch(() => undefined)
+    }
     yield { type: "activity", activity: completed.activity }
     yield {
       type: "finish",

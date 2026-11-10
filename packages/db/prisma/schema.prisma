@@ -67,6 +67,7 @@ model Organization {
   agents                   NovaAgent[]
   browserSessions          NovaBrowserSession[]
   feedbacks                NovaFeedback[]
+  agentMemoryLinks         NovaAgentMemoryLink[]
 
   @@map("organization")
 }
@@ -94,6 +95,7 @@ model User {
   webLocalProjects        WebLocalProject[]
   browserSessions         NovaBrowserSession[]
   novaAgents              NovaAgent[]
+  agentMemoryLinks         NovaAgentMemoryLink[]
 
   @@unique([email])
   @@index([organizationId])
@@ -228,10 +230,34 @@ model NovaAgent {
   updatedAt      DateTime     @updatedAt
   archivedAt     DateTime?
   sessions       AgentSession[]
+  memoryLinks    NovaAgentMemoryLink[]
 
   @@index([organizationId, ownerUserId, status, updatedAt])
   @@index([ownerUserId, createdAt])
   @@map("nova_agent")
+}
+
+model NovaAgentMemoryLink {
+  id                    String        @id @default(cuid())
+  organizationId        String
+  organization          Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ownerUserId           String
+  ownerUser             User          @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  agentId               String
+  agent                 NovaAgent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  sessionId             String?
+  session               AgentSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  taskId                String?
+  supermemoryDocumentId String?
+  memoryType            String
+  source                String
+  status                String        @default("queued")
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  @@index([ownerUserId, agentId, status])
+  @@index([agentId, createdAt])
+  @@map("nova_agent_memory_link")
 }
 
 model NovaAutomation {
@@ -573,6 +599,7 @@ model AgentSession {
   automationRun  NovaAutomationRun?
   sandboxSessions NovaSandboxSession[]
   feedbacks       NovaFeedback[]
+  memoryLinks     NovaAgentMemoryLink[]
 
   @@index([organizationId, status, updatedAt])
   @@index([agentId, updatedAt])

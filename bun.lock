@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 1,
   "workspaces": {
     "": {
       "name": "super-platform",
@@ -147,6 +146,7 @@
         "@prisma/client": "^7.8.0",
         "@prisma/client-runtime-utils": "^7.8.0",
         "@prisma/driver-adapter-utils": "^7.8.0",
+        "@super/billing": "workspace:*",
         "@vercel/connect": "^0.3.2",
         "ai": "^6.0.195",
         "better-auth": "^1.6.23",
@@ -304,6 +304,7 @@
         "remark-gfm": "^4.0.1",
         "resend": "^6.14.0",
         "sonner": "^2.0.7",
+        "supermemory": "^5.1.2",
         "tailwind-merge": "^3.4.0",
         "three": "^0.187.0",
         "vaul": "^1.1.2",
@@ -3794,6 +3795,8 @@
     "supercode-cortex": ["supercode-cortex@workspace:packages/cortex-sdk"],
 
     "superdesign": ["superdesign@workspace:apps/superdesign"],
+
+    "supermemory": ["supermemory@5.1.2", "", { "bin": { "supermemory": "bin/cli.mjs" } }, "sha512-dUVDfciBjUpjJ17l01IvWRuNRicUvfSMrtmi9+YDLTQ04yoVdiA+fQNdEu2uKYTWqWf3LsbBH1N3MUDTpSHOMA=="],
 
     "supports-color": ["supports-color@7.2.0", "", { "dependencies": { "has-flag": "^4.0.0" } }, "sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw=="],
 
