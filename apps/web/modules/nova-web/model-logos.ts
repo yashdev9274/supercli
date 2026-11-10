@@ -11,7 +11,7 @@ function mark(name: string): BrandLogo {
   return { src: `/logos/models/${name}.svg`, monochrome: true }
 }
 
-export const PROVIDER_LOGOS: Record<HarnessProvider, BrandLogo> = {
+export const PROVIDER_LOGOS: Partial<Record<HarnessProvider, BrandLogo>> = {
   codex: mark("openai"),
   supercode: { src: "/supercode-logo.png", monochrome: false },
   concentrateai: mark("concentrateai"),
@@ -19,11 +19,14 @@ export const PROVIDER_LOGOS: Record<HarnessProvider, BrandLogo> = {
   mergedev: { src: "/logos/models/mergedev.png", monochrome: false },
   google: mark("gemini"),
   minimax: mark("minimax"),
-  nvidia: mark("nvidia"),
+  nvidia: { src: "/logos/providers/crops/nvidia.png", monochrome: false },
   openrouter: mark("openrouter"),
   orcarouter: { src: "/orcarouter-logo.jpg", monochrome: false },
   cursor: mark("cursor"),
   opencode: mark("opencode"),
+  ollama: { src: "/logos/providers/crops/ollama.png", monochrome: false },
+  vercel: { src: "/logos/providers/crops/vercel.png", monochrome: false },
+  cloudflare: { src: "/logos/providers/crops/cloudflare.png", monochrome: false },
 }
 
 const MODEL_BRANDS: Array<[RegExp, BrandLogo]> = [
@@ -47,5 +50,5 @@ const MODEL_BRANDS: Array<[RegExp, BrandLogo]> = [
 export function modelLogo(entry: NovaModelEntry): BrandLogo {
   const name = `${entry.id} ${entry.label}`
   // Unknown/stealth makers retain the serving provider's actual logo.
-  return MODEL_BRANDS.find(([pattern]) => pattern.test(name))?.[1] ?? PROVIDER_LOGOS[entry.provider]
+  return MODEL_BRANDS.find(([pattern]) => pattern.test(name))?.[1] ?? PROVIDER_LOGOS[entry.provider] ?? mark("openrouter")
 }

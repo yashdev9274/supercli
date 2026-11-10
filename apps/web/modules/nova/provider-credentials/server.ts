@@ -3,10 +3,21 @@ import "server-only"
 import { auth } from "@super/auth/server"
 import prisma from "@super/db"
 
+import { API_KEY_PROVIDER_IDS } from "@/modules/nova-web/provider-integrations"
+
 import { configuredProviderVault, ProviderCredentialError } from "./vault"
 
-export const SUPPORTED_PROVIDER_CREDENTIALS = ["cursor", "opencode"] as const
+export const SUPPORTED_PROVIDER_CREDENTIALS = ["cursor", "opencode", ...API_KEY_PROVIDER_IDS] as const
 export type ProviderCredentialProvider = typeof SUPPORTED_PROVIDER_CREDENTIALS[number]
+
+export type StoredProviderConfig = {
+  apiKey: string
+  name?: string
+  baseUrl?: string
+  apiFamily?: "openai" | "anthropic" | "google"
+  headers?: Record<string, string>
+  models?: Array<{ id: string; label: string; description?: string }>
+}
 
 export function isProviderCredentialProvider(value: string): value is ProviderCredentialProvider {
   return (SUPPORTED_PROVIDER_CREDENTIALS as readonly string[]).includes(value)
@@ -29,9 +40,19 @@ export async function providerCredentialContext(request: Request, provider: stri
   return { userId: session.user.id, organizationId: user.organizationId, membershipId: membership.id, provider: provider as ProviderCredentialProvider, binding, vault }
 }
 
-export async function readProviderApiKey(request: Request, provider: string) {
+export async function readProviderConfig(request: Request, provider: string) {
   const context = await providerCredentialContext(request, provider)
   const row = await prisma.novaProviderCredential.findUnique({ where: { membershipId_provider: { membershipId: context.membershipId, provider: context.provider } } })
-  if (!row || row.status !== "connected" || !row.enabled) return { ...context, apiKey: null as string | null }
-  return { ...context, apiKey: context.vault.open(row.encryptedApiKey, context.binding) }
+  if (!row || row.status !== "connected" || !row.enabled) return { ...context, config: null as StoredProviderConfig | null }
+  const decrypted = context.vault.open(row.encryptedApiKey, context.binding)
+  try {
+    const parsed = JSON.parse(decrypted) as Partial<StoredProviderConfig>
+    if (typeof parsed.apiKey === "string") return { ...context, config: parsed as StoredProviderConfig }
+  } catch { /* Existing cursor/OpenCode rows stored the raw key. */ }
+  return { ...context, config: { apiKey: decrypted } satisfies StoredProviderConfig }
+}
+
+export async function readProviderApiKey(request: Request, provider: string) {
+  const state = await readProviderConfig(request, provider)
+  return { ...state, apiKey: state.config?.apiKey ?? null }
 }

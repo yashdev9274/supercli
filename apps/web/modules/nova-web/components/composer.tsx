@@ -820,6 +820,10 @@ function ModelPicker({
   const codex = useCodexCatalog()
   const providerConnections = useProviderConnectionStates()
   const codexEntries = useMemo(() => codexModelEntries(codex.models), [codex.models])
+  const dynamicProviders = useMemo(() => Object.entries(providerConnections.states)
+    .filter(([id, state]) => Boolean(state?.connected && state.models?.length && !HARNESS_PROVIDERS.some((item) => item.id === id)))
+    .map(([id, state]) => ({ id: id as HarnessProvider, label: providerConnections.states[id]?.name ?? id, models: (state?.models ?? []).map((entry) => ({ id: entry.id, provider: id as HarnessProvider, label: entry.label, desc: entry.description ?? "Available through the connected provider" })) })), [providerConnections.states])
+  const dynamicModels = useMemo(() => dynamicProviders.flatMap((item) => item.models), [dynamicProviders])
   function changeOpen(nextOpen: boolean) {
     setOpen(nextOpen)
     if (!nextOpen) setQuery("")
@@ -830,11 +834,11 @@ function ModelPicker({
     const q = query.trim().toLowerCase()
     let list =
       activeProvider === "all"
-        ? [...codexEntries, ...CLOUD_MODELS, ...BYOK_PROVIDERS.flatMap((p) => modelsForProvider(p.id))]
+        ? [...codexEntries, ...CLOUD_MODELS, ...BYOK_PROVIDERS.flatMap((p) => modelsForProvider(p.id)), ...dynamicModels]
         : activeProvider === "codex" ? codexEntries
         : activeProvider === "supercode"
           ? CLOUD_MODELS
-          : modelsForProvider(activeProvider)
+          : modelsForProvider(activeProvider).length ? modelsForProvider(activeProvider) : dynamicProviders.find((item) => item.id === activeProvider)?.models ?? []
     if (q) {
       list = list.filter(
         (entry) =>
@@ -845,12 +849,12 @@ function ModelPicker({
       )
     }
     return list
-  }, [activeProvider, query, codexEntries])
+  }, [activeProvider, query, codexEntries, dynamicModels, dynamicProviders])
 
   function providerReady(providerId: HarnessProvider) {
-    if (providerId !== "cursor" && providerId !== "opencode") return true
     const state = providerConnections.states[providerId]
-    return Boolean(state?.connected && state.enabled)
+    if (!state) return true
+    return Boolean(state.connected && state.enabled)
   }
 
   function openProviderSettings() {
@@ -893,13 +897,9 @@ function ModelPicker({
             />
             <ProviderRailItem active={activeProvider === "codex"} label="OpenAI Codex" onClick={() => setActiveProvider("codex")} />
             {BYOK_PROVIDERS.map((item) => (
-              <ProviderRailItem
-                key={item.id}
-                active={activeProvider === item.id}
-                label={item.label}
-                onClick={() => setActiveProvider(item.id)}
-              />
+              <ProviderRailItem key={item.id} active={activeProvider === item.id} label={item.label} onClick={() => setActiveProvider(item.id)} />
             ))}
+            {dynamicProviders.map((item) => <ProviderRailItem key={item.id} active={activeProvider === item.id} label={item.label} onClick={() => setActiveProvider(item.id)} />)}
           </div>
 
           {/* Model list */}
@@ -944,8 +944,8 @@ function ModelPicker({
               ) : null}
 
               {activeProvider === "all"
-                ? BYOK_PROVIDERS.map((prov) => {
-                    const models = modelsForProvider(prov.id).filter((e) =>
+                ? [...BYOK_PROVIDERS.map((prov) => ({ id: prov.id, label: prov.label, models: modelsForProvider(prov.id) })), ...dynamicProviders].map((prov) => {
+                    const models = prov.models.filter((e) =>
                       !query.trim()
                         || e.label.toLowerCase().includes(query.toLowerCase())
                         || e.id.toLowerCase().includes(query.toLowerCase())

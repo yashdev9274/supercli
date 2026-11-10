@@ -107,7 +107,7 @@ function ModelRow({ entry, selected, expanded, onExpand, onUse }: {
         <td className="px-3 py-3.5">
           <span className="flex items-center gap-2 text-[#d0d0d0]"><CompanyLogo logo={modelLogo(entry)} />{entry.label}{selected ? <Check aria-label="Selected model" className="size-3.5 shrink-0 text-[#2dd4bf]" /> : null}</span>
         </td>
-        <td className="px-3 py-3.5"><span className="flex items-center gap-2"><CompanyLogo logo={PROVIDER_LOGOS[entry.provider]} />{provider.shortLabel}</span></td>
+        <td className="px-3 py-3.5"><span className="flex items-center gap-2"><CompanyLogo logo={PROVIDER_LOGOS[entry.provider] ?? modelLogo(entry)} />{provider.shortLabel}</span></td>
         <td className="px-3 py-3.5 tabular-nums">{entry.cost ?? "—"}</td>
         <td className="px-2 py-3.5 text-right"><button type="button" aria-label={`Configure ${entry.label} via ${provider.label}`} aria-expanded={expanded} onClick={onExpand} className="rounded-md p-1.5 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-[#2dd4bf]"><ChevronDown className={`size-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} /></button></td>
       </tr>

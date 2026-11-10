@@ -1,4 +1,4 @@
-import type { ProviderCredentialProvider } from "./server"
+import type { ProviderCredentialProvider, StoredProviderConfig } from "./server"
 
 export type ProviderCatalogModel = { id: string; label: string; description: string; apiFamily?: "openai" | "anthropic" | "google" }
 
@@ -23,18 +23,25 @@ function normalize(body: unknown): ProviderCatalogModel[] {
   })
 }
 
-export async function fetchProviderCatalog(provider: ProviderCredentialProvider, apiKey: string, signal?: AbortSignal) {
-  const url = provider === "cursor" ? "https://api.cursor.com/v1/models" : "https://opencode.ai/inference/v1/models"
-  const response = await fetch(url, {
-    headers: {
-      Authorization: provider === "cursor" ? basic(apiKey) : `Bearer ${apiKey}`,
-      Accept: "application/json",
-      "User-Agent": "Nova Web",
-    },
-    cache: "no-store",
-    signal,
-  })
+function endpointFor(provider: ProviderCredentialProvider, config: StoredProviderConfig) {
+  if (config.baseUrl?.trim()) return config.baseUrl.trim().replace(/\/$/, "")
+  if (provider === "cursor") return "https://api.cursor.com/v1"
+  if (provider === "opencode") return "https://opencode.ai/inference/v1"
+  return ""
+}
+
+export async function fetchProviderCatalog(provider: ProviderCredentialProvider, configOrApiKey: StoredProviderConfig | string, signal?: AbortSignal) {
+  const config: StoredProviderConfig = typeof configOrApiKey === "string" ? { apiKey: configOrApiKey } : configOrApiKey
+  const baseUrl = endpointFor(provider, config)
+  if (!baseUrl) return []
+  const headers = config.apiFamily === "anthropic"
+    ? { ...(config.headers ?? {}), "x-api-key": config.apiKey, "anthropic-version": "2023-06-01", Accept: "application/json", "User-Agent": "Nova Web" }
+    : { ...(config.headers ?? {}), Authorization: provider === "cursor" ? basic(config.apiKey) : `Bearer ${config.apiKey}`, Accept: "application/json", "User-Agent": "Nova Web" }
+  const modelsPath = config.apiFamily === "anthropic" && !baseUrl.endsWith("/v1") ? "/v1/models" : "/models"
+  const response = await fetch(`${baseUrl}${modelsPath}`, { headers, cache: "no-store", signal })
   const body = await response.json().catch(() => null)
   if (!response.ok) throw new Error(typeof body === "object" && body && "message" in body && typeof body.message === "string" ? body.message : `${provider} returned HTTP ${response.status}`)
   return normalize(body)
 }
+
+export { endpointFor }

@@ -13,6 +13,21 @@ export type HarnessProvider =
   | "neon"
   | "cursor"
   | "opencode"
+  | "vercel"
+  | "cloudflare"
+  | "ollama"
+  | "bedrock"
+  | "baseten"
+  | "fireworks"
+  | "together"
+  | "deepinfra"
+  | "kimi"
+  | "zai-coding"
+  | "anthropic"
+  | "openai"
+  | "xai"
+  | "meta"
+  | "custom"
 
 export type NovaModelEntry = {
   id: string
