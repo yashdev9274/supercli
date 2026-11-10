@@ -1,0 +1,40 @@
+import type { ProviderCredentialProvider } from "./server"
+
+export type ProviderCatalogModel = { id: string; label: string; description: string; apiFamily?: "openai" | "anthropic" | "google" }
+
+function basic(key: string) {
+  return `Basic ${Buffer.from(`${key}:`).toString("base64")}`
+}
+
+function normalize(body: unknown): ProviderCatalogModel[] {
+  const raw = Array.isArray(body) ? body : body && typeof body === "object"
+    ? (Array.isArray((body as { data?: unknown }).data) ? (body as { data: unknown[] }).data : Array.isArray((body as { models?: unknown }).models) ? (body as { models: unknown[] }).models : [])
+    : []
+  return raw.flatMap((item) => {
+    if (!item || typeof item !== "object") return []
+    const value = item as Record<string, unknown>
+    const id = typeof value.id === "string" ? value.id : typeof value.model === "string" ? value.model : ""
+    if (!id || id.length > 200) return []
+    const label = typeof value.name === "string" ? value.name : typeof value.display_name === "string" ? value.display_name : id
+    const description = typeof value.description === "string" ? value.description : "Available through the connected provider"
+    const api = typeof value.api === "string" ? value.api : typeof value.apiFamily === "string" ? value.apiFamily : undefined
+    const apiFamily = api === "anthropic" || api === "google" || api === "openai" ? api : undefined
+    return [{ id, label: label.slice(0, 200), description: description.slice(0, 500), apiFamily }]
+  })
+}
+
+export async function fetchProviderCatalog(provider: ProviderCredentialProvider, apiKey: string, signal?: AbortSignal) {
+  const url = provider === "cursor" ? "https://api.cursor.com/v1/models" : "https://opencode.ai/inference/v1/models"
+  const response = await fetch(url, {
+    headers: {
+      Authorization: provider === "cursor" ? basic(apiKey) : `Bearer ${apiKey}`,
+      Accept: "application/json",
+      "User-Agent": "Nova Web",
+    },
+    cache: "no-store",
+    signal,
+  })
+  const body = await response.json().catch(() => null)
+  if (!response.ok) throw new Error(typeof body === "object" && body && "message" in body && typeof body.message === "string" ? body.message : `${provider} returned HTTP ${response.status}`)
+  return normalize(body)
+}

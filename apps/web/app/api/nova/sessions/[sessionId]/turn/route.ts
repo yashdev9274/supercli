@@ -10,6 +10,9 @@ import { codexPublicError } from "@/modules/nova/codex/errors"
 import { assertCodexOrigin } from "@/modules/nova/codex/request"
 import { createCodexRuntime } from "@/modules/nova/codex/runtime"
 import { codexContextForRequest } from "@/modules/nova/codex/server"
+import { createProviderTransport } from "@/modules/nova/provider-credentials/runtime"
+import { readProviderApiKey } from "@/modules/nova/provider-credentials/server"
+import { ProviderCredentialError } from "@/modules/nova/provider-credentials/vault"
 import type { ChatTransport } from "@/modules/nova/harness/agent"
 import { ensureHarnessToken } from "@/modules/nova/harness/auth"
 import { referencesInputSchema } from "@/modules/nova/references/contracts"
@@ -79,6 +82,7 @@ export async function POST(
   }
 
   const isCodex = parsed.data.provider === CODEX_PROVIDER
+  const isExternalProvider = parsed.data.provider === "cursor" || parsed.data.provider === "opencode"
   let chatTransport: ChatTransport | undefined
   if (isCodex) {
     try {
@@ -88,6 +92,15 @@ export async function POST(
     } catch (error) {
       const safe = codexPublicError(error)
       return Response.json({ error: safe.message }, { status: safe.statusCode, headers: { "Cache-Control": "no-store" } })
+    }
+  } else if (isExternalProvider) {
+    try {
+      const state = await readProviderApiKey(request, parsed.data.provider)
+      if (!state.apiKey) throw new ProviderCredentialError(`Connect ${parsed.data.provider === "cursor" ? "Cursor Cloud Agents" : "OpenCode Go"} in Settings → Models`, 409)
+      chatTransport = createProviderTransport(state.provider, state.apiKey)
+    } catch (error) {
+      const status = error instanceof ProviderCredentialError ? error.statusCode : 502
+      return Response.json({ error: error instanceof Error ? error.message : "Provider connection failed" }, { status, headers: { "Cache-Control": "no-store" } })
     }
   } else if (parsed.data.effort === "none" || parsed.data.effort === "minimal") {
     return Response.json({ error: "This provider does not support the selected reasoning effort" }, { status: 400 })

@@ -6,6 +6,7 @@ import { Check, ChevronDown, Search } from "lucide-react"
 
 import { ChatGPTConnectionCard } from "@/modules/nova-web/components/chatgpt-connection-card"
 import { CodexDeviceConnectionCard } from "@/modules/nova-web/components/codex-device-connection-card"
+import { ProviderApiKeyCard } from "@/modules/nova-web/components/provider-api-key-card"
 import { filterSettingsModels, PROVIDER_CONFIGURATION } from "@/modules/nova-web/model-settings"
 import { modelLogo, PROVIDER_LOGOS, type BrandLogo } from "@/modules/nova-web/model-logos"
 import { HARNESS_PROVIDERS, menuId, type HarnessProvider, type NovaModelEntry } from "@/modules/nova-web/models"
@@ -59,11 +60,12 @@ export function ModelsSection({ provider, model, onUseModel }: {
               </summary>
               <div className="border-t border-white/[0.05] bg-black/10 px-4 py-4 text-[12px] leading-5 sm:pl-[60px]">
                 <p className="text-[#a0a0a0]">{PROVIDER_CONFIGURATION[item.id].description}</p>
+                 {item.id === "cursor" || item.id === "opencode" ? <ProviderApiKeyCard provider={item.id} /> : null}
                 <dl className="mt-3 space-y-2">
                   <div><dt className="text-[#8a8a8a]">Provider ID</dt><dd className="font-mono text-[#d0d0d0]">{item.id}</dd></div>
-                  <div><dt className="text-[#8a8a8a]">{item.id === "codex" ? "Connection" : "Harness environment variable"}</dt><dd className="break-all font-mono text-[#d0d0d0]">{PROVIDER_CONFIGURATION[item.id].credential}</dd></div>
-                  {PROVIDER_CONFIGURATION[item.id].baseUrl ? <div><dt className="text-[#8a8a8a]">Branch URL environment variable</dt><dd className="break-all font-mono text-[#d0d0d0]">{PROVIDER_CONFIGURATION[item.id].baseUrl}</dd></div> : null}
-                  <div><dt className="text-[#8a8a8a]">Transport</dt><dd className="font-mono text-[#d0d0d0]">{item.id === "codex" ? "Nova backend · Codex Responses SSE" : "POST /api/ai/chat · NDJSON streaming"}</dd></div>
+                  <div><dt className="text-[#8a8a8a]">{item.id === "codex" || item.id === "cursor" || item.id === "opencode" ? "Connection" : "Harness environment variable"}</dt><dd className="break-all font-mono text-[#d0d0d0]">{PROVIDER_CONFIGURATION[item.id].credential}</dd></div>
+                  {PROVIDER_CONFIGURATION[item.id].baseUrl ? <div><dt className="text-[#8a8a8a]">API base URL</dt><dd className="break-all font-mono text-[#d0d0d0]">{PROVIDER_CONFIGURATION[item.id].baseUrl}</dd></div> : null}
+                  <div><dt className="text-[#8a8a8a]">Transport</dt><dd className="font-mono text-[#d0d0d0]">{item.id === "codex" ? "Nova backend · Codex Responses SSE" : item.id === "cursor" ? "Cursor Cloud Agents API · SSE" : item.id === "opencode" ? "OpenCode Go Inference API · SSE" : "POST /api/ai/chat · NDJSON streaming"}</dd></div>
                 </dl>
                 <button type="button" onClick={() => { setFilter(item.id); setQuery("") }} className="mt-3 rounded-md border border-white/10 px-2.5 py-1 text-[#d0d0d0] hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-[#2dd4bf]">Show models</button>
               </div>

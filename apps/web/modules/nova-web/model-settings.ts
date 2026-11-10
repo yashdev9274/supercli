@@ -20,6 +20,8 @@ export const PROVIDER_CONFIGURATION: Record<HarnessProvider, ProviderConfigurati
   nvidia: { credential: "NVIDIA_API_KEY", description: "NVIDIA NIM inference, configured on the harness server." },
   openrouter: { credential: "OPENROUTER_API_KEY", description: "OpenRouter's model gateway, configured on the harness server." },
   orcarouter: { credential: "ORCAROUTER_API_KEY", description: "OrcaRouter's model gateway, including automatic model routing." },
+  cursor: { credential: "Cursor API key", baseUrl: "https://api.cursor.com", description: "Cursor Cloud Agents. Your key is encrypted by Nova and used only to launch and stream Cursor cloud-agent runs." },
+  opencode: { credential: "OpenCode Go API key", baseUrl: "https://opencode.ai/inference", description: "OpenCode Go inference. Your key is encrypted by Nova and used to load the live model catalog and stream requests against your Go allowance." },
 }
 
 export function parseModelSelection(raw: string | null): { provider: HarnessProvider; model: string; effort?: NovaEffort } | null {

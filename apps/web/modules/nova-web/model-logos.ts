@@ -22,6 +22,8 @@ export const PROVIDER_LOGOS: Record<HarnessProvider, BrandLogo> = {
   nvidia: mark("nvidia"),
   openrouter: mark("openrouter"),
   orcarouter: { src: "/orcarouter-logo.jpg", monochrome: false },
+  cursor: mark("cursor"),
+  opencode: mark("opencode"),
 }
 
 const MODEL_BRANDS: Array<[RegExp, BrandLogo]> = [
