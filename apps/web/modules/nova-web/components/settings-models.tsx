@@ -6,6 +6,7 @@ import { Check, ChevronDown, Search } from "lucide-react"
 
 import { ChatGPTConnectionCard } from "@/modules/nova-web/components/chatgpt-connection-card"
 import { CodexDeviceConnectionCard } from "@/modules/nova-web/components/codex-device-connection-card"
+import { ProviderConnectionsSection } from "@/modules/nova-web/components/provider-connections"
 import { filterSettingsModels, PROVIDER_CONFIGURATION } from "@/modules/nova-web/model-settings"
 import { modelLogo, PROVIDER_LOGOS, type BrandLogo } from "@/modules/nova-web/model-logos"
 import { HARNESS_PROVIDERS, menuId, type HarnessProvider, type NovaModelEntry } from "@/modules/nova-web/models"
@@ -26,9 +27,10 @@ export function ModelsSection({ provider, model, onUseModel }: {
   return (
     <div>
       <h1 className="text-[28px] font-medium tracking-tight">Models</h1>
-      <p className="mt-2 text-[13px] leading-5 text-[#8a8a8a]">Every model and provider in Nova, with the configuration that serves it.</p>
+      <p className="mt-2 text-[13px] leading-5 text-[#8a8a8a]">For each model, a thread runs on the first subscription or key below that serves it.</p>
 
-      <CodexDeviceConnectionCard />
+      <CodexDeviceConnectionCard hideSummary />
+      <ProviderConnectionsSection />
       <div className="mt-3 flex items-center justify-between gap-3 text-[12px] text-[#8a8a8a]">
         {codex.loading ? <p role="status">Loading Codex account models…</p>
           : codex.error ? <p role="alert" className="text-amber-300">{codex.error}</p>
@@ -40,37 +42,6 @@ export function ModelsSection({ provider, model, onUseModel }: {
         <summary className="cursor-pointer hover:text-[#ededed]">Advanced · Local Codex companion</summary>
         <ChatGPTConnectionCard />
       </details>
-
-      <section aria-labelledby="providers-heading" className="mt-10">
-        <h2 id="providers-heading" className="text-[13px] font-medium">Providers & connections</h2>
-        <p className="mt-1 text-[12px] leading-5 text-[#8a8a8a]">Credentials are managed on the harness server. Configuration below does not verify connectivity or plan access.</p>
-        <div className="mt-3 overflow-hidden rounded-xl border border-white/[0.08] bg-[#171717]">
-          {HARNESS_PROVIDERS.map((item) => (
-            <details key={item.id} className="group border-b border-white/[0.07] last:border-b-0">
-              <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-4 focus-visible:outline-2 focus-visible:outline-[#2dd4bf] [&::-webkit-details-marker]:hidden">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.05] text-[#a0a0a0]">
-                  <CompanyLogo logo={PROVIDER_LOGOS[item.id]} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[13px]">{item.label}</span>
-                  <span className="mt-0.5 block text-[12px] text-[#8a8a8a]">{catalog.filter((entry) => entry.provider === item.id).length} models · {item.id === "codex" ? "ChatGPT subscription" : item.isCloud ? "Managed cloud" : "Harness credential"}</span>
-                </span>
-                <ChevronDown className="size-3.5 text-[#8a8a8a] transition-transform group-open:rotate-180" />
-              </summary>
-              <div className="border-t border-white/[0.05] bg-black/10 px-4 py-4 text-[12px] leading-5 sm:pl-[60px]">
-                <p className="text-[#a0a0a0]">{PROVIDER_CONFIGURATION[item.id].description}</p>
-                <dl className="mt-3 space-y-2">
-                  <div><dt className="text-[#8a8a8a]">Provider ID</dt><dd className="font-mono text-[#d0d0d0]">{item.id}</dd></div>
-                  <div><dt className="text-[#8a8a8a]">{item.id === "codex" ? "Connection" : "Harness environment variable"}</dt><dd className="break-all font-mono text-[#d0d0d0]">{PROVIDER_CONFIGURATION[item.id].credential}</dd></div>
-                  {PROVIDER_CONFIGURATION[item.id].baseUrl ? <div><dt className="text-[#8a8a8a]">Branch URL environment variable</dt><dd className="break-all font-mono text-[#d0d0d0]">{PROVIDER_CONFIGURATION[item.id].baseUrl}</dd></div> : null}
-                  <div><dt className="text-[#8a8a8a]">Transport</dt><dd className="font-mono text-[#d0d0d0]">{item.id === "codex" ? "Nova backend · Codex Responses SSE" : "POST /api/ai/chat · NDJSON streaming"}</dd></div>
-                </dl>
-                <button type="button" onClick={() => { setFilter(item.id); setQuery("") }} className="mt-3 rounded-md border border-white/10 px-2.5 py-1 text-[#d0d0d0] hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-[#2dd4bf]">Show models</button>
-              </div>
-            </details>
-          ))}
-        </div>
-      </section>
 
       <section aria-labelledby="model-catalog-heading" className="mt-10">
         <div className="flex flex-wrap items-end justify-between gap-2">
@@ -136,7 +107,7 @@ function ModelRow({ entry, selected, expanded, onExpand, onUse }: {
         <td className="px-3 py-3.5">
           <span className="flex items-center gap-2 text-[#d0d0d0]"><CompanyLogo logo={modelLogo(entry)} />{entry.label}{selected ? <Check aria-label="Selected model" className="size-3.5 shrink-0 text-[#2dd4bf]" /> : null}</span>
         </td>
-        <td className="px-3 py-3.5"><span className="flex items-center gap-2"><CompanyLogo logo={PROVIDER_LOGOS[entry.provider]} />{provider.shortLabel}</span></td>
+        <td className="px-3 py-3.5"><span className="flex items-center gap-2"><CompanyLogo logo={PROVIDER_LOGOS[entry.provider] ?? modelLogo(entry)} />{provider.shortLabel}</span></td>
         <td className="px-3 py-3.5 tabular-nums">{entry.cost ?? "—"}</td>
         <td className="px-2 py-3.5 text-right"><button type="button" aria-label={`Configure ${entry.label} via ${provider.label}`} aria-expanded={expanded} onClick={onExpand} className="rounded-md p-1.5 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-[#2dd4bf]"><ChevronDown className={`size-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} /></button></td>
       </tr>

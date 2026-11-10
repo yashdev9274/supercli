@@ -359,6 +359,7 @@ model OrganizationMembership {
   updatedAt      DateTime     @updatedAt
 
   codexConnection         NovaCodexConnection?
+  providerCredentials     NovaProviderCredential[]
   externalIdentities      ExternalIdentity[]
   delegatedConnections    UserDelegatedConnection[]
   initiatedAgentSessions  AgentSession[]
@@ -445,6 +446,22 @@ model NovaCodexConnection {
 
   @@index([state, expiresAt])
   @@map("nova_codex_connection")
+}
+
+model NovaProviderCredential {
+  membershipId    String
+  provider        String
+  membership      OrganizationMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  encryptedApiKey String                 @db.Text
+  status          String                 @default("connected")
+  enabled         Boolean                @default(true)
+  lastVerifiedAt  DateTime?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  @@id([membershipId, provider])
+  @@index([provider, status])
+  @@map("nova_provider_credential")
 }
 
 model ExternalIdentity {

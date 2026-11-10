@@ -11,6 +11,23 @@ export type HarnessProvider =
   | "openrouter"
   | "orcarouter"
   | "neon"
+  | "cursor"
+  | "opencode"
+  | "vercel"
+  | "cloudflare"
+  | "ollama"
+  | "bedrock"
+  | "baseten"
+  | "fireworks"
+  | "together"
+  | "deepinfra"
+  | "kimi"
+  | "zai-coding"
+  | "anthropic"
+  | "openai"
+  | "xai"
+  | "meta"
+  | "custom"
 
 export type NovaModelEntry = {
   id: string
@@ -38,6 +55,8 @@ export const HARNESS_PROVIDERS: NovaProviderMeta[] = [
   { id: "nvidia", label: "NVIDIA NIM", shortLabel: "NVIDIA", isCloud: false },
   { id: "openrouter", label: "OpenRouter", shortLabel: "OpenRouter", isCloud: false },
   { id: "orcarouter", label: "OrcaRouter", shortLabel: "Orca", isCloud: false },
+  { id: "cursor", label: "Cursor Cloud Agents", shortLabel: "Cursor", isCloud: false },
+  { id: "opencode", label: "OpenCode Go", shortLabel: "OpenCode", isCloud: false },
 ]
 
 // Released text models from neon.com/models.json; availability varies by branch.
@@ -53,8 +72,22 @@ export const NEON_MODELS: NovaModelEntry[] = [
   { id: "llama-4-maverick", provider: "neon", label: "Llama 4 Maverick", desc: "Meta via Neon" },
 ]
 
+export const CURSOR_MODELS: NovaModelEntry[] = [
+  { id: "composer-2", provider: "cursor", label: "Composer 2", desc: "Cursor Cloud Agent" },
+  { id: "claude-4-sonnet-thinking", provider: "cursor", label: "Claude 4 Sonnet Thinking", desc: "Cursor Cloud Agent" },
+]
+
+export const OPENCODE_MODELS: NovaModelEntry[] = [
+  { id: "gpt-6.1-sol", provider: "opencode", label: "GPT 6.1 Sol", desc: "OpenCode Go · OpenAI Responses" },
+  { id: "claude-sonnet-5-5", provider: "opencode", label: "Claude Sonnet 5.5", desc: "OpenCode Go · Anthropic Messages" },
+  { id: "kimi-k3", provider: "opencode", label: "Kimi K3", desc: "OpenCode Go · Chat Completions" },
+  { id: "glm-5.3", provider: "opencode", label: "GLM 5.3", desc: "OpenCode Go · Chat Completions" },
+]
+
 export const ALL_MODELS: NovaModelEntry[] = [
   ...NEON_MODELS,
+  ...CURSOR_MODELS,
+  ...OPENCODE_MODELS,
   { id: "deepseek-v4-flash", provider: "supercode", label: "DeepSeek V4 Flash", desc: "Fast & capable" },
   { id: "kimi-k2-6", provider: "supercode", label: "Kimi K2.6", desc: "Long context" },
   { id: "kimi-k2-7-code", provider: "supercode", label: "Kimi K2.7 Code", desc: "Code specialist" },

@@ -70,6 +70,8 @@ import {
 import { useCodexCatalog } from "../codex-catalog"
 import { codexModelEntries } from "../model-settings"
 import { MentionPicker, mentionOptionId, ReferenceIcon, useReferenceSearch } from "./mention-picker"
+import { useProviderConnectionStates } from "./provider-connections"
+import { PROVIDER_INTEGRATION_BY_ID } from "@/modules/nova-web/provider-integrations"
 
 const EMPTY_REFERENCES: NovaReference[] = []
 const EMPTY_LOCAL_FILES: LocalAttachment[] = []
@@ -817,7 +819,12 @@ function ModelPicker({
   const [query, setQuery] = useState("")
   const [activeProvider, setActiveProvider] = useState<HarnessProvider | "all">(provider === "codex" ? "codex" : "all")
   const codex = useCodexCatalog()
+  const providerConnections = useProviderConnectionStates()
   const codexEntries = useMemo(() => codexModelEntries(codex.models), [codex.models])
+  const dynamicProviders = useMemo(() => Object.entries(providerConnections.states)
+    .filter(([id, state]) => Boolean(state?.connected && !HARNESS_PROVIDERS.some((item) => item.id === id)))
+    .map(([id, state]) => ({ id: id as HarnessProvider, label: providerConnections.states[id]?.name || PROVIDER_INTEGRATION_BY_ID[id]?.label || id, models: (state?.models ?? []).map((entry) => ({ id: entry.id, provider: id as HarnessProvider, label: entry.label, desc: entry.description ?? "Available through the connected provider" })) })), [providerConnections.states])
+  const dynamicModels = useMemo(() => dynamicProviders.flatMap((item) => item.models), [dynamicProviders])
   function changeOpen(nextOpen: boolean) {
     setOpen(nextOpen)
     if (!nextOpen) setQuery("")
@@ -828,11 +835,11 @@ function ModelPicker({
     const q = query.trim().toLowerCase()
     let list =
       activeProvider === "all"
-        ? [...codexEntries, ...CLOUD_MODELS, ...BYOK_PROVIDERS.flatMap((p) => modelsForProvider(p.id))]
+        ? [...codexEntries, ...CLOUD_MODELS, ...BYOK_PROVIDERS.flatMap((p) => modelsForProvider(p.id)), ...dynamicModels]
         : activeProvider === "codex" ? codexEntries
         : activeProvider === "supercode"
           ? CLOUD_MODELS
-          : modelsForProvider(activeProvider)
+          : modelsForProvider(activeProvider).length ? modelsForProvider(activeProvider) : dynamicProviders.find((item) => item.id === activeProvider)?.models ?? []
     if (q) {
       list = list.filter(
         (entry) =>
@@ -843,9 +850,21 @@ function ModelPicker({
       )
     }
     return list
-  }, [activeProvider, query, codexEntries])
+  }, [activeProvider, query, codexEntries, dynamicModels, dynamicProviders])
+
+  function providerReady(providerId: HarnessProvider) {
+    const state = providerConnections.states[providerId]
+    if (!state) return true
+    return Boolean(state.connected && state.enabled)
+  }
+
+  function openProviderSettings() {
+    setOpen(false)
+    window.location.href = "/settings?section=models"
+  }
 
   function pick(entry: NovaModelEntry) {
+    if (!providerReady(entry.provider)) return
     onChange?.({ provider: entry.provider, model: entry.id })
     setOpen(false)
     setQuery("")
@@ -879,13 +898,9 @@ function ModelPicker({
             />
             <ProviderRailItem active={activeProvider === "codex"} label="OpenAI Codex" onClick={() => setActiveProvider("codex")} />
             {BYOK_PROVIDERS.map((item) => (
-              <ProviderRailItem
-                key={item.id}
-                active={activeProvider === item.id}
-                label={item.label}
-                onClick={() => setActiveProvider(item.id)}
-              />
+              <ProviderRailItem key={item.id} active={activeProvider === item.id} label={item.label} onClick={() => setActiveProvider(item.id)} />
             ))}
+            {dynamicProviders.map((item) => <ProviderRailItem key={item.id} active={activeProvider === item.id} label={item.label} onClick={() => setActiveProvider(item.id)} />)}
           </div>
 
           {/* Model list */}
@@ -910,6 +925,9 @@ function ModelPicker({
                   : !codexEntries.length ? <p className="px-3 py-3 text-xs text-[#999]">No models available for this account.</p> : null}
                 {activeProvider === "all" ? filtered.filter((entry) => entry.provider === "codex").map((entry) => <ModelRow key={menuId(entry)} entry={entry} active={provider === "codex" && model === entry.id} onClick={() => pick(entry)} />) : null}
               </> : null}
+              {activeProvider === "cursor" || activeProvider === "opencode" ? (
+                !providerReady(activeProvider) ? <div className="px-3 py-6 text-center"><p className="text-[12px] text-[#bdbdbd]">Connect and turn on {activeProvider === "cursor" ? "Cursor Cloud Agents" : "OpenCode Go"} first.</p><button type="button" onClick={openProviderSettings} className="mt-3 rounded-md bg-[#2dd4bf] px-2.5 py-1.5 text-[11px] font-medium text-black hover:bg-[#5eead4]">Manage providers</button></div> : null
+              ) : null}
               {activeProvider === "all" || activeProvider === "supercode" ? (
                 <>
                   <div className="px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.08em] text-[#5c5c5c]">
@@ -927,8 +945,8 @@ function ModelPicker({
               ) : null}
 
               {activeProvider === "all"
-                ? BYOK_PROVIDERS.map((prov) => {
-                    const models = modelsForProvider(prov.id).filter((e) =>
+                ? [...BYOK_PROVIDERS.map((prov) => ({ id: prov.id, label: prov.label, models: modelsForProvider(prov.id) })), ...dynamicProviders].map((prov) => {
+                    const models = prov.models.filter((e) =>
                       !query.trim()
                         || e.label.toLowerCase().includes(query.toLowerCase())
                         || e.id.toLowerCase().includes(query.toLowerCase())
@@ -967,7 +985,7 @@ function ModelPicker({
               ) : null}
             </div>
             <div className="shrink-0 border-t border-white/[0.06] px-3 py-2 text-[10px] leading-4 text-[#888]">
-              {HARNESS_PROVIDERS.length} providers · Subscription & cloud models
+              <div className="flex items-center justify-between gap-2"><span>{HARNESS_PROVIDERS.length} providers · Subscription & cloud models</span><button type="button" onClick={openProviderSettings} className="text-[#aaa] hover:text-white">Manage providers</button></div>
             </div>
           </div>
       </PopoverContent>
@@ -1005,17 +1023,20 @@ function ModelRow({
   entry,
   active,
   onClick,
+  disabled,
 }: {
   entry: NovaModelEntry
   active?: boolean
   onClick: () => void
+  disabled?: boolean
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={cn(
-        "flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#2dd4bf]",
+        "flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#2dd4bf] disabled:cursor-not-allowed disabled:opacity-45",
         active && "bg-white/[0.05]",
       )}
     >
