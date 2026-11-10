@@ -28,11 +28,15 @@ function endpointFor(provider: ProviderCredentialProvider, config: StoredProvide
 }
 
 function headersFor(provider: ProviderCredentialProvider, config: StoredProviderConfig) {
-  const authHeaders = config.apiKey
-    ? config.apiFamily === "anthropic"
-      ? { "x-api-key": config.apiKey, "anthropic-version": "2023-06-01" }
-      : { Authorization: `Bearer ${config.apiKey}` }
-    : {}
+  const authHeaders: Record<string, string> = {}
+  if (config.apiKey) {
+    if (config.apiFamily === "anthropic") {
+      authHeaders["x-api-key"] = config.apiKey
+      authHeaders["anthropic-version"] = "2023-06-01"
+    } else {
+      authHeaders.Authorization = `Bearer ${config.apiKey}`
+    }
+  }
   return { ...(config.headers ?? {}), ...authHeaders, "Content-Type": "application/json", Accept: "text/event-stream" }
 }
 

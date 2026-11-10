@@ -34,11 +34,15 @@ export async function fetchProviderCatalog(provider: ProviderCredentialProvider,
   const config: StoredProviderConfig = typeof configOrApiKey === "string" ? { apiKey: configOrApiKey } : configOrApiKey
   const baseUrl = endpointFor(provider, config)
   if (!baseUrl) return []
-  const authHeaders = config.apiKey
-    ? config.apiFamily === "anthropic"
-      ? { "x-api-key": config.apiKey, "anthropic-version": "2023-06-01" }
-      : { Authorization: provider === "cursor" ? basic(config.apiKey) : `Bearer ${config.apiKey}` }
-    : {}
+  const authHeaders: Record<string, string> = {}
+  if (config.apiKey) {
+    if (config.apiFamily === "anthropic") {
+      authHeaders["x-api-key"] = config.apiKey
+      authHeaders["anthropic-version"] = "2023-06-01"
+    } else {
+      authHeaders.Authorization = provider === "cursor" ? basic(config.apiKey) : `Bearer ${config.apiKey}`
+    }
+  }
   const headers = config.apiFamily === "anthropic"
     ? { ...(config.headers ?? {}), ...authHeaders, Accept: "application/json", "User-Agent": "Nova Web" }
     : { ...(config.headers ?? {}), ...authHeaders, Accept: "application/json", "User-Agent": "Nova Web" }
