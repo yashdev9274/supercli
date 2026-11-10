@@ -7,6 +7,7 @@ import { Copy, ExternalLink, Loader2, Plus } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import type { CodexView } from "@/modules/nova/codex/service"
+import { ProviderConnectionsSection } from "@/modules/nova-web/components/provider-connections"
 
 const ENDPOINT = "/api/nova/codex/connection"
 const ACTIVE = ["starting", "pending", "polling"]
@@ -26,7 +27,7 @@ async function connectionRequest(action?: { action: string; attemptId?: string }
   return body as CodexView
 }
 
-export function CodexDeviceConnectionCard() {
+export function CodexDeviceConnectionCard({ embedded = false, hideSummary = false }: { embedded?: boolean; hideSummary?: boolean } = {}) {
   const [view, setView] = useState<CodexView | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -45,6 +46,12 @@ export function CodexDeviceConnectionCard() {
       if (!controller.signal.aborted && generation.current === epoch) setError(failure instanceof Error ? failure.message : "Could not load your Codex connection.")
     })
     return () => { controller.abort(); request.current?.abort() }
+  }, [])
+
+  useEffect(() => {
+    function onOpen() { setOpen(true) }
+    window.addEventListener("nova:open-codex-connect", onOpen)
+    return () => window.removeEventListener("nova:open-codex-connect", onOpen)
   }, [])
 
   useEffect(() => {
@@ -103,30 +110,41 @@ export function CodexDeviceConnectionCard() {
 
   const active = !!view && ACTIVE.includes(view.state)
   const connected = view?.state === "connected"
+  const Root = embedded || hideSummary ? "div" : "section"
   return (
-    <section aria-labelledby="codex-device-heading" className="mt-10">
-      <h2 id="codex-device-heading" className="text-[13px] font-medium">Your connections</h2>
-      <p className="mt-2 text-[12px] text-[#8a8a8a]">Connect your own subscriptions to model providers.</p>
+    <Root aria-labelledby="codex-device-heading" className={embedded || hideSummary ? undefined : "mt-10"}>
+      {!hideSummary ? <>
+        <h2 id="codex-device-heading" className="text-[13px] font-medium">Your connections</h2>
+        <p className="mt-2 text-[12px] text-[#8a8a8a]">Connect your own subscriptions to model providers.</p>
+      </> : null}
+      {!hideSummary ? <>
       <div className="mt-3 flex min-h-16 items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#222222] px-4 py-3">
         <div role="status" className="min-w-0 text-[13px]">
           {connected || active ? <div className="flex items-center gap-3"><span aria-hidden="true" className="flex size-8 items-center justify-center rounded-md bg-white/5 font-mono text-[#a0a0a0]">C</span><div>Codex<p className="mt-0.5 text-[12px] text-[#8a8a8a]">{connected ? "Connection saved · model access checked separately" : "Waiting for authorization"}</p></div></div> : !view && !error ? "Loading connections…" : !view ? "Connections unavailable" : "No connections"}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {connected || active ? <>
-            {active && view?.attemptId ? <button type="button" disabled={busy} className={buttonClass} onClick={() => setOpen(true)}>Resume</button> : null}
-            <button type="button" disabled={busy} className={buttonClass} onClick={() => void act({ action: "disconnect" })}>{connected ? "Disconnect" : "Cancel"}</button>
-          </> : <DropdownMenu>
-            <DropdownMenuTrigger asChild><button type="button" aria-label="Connect provider" disabled={busy} className="flex size-7 items-center justify-center rounded-md bg-white/[0.06] text-[#a0a0a0] hover:bg-white/10 disabled:opacity-40"><Plus className="size-4" /></button></DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-60 border-white/10 bg-[#292929] p-1.5 text-[#ededed]">
-              <DropdownMenuLabel className="text-[12px] font-normal text-[#8a8a8a]">Subscriptions</DropdownMenuLabel>
-              <DropdownMenuItem onSelect={() => void act({ action: "start" })} className="cursor-pointer text-[13px] focus:bg-white/5 focus:text-white"><span aria-hidden="true" className="flex size-4 items-center justify-center font-mono text-[#999]">C</span>Codex</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>}
+          <>
+            {connected || active ? <>
+              {active && view?.attemptId ? <button type="button" disabled={busy} className={buttonClass} onClick={() => setOpen(true)}>Resume</button> : null}
+              <button type="button" disabled={busy} className={buttonClass} onClick={() => void act({ action: "disconnect" })}>{connected ? "Disconnect" : "Cancel"}</button>
+            </> : null}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><button type="button" aria-label="Connect provider" disabled={busy} className="flex size-7 items-center justify-center rounded-md bg-white/[0.06] text-[#a0a0a0] hover:bg-white/10 disabled:opacity-40"><Plus className="size-4" /></button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-60 border-white/10 bg-[#292929] p-1.5 text-[#ededed]">
+                <DropdownMenuLabel className="text-[12px] font-normal text-[#8a8a8a]">Subscriptions</DropdownMenuLabel>
+                <DropdownMenuItem disabled={connected || active} onSelect={() => void act({ action: "start" })} className="cursor-pointer text-[13px] focus:bg-white/5 focus:text-white"><span aria-hidden="true" className="flex size-4 items-center justify-center font-mono text-[#999]">C</span>Codex</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => window.dispatchEvent(new CustomEvent("nova:open-provider-connect", { detail: { provider: "cursor" } }))} className="cursor-pointer text-[13px] focus:bg-white/5 focus:text-white"><span aria-hidden="true" className="flex size-4 items-center justify-center font-mono text-[#999]">C</span>Cursor Cloud Agents</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => window.dispatchEvent(new CustomEvent("nova:open-provider-connect", { detail: { provider: "opencode" } }))} className="cursor-pointer text-[13px] focus:bg-white/5 focus:text-white"><span aria-hidden="true" className="flex size-4 items-center justify-center font-mono text-[#999]">O</span>OpenCode Go</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
         </div>
       </div>
-      <p className="mt-2 text-[11px] leading-5 text-[#8a8a8a]">Choose OpenAI Codex in the chat model picker to use your subscription. Models and reasoning levels depend on your account. Credentials stay encrypted on Nova’s backend. Disconnect removes Nova’s credentials, not other OpenAI sessions.</p>
+      {!embedded ? <p className="mt-2 text-[11px] leading-5 text-[#8a8a8a]">Choose OpenAI Codex in the chat model picker to use your subscription. Models and reasoning levels depend on your account. Credentials stay encrypted on Nova’s backend. Disconnect removes Nova’s credentials, not other OpenAI sessions.</p> : null}
+      {!embedded && !hideSummary ? <ProviderConnectionsSection showHeading={false} /> : null}
       {view?.state === "expired" || view?.state === "failed" ? <p role="status" className="mt-2 text-[12px] text-[#a0a0a0]">{view.state === "expired" ? "The code expired." : "Authorization failed."} Start a new connection using +.</p> : null}
       {error ? <div className="mt-2 flex flex-wrap items-center gap-3"><p role="alert" className="text-[12px] text-red-300">{error}</p><button type="button" disabled={busy} onClick={() => void act()} className="text-[12px] text-[#a0a0a0] underline">Retry</button></div> : null}
+      </> : null}
       <Dialog open={open} onOpenChange={(next) => { if (!busy) setOpen(next) }}>
         <DialogContent className="gap-3 rounded-xl border-white/15 bg-[#292929] p-5 text-[#ededed] sm:max-w-[448px]">
           <DialogTitle className="text-[14px] font-medium">Connect Codex</DialogTitle>
@@ -157,6 +175,6 @@ export function CodexDeviceConnectionCard() {
           </div>
         </DialogContent>
       </Dialog>
-    </section>
+    </Root>
   )
 }

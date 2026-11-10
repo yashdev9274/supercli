@@ -32,6 +32,6 @@ export async function providerCredentialContext(request: Request, provider: stri
 export async function readProviderApiKey(request: Request, provider: string) {
   const context = await providerCredentialContext(request, provider)
   const row = await prisma.novaProviderCredential.findUnique({ where: { membershipId_provider: { membershipId: context.membershipId, provider: context.provider } } })
-  if (!row || row.status !== "connected") return { ...context, apiKey: null as string | null }
+  if (!row || row.status !== "connected" || !row.enabled) return { ...context, apiKey: null as string | null }
   return { ...context, apiKey: context.vault.open(row.encryptedApiKey, context.binding) }
 }

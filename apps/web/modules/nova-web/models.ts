@@ -210,7 +210,7 @@ export const ALL_MODELS: NovaModelEntry[] = [
 
 export const CLOUD_MODELS = ALL_MODELS.filter((m) => m.provider === "supercode")
 export const BYOK_MODELS = ALL_MODELS.filter((m) => m.provider !== "supercode")
-export const BYOK_PROVIDERS = HARNESS_PROVIDERS.filter((p) => !p.isCloud && !["codex", "cursor", "opencode"].includes(p.id))
+export const BYOK_PROVIDERS = HARNESS_PROVIDERS.filter((p) => !p.isCloud && p.id !== "codex")
 export const NOVA_MODELS = CLOUD_MODELS
 
 export const DEFAULT_NOVA_PROVIDER: HarnessProvider = "supercode"
