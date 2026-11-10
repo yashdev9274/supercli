@@ -34,9 +34,14 @@ export async function fetchProviderCatalog(provider: ProviderCredentialProvider,
   const config: StoredProviderConfig = typeof configOrApiKey === "string" ? { apiKey: configOrApiKey } : configOrApiKey
   const baseUrl = endpointFor(provider, config)
   if (!baseUrl) return []
+  const authHeaders = config.apiKey
+    ? config.apiFamily === "anthropic"
+      ? { "x-api-key": config.apiKey, "anthropic-version": "2023-06-01" }
+      : { Authorization: provider === "cursor" ? basic(config.apiKey) : `Bearer ${config.apiKey}` }
+    : {}
   const headers = config.apiFamily === "anthropic"
-    ? { ...(config.headers ?? {}), "x-api-key": config.apiKey, "anthropic-version": "2023-06-01", Accept: "application/json", "User-Agent": "Nova Web" }
-    : { ...(config.headers ?? {}), Authorization: provider === "cursor" ? basic(config.apiKey) : `Bearer ${config.apiKey}`, Accept: "application/json", "User-Agent": "Nova Web" }
+    ? { ...(config.headers ?? {}), ...authHeaders, Accept: "application/json", "User-Agent": "Nova Web" }
+    : { ...(config.headers ?? {}), ...authHeaders, Accept: "application/json", "User-Agent": "Nova Web" }
   const modelsPath = config.apiFamily === "anthropic" && !baseUrl.endsWith("/v1") ? "/v1/models" : "/models"
   const response = await fetch(`${baseUrl}${modelsPath}`, { headers, cache: "no-store", signal })
   const body = await response.json().catch(() => null)

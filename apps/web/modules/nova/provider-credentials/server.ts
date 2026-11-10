@@ -11,7 +11,7 @@ export const SUPPORTED_PROVIDER_CREDENTIALS = ["cursor", "opencode", ...API_KEY_
 export type ProviderCredentialProvider = typeof SUPPORTED_PROVIDER_CREDENTIALS[number]
 
 export type StoredProviderConfig = {
-  apiKey: string
+  apiKey?: string
   name?: string
   baseUrl?: string
   apiFamily?: "openai" | "anthropic" | "google"

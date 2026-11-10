@@ -4,6 +4,7 @@ import { z } from "zod"
 import { fetchProviderCatalog } from "@/modules/nova/provider-credentials/catalog"
 import { providerCredentialContext, type StoredProviderConfig } from "@/modules/nova/provider-credentials/server"
 import { ProviderCredentialError } from "@/modules/nova/provider-credentials/vault"
+import { requiresProviderApiKey } from "@/modules/nova/provider-credentials/connection-rules"
 import prisma from "@super/db"
 
 export const runtime = "nodejs"
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic"
 
 const modelSchema = z.object({ id: z.string().trim().min(1).max(200), label: z.string().trim().min(1).max(200), description: z.string().max(500).optional() })
 const configSchema = z.object({
-  apiKey: z.string().trim().min(1).max(4096),
+  apiKey: z.string().trim().max(4096).optional().default(""),
   name: z.string().trim().max(200).optional(),
   baseUrl: z.string().trim().url().max(2048).optional().or(z.literal("")),
   apiFamily: z.enum(["openai", "anthropic", "google"]).optional(),
@@ -44,6 +45,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ pr
     const parsed = configSchema.safeParse(await request.json())
     if (!parsed.success) return Response.json({ error: "Enter a valid API key and base URL" }, { status: 400 })
     const config = parsed.data satisfies StoredProviderConfig
+    if (!config.baseUrl || (requiresProviderApiKey(state.provider, config.baseUrl) && !config.apiKey)) {
+      return Response.json({ error: state.provider === "ollama" ? "Use a local Ollama URL without a key, or provide an Ollama Cloud API key" : "Enter a valid API key and base URL" }, { status: 400 })
+    }
     const models = await fetchProviderCatalog(state.provider, config, request.signal).catch((error) => {
       if (config.models?.length) return config.models
       throw error
