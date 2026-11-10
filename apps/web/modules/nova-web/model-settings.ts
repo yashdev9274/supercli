@@ -22,6 +22,21 @@ export const PROVIDER_CONFIGURATION: Record<HarnessProvider, ProviderConfigurati
   orcarouter: { credential: "ORCAROUTER_API_KEY", description: "OrcaRouter's model gateway, including automatic model routing." },
   cursor: { credential: "Cursor API key", baseUrl: "https://api.cursor.com", description: "Cursor Cloud Agents. Your key is encrypted by Nova and used only to launch and stream Cursor cloud-agent runs." },
   opencode: { credential: "OpenCode Go API key", baseUrl: "https://opencode.ai/inference", description: "OpenCode Go inference. Your key is encrypted by Nova and used to load the live model catalog and stream requests against your Go allowance." },
+  vercel: { credential: "VERCEL_AI_GATEWAY_API_KEY", baseUrl: "https://ai-gateway.vercel.sh/v1", description: "Vercel AI Gateway. Use the saved provider key to discover models and stream OpenAI-compatible requests." },
+  cloudflare: { credential: "CLOUDFLARE_API_TOKEN", baseUrl: "https://gateway.ai.cloudflare.com/v1", description: "Cloudflare AI Gateway. Configure the gateway base URL and token for OpenAI-compatible inference." },
+  ollama: { credential: "OLLAMA_API_KEY", baseUrl: "https://ollama.com/v1", description: "Ollama Cloud. Use the provider key to load the live model catalog and stream OpenAI-compatible requests." },
+  bedrock: { credential: "BEDROCK_API_KEY", description: "Amazon Bedrock gateway. Configure the provider endpoint and key used by your Bedrock-compatible route." },
+  baseten: { credential: "BASETEN_API_KEY", baseUrl: "https://inference.baseten.co/v1", description: "Baseten inference. Use the provider key with its OpenAI-compatible endpoint." },
+  fireworks: { credential: "FIREWORKS_API_KEY", baseUrl: "https://api.fireworks.ai/inference/v1", description: "Fireworks AI inference. Use the provider key with its OpenAI-compatible endpoint." },
+  together: { credential: "TOGETHER_API_KEY", baseUrl: "https://api.together.xyz/v1", description: "Together AI inference. Use the provider key with its OpenAI-compatible endpoint." },
+  deepinfra: { credential: "DEEPINFRA_API_KEY", baseUrl: "https://api.deepinfra.com/v1/openai", description: "DeepInfra inference. Use the provider key with its OpenAI-compatible endpoint." },
+  kimi: { credential: "MOONSHOT_API_KEY", baseUrl: "https://api.moonshot.ai/v1", description: "Kimi Code inference. Use the provider key with its OpenAI-compatible endpoint." },
+  "zai-coding": { credential: "ZAI_API_KEY", baseUrl: "https://api.z.ai/api/coding/paas/v4", description: "GLM Coding Plan. Use the provider key with its OpenAI-compatible endpoint." },
+  anthropic: { credential: "ANTHROPIC_API_KEY", baseUrl: "https://api.anthropic.com", description: "Anthropic Messages API. Nova uses the provider key with Anthropic's native messages endpoint." },
+  openai: { credential: "OPENAI_API_KEY", baseUrl: "https://api.openai.com/v1", description: "OpenAI API. Use the provider key with the OpenAI-compatible models and chat endpoints." },
+  xai: { credential: "XAI_API_KEY", baseUrl: "https://api.x.ai/v1", description: "xAI API. Use the provider key with its OpenAI-compatible endpoint." },
+  meta: { credential: "META_API_KEY", description: "Meta Model API. Configure the provider's compatible endpoint and API key." },
+  custom: { credential: "CUSTOM_PROVIDER_API_KEY", description: "Custom provider endpoint. Supply the base URL, API key, and optional headers for the target service." },
 }
 
 export function parseModelSelection(raw: string | null): { provider: HarnessProvider; model: string; effort?: NovaEffort } | null {
