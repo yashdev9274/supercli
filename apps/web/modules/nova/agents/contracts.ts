@@ -8,7 +8,12 @@ export const agentInputSchema = z.object({
   model: z.string().trim().max(160).optional().default(""),
 })
 
+export const agentUpdateSchema = agentInputSchema.partial().extend({
+  status: z.enum(["active", "archived"]).optional(),
+})
+
 export type AgentInput = z.infer<typeof agentInputSchema>
+export type AgentUpdate = z.infer<typeof agentUpdateSchema>
 
 export type AgentDto = AgentInput & {
   id: string

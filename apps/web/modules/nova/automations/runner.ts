@@ -140,7 +140,7 @@ export async function createAutomationSession(runId: string): Promise<string> {
     if (row.agentSessionId) return row.agentSessionId
     if (row.status !== "classifying" || row.automation.status !== "active") throw new Error("Automation is not ready to run")
     const input = automationInputSchema.parse(row.snapshot)
-    const session = await tx.agentSession.create({ data: { organizationId: row.automation.organizationId, initiatorMembershipId: input.runAsMembershipId, objective: input.name, mode: "agent", nextSequence: 2, policySnapshot: { automationId: row.automationId, externalPosting: false } } })
+    const session = await tx.agentSession.create({ data: { organizationId: row.automation.organizationId, initiatorMembershipId: input.runAsMembershipId, agentId: input.agentId || null, objective: input.name, mode: "agent", nextSequence: 2, policySnapshot: { automationId: row.automationId, externalPosting: false } } })
     await tx.sessionSurface.create({ data: { agentSessionId: session.id, provider: "web", surfaceKey: `${row.automation.organizationId}:web:${session.id}`, externalSurfaceId: session.id } })
     await tx.agentSessionMessage.create({ data: { agentSessionId: session.id, sequence: 1, role: "user", content: input.instructions, senderType: "automation", senderId: row.automationId, metadata: { automationRunId: row.id, event: row.event } } })
     await tx.novaAutomationRun.update({ where: { id: runId }, data: { agentSessionId: session.id, status: "running" } })

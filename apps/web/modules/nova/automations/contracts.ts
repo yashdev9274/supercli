@@ -24,6 +24,7 @@ export const automationInputSchema = z.object({
   onlyRunWhen: z.string().trim().max(4_000).default(""),
   model: z.string().max(200),
   provider: z.string().max(100),
+  agentId: z.string().trim().max(64).optional().default(""),
   effort: z.enum(["low", "medium", "high", "xhigh"]).default("medium"),
   triggers: z.array(triggerSchema).min(1, "Add at least one trigger").max(10),
   repositoryIds: z.array(z.string().min(1).max(64)).max(10).default([]),
@@ -102,6 +103,7 @@ export type AutomationContext = {
   membershipId: string
   members: Array<{ id: string; name: string }>
   repositories: Array<{ id: string; fullName: string }>
+  agents: Array<{ id: string; name: string }>
   connections: Array<{ provider: string; connected: boolean }>
 }
 

@@ -2,7 +2,7 @@ import prisma from "@super/db"
 
 import { ensureUserOrganization } from "@/modules/integrations/lib/org"
 
-import { agentInputSchema, type AgentDto } from "./contracts"
+import { agentInputSchema, agentUpdateSchema, type AgentDto } from "./contracts"
 
 export function agentError(message: string, statusCode: number): Error & { statusCode: number } {
   return Object.assign(new Error(message), { statusCode })
@@ -77,6 +77,33 @@ export async function getAgent(userId: string, id: string): Promise<AgentDto> {
   const agent = await prisma.novaAgent.findFirst({ where: { id, organizationId, ownerUserId: userId }, select: agentSelect })
   if (!agent) throw agentError("Agent not found", 404)
   return serializeAgent(agent)
+}
+
+export async function updateAgent(userId: string, id: string, raw: unknown): Promise<AgentDto> {
+  const input = agentUpdateSchema.parse(raw)
+  const { organizationId } = await agentMembership(userId)
+  const existing = await prisma.novaAgent.findFirst({ where: { id, organizationId, ownerUserId: userId }, select: { id: true } })
+  if (!existing) throw agentError("Agent not found", 404)
+  const agent = await prisma.novaAgent.update({
+    where: { id },
+    data: {
+      ...(input.name === undefined ? {} : { name: input.name }),
+      ...(input.description === undefined ? {} : { description: input.description || null }),
+      ...(input.instructions === undefined ? {} : { instructions: input.instructions }),
+      ...(input.provider === undefined ? {} : { provider: input.provider || null }),
+      ...(input.model === undefined ? {} : { model: input.model || null }),
+      ...(input.status === undefined ? {} : { status: input.status, archivedAt: input.status === "archived" ? new Date() : null }),
+    },
+    select: agentSelect,
+  })
+  return serializeAgent(agent)
+}
+
+export async function deleteAgent(userId: string, id: string): Promise<void> {
+  const { organizationId } = await agentMembership(userId)
+  const existing = await prisma.novaAgent.findFirst({ where: { id, organizationId, ownerUserId: userId }, select: { id: true } })
+  if (!existing) throw agentError("Agent not found", 404)
+  await prisma.novaAgent.delete({ where: { id } })
 }
 
 export async function createAgent(userId: string, raw: unknown): Promise<AgentDto> {

@@ -231,6 +231,7 @@ model NovaAgent {
   archivedAt     DateTime?
   sessions       AgentSession[]
   memoryLinks    NovaAgentMemoryLink[]
+  automations    NovaAutomation[]
 
   @@index([organizationId, ownerUserId, status, updatedAt])
   @@index([ownerUserId, createdAt])
@@ -273,6 +274,8 @@ model NovaAutomation {
   onlyRunWhen         String @db.Text
   model               String
   provider            String
+  agentId             String?
+  agent               NovaAgent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
   effort              String @default("medium")
   triggers            Json
   repositoryIds       Json
