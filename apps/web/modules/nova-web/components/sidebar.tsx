@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import {
+  Bot,
   GitPullRequest,
   Link2,
   MessageSquare,
@@ -63,6 +64,7 @@ export function NovaSidebar({
 
   const threadsActive = view === "home" || view === "session"
   const pullsActive = view === "pulls" || view === "pull"
+  const agentsActive = view === "agents"
 
   return (
     <aside className="flex h-full w-[244px] shrink-0 flex-col bg-[#0c0c0c] text-[#e8e8e8]">
@@ -110,6 +112,12 @@ export function NovaSidebar({
           onClick={() => onNavigate("/")}
         />
         <NavItem
+          active={agentsActive}
+          icon={<Bot className="size-3.5" strokeWidth={1.75} />}
+          label="Agents"
+          onClick={() => onNavigate("/agents")}
+        />
+        <NavItem
           active={view === "automations"}
           icon={<Zap className="size-3.5" strokeWidth={1.75} />}
           label="Automations"
@@ -138,7 +146,7 @@ export function NovaSidebar({
       <div className="mt-1 flex min-h-0 flex-1 flex-col border-t border-white/[0.04] pt-2">
         <div className="flex items-center px-3 pb-1.5">
           <span className="text-[11px] font-medium text-[#5c5c5c]">
-            {pullsActive ? "Review" : "Threads"}
+            {pullsActive ? "Review" : agentsActive ? "Agents" : "Threads"}
           </span>
           <div className="ml-auto flex items-center gap-0.5">
             <IconBtn
@@ -206,6 +214,10 @@ export function NovaSidebar({
               <p className="px-2 pt-1 text-[11px] leading-4 text-[#5c5c5c]">
                 Open a PR to run AI review, inspect diffs, and publish findings.
               </p>
+            </div>
+          ) : agentsActive ? (
+            <div className="px-3 py-3 text-[11px] leading-4 text-[#5c5c5c]">
+              Create and manage your private agents in this workspace.
             </div>
           ) : (
             <SidebarThreads

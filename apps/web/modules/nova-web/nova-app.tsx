@@ -22,6 +22,7 @@ import {
   recoverProposalsFromBody,
   stripProposalTrailer,
 } from "@/modules/nova-web/apply-proposals"
+import { AgentsView } from "@/modules/nova-web/components/agents"
 import { ApprovalsView } from "@/modules/nova-web/components/approvals"
 import { AutomationsView } from "@/modules/nova-web/components/automations"
 import { ConnectionsView } from "@/modules/nova-web/components/connections"
@@ -154,6 +155,7 @@ function parseRoute(pathname: string): {
     }
   }
   if (clean.startsWith("/pulls")) return { view: "pulls", sessionId: null, pullId: null }
+  if (clean.startsWith("/agents")) return { view: "agents", sessionId: null, pullId: null }
   if (clean.startsWith("/automations")) return { view: "automations", sessionId: null, pullId: null }
   if (clean.startsWith("/approvals")) return { view: "approvals", sessionId: null, pullId: null }
   if (clean.startsWith("/connections")) return { view: "connections", sessionId: null, pullId: null }
@@ -962,6 +964,8 @@ export function NovaApp({
           onBack={() => navigate("/")}
           onNavigate={navigate}
         />
+      ) : view === "agents" ? (
+        <AgentsView key={pathname + search} path={pathname} onNavigate={navigate} />
       ) : view === "automations" ? (
         <AutomationsView key={pathname + search} path={pathname} onNavigate={navigate} />
       ) : view === "approvals" ? (

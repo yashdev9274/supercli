@@ -64,6 +64,7 @@ model Organization {
   desktopDevices           DesktopDevice[]
   webLocalProjects         WebLocalProject[]
   automations              NovaAutomation[]
+  agents                   NovaAgent[]
   browserSessions          NovaBrowserSession[]
   feedbacks                NovaFeedback[]
 
@@ -92,6 +93,7 @@ model User {
   desktopDevices          DesktopDevice[]
   webLocalProjects        WebLocalProject[]
   browserSessions         NovaBrowserSession[]
+  novaAgents              NovaAgent[]
 
   @@unique([email])
   @@index([organizationId])
@@ -208,6 +210,27 @@ model ReviewCreditEntry {
   @@index([periodId, kind])
   @@index([reviewRunId, createdAt])
   @@map("review_credit_entry")
+}
+
+model NovaAgent {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ownerUserId    String
+  ownerUser      User         @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?      @db.Text
+  instructions   String       @db.Text
+  provider       String?
+  model          String?
+  status         String       @default("active")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  archivedAt     DateTime?
+
+  @@index([organizationId, ownerUserId, status, updatedAt])
+  @@index([ownerUserId, createdAt])
+  @@map("nova_agent")
 }
 
 model NovaAutomation {

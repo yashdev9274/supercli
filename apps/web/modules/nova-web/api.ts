@@ -1,6 +1,7 @@
 import type {
   AgentSessionSummary,
   ApprovalRequest,
+  NovaAgent,
   ConnectorStatus,
   SessionDetail,
   SyncCursor,
@@ -27,6 +28,24 @@ export async function requestJson<T>(url: string, init?: RequestInit): Promise<T
 
 export function listSessions(parentSessionId?: string) {
   return requestJson<{ sessions: AgentSessionSummary[] }>(`/api/nova/sessions${parentSessionId ? `?parentSessionId=${encodeURIComponent(parentSessionId)}` : ""}`)
+}
+
+export function listAgents() {
+  return requestJson<{ agents: NovaAgent[] }>("/api/nova/agents")
+}
+
+export function createAgent(input: {
+  name: string
+  description?: string
+  instructions: string
+  provider?: string
+  model?: string
+}) {
+  return requestJson<{ agent: NovaAgent }>("/api/nova/agents", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  })
 }
 
 export function createSession(

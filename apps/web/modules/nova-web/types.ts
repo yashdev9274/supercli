@@ -44,6 +44,7 @@ export type NovaUser = {
 export type WorkspaceView =
   | "home"
   | "session"
+  | "agents"
   | "approvals"
   | "automations"
   | "connections"
@@ -53,6 +54,20 @@ export type WorkspaceView =
   | "settings"
 
 export type { AgentSessionSummary, ApprovalRequest, ConnectorStatus }
+
+export type NovaAgent = {
+  id: string
+  ownerUserId: string
+  name: string
+  description: string
+  instructions: string
+  provider: string
+  model: string
+  status: string
+  createdAt: string
+  updatedAt: string
+  archivedAt: string | null
+}
 
 export const statusStyles: Record<string, string> = {
   active: "bg-emerald-400",
