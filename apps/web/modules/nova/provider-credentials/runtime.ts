@@ -34,6 +34,20 @@ function headersFor(provider: ProviderCredentialProvider, config: StoredProvider
   return { ...(config.headers ?? {}), Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json", Accept: "text/event-stream" }
 }
 
+function providerLabel(provider: ProviderCredentialProvider, config: StoredProviderConfig) {
+  return config.name?.trim() || (provider === "ollama" ? "Ollama Cloud" : provider)
+}
+
+async function providerResponseError(response: Response, provider: ProviderCredentialProvider, config: StoredProviderConfig) {
+  const label = providerLabel(provider, config)
+  if (response.status === 402 && provider === "ollama") {
+    return new Error("Ollama Cloud returned HTTP 402. This API key needs available cloud credits or an active paid plan.")
+  }
+  const body = await response.json().catch(() => null) as { error?: unknown; message?: unknown }
+  const detail = typeof body?.error === "string" ? body.error : typeof body?.message === "string" ? body.message : ""
+  return new Error(`${label} returned HTTP ${response.status}${detail ? `: ${detail}` : ""}`)
+}
+
 export function createProviderTransport(provider: ProviderCredentialProvider, configOrApiKey: StoredProviderConfig | string): DurableChatTransport {
   const config: StoredProviderConfig = typeof configOrApiKey === "string" ? { apiKey: configOrApiKey } : configOrApiKey
   return (async function* ({ messages, model, tools, signal }) {
@@ -59,15 +73,15 @@ export function createProviderTransport(provider: ProviderCredentialProvider, co
       ? { model, stream: true, max_tokens: 16_384, system: messages.filter((message) => message.role === "system").map((message) => textOf(message.content)).join("\n\n") || undefined, messages: messages.filter((message) => message.role !== "system").map((message) => ({ role: message.role === "tool" ? "user" : message.role, content: textOf(message.content) })) }
       : { model, stream: true, messages, tools: tools?.length ? tools : undefined }
     const response = await fetch(url, { method: "POST", headers: headersFor(provider, config), body: JSON.stringify(body), signal })
-    if (!response.ok) throw new Error(`${config.name ?? provider} returned HTTP ${response.status}`)
-    yield { type: "status", phase: "streaming", message: `${config.name ?? provider} is responding` }
+    if (!response.ok) throw await providerResponseError(response, provider, config)
+    yield { type: "status", phase: "streaming", message: `${providerLabel(provider, config)} is responding` }
     let usage: Record<string, unknown> | undefined
     for await (const [event, data] of readSse(response, signal)) {
       const choices = Array.isArray(data.choices) ? data.choices : []; const delta = choices[0] && typeof choices[0] === "object" ? (choices[0] as Record<string, unknown>).delta : null
       if (delta && typeof delta === "object" && typeof (delta as Record<string, unknown>).content === "string") yield { type: "text", content: (delta as Record<string, string>).content }
       if (typeof data.delta === "object" && data.delta && typeof (data.delta as Record<string, unknown>).text === "string") yield { type: "text", content: (data.delta as Record<string, string>).text }
       if (data.usage && typeof data.usage === "object") usage = data.usage as Record<string, unknown>
-      if (event === "error" || typeof data.error === "object") yield { type: "error", message: `${config.name ?? provider} returned an error` }
+      if (event === "error" || typeof data.error === "object") yield { type: "error", message: `${providerLabel(provider, config)} returned an error` }
     }
     yield { type: "finish", reason: "stop", usage }
   }) as DurableChatTransport

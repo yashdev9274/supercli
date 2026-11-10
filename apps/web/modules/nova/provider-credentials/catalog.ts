@@ -40,7 +40,10 @@ export async function fetchProviderCatalog(provider: ProviderCredentialProvider,
   const modelsPath = config.apiFamily === "anthropic" && !baseUrl.endsWith("/v1") ? "/v1/models" : "/models"
   const response = await fetch(`${baseUrl}${modelsPath}`, { headers, cache: "no-store", signal })
   const body = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(typeof body === "object" && body && "message" in body && typeof body.message === "string" ? body.message : `${provider} returned HTTP ${response.status}`)
+  if (!response.ok) {
+    if (response.status === 402 && provider === "ollama") throw new Error("Ollama Cloud returned HTTP 402. This API key needs available cloud credits or an active paid plan.")
+    throw new Error(typeof body === "object" && body && "message" in body && typeof body.message === "string" ? body.message : `${provider === "ollama" ? "Ollama Cloud" : provider} returned HTTP ${response.status}`)
+  }
   return normalize(body)
 }
 
