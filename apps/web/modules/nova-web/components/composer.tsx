@@ -71,6 +71,7 @@ import { useCodexCatalog } from "../codex-catalog"
 import { codexModelEntries } from "../model-settings"
 import { MentionPicker, mentionOptionId, ReferenceIcon, useReferenceSearch } from "./mention-picker"
 import { useProviderConnectionStates } from "./provider-connections"
+import { PROVIDER_INTEGRATION_BY_ID } from "@/modules/nova-web/provider-integrations"
 
 const EMPTY_REFERENCES: NovaReference[] = []
 const EMPTY_LOCAL_FILES: LocalAttachment[] = []
@@ -821,8 +822,8 @@ function ModelPicker({
   const providerConnections = useProviderConnectionStates()
   const codexEntries = useMemo(() => codexModelEntries(codex.models), [codex.models])
   const dynamicProviders = useMemo(() => Object.entries(providerConnections.states)
-    .filter(([id, state]) => Boolean(state?.connected && state.models?.length && !HARNESS_PROVIDERS.some((item) => item.id === id)))
-    .map(([id, state]) => ({ id: id as HarnessProvider, label: providerConnections.states[id]?.name ?? id, models: (state?.models ?? []).map((entry) => ({ id: entry.id, provider: id as HarnessProvider, label: entry.label, desc: entry.description ?? "Available through the connected provider" })) })), [providerConnections.states])
+    .filter(([id, state]) => Boolean(state?.connected && !HARNESS_PROVIDERS.some((item) => item.id === id)))
+    .map(([id, state]) => ({ id: id as HarnessProvider, label: providerConnections.states[id]?.name || PROVIDER_INTEGRATION_BY_ID[id]?.label || id, models: (state?.models ?? []).map((entry) => ({ id: entry.id, provider: id as HarnessProvider, label: entry.label, desc: entry.description ?? "Available through the connected provider" })) })), [providerConnections.states])
   const dynamicModels = useMemo(() => dynamicProviders.flatMap((item) => item.models), [dynamicProviders])
   function changeOpen(nextOpen: boolean) {
     setOpen(nextOpen)

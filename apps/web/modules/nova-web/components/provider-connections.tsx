@@ -56,7 +56,14 @@ export function useProviderConnectionStates() {
       try {
         const response = await fetch(`/api/nova/providers/${provider}/connection`, { credentials: "same-origin", cache: "no-store" })
         const body = await response.json() as ProviderState
-        return [provider, response.ok ? body : { connected: false, enabled: false, lastVerifiedAt: null }] as const
+        if (!response.ok || !body.connected || !body.enabled || body.models?.length) return [provider, response.ok ? body : { connected: false, enabled: false, lastVerifiedAt: null }] as const
+        try {
+          const modelsResponse = await fetch(`/api/nova/providers/${provider}/models`, { credentials: "same-origin", cache: "no-store" })
+          const modelsBody = await modelsResponse.json() as { models?: ProviderModel[] }
+          return [provider, { ...body, models: modelsResponse.ok && Array.isArray(modelsBody.models) ? modelsBody.models : [] }] as const
+        } catch {
+          return [provider, body] as const
+        }
       } catch { return [provider, { connected: false, enabled: false, lastVerifiedAt: null }] as const }
     }))
     setStates(Object.fromEntries(entries))
