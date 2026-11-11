@@ -288,7 +288,7 @@ export function NovaApp({
 
   const navigate = useCallback(
     (href: string) => {
-      setSidebarOpen(false)
+      setSidebarOpen(href.startsWith("/agents"))
       setReferences([])
       setLocalFiles([])
       router.push(href)
