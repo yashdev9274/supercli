@@ -137,6 +137,7 @@ export const agentActivitySchema = z.object({
 export const agentSessionSummarySchema = z.object({
   contractVersion: z.literal(NOVA_CONTRACT_VERSION),
   id: z.string().min(1),
+  agentId: z.string().nullable().optional(),
   parentSessionId: z.string().nullable().optional(),
   createdAt: z.string().datetime().optional(),
   project: z.object({ id: z.string(), name: z.string() }).nullable().optional(),

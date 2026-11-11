@@ -39,6 +39,7 @@ function serializeSurface(surface: {
 
 function serializeSession(session: {
   parentSessionId?: string | null
+  agentId?: string | null
   id: string
   objective: string
   mode: string
@@ -62,6 +63,7 @@ function serializeSession(session: {
   return {
     contractVersion: NOVA_CONTRACT_VERSION,
     id: session.id,
+    agentId: session.agentId ?? null,
     parentSessionId: session.parentSessionId ?? null,
     createdAt: session.createdAt?.toISOString(),
     project: session.localProject ? { id: session.localProject.id, name: session.localProject.displayName } : null,
@@ -95,7 +97,7 @@ export async function listAgentSessions(userId: string, parentSessionId: string 
     if (!parent) throw new Error("Parent thread not found")
   }
   const sessions = await prisma.agentSession.findMany({
-    where: { organizationId, parentSessionId, ...(agentId ? { agentId } : {}) },
+    where: { organizationId, parentSessionId, agentId: agentId ?? null },
     include: {
       surfaces: { where: { status: { not: "archived" } }, orderBy: { createdAt: "asc" } },
       localProject: { select: { id: true, displayName: true } },

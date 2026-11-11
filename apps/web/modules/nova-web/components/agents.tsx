@@ -95,7 +95,7 @@ export function AgentsView({ path, onNavigate }: { path: string; onNavigate: (hr
     setError(null)
     try {
       const data = await createSession(task.trim(), { agentId: selectedAgent.id, mode: "agent" })
-      onNavigate(`/s/${data.session.id}`)
+      onNavigate(`/agents/${selectedAgent.id}/chats/${data.session.id}`)
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Could not start agent task")
     } finally {
@@ -146,7 +146,7 @@ export function AgentsView({ path, onNavigate }: { path: string; onNavigate: (hr
       ) : selectedAgent && memoryRoute ? (
         <AgentMemoryView agent={selectedAgent} query={memoryQuery} matches={memoryMatches} loading={memoryLoading} onQueryChange={setMemoryQuery} onBack={() => onNavigate(`/agents/${selectedAgent.id}`)} onDelete={async (id) => { await deleteAgentMemory(selectedAgent.id, id); setMemoryMatches((current) => current.filter((item) => item.id !== id)) }} />
       ) : selectedAgent ? (
-        <AgentDetail agent={selectedAgent} chats={chats} task={task} busy={busy} onTaskChange={setTask} onStartTask={() => void startTask()} onOpenChat={(id) => onNavigate(`/s/${id}`)} onOpenMemory={() => onNavigate(`/agents/${selectedAgent.id}/memory`)} onAgentChange={setSelectedAgent} onDeleted={() => onNavigate("/agents")} />
+        <AgentDetail agent={selectedAgent} chats={chats} task={task} busy={busy} onTaskChange={setTask} onStartTask={() => void startTask()} onOpenChat={(id) => onNavigate(`/agents/${selectedAgent.id}/chats/${id}`)} onOpenMemory={() => onNavigate(`/agents/${selectedAgent.id}/memory`)} onAgentChange={setSelectedAgent} onDeleted={() => onNavigate("/agents")} />
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-10 pt-5">
           <div className="mx-auto max-w-[820px]">

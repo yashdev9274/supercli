@@ -35,6 +35,7 @@ export function NovaSidebar({
   user,
   sessions,
   selectedId,
+  selectedAgentId,
   selectedPullId,
   view,
   query,
@@ -46,6 +47,7 @@ export function NovaSidebar({
   user: NovaUser
   sessions: AgentSessionSummary[]
   selectedId: string | null
+  selectedAgentId?: string | null
   selectedPullId?: string | null
   view: WorkspaceView
   query: string
@@ -65,8 +67,8 @@ export function NovaSidebar({
     updatePreferences((current) => ({ ...current, filters: { project: "all", participant: "all", creator: "all", origin: "all" }, collapsed: [] }))
   }
 
-  if (view === "agents") {
-    return <AgentSidebar user={user} selectedId={selectedId} onNavigate={onNavigate} />
+  if (view === "agents" || view === "agent-chat") {
+    return <AgentSidebar user={user} selectedId={selectedId} selectedAgentId={selectedAgentId} onNavigate={onNavigate} />
   }
 
   const threadsActive = view === "home" || view === "session"
@@ -255,7 +257,7 @@ export function NovaSidebar({
   )
 }
 
-function AgentSidebar({ user, selectedId, onNavigate }: { user: NovaUser; selectedId: string | null; onNavigate: (href: string) => void }) {
+function AgentSidebar({ user, selectedId, selectedAgentId, onNavigate }: { user: NovaUser; selectedId: string | null; selectedAgentId?: string | null; onNavigate: (href: string) => void }) {
   const [agents, setAgents] = useState<NovaAgent[]>([])
   const [chats, setChats] = useState<Record<string, AgentSessionSummary[]>>({})
   const [query, setQuery] = useState("")
@@ -305,7 +307,7 @@ function AgentSidebar({ user, selectedId, onNavigate }: { user: NovaUser; select
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
           <button type="button" onClick={() => onNavigate("/agents/new")} className="mb-2 flex w-full items-center gap-3 rounded-lg bg-[#303030] px-3 py-2.5 text-left transition hover:bg-[#383838]"><span className="flex size-8 items-center justify-center rounded-md border border-dashed border-[#888] text-[#bdbdbd]"><PlusIcon /></span><span className="min-w-0"><span className="block text-[13px] text-[#e2e2e2]">New agent</span><span className="mt-0.5 block truncate text-[12px] text-[#9a9a9a]">Describe it in the chat</span></span></button>
-          {loading ? <div className="px-2 py-6 text-xs text-[#777]">Loading agents…</div> : filtered.length ? filtered.map((agent) => <div key={agent.id} className="mb-1"><button type="button" onClick={() => onNavigate(`/agents/${agent.id}`)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition", selectedId === agent.id ? "bg-white/[0.08]" : "hover:bg-white/[0.05]")}><BotAvatar type={(agent.avatarType as BotAvatarType) || "clover"} color={agent.avatarColor || "#3b93ed"} size={29} paused interactive={false} /><span className="min-w-0"><span className="block truncate text-[13px] text-[#e5e5e5]">{agent.name}</span><span className="mt-0.5 block truncate text-[12px] text-[#8f8f8f]">@ {agent.status === "active" ? "On demand" : agent.status}</span></span></button>{(chats[agent.id] ?? []).slice(0, 4).map((chat) => <button key={chat.id} type="button" onClick={() => onNavigate(`/s/${chat.id}`)} className={cn("ml-9 flex w-[calc(100%-2.25rem)] items-center rounded-md px-2 py-1.5 text-left text-[11px] transition", selectedId === chat.id ? "bg-white/[0.08] text-white" : "text-[#969696] hover:bg-white/[0.05] hover:text-[#d0d0d0]")}><MessageSquare className="mr-2 size-3 shrink-0" /><span className="truncate">{chat.objective}</span></button>)}</div>) : <div className="px-2 py-6 text-xs text-[#777]">No agents found.</div>}
+          {loading ? <div className="px-2 py-6 text-xs text-[#777]">Loading agents…</div> : filtered.length ? filtered.map((agent) => <div key={agent.id} className="mb-1"><button type="button" onClick={() => onNavigate(`/agents/${agent.id}`)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition", selectedId === agent.id || selectedAgentId === agent.id ? "bg-white/[0.08]" : "hover:bg-white/[0.05]")}><BotAvatar type={(agent.avatarType as BotAvatarType) || "clover"} color={agent.avatarColor || "#3b93ed"} size={29} paused interactive={false} /><span className="min-w-0"><span className="block truncate text-[13px] text-[#e5e5e5]">{agent.name}</span><span className="mt-0.5 block truncate text-[12px] text-[#8f8f8f]">@ {agent.status === "active" ? "On demand" : agent.status}</span></span></button>{(chats[agent.id] ?? []).slice(0, 4).map((chat) => <button key={chat.id} type="button" onClick={() => onNavigate(`/agents/${agent.id}/chats/${chat.id}`)} className={cn("ml-9 flex w-[calc(100%-2.25rem)] items-center rounded-md px-2 py-1.5 text-left text-[11px] transition", selectedId === chat.id ? "bg-white/[0.08] text-white" : "text-[#969696] hover:bg-white/[0.05] hover:text-[#d0d0d0]")}><MessageSquare className="mr-2 size-3 shrink-0" /><span className="truncate">{chat.objective}</span></button>)}</div>) : <div className="px-2 py-6 text-xs text-[#777]">No agents found.</div>}
         </div>
       </div>
     </aside>

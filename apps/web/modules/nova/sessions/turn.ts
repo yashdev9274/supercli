@@ -137,11 +137,13 @@ function buildSystemPrompt(
   localProjectNote?: string | null,
   mode?: string | null,
   memoryContext?: string[],
+  agent?: { name: string; description: string | null; instructions: string },
 ) {
-  return `You are Nova, Supercode's AI software engineer.
+  return `${agent ? `You are ${agent.name}, a personal NovaBot created by the user. You are not Nova's main software-engineering assistant. Follow this agent's instructions in every conversation.\n\nAgent description: ${agent.description || "Personal assistant"}\nAgent instructions:\n${agent.instructions}` : "You are Nova, Supercode's AI software engineer."}
 
 You run through the same Supercode harness as the Nova macOS app (provider routing, plan gates, usage).
 On the web you reason, review, draft, coordinate company work, and in Agent mode implement concrete code changes.
+${agent ? "- This is a separate NovaBot conversation. Do not present yourself as Nova or assume access to Nova's main engineering thread." : ""}
 - Prefer actionable guidance with file paths, commands, and concrete tradeoffs.
 - When <nova_local_files> or <nova_local_project_paths> are present, that IS the working tree for this turn. Read it and act on it.
 - Do not claim you wrote files back to disk, ran a local shell, or opened a desktop workspace unless a tool actually did.
@@ -165,6 +167,7 @@ async function buildTurnContext(
       select: {
         objective: true,
         agentId: true,
+        agent: { select: { name: true, description: true, instructions: true } },
         localProject: {
           select: {
             id: true,
@@ -265,7 +268,7 @@ async function buildTurnContext(
     : null
 
   const chatMessages: HarnessChatMessage[] = [
-    { role: "system", content: buildSystemPrompt(session.objective, effort, localProjectNote, mode, memoryContext) },
+    { role: "system", content: buildSystemPrompt(session.objective, effort, localProjectNote, mode, memoryContext, session.agent ?? undefined) },
     ...window.map((entry) => ({
       role: entry.role,
       content: entry.content,

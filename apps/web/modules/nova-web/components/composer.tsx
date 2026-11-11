@@ -107,6 +107,7 @@ export function Composer({
   onLocalFilesChange,
   onLocalProjectChange,
   projectLocked = false,
+  modelLocked = false,
 }: {
   value: string
   onChange: (value: string) => void
@@ -130,6 +131,7 @@ export function Composer({
   onLocalFilesChange?: (files: LocalAttachment[]) => void
   onLocalProjectChange?: (project: LocalWorkspaceState) => void
   projectLocked?: boolean
+  modelLocked?: boolean
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const attachRef = useRef<HTMLButtonElement>(null)
@@ -615,7 +617,7 @@ export function Composer({
           provider={provider}
           model={model}
           chip={chip}
-          disabled={streaming}
+          disabled={streaming || modelLocked}
           onChange={onModelChange}
         />
 

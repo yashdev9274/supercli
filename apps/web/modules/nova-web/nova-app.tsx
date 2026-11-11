@@ -8,6 +8,7 @@ import {
   bindSessionLocalProject,
   createSession,
   decideApproval,
+  getAgent,
   getSession,
   listApprovals,
   listConnectors,
@@ -137,6 +138,7 @@ function clearPendingTurn() {
 function parseRoute(pathname: string): {
   view: WorkspaceView
   sessionId: string | null
+  agentId: string | null
   pullId: string | null
 } {
   const clean = pathname.replace(/\/nova-app-internal/g, "") || "/"
@@ -144,6 +146,16 @@ function parseRoute(pathname: string): {
     return {
       view: "session",
       sessionId: clean.slice(3).split("/")[0] || null,
+      agentId: null,
+      pullId: null,
+    }
+  }
+  const agentChatMatch = clean.match(/^\/agents\/([^/]+)\/chats\/([^/]+)/)
+  if (agentChatMatch) {
+    return {
+      view: "agent-chat",
+      sessionId: decodeURIComponent(agentChatMatch[2]),
+      agentId: decodeURIComponent(agentChatMatch[1]),
       pullId: null,
     }
   }
@@ -151,17 +163,18 @@ function parseRoute(pathname: string): {
     return {
       view: "pull",
       sessionId: null,
+      agentId: null,
       pullId: decodeURIComponent(clean.slice("/pulls/".length).split("/")[0] || ""),
     }
   }
-  if (clean.startsWith("/pulls")) return { view: "pulls", sessionId: null, pullId: null }
-  if (clean.startsWith("/agents")) return { view: "agents", sessionId: null, pullId: null }
-  if (clean.startsWith("/automations")) return { view: "automations", sessionId: null, pullId: null }
-  if (clean.startsWith("/approvals")) return { view: "approvals", sessionId: null, pullId: null }
-  if (clean.startsWith("/connections")) return { view: "connections", sessionId: null, pullId: null }
-  if (clean.startsWith("/more")) return { view: "more", sessionId: null, pullId: null }
-  if (clean.startsWith("/settings")) return { view: "settings", sessionId: null, pullId: null }
-  return { view: "home", sessionId: null, pullId: null }
+  if (clean.startsWith("/pulls")) return { view: "pulls", sessionId: null, agentId: null, pullId: null }
+  if (clean.startsWith("/agents")) return { view: "agents", sessionId: null, agentId: null, pullId: null }
+  if (clean.startsWith("/automations")) return { view: "automations", sessionId: null, agentId: null, pullId: null }
+  if (clean.startsWith("/approvals")) return { view: "approvals", sessionId: null, agentId: null, pullId: null }
+  if (clean.startsWith("/connections")) return { view: "connections", sessionId: null, agentId: null, pullId: null }
+  if (clean.startsWith("/more")) return { view: "more", sessionId: null, agentId: null, pullId: null }
+  if (clean.startsWith("/settings")) return { view: "settings", sessionId: null, agentId: null, pullId: null }
+  return { view: "home", sessionId: null, agentId: null, pullId: null }
 }
 
 function mergeTimeline(
@@ -203,24 +216,29 @@ export function NovaApp({
   }, [initialSettingsSection, search])
 
   const route = useMemo(() => {
-    if (embedded) return { view: "session" as const, sessionId: embeddedSessionId, pullId: null }
+    if (embedded) return { view: "session" as const, sessionId: embeddedSessionId, agentId: null, pullId: null }
     const parsed = parseRoute(pathname)
     if (!pathname || pathname === "/") {
       if (initialPullId) {
-        return { view: "pull" as const, sessionId: null, pullId: initialPullId }
+        return { view: "pull" as const, sessionId: null, agentId: null, pullId: initialPullId }
       }
       return {
         view: initialSessionId ? "session" as const : initialView,
         sessionId: initialSessionId,
+        agentId: null,
         pullId: null,
       }
     }
     return parsed
   }, [embedded, embeddedSessionId, pathname, initialPullId, initialSessionId, initialView])
+  const selectedId = route.sessionId
+  const selectedAgentId = route.agentId
+  const isAgentChat = route.view === "agent-chat"
 
   const [refresh] = useState(() => createRefreshGate())
   const [sessions, setSessions] = useState(initialSessions)
   const [session, setSession] = useState<SessionDetail | null>(null)
+  const [agentChatAgent, setAgentChatAgent] = useState<import("@/modules/nova-web/types").NovaAgent | null>(null)
   const [timeline, setTimeline] = useState<TimelineEntry[]>([])
   const [cursor, setCursor] = useState(0)
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([])
@@ -228,6 +246,23 @@ export function NovaApp({
   const [query, setQuery] = useState("")
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true)
+
+  useEffect(() => {
+    if (!isAgentChat || !selectedAgentId) {
+      setAgentChatAgent(null)
+      return
+    }
+    let active = true
+    void getAgent(selectedAgentId).then(({ agent }) => {
+      if (!active) return
+      setAgentChatAgent(agent)
+      setProvider(agent.provider as HarnessProvider)
+      setModel(agent.model)
+      setEffort(agent.effort as NovaEffort)
+      setAgentMode("chat")
+    }).catch(() => { if (active) setAgentChatAgent(null) })
+    return () => { active = false }
+  }, [isAgentChat, selectedAgentId])
 
   useEffect(() => {
     try {
@@ -274,7 +309,6 @@ export function NovaApp({
   const workingSinceRef = useRef<number | null>(null)
   const workingStepsRef = useRef<WorkingStep[]>([])
 
-  const selectedId = route.sessionId
   const selectedSessionRef = useRef(selectedId)
   useEffect(() => {
     selectedSessionRef.current = selectedId
@@ -297,6 +331,7 @@ export function NovaApp({
   )
 
   useEffect(() => {
+    if (isAgentChat) return
     let cancelled = false
     void Promise.resolve().then(() => {
       if (cancelled || readPendingTurn()) return
@@ -314,7 +349,7 @@ export function NovaApp({
       }
     })
     return () => { cancelled = true }
-  }, [user.id])
+  }, [isAgentChat, user.id])
 
   const openSettingsSection = useCallback((next: SettingsSectionId) => {
     const href = next === "general" ? "/settings" : `/settings?section=${next}`
@@ -649,7 +684,7 @@ export function NovaApp({
     setLocalFiles([])
     try {
       // Ensure the session is bound to the active project before the turn runs.
-      const activeProjectId = embedded ? localProject?.id ?? null : getActiveLocalProjectId() || localProject?.id || null
+      const activeProjectId = isAgentChat ? null : embedded ? localProject?.id ?? null : getActiveLocalProjectId() || localProject?.id || null
       if (!embedded && activeProjectId && !activeProjectId.startsWith("local-")) {
         try {
           await bindSessionLocalProject(sessionId, activeProjectId)
@@ -665,9 +700,11 @@ export function NovaApp({
         workingStepsRef.current = next
         return next
       })
-      const packedAttachments = embedded && getActiveLocalProjectId() !== activeProjectId
-        ? opts?.localAttachments ?? []
-        : await packLocalProjectForTurn(content, opts?.localAttachments ?? [])
+      const packedAttachments = isAgentChat
+        ? []
+        : embedded && getActiveLocalProjectId() !== activeProjectId
+          ? opts?.localAttachments ?? []
+          : await packLocalProjectForTurn(content, opts?.localAttachments ?? [])
       if (packedAttachments.length > (opts?.localAttachments?.length ?? 0)) {
         const added = packedAttachments.length - (opts?.localAttachments?.length ?? 0)
         setWorkingSteps((steps) => {
@@ -684,11 +721,11 @@ export function NovaApp({
       // Auto-pick chat vs agent vs plan from the message (connected apps / file work → agent).
       const resolved = resolveNovaTurnMode({
         message: content,
-        explicitMode: opts?.mode ?? agentMode,
+        explicitMode: isAgentChat ? "chat" : opts?.mode ?? agentMode,
         lockExplicit: false,
         hasProject: Boolean(activeProjectId),
         hasAttachments: (opts?.localAttachments?.length ?? 0) > 0 || packedAttachments.length > 0,
-        hasConnectedApps: true,
+        hasConnectedApps: !isAgentChat,
       })
       const turnMode = resolved.mode
       if (resolved.auto && turnMode !== agentMode) {
@@ -844,7 +881,7 @@ export function NovaApp({
       // Keep workingSteps + workingSince so ThreadView can show the completed process
       // until the next turn starts (which clears them above).
     }
-  }, [embedded, agentMode, effort, loadSharedState, localProject?.id, machineSize, model, provider, pullSync, setSyncCursor])
+  }, [embedded, agentMode, effort, isAgentChat, loadSharedState, localProject?.id, machineSize, model, provider, pullSync, setSyncCursor])
 
   // Keep "Thinking for Xs" labels live while reasoning is in flight.
   useEffect(() => {
@@ -927,6 +964,7 @@ export function NovaApp({
       user={user}
       sessions={sessions}
       selectedId={selectedId}
+      selectedAgentId={selectedAgentId}
       selectedPullId={selectedPullId}
       view={view}
       query={query}
@@ -987,7 +1025,7 @@ export function NovaApp({
       ) : selectedId && session ? (
         <ThreadView
           session={session}
-          projectLocked={embedded || projectLocked}
+          projectLocked={embedded || projectLocked || isAgentChat}
           timeline={timeline}
           approvals={approvals}
           draft={draft}
@@ -1030,7 +1068,7 @@ export function NovaApp({
               })
             }
           }}
-          loading={isPending}
+          loading={isPending || (isAgentChat && !agentChatAgent)}
           decidingApprovalId={decidingApprovalId}
           detailsOpen={detailsOpen}
           model={model}
@@ -1048,6 +1086,8 @@ export function NovaApp({
           }}
           onToggleDetails={() => setDetailsOpen((value) => !value)}
           onDecision={onDecision}
+          chatOnly={isAgentChat}
+          agentName={agentChatAgent?.name ?? "Agent"}
         />
       ) : selectedId && (isPending || streaming) ? (
         <div className="flex h-full items-center justify-center text-[12px] text-[#5c5c5c]">

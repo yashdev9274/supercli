@@ -89,9 +89,13 @@ export function ThreadView({
   onRefresh,
   onToggleDetails,
   onDecision,
+  chatOnly = false,
+  agentName = "Nova",
 }: {
   session: SessionDetail
   projectLocked?: boolean
+  chatOnly?: boolean
+  agentName?: string
   timeline: TimelineEntry[]
   approvals: ApprovalRequest[]
   draft: string
@@ -186,12 +190,12 @@ export function ThreadView({
           {session.objective}
         </h1>
         <div className="hidden sm:block">
-          <ProjectPicker
+          {chatOnly ? <span className="text-[11px] text-[#777]">{agentName}</span> : <ProjectPicker
             value={localProject}
             disabled={loading || streaming || projectLocked}
             onChange={(selection) => onProjectChange?.(selection)}
             onManageProjects={onManageProjects}
-          />
+          />}
         </div>
         {streaming && workedSeconds != null ? (
           <span className="hidden text-[11px] text-[#6b6b6b] sm:inline">
@@ -217,6 +221,7 @@ export function ThreadView({
           onClick={onToggleDetails}
           className={cn(
             "flex size-7 items-center justify-center rounded-md transition",
+            chatOnly && "hidden",
             detailsOpen
               ? "bg-white/[0.06] text-[#e8e8e8]"
               : "text-[#5c5c5c] hover:bg-white/[0.04] hover:text-[#a0a0a0]",
@@ -236,7 +241,7 @@ export function ThreadView({
       </header>
 
       <WorkspaceLayout
-        open={detailsOpen && !conversationSplit}
+        open={!chatOnly && detailsOpen && !conversationSplit}
         renderWorkspace={(expanded, onToggleExpanded) => (
           <WorkspacePanel
             key={session.id}
@@ -376,23 +381,24 @@ export function ThreadView({
           <Composer
             value={draft}
             onChange={onDraftChange}
-            references={references}
-            onReferencesChange={onReferencesChange}
-            localFiles={localFiles}
-            onLocalFilesChange={onLocalFilesChange}
-            onLocalProjectChange={onLocalProjectChange}
-            projectLocked={projectLocked}
+            references={chatOnly ? [] : references}
+            onReferencesChange={chatOnly ? undefined : onReferencesChange}
+            localFiles={chatOnly ? [] : localFiles}
+            onLocalFilesChange={chatOnly ? undefined : onLocalFilesChange}
+            onLocalProjectChange={chatOnly ? undefined : onLocalProjectChange}
+            projectLocked={projectLocked || chatOnly}
+             modelLocked={chatOnly}
             onSubmit={onSubmit}
             streaming={streaming}
             disabled={loading}
             model={model}
             provider={provider}
             effort={effort}
-            mode={mode}
+            mode={chatOnly ? "chat" : mode}
             onModelChange={onModelChange}
             onEffortChange={onEffortChange}
-            onModeChange={onModeChange}
-            placeholder="Message Nova…"
+            onModeChange={chatOnly ? undefined : onModeChange}
+            placeholder={chatOnly ? `Message ${agentName}…` : "Message Nova…"}
           />
         </div>
       </div>

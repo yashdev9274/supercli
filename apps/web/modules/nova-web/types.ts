@@ -44,6 +44,7 @@ export type NovaUser = {
 export type WorkspaceView =
   | "home"
   | "session"
+  | "agent-chat"
   | "agents"
   | "approvals"
   | "automations"
