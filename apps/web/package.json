@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "bun run db:generate && next dev --port 3003",
+    "dev": "bun run db:generate && bun run db:migrate && next dev --port 3003",
     "build": "bun run db:generate && bun run db:migrate && next build --webpack",
     "postinstall": "bun run db:generate",
     "start": "next start --port 3003",
