@@ -225,6 +225,8 @@ model NovaAgent {
   instructions   String       @db.Text
   provider       String?
   model          String?
+  avatarType     String       @default("clover")
+  avatarColor    String       @default("#3b93ed")
   status         String       @default("active")
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt

@@ -27,6 +27,8 @@ function serializeAgent(agent: {
   instructions: string
   provider: string | null
   model: string | null
+  avatarType: string
+  avatarColor: string
   status: string
   createdAt: Date
   updatedAt: Date
@@ -40,6 +42,8 @@ function serializeAgent(agent: {
     instructions: agent.instructions,
     provider: agent.provider ?? "",
     model: agent.model ?? "",
+    avatarType: agent.avatarType,
+    avatarColor: agent.avatarColor,
     status: agent.status,
     createdAt: agent.createdAt.toISOString(),
     updatedAt: agent.updatedAt.toISOString(),
@@ -55,6 +59,8 @@ const agentSelect = {
   instructions: true,
   provider: true,
   model: true,
+  avatarType: true,
+  avatarColor: true,
   status: true,
   createdAt: true,
   updatedAt: true,
@@ -92,6 +98,8 @@ export async function updateAgent(userId: string, id: string, raw: unknown): Pro
       ...(input.instructions === undefined ? {} : { instructions: input.instructions }),
       ...(input.provider === undefined ? {} : { provider: input.provider || null }),
       ...(input.model === undefined ? {} : { model: input.model || null }),
+      ...(input.avatarType === undefined ? {} : { avatarType: input.avatarType || "clover" }),
+      ...(input.avatarColor === undefined ? {} : { avatarColor: input.avatarColor || "#3b93ed" }),
       ...(input.status === undefined ? {} : { status: input.status, archivedAt: input.status === "archived" ? new Date() : null }),
     },
     select: agentSelect,
@@ -117,6 +125,8 @@ export async function createAgent(userId: string, raw: unknown): Promise<AgentDt
       description: input.description || null,
       provider: input.provider || null,
       model: input.model || null,
+      avatarType: input.avatarType || "clover",
+      avatarColor: input.avatarColor || "#3b93ed",
     },
     select: agentSelect,
   })

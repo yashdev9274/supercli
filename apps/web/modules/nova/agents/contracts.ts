@@ -6,6 +6,8 @@ export const agentInputSchema = z.object({
   instructions: z.string().trim().min(1, "Agent instructions are required").max(20_000),
   provider: z.string().trim().max(80).optional().default(""),
   model: z.string().trim().max(160).optional().default(""),
+  avatarType: z.string().trim().max(32).optional().default("clover"),
+  avatarColor: z.string().trim().max(32).optional().default("#3b93ed"),
 })
 
 export const agentUpdateSchema = agentInputSchema.partial().extend({

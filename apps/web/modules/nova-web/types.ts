@@ -63,6 +63,8 @@ export type NovaAgent = {
   instructions: string
   provider: string
   model: string
+  avatarType: string
+  avatarColor: string
   status: string
   createdAt: string
   updatedAt: string
