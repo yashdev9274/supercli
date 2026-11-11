@@ -65,6 +65,7 @@ export type NovaAgent = {
   model: string
   avatarType: string
   avatarColor: string
+  effort: string
   status: string
   createdAt: string
   updatedAt: string

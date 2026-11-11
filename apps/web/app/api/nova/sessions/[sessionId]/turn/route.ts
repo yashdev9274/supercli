@@ -71,10 +71,12 @@ export async function POST(
 
   const agentSelection = await prisma.agentSession.findFirst({
     where: { id: sessionId, initiatorMembership: { userId: session.user.id } },
-    select: { agent: { select: { provider: true, model: true } } },
+    select: { agent: { select: { provider: true, model: true, effort: true } } },
   })
   const provider = parsed.data.provider ?? agentSelection?.agent?.provider ?? undefined
   const model = parsed.data.model ?? agentSelection?.agent?.model ?? undefined
+  const agentEffort = codexEffortSchema.safeParse(agentSelection?.agent?.effort).success ? codexEffortSchema.parse(agentSelection?.agent?.effort) : undefined
+  const effort = parsed.data.effort ?? agentEffort
 
   if (provider === CHATGPT_PROVIDER) {
     return Response.json(
@@ -96,7 +98,7 @@ export async function POST(
     try {
       assertCodexOrigin(request)
       const runtime = createCodexRuntime(await codexContextForRequest(request))
-      chatTransport = await runtime.prepare(model, parsed.data.effort, request.signal)
+      chatTransport = await runtime.prepare(model, effort, request.signal)
     } catch (error) {
       const safe = codexPublicError(error)
       return Response.json({ error: safe.message }, { status: safe.statusCode, headers: { "Cache-Control": "no-store" } })
@@ -110,7 +112,7 @@ export async function POST(
       const status = error instanceof ProviderCredentialError ? error.statusCode : 502
       return Response.json({ error: error instanceof Error ? error.message : "Provider connection failed" }, { status, headers: { "Cache-Control": "no-store" } })
     }
-  } else if (parsed.data.effort === "none" || parsed.data.effort === "minimal") {
+  } else if (effort === "none" || effort === "minimal") {
     return Response.json({ error: "This provider does not support the selected reasoning effort" }, { status: 400 })
   }
 
@@ -162,7 +164,7 @@ export async function POST(
           clientMessageId: parsed.data.clientMessageId,
           model,
           provider,
-          effort: parsed.data.effort,
+          effort,
           machineSize: parsed.data.machineSize,
           mode: parsed.data.mode ?? resolveNovaTurnMode({ message: parsed.data.content }).mode,
           harnessToken: harnessAuth?.token ?? "",

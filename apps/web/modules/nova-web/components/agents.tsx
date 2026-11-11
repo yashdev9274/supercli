@@ -4,10 +4,12 @@ import { useEffect, useMemo, useState } from "react"
 import { BotAvatar, botAvatarTypes, type BotAvatarType } from "bot-avatars"
 import { Brain, Bot, Check, ChevronDown, Loader2, Plus, Search, Trash2, X } from "lucide-react"
 
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { createAgent, createSession, deleteAgent, deleteAgentMemory, getAgent, listAgents, listSessions, searchAgentMemory, updateAgent } from "@/modules/nova-web/api"
 import { useCodexCatalog } from "@/modules/nova-web/codex-catalog"
-import { CLOUD_MODELS, modelChipLabel, type HarnessProvider, type NovaModelEntry } from "@/modules/nova-web/models"
+import { codexModelEntries } from "@/modules/nova-web/model-settings"
+import { CLOUD_MODELS, modelChipLabel, NOVA_EFFORTS, CODEX_EFFORT_LABELS, type HarnessProvider, type NovaEffort, type NovaModelEntry } from "@/modules/nova-web/models"
 import { PROVIDER_INTEGRATION_BY_ID } from "@/modules/nova-web/provider-integrations"
 import { useProviderConnectionStates } from "@/modules/nova-web/components/provider-connections"
 import type { AgentSessionSummary, NovaAgent } from "@/modules/nova-web/types"
@@ -29,15 +31,12 @@ export function AgentsView({ path, onNavigate }: { path: string; onNavigate: (hr
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [draft, setDraft] = useState({ name: "", description: "", instructions: "", provider: "supercode", model: CLOUD_MODELS[0]?.id ?? "", avatarType: "clover", avatarColor: "#3b93ed" })
+  const [draft, setDraft] = useState({ name: "", description: "", instructions: "", provider: "supercode", model: CLOUD_MODELS[0]?.id ?? "", effort: "high" as NovaEffort, avatarType: "clover", avatarColor: "#3b93ed" })
   const [avatarType, setAvatarType] = useState<BotAvatarType>("clover")
   const [avatarColor, setAvatarColor] = useState("#3b93ed")
   const [memoryQuery, setMemoryQuery] = useState("")
   const [memoryMatches, setMemoryMatches] = useState<Array<{ id: string; content: string; metadata: Record<string, unknown>; similarity: number }>>([])
   const [memoryLoading, setMemoryLoading] = useState(false)
-  const codex = useCodexCatalog()
-  const providerConnections = useProviderConnectionStates()
-  const connectedModels = useMemo(() => getConnectedAgentModels(codex.models, codex.connected, providerConnections.states), [codex.connected, codex.models, providerConnections.states])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -79,7 +78,7 @@ export function AgentsView({ path, onNavigate }: { path: string; onNavigate: (hr
     try {
       const data = await createAgent({ ...draft, instructions: draft.instructions.trim() || draft.description.trim(), provider: draft.provider, model: draft.model, avatarType, avatarColor })
       setAgents((current) => [data.agent, ...current])
-      setDraft({ name: "", description: "", instructions: "", provider: "supercode", model: CLOUD_MODELS[0]?.id ?? "", avatarType: "clover", avatarColor: "#3b93ed" })
+      setDraft({ name: "", description: "", instructions: "", provider: "supercode", model: CLOUD_MODELS[0]?.id ?? "", effort: "high", avatarType: "clover", avatarColor: "#3b93ed" })
       setAvatarType("clover")
       setAvatarColor("#3b93ed")
       onNavigate(`/agents/${data.agent.id}`)
@@ -137,7 +136,7 @@ export function AgentsView({ path, onNavigate }: { path: string; onNavigate: (hr
             <div className="mt-5 w-full space-y-4">
               <label className="block text-xs text-neutral-300">Name <span className="text-red-400">*</span><input aria-label="Agent name" autoFocus maxLength={120} className={cn(field, "mt-2 bg-[#202020]")} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Trip Planner" /></label>
               <label className="block text-xs text-neutral-300">What should this agent help with?<textarea aria-label="Agent description" maxLength={500} className={cn(field, "mt-2 min-h-20 resize-y bg-[#202020]")} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} placeholder="Compare options and turn rough ideas into a practical plan." /></label>
-              <AgentModelPicker models={connectedModels} provider={draft.provider as HarnessProvider} model={draft.model} onChange={(selection) => setDraft({ ...draft, provider: selection.provider, model: selection.model })} />
+              <div className="w-full"><span className="mb-2 block text-xs text-neutral-300">Model</span><AgentModelPicker provider={draft.provider as HarnessProvider} model={draft.model} effort={draft.effort} onEffortChange={(effort) => setDraft({ ...draft, effort })} onChange={(selection) => setDraft({ ...draft, provider: selection.provider, model: selection.model })} /></div>
               <label className="block text-xs text-neutral-300">Instructions <span className="text-neutral-500">(optional if the description is enough)</span><textarea aria-label="Agent instructions" maxLength={20_000} className={cn(field, "mt-2 min-h-28 resize-y bg-[#202020]")} value={draft.instructions} onChange={(event) => setDraft({ ...draft, instructions: event.target.value })} placeholder="Describe what this agent should do, how it should work, and what it should avoid." /></label>
             </div>
             <button type="button" className="mt-5 h-10 rounded-lg bg-white px-8 text-sm font-medium text-[#181818] transition hover:bg-[#d9eaff] disabled:cursor-not-allowed disabled:opacity-40" disabled={busy || !draft.name.trim() || (!draft.instructions.trim() && !draft.description.trim())} onClick={() => void save()}>{busy ? <Loader2 className="mr-2 inline size-3.5 animate-spin" /> : null}Create agent</button>
@@ -195,21 +194,52 @@ function colorForAgent(agent: Pick<NovaAgent, "id" | "name">) {
   return AGENT_COLORS[agent.id.length % AGENT_COLORS.length] ?? AGENT_COLORS[0]
 }
 
-function getConnectedAgentModels(codexModels: Array<{ id: string; label: string }>, codexConnected: boolean, states: Record<string, { connected?: boolean; enabled?: boolean; models?: Array<{ id: string; label: string; description?: string }> } | undefined>) {
-  const models: NovaModelEntry[] = CLOUD_MODELS.map((entry) => entry)
-  if (codexConnected) models.push(...codexModels.map((entry) => ({ id: entry.id, provider: "codex" as HarnessProvider, label: entry.label, desc: "Your OpenAI Codex subscription" })))
-  for (const [provider, state] of Object.entries(states)) {
-    if (!state?.connected || state.enabled === false) continue
-    for (const model of state.models ?? []) models.push({ id: model.id, provider: provider as HarnessProvider, label: model.label, desc: model.description ?? `Connected ${provider} plan` })
-  }
-  return models
+type AgentProviderGroup = {
+  id: HarnessProvider
+  label: string
+  version?: string
+  glyph: string
+  models: NovaModelEntry[]
 }
 
-function AgentModelPicker({ models, provider, model, onChange }: { models: NovaModelEntry[]; provider: HarnessProvider; model: string; onChange: (selection: { provider: HarnessProvider; model: string }) => void }) {
+function AgentModelPicker({ provider, model, effort, onChange, onEffortChange }: { provider: HarnessProvider; model: string; effort: NovaEffort; onChange: (selection: { provider: HarnessProvider; model: string }) => void; onEffortChange: (effort: NovaEffort) => void }) {
   const [open, setOpen] = useState(false)
-  const selected = models.find((entry) => entry.provider === provider && entry.id === model) ?? models[0]
-  const grouped = useMemo(() => models.reduce<Record<string, NovaModelEntry[]>>((groups, entry) => { (groups[entry.provider] ||= []).push(entry); return groups }, {}), [models])
-  return <div className="relative"><span className="mb-2 block text-xs text-neutral-300">Model</span><button type="button" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((value) => !value)} className="flex h-11 w-full items-center gap-3 rounded-lg border border-white/10 bg-[#202020] px-3 text-left transition hover:border-white/20"><span aria-hidden="true" className="flex size-6 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.08] font-mono text-[9px] font-semibold uppercase tracking-[-0.04em] text-neutral-200">{selected?.provider.slice(0, 2).toUpperCase() ?? "AI"}</span><span className="min-w-0 flex-1 truncate text-sm text-neutral-200">{selected ? modelChipLabel(selected.provider, selected.id) : "Connect a provider in Settings → Models"}</span><ChevronDown className={cn("size-4 text-neutral-500 transition-transform", open && "rotate-180")} /></button>{open ? <div role="listbox" className="absolute z-30 mt-2 max-h-72 w-full overflow-y-auto rounded-xl border border-white/10 bg-[#242424] p-1 shadow-2xl">{Object.entries(grouped).map(([providerId, entries]) => <div key={providerId}><p className="px-3 py-2 text-[10px] uppercase tracking-[0.08em] text-neutral-500">{PROVIDER_INTEGRATION_BY_ID[providerId]?.label ?? providerId}</p>{entries.map((entry) => <button key={`${entry.provider}:${entry.id}`} type="button" role="option" aria-selected={entry.provider === provider && entry.id === model} onClick={() => { onChange({ provider: entry.provider, model: entry.id }); setOpen(false) }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-neutral-200 hover:bg-white/[0.08]"><span className="min-w-0 flex-1 truncate">{entry.label}<span className="ml-2 text-neutral-500">{entry.desc}</span></span>{entry.provider === provider && entry.id === model ? <Check className="size-3.5 text-[#50a9ff]" /> : null}</button>)}</div>)}{!models.length ? <p className="px-3 py-4 text-center text-xs text-neutral-500">Connect Codex, Claude, Cursor, OpenCode, Ollama, or Supercode Cloud to choose it here.</p> : null}</div> : null}</div>
+  const [query, setQuery] = useState("")
+  const [activeProvider, setActiveProvider] = useState<HarnessProvider>(provider)
+  const codex = useCodexCatalog()
+  const connections = useProviderConnectionStates()
+  const groups = useMemo<AgentProviderGroup[]>(() => {
+    const next: AgentProviderGroup[] = [{ id: "supercode", label: "Supercode", glyph: "✣", models: CLOUD_MODELS }]
+    if (codex.connected) next.push({ id: "codex", label: "OpenAI Codex", glyph: "◎", version: "Subscription", models: codexModelEntries(codex.models) })
+    for (const [id, state] of Object.entries(connections.states)) {
+      if (!state?.connected || !state.models?.length) continue
+      next.push({ id: id as HarnessProvider, label: state.name || PROVIDER_INTEGRATION_BY_ID[id]?.label || id, glyph: id === "cursor" ? "C" : id === "opencode" ? "▣" : id.slice(0, 1).toUpperCase(), version: state.name || undefined, models: state.models.map((entry) => ({ id: entry.id, provider: id as HarnessProvider, label: entry.label, desc: entry.description ?? "Connected model" })) })
+    }
+    return next
+  }, [codex.connected, codex.models, connections.states])
+  const activeGroup = groups.find((group) => group.id === activeProvider) ?? groups[0]
+  const filteredModels = useMemo(() => {
+    const value = query.trim().toLowerCase()
+    return (activeGroup?.models ?? []).filter((entry) => !value || `${entry.label} ${entry.id} ${entry.desc}`.toLowerCase().includes(value))
+  }, [activeGroup, query])
+  const effortOptions = provider === "codex" ? CODEX_EFFORT_LABELS : NOVA_EFFORTS
+  const effortLabel = effortOptions.find((item) => item.id === effort)?.label ?? "High"
+  const selectedChip = `${modelChipLabel(provider, model)} · ${effortLabel}`
+
+  return <Popover open={open} onOpenChange={(next) => { if (next) setActiveProvider(provider); setOpen(next); if (!next) setQuery("") }}>
+    <PopoverTrigger asChild><button type="button" aria-label={`Select model: ${selectedChip}`} className="flex h-11 w-full items-center gap-3 rounded-lg border border-white/10 bg-[#202020] px-3 text-left transition hover:border-white/20"><span className="flex size-6 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.08] text-[11px] text-neutral-200">{groups.find((group) => group.id === provider)?.glyph ?? "AI"}</span><span className="min-w-0 flex-1 truncate text-sm text-neutral-200">{selectedChip}</span><ChevronDown className={cn("size-4 text-neutral-500 transition-transform", open && "rotate-180")} /></button></PopoverTrigger>
+    <PopoverContent side="top" align="start" sideOffset={8} collisionPadding={12} className="dark flex h-[min(500px,var(--radix-popover-content-available-height))] w-[360px] max-w-[calc(100vw-24px)] overflow-hidden rounded-xl border-white/10 bg-[#1a1a1a] p-0 text-[#e8e8e8] shadow-[0_20px_60px_rgba(0,0,0,0.55)]">
+      <div className="flex min-h-0 w-full">
+        <div className="w-[52px] shrink-0 overflow-y-auto border-r border-white/[0.07] bg-[#141414] py-2">{groups.map((group) => <button key={group.id} type="button" aria-label={group.label} aria-pressed={activeGroup?.id === group.id} onClick={() => setActiveProvider(group.id)} className={cn("mx-auto mb-1 flex size-8 items-center justify-center rounded-lg text-[13px] transition", activeGroup?.id === group.id ? "bg-[#343434] text-white ring-1 ring-white/10" : "text-[#909090] hover:bg-white/[0.07] hover:text-white")}>{group.glyph}</button>)}</div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="flex h-11 shrink-0 items-center gap-2 border-b border-white/[0.06] px-3"><div className="min-w-0 flex-1"><p className="truncate text-[13px] font-medium text-white">{activeGroup?.label ?? "Model provider"}</p><p className="truncate text-[10px] text-[#777]">{activeGroup?.version ?? `${activeGroup?.models.length ?? 0} models`}</p></div></div>
+          <div className="flex h-9 shrink-0 items-center gap-2 px-2"><Search className="size-3.5 text-[#666]" /><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search models" aria-label="Search models" className="h-7 min-w-0 flex-1 rounded-md bg-[#2a2a2a] px-2.5 text-[12px] text-white outline-none placeholder:text-[#888]" /></div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1"><p className="px-2 py-1.5 text-[10px] uppercase tracking-[0.08em] text-[#777]">{activeGroup?.label ?? "Models"}</p>{filteredModels.map((entry) => { const active = entry.provider === provider && entry.id === model; return <button key={`${entry.provider}:${entry.id}`} type="button" onClick={() => { onChange({ provider: entry.provider, model: entry.id }); setOpen(false); setQuery("") }} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-white/[0.06]"><span className={cn("flex size-4 shrink-0 items-center justify-center rounded-full border", active ? "border-white bg-white text-black" : "border-[#5a5a5a]")}>{active ? <Check className="size-3" /> : null}</span><span className="min-w-0 flex-1 truncate text-[12.5px] text-[#e8e8e8]">{entry.label}</span><span className="max-w-24 truncate text-[10px] text-[#777]">{entry.desc}</span></button> })}{!filteredModels.length ? <p className="px-2 py-6 text-center text-[12px] text-[#777]">No models match</p> : null}</div>
+          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-white/[0.06] px-3 py-2"><span className="text-[11px] text-[#999]">Effort</span><select aria-label="Agent effort" value={effort} onChange={(event) => onEffortChange(event.target.value as NovaEffort)} className="h-7 min-w-28 rounded-md border border-white/10 bg-[#303030] px-2 text-[12px] text-[#e8e8e8] outline-none focus:border-[#2dd4bf]">{effortOptions.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></div>
+        </div>
+      </div>
+    </PopoverContent>
+  </Popover>
 }
 
 function AgentMemoryView({ agent, query, matches, loading, onQueryChange, onBack, onDelete }: {

@@ -57,7 +57,7 @@ export function deleteAgentMemory(agentId: string, memoryId: string) {
   return requestJson<void>(`/api/nova/agents/${encodeURIComponent(agentId)}/memory/${encodeURIComponent(memoryId)}`, { method: "DELETE" })
 }
 
-export function updateAgent(id: string, input: Partial<{ name: string; description: string; instructions: string; provider: string; model: string; avatarType: string; avatarColor: string; status: "active" | "archived" }>) {
+export function updateAgent(id: string, input: Partial<{ name: string; description: string; instructions: string; provider: string; model: string; effort: NovaEffort; avatarType: string; avatarColor: string; status: "active" | "archived" }>) {
   return requestJson<{ agent: NovaAgent }>(`/api/nova/agents/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -75,6 +75,7 @@ export function createAgent(input: {
   instructions: string
   provider?: string
   model?: string
+  effort?: NovaEffort
   avatarType?: string
   avatarColor?: string
 }) {

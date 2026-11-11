@@ -8,6 +8,7 @@ export const agentInputSchema = z.object({
   model: z.string().trim().max(160).optional().default(""),
   avatarType: z.string().trim().max(32).optional().default("clover"),
   avatarColor: z.string().trim().max(32).optional().default("#3b93ed"),
+  effort: z.enum(["none", "minimal", "low", "medium", "high", "xhigh"]).optional().default("high"),
 })
 
 export const agentUpdateSchema = agentInputSchema.partial().extend({

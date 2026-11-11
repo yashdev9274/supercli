@@ -227,6 +227,7 @@ model NovaAgent {
   model          String?
   avatarType     String       @default("clover")
   avatarColor    String       @default("#3b93ed")
+  effort         String       @default("high")
   status         String       @default("active")
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
