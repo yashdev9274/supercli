@@ -27,7 +27,6 @@ export function AgentsView({ path, onNavigate }: { path: string; onNavigate: (hr
   const [selectedAgent, setSelectedAgent] = useState<NovaAgent | null>(null)
   const [chats, setChats] = useState<AgentSessionSummary[]>([])
   const [query, setQuery] = useState("")
-  const [task, setTask] = useState("")
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -81,7 +80,7 @@ export function AgentsView({ path, onNavigate }: { path: string; onNavigate: (hr
       setDraft({ name: "", description: "", instructions: "", provider: "supercode", model: CLOUD_MODELS[0]?.id ?? "", effort: "high", avatarType: "clover", avatarColor: "#3b93ed" })
       setAvatarType("clover")
       setAvatarColor("#3b93ed")
-      onNavigate(`/agents/${data.agent.id}`)
+      await openAgentChat(data.agent)
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Could not create agent")
     } finally {
@@ -89,15 +88,19 @@ export function AgentsView({ path, onNavigate }: { path: string; onNavigate: (hr
     }
   }
 
-  async function startTask() {
-    if (!selectedAgent || !task.trim() || busy) return
+  async function openAgentChat(agent: NovaAgent) {
+    const data = await createSession(`Chat with ${agent.name}`, { agentId: agent.id, mode: "agent" })
+    onNavigate(`/agents/${agent.id}/chats/${data.session.id}`)
+  }
+
+  async function openNewChat() {
+    if (!selectedAgent || busy) return
     setBusy(true)
     setError(null)
     try {
-      const data = await createSession(task.trim(), { agentId: selectedAgent.id, mode: "agent" })
-      onNavigate(`/agents/${selectedAgent.id}/chats/${data.session.id}`)
+      await openAgentChat(selectedAgent)
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Could not start agent task")
+      setError(failure instanceof Error ? failure.message : "Could not open agent chat")
     } finally {
       setBusy(false)
     }
@@ -146,7 +149,7 @@ export function AgentsView({ path, onNavigate }: { path: string; onNavigate: (hr
       ) : selectedAgent && memoryRoute ? (
         <AgentMemoryView agent={selectedAgent} query={memoryQuery} matches={memoryMatches} loading={memoryLoading} onQueryChange={setMemoryQuery} onBack={() => onNavigate(`/agents/${selectedAgent.id}`)} onDelete={async (id) => { await deleteAgentMemory(selectedAgent.id, id); setMemoryMatches((current) => current.filter((item) => item.id !== id)) }} />
       ) : selectedAgent ? (
-        <AgentDetail agent={selectedAgent} chats={chats} task={task} busy={busy} onTaskChange={setTask} onStartTask={() => void startTask()} onOpenChat={(id) => onNavigate(`/agents/${selectedAgent.id}/chats/${id}`)} onOpenMemory={() => onNavigate(`/agents/${selectedAgent.id}/memory`)} onAgentChange={setSelectedAgent} onDeleted={() => onNavigate("/agents")} />
+        <AgentDetail agent={selectedAgent} chats={chats} busy={busy} onNewChat={() => void openNewChat()} onOpenChat={(id) => onNavigate(`/agents/${selectedAgent.id}/chats/${id}`)} onOpenMemory={() => onNavigate(`/agents/${selectedAgent.id}/memory`)} onAgentChange={setSelectedAgent} onDeleted={() => onNavigate("/agents")} />
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-10 pt-5">
           <div className="mx-auto max-w-[820px]">
@@ -160,7 +163,7 @@ export function AgentsView({ path, onNavigate }: { path: string; onNavigate: (hr
   )
 }
 
-function AgentDetail({ agent, chats, task, busy, onTaskChange, onStartTask, onOpenChat, onOpenMemory, onAgentChange, onDeleted }: { agent: NovaAgent; chats: AgentSessionSummary[]; task: string; busy: boolean; onTaskChange: (value: string) => void; onStartTask: () => void; onOpenChat: (id: string) => void; onOpenMemory: () => void; onAgentChange: (agent: NovaAgent) => void; onDeleted: () => void }) {
+function AgentDetail({ agent, chats, busy, onNewChat, onOpenChat, onOpenMemory, onAgentChange, onDeleted }: { agent: NovaAgent; chats: AgentSessionSummary[]; busy: boolean; onNewChat: () => void; onOpenChat: (id: string) => void; onOpenMemory: () => void; onAgentChange: (agent: NovaAgent) => void; onDeleted: () => void }) {
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [draft, setDraft] = useState({ name: agent.name, description: agent.description, instructions: agent.instructions })
@@ -168,9 +171,8 @@ function AgentDetail({ agent, chats, task, busy, onTaskChange, onStartTask, onOp
   const saveAgent = async () => { setSaving(true); try { const result = await updateAgent(agent.id, draft); onAgentChange(result.agent); setEditing(false) } finally { setSaving(false) } }
   const archiveAgent = async () => { setSaving(true); try { const result = await updateAgent(agent.id, { status: "archived" }); onAgentChange(result.agent) } finally { setSaving(false) } }
   const removeAgent = async () => { setSaving(true); try { await deleteAgent(agent.id); onDeleted() } finally { setSaving(false) } }
-  return <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-10 pt-7"><div className="mx-auto max-w-[820px]"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.07] text-neutral-300"><Bot className="size-5" /></span><div><h1 className="text-xl font-medium tracking-[-0.025em]">{agent.name}</h1><p className="mt-1 text-sm text-neutral-500">{agent.description || "Private Nova coding agent"}</p></div></div><div className="mt-4 flex gap-2"><button type="button" className={button} onClick={() => setEditing((value) => !value)}>{editing ? "Cancel" : "Edit agent"}</button><button type="button" className={cn(button, "text-amber-300")} disabled={saving} onClick={() => void archiveAgent()}>Archive</button><button type="button" className={cn(button, "text-red-300")} disabled={saving} onClick={() => setShowDelete(true)}>Delete</button></div>{editing ? <div className="mt-5 space-y-3 rounded-xl border border-white/10 bg-white/[0.025] p-4"><input aria-label="Edit agent name" className={field} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /><input aria-label="Edit agent description" className={field} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /><textarea aria-label="Edit agent instructions" className={cn(field, "min-h-32 resize-y")} value={draft.instructions} onChange={(event) => setDraft({ ...draft, instructions: event.target.value })} /><button type="button" className={button} disabled={saving || !draft.name.trim() || !draft.instructions.trim()} onClick={() => void saveAgent()}>{saving ? <Loader2 className="size-3 animate-spin" /> : null}Save changes</button></div> : null}{showDelete ? <div className="mt-3 rounded-lg border border-red-400/20 bg-red-400/5 p-3 text-xs text-red-200">Delete this agent permanently? <button type="button" className="ml-2 underline" disabled={saving} onClick={() => void removeAgent()}>Delete permanently</button><button type="button" className="ml-3 text-neutral-400" onClick={() => setShowDelete(false)}>Cancel</button></div> : null}<div className="mt-7 rounded-xl border border-white/10 bg-white/[0.025] p-4"><p className="text-xs font-medium text-neutral-300">Start a task</p><textarea aria-label="Agent task" value={task} onChange={(event) => onTaskChange(event.target.value)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") onStartTask() }} className={cn(field, "mt-3 min-h-24 resize-y")} placeholder={`Ask ${agent.name} to work on something…`} /><div className="mt-3 flex items-center justify-between gap-3"><span className="text-[11px] text-neutral-600">Ctrl/⌘ + Enter to start</span><button type="button" className={button} disabled={busy || !task.trim()} onClick={onStartTask}>{busy ? <Loader2 className="size-3 animate-spin" /> : null}Start task</button></div></div><button type="button" className={cn(button, "mt-3")} onClick={onOpenMemory}><Brain className="size-3.5" />Manage memory</button><div className="mt-8"><div className="flex items-center justify-between"><h2 className="text-sm font-medium text-neutral-300">Agent chats</h2><span className="text-xs text-neutral-600">{chats.length}</span></div>{chats.length ? <div className="mt-3 divide-y divide-white/[0.06] rounded-xl border border-white/10">{chats.map((chat) => <button type="button" key={chat.id} onClick={() => onOpenChat(chat.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.035]"><span className="size-1.5 shrink-0 rounded-full bg-sky-400" /><span className="min-w-0 flex-1 truncate text-xs text-neutral-300">{chat.objective}</span><span className="shrink-0 text-[11px] text-neutral-600">{chat.status}</span></button>)}</div> : <p className="mt-3 rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-xs text-neutral-600">No chats yet. Start the first task above.</p>}</div></div></div>
+  return <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-10 pt-7"><div className="mx-auto max-w-[820px]"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.07] text-neutral-300"><Bot className="size-5" /></span><div><h1 className="text-xl font-medium tracking-[-0.025em]">{agent.name}</h1><p className="mt-1 text-sm text-neutral-500">{agent.description || "Private Nova coding agent"}</p></div></div><div className="mt-4 flex flex-wrap gap-2"><button type="button" className={button} disabled={busy || saving} onClick={onNewChat}>New chat</button><button type="button" className={button} onClick={() => setEditing((value) => !value)}>{editing ? "Cancel" : "Edit agent"}</button><button type="button" className={cn(button, "text-amber-300")} disabled={saving} onClick={() => void archiveAgent()}>Archive</button><button type="button" className={cn(button, "text-red-300")} disabled={saving} onClick={() => setShowDelete(true)}>Delete</button></div>{editing ? <div className="mt-5 space-y-3 rounded-xl border border-white/10 bg-white/[0.025] p-4"><input aria-label="Edit agent name" className={field} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /><input aria-label="Edit agent description" className={field} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /><textarea aria-label="Edit agent instructions" className={cn(field, "min-h-32 resize-y")} value={draft.instructions} onChange={(event) => setDraft({ ...draft, instructions: event.target.value })} /><button type="button" className={button} disabled={saving || !draft.name.trim() || !draft.instructions.trim()} onClick={() => void saveAgent()}>{saving ? <Loader2 className="size-3 animate-spin" /> : null}Save changes</button></div> : null}{showDelete ? <div className="mt-3 rounded-lg border border-red-400/20 bg-red-400/5 p-3 text-xs text-red-200">Delete this agent permanently? <button type="button" className="ml-2 underline" disabled={saving} onClick={() => void removeAgent()}>Delete permanently</button><button type="button" className="ml-2 underline" onClick={() => setShowDelete(false)}>Cancel</button></div> : null}<button type="button" onClick={onOpenMemory} className={cn(button, "mt-5")}>Manage memory</button><div className="mt-8 flex items-center justify-between"><h2 className="text-sm font-medium text-neutral-300">Agent chats</h2><span className="text-xs text-neutral-600">{chats.length}</span></div>{chats.length ? <div className="mt-3 space-y-2">{chats.map((chat) => <button key={chat.id} type="button" onClick={() => onOpenChat(chat.id)} className="flex w-full items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-3 text-left hover:border-white/20"><span className="min-w-0 truncate text-xs text-neutral-300">{chat.objective}</span><span className="ml-3 shrink-0 text-[11px] text-neutral-600">{new Date(chat.updatedAt).toLocaleDateString()}</span></button>)}</div> : <div className="mt-3 rounded-xl border border-dashed border-white/10 px-6 py-10 text-center"><p className="text-xs text-neutral-600">No chats yet. Open a new chat to get started.</p></div>}</div></div>
 }
-
 function AgentCard({ agent, onOpen }: { agent: NovaAgent; onOpen: () => void }) {
   return <button type="button" onClick={onOpen} className="group rounded-xl border border-white/[0.09] bg-white/[0.025] p-4 text-left transition hover:border-white/20 hover:bg-white/[0.045] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#17304a]"><BotAvatar type={(agent.avatarType as BotAvatarType) || avatarForAgent(agent)} color={agent.avatarColor || colorForAgent(agent)} size={34} state="default" seed={agent.id.length / 10} interactive={false} /></span><div className="min-w-0 flex-1"><p className="truncate font-medium text-neutral-200 group-hover:text-white">{agent.name}</p><p className="mt-1 text-[11px] text-emerald-300">{agent.status === "active" ? "Ready" : agent.status}</p></div></div>{agent.description ? <p className="mt-4 line-clamp-2 text-xs leading-5 text-neutral-500">{agent.description}</p> : null}<p className="mt-3 truncate text-[11px] text-neutral-600">{modelChipLabel(agent.provider, agent.model)}</p></button>
 }
