@@ -64,8 +64,10 @@ model Organization {
   desktopDevices           DesktopDevice[]
   webLocalProjects         WebLocalProject[]
   automations              NovaAutomation[]
+  agents                   NovaAgent[]
   browserSessions          NovaBrowserSession[]
   feedbacks                NovaFeedback[]
+  agentMemoryLinks         NovaAgentMemoryLink[]
 
   @@map("organization")
 }
@@ -92,6 +94,8 @@ model User {
   desktopDevices          DesktopDevice[]
   webLocalProjects        WebLocalProject[]
   browserSessions         NovaBrowserSession[]
+  novaAgents              NovaAgent[]
+  agentMemoryLinks         NovaAgentMemoryLink[]
 
   @@unique([email])
   @@index([organizationId])
@@ -210,6 +214,56 @@ model ReviewCreditEntry {
   @@map("review_credit_entry")
 }
 
+model NovaAgent {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ownerUserId    String
+  ownerUser      User         @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?      @db.Text
+  instructions   String       @db.Text
+  provider       String?
+  model          String?
+  avatarType     String       @default("clover")
+  avatarColor    String       @default("#3b93ed")
+  effort         String       @default("high")
+  status         String       @default("active")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  archivedAt     DateTime?
+  sessions       AgentSession[]
+  memoryLinks    NovaAgentMemoryLink[]
+  automations    NovaAutomation[]
+
+  @@index([organizationId, ownerUserId, status, updatedAt])
+  @@index([ownerUserId, createdAt])
+  @@map("nova_agent")
+}
+
+model NovaAgentMemoryLink {
+  id                    String        @id @default(cuid())
+  organizationId        String
+  organization          Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ownerUserId           String
+  ownerUser             User          @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  agentId               String
+  agent                 NovaAgent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  sessionId             String?
+  session               AgentSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  taskId                String?
+  supermemoryDocumentId String?
+  memoryType            String
+  source                String
+  status                String        @default("queued")
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  @@index([ownerUserId, agentId, status])
+  @@index([agentId, createdAt])
+  @@map("nova_agent_memory_link")
+}
+
 model NovaAutomation {
   id                  String @id @default(cuid())
   organizationId      String
@@ -223,6 +277,8 @@ model NovaAutomation {
   onlyRunWhen         String @db.Text
   model               String
   provider            String
+  agentId             String?
+  agent               NovaAgent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
   effort              String @default("medium")
   triggers            Json
   repositoryIds       Json
@@ -517,6 +573,8 @@ model AgentSession {
   organization          Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   initiatorMembershipId String?
   initiatorMembership   OrganizationMembership? @relation(fields: [initiatorMembershipId], references: [id], onDelete: SetNull)
+  agentId               String?
+  agent                 NovaAgent?              @relation(fields: [agentId], references: [id], onDelete: SetNull)
   objective             String                  @db.Text
   mode                  String                  @default("chat")
   status                String                  @default("active") // active | sleeping | completed | cancelled | failed
@@ -547,8 +605,10 @@ model AgentSession {
   automationRun  NovaAutomationRun?
   sandboxSessions NovaSandboxSession[]
   feedbacks       NovaFeedback[]
+  memoryLinks     NovaAgentMemoryLink[]
 
   @@index([organizationId, status, updatedAt])
+  @@index([agentId, updatedAt])
   @@index([initiatorMembershipId])
   @@index([parentSessionId, createdAt])
   @@index([localProjectId])

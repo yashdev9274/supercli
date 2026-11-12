@@ -11,6 +11,7 @@ const createSessionSchema = z.object({
   surface: z.enum(["web", "desktop"]).optional(),
   localProjectId: z.string().trim().min(1).max(64).optional().nullable(),
   parentSessionId: z.string().trim().min(1).max(64).optional(),
+  agentId: z.string().trim().min(1).max(64).optional().nullable(),
 })
 
 async function currentUserId() {
@@ -23,8 +24,10 @@ export async function GET(request: NextRequest) {
     const userId = await currentUserId()
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     const parentSessionId = request.nextUrl.searchParams.get("parentSessionId")
+    const agentId = request.nextUrl.searchParams.get("agentId")
     if (parentSessionId && parentSessionId.length > 64) return NextResponse.json({ error: "Invalid parent thread" }, { status: 400 })
-    return NextResponse.json({ sessions: await listAgentSessions(userId, parentSessionId) })
+    if (agentId && agentId.length > 64) return NextResponse.json({ error: "Invalid agent" }, { status: 400 })
+    return NextResponse.json({ sessions: await listAgentSessions(userId, parentSessionId, agentId) })
   } catch (error) {
     console.error("[api/nova/sessions]", error)
     return NextResponse.json({ error: "Failed to load Nova sessions" }, { status: 500 })
@@ -46,6 +49,7 @@ export async function POST(request: NextRequest) {
       surface: parsed.data.surface ?? "web",
       localProjectId: parsed.data.localProjectId,
       parentSessionId: parsed.data.parentSessionId,
+      agentId: parsed.data.agentId,
     })
     return NextResponse.json({ session }, { status: 201 })
   } catch (error) {

@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import {
@@ -14,7 +15,7 @@ import {
 import { cn } from "@/lib/utils"
 import { stripProposalTrailer } from "@/modules/nova-web/apply-proposals"
 import { NovaIcon } from "@/modules/nova-web/components/nova-icon"
-import type { ApprovalRequest, TimelineEntry } from "@/modules/nova-web/types"
+import type { ApprovalRequest, HarnessInteractionData, TimelineActivity, TimelineEntry } from "@/modules/nova-web/types"
 
 export function NovaMark({ size = "md" }: { size?: "sm" | "md" }) {
   return (
@@ -108,7 +109,70 @@ export function WorkedFor({ seconds, ms }: { seconds?: number; ms?: number }) {
   )
 }
 
-export function TimelineItem({ entry }: { entry: TimelineEntry }) {
+export function HarnessQuestionCard({
+  activity,
+  deciding,
+  onSubmit,
+}: {
+  activity: TimelineActivity
+  deciding: boolean
+  onSubmit: (activity: TimelineActivity, answers: string[]) => void
+}) {
+  const data = activity.data as HarnessInteractionData | null
+  const questions = data?.payload?.args?.questions ?? []
+  const [selected, setSelected] = useState<Record<number, string[]>>({})
+  if (activity.status !== "pending" || data?.kind !== "question" || questions.length === 0) return null
+
+  const answer = (index: number) => (selected[index] ?? []).join(", ")
+  const complete = questions.every((question, index) => question.options?.length ? Boolean(answer(index)) : true)
+  return (
+    <article className="my-3 max-w-[620px] rounded-2xl border border-white/[0.08] bg-[#1f1f1f] p-4 shadow-lg">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[13px] font-medium text-white">Nova has a question</p>
+          {questions.map((question, index) => (
+            <div key={`${question.question}-${index}`} className={cn(index ? "mt-4" : "mt-2")}>
+              {question.header ? <p className="mb-1 text-[11px] uppercase tracking-[0.08em] text-[#6f6f6f]">{question.header}</p> : null}
+              <p className="text-[14px] leading-6 text-[#e3e3e3]">{question.question}</p>
+              {question.options?.length ? (
+                <div className="mt-3 space-y-2">
+                  {question.options.map((option, optionIndex) => {
+                    const active = (selected[index] ?? []).includes(option.label)
+                    return (
+                      <button
+                        key={option.label}
+                        type="button"
+                        disabled={deciding}
+                        onClick={() => setSelected((current) => {
+                          const currentValues = current[index] ?? []
+                          const next = question.multiple
+                            ? active ? currentValues.filter((value) => value !== option.label) : [...currentValues, option.label]
+                            : [option.label]
+                          return { ...current, [index]: next }
+                        })}
+                        className={cn("flex w-full items-start gap-3 rounded-xl border px-3 py-2.5 text-left transition", active ? "border-[#2dd4bf]/60 bg-[#2dd4bf]/10" : "border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05]", deciding && "opacity-60")}
+                      >
+                        <span className={cn("flex size-5 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold", active ? "bg-[#2dd4bf] text-[#0a0a0a]" : "bg-[#315256] text-[#8edbd0]")}>{String.fromCharCode(65 + optionIndex)}</span>
+                        <span className="min-w-0"><span className="block text-[13px] text-[#e2e2e2]">{option.label}</span>{option.description ? <span className="mt-0.5 block text-[12px] leading-5 text-[#8b8b8b]">{option.description}</span> : null}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+        <span className="text-[#6b6b6b]">×</span>
+      </div>
+      <div className="flex items-center justify-end gap-2">
+        <button type="button" disabled={deciding} onClick={() => onSubmit(activity, questions.map((_, index) => answer(index) || "Skipped"))} className="rounded-lg px-3 py-1.5 text-[12px] text-[#9a9a9a] hover:bg-white/[0.05]">Skip</button>
+        <button type="button" disabled={deciding || !complete} onClick={() => onSubmit(activity, questions.map((_, index) => answer(index)))} className="rounded-lg bg-[#a0a0a0] px-4 py-1.5 text-[12px] font-medium text-[#141414] transition hover:bg-white disabled:opacity-40">{deciding ? "Saving…" : "Done"}</button>
+      </div>
+    </article>
+  )
+}
+
+export function TimelineItem({ entry, onInteractionAnswer, decidingInteractionId }: { entry: TimelineEntry; onInteractionAnswer?: (activity: TimelineActivity, answers: string[]) => void; decidingInteractionId?: string | null }) {
   if (entry.kind === "message") {
     const fromUser = entry.role === "user"
     if (fromUser) {
@@ -140,6 +204,10 @@ export function TimelineItem({ entry }: { entry: TimelineEntry }) {
   const isError = entry.type === "error"
   const isApproval = entry.type === "approval_request"
   const isResponse = entry.type === "response"
+
+  if (entry.type === "harness_interaction") {
+    return onInteractionAnswer ? <HarnessQuestionCard activity={entry} deciding={decidingInteractionId === entry.id} onSubmit={onInteractionAnswer} /> : null
+  }
 
   if (isResponse && entry.body) {
     return (

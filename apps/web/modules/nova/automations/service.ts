@@ -29,7 +29,7 @@ type AutomationRow = Prisma.NovaAutomationGetPayload<{ include: typeof includeAu
 
 function serialize(row: AutomationRow, member: { id: string; role: string }): AutomationDto {
   return {
-    ...automationInputSchema.parse({ ...row, postAsRunAs: false }),
+    ...automationInputSchema.parse({ ...row, agentId: row.agentId ?? "", postAsRunAs: false }),
     id: row.id, creatorMembershipId: row.creatorMembershipId,
     creatorName: row.creator.user.name, runAsName: row.runAs.user.name,
     canManage: canManageAutomation(member, row.creatorMembershipId),
@@ -40,15 +40,16 @@ function serialize(row: AutomationRow, member: { id: string; role: string }): Au
 
 export async function getAutomationContext(userId: string): Promise<AutomationContext> {
   const member = await automationMembership(userId)
-  const [org, members, repositories, installations] = await Promise.all([
+  const [org, members, repositories, agents, installations] = await Promise.all([
     prisma.organization.findUniqueOrThrow({ where: { id: member.organizationId }, select: { name: true } }),
     prisma.organizationMembership.findMany({ where: { organizationId: member.organizationId, status: "active", ...((member.role === "admin" || member.role === "owner") ? {} : { id: member.id }) }, select: { id: true, user: { select: { name: true } } } }),
     prisma.repository.findMany({ where: { organizationId: member.organizationId }, select: { id: true, fullName: true }, orderBy: { fullName: "asc" } }),
+    prisma.novaAgent.findMany({ where: { organizationId: member.organizationId, ownerUserId: member.userId, status: "active" }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.externalInstallation.findMany({ where: { organizationId: member.organizationId, status: "active" }, select: { provider: true } }),
   ])
   return {
     organizationName: org.name, membershipId: member.id,
-    members: members.map((item) => ({ id: item.id, name: item.user.name })), repositories,
+    members: members.map((item) => ({ id: item.id, name: item.user.name })), repositories, agents,
     connections: ["slack", "github", "linear"].map((provider) => ({ provider, connected: installations.some((item) => item.provider === provider) })),
   }
 }
@@ -86,11 +87,16 @@ export async function saveAutomation(userId: string, raw: unknown, id?: string) 
   if (id) await getAutomation(userId, id, true)
   if (input.runAsMembershipId !== member.id && !["owner", "admin"].includes(member.role)) throw automationError("Only admins can select another run-as account", 403)
   await validateAutomationAccess(input, member.organizationId)
-  const { postAsRunAs: _postAsRunAs, ...data } = input
+  const { postAsRunAs: _postAsRunAs, agentId: rawAgentId, ...data } = input
+  const agentId = rawAgentId || null
+  if (agentId) {
+    const agent = await prisma.novaAgent.findFirst({ where: { id: agentId, organizationId: member.organizationId, ownerUserId: member.userId, status: "active" }, select: { id: true } })
+    if (!agent) throw automationError("Selected agent is not available", 403)
+  }
   void _postAsRunAs
   const row = id
     ? await prisma.novaAutomation.update({ where: { id, organizationId: member.organizationId }, data: { ...data, version: { increment: 1 } }, include: includeAutomation })
-    : await prisma.novaAutomation.create({ data: { ...data, organizationId: member.organizationId, creatorMembershipId: member.id }, include: includeAutomation })
+    : await prisma.novaAutomation.create({ data: { ...data, agentId, organizationId: member.organizationId, creatorMembershipId: member.id }, include: includeAutomation })
   return serialize(row, member)
 }
 

@@ -20,15 +20,22 @@ export function AccountMenu({
   onNavigate,
   align = "left",
   className,
+  compact = false,
 }: {
   user: NovaUser
   onNavigate: (href: string) => void
   align?: "left" | "right"
   className?: string
+  compact?: boolean
 }) {
   const [open, setOpen] = useState(false)
+  const [imageFailed, setImageFailed] = useState(false)
   const [busy, setBusy] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setImageFailed(false)
+  }, [user.image])
 
   useEffect(() => {
     if (!open) return
@@ -61,21 +68,27 @@ export function AccountMenu({
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-left transition hover:bg-white/[0.04]"
+        className={cn(
+          "flex items-center rounded-lg py-1.5 text-left transition hover:bg-white/[0.04]",
+          compact ? "size-9 justify-center px-1.5" : "w-full gap-2.5 px-1.5",
+        )}
+        aria-label={compact ? `${user.name} account menu` : undefined}
       >
-        {user.image ? (
+        {user.image && !imageFailed ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={user.image} alt="" className="size-7 rounded-full object-cover" />
+          <img src={user.image} alt="" onError={() => setImageFailed(true)} className="size-7 shrink-0 rounded-full object-cover" />
         ) : (
-          <div className="flex size-7 items-center justify-center rounded-full bg-gradient-to-br from-[#2dd4bf] to-[#0f766e] text-[10px] font-semibold text-white">
-            {user.name.slice(0, 1).toUpperCase()}
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#2dd4bf] to-[#0f766e] text-[10px] font-semibold text-white">
+            {user.name.trim().slice(0, 1).toUpperCase() || "?"}
           </div>
         )}
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[12px] font-medium text-[#c8c8c8]">{user.name}</p>
-          <p className="truncate text-[11px] text-[#5c5c5c]">Your workspace</p>
-        </div>
-        <ChevronUp className={cn("size-3.5 text-[#3d3d3d] transition", open && "rotate-180")} />
+        {!compact ? <>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[12px] font-medium text-[#c8c8c8]">{user.name}</p>
+            <p className="truncate text-[11px] text-[#5c5c5c]">Your workspace</p>
+          </div>
+          <ChevronUp className={cn("size-3.5 shrink-0 text-[#3d3d3d] transition", open && "rotate-180")} />
+        </> : null}
       </button>
 
       {open ? (

@@ -44,6 +44,7 @@ import {
   MAX_NOVA_CONTEXT_ENTRIES,
 } from "@/modules/nova/runs/prompt"
 import { postSessionMessage } from "@/modules/nova/sessions/service"
+import { rememberAgentMemory, searchAgentMemory } from "@/modules/nova/agent-memory/service"
 import { resolveHarnessSelection } from "@/modules/nova-web/models"
 import { resolveNovaTurnMode } from "@/modules/nova-web/resolve-mode"
 import { WORK_MS } from "@/modules/nova/sandbox/policy"
@@ -135,21 +136,25 @@ function buildSystemPrompt(
   effort?: string | null,
   localProjectNote?: string | null,
   mode?: string | null,
+  memoryContext?: string[],
+  agent?: { name: string; description: string | null; instructions: string },
 ) {
-  return `You are Nova, Supercode's AI software engineer.
+  return `${agent ? `You are ${agent.name}, a personal NovaBot created by the user. You are not Nova's main software-engineering assistant. Follow this agent's instructions in every conversation.\n\nAgent description: ${agent.description || "Personal assistant"}\nAgent instructions:\n${agent.instructions}` : "You are Nova, Supercode's AI software engineer."}
 
 You run through the same Supercode harness as the Nova macOS app (provider routing, plan gates, usage).
 On the web you reason, review, draft, coordinate company work, and in Agent mode implement concrete code changes.
+${agent ? "- This is a separate NovaBot conversation. Do not present yourself as Nova or assume access to Nova's main engineering thread." : ""}
 - Prefer actionable guidance with file paths, commands, and concrete tradeoffs.
 - When <nova_local_files> or <nova_local_project_paths> are present, that IS the working tree for this turn. Read it and act on it.
 - Do not claim you wrote files back to disk, ran a local shell, or opened a desktop workspace unless a tool actually did.
 - Keep prose tight and senior. No filler.
 - ${effortHint(effort)}
 - ${modeDirective(mode)}
-- Session objective: ${objective}${localProjectNote ? `\n- ${localProjectNote}` : ""}`
+- Session objective: ${objective}${localProjectNote ? `\n- ${localProjectNote}` : ""}${memoryContext?.length ? `\n\nRelevant long-term agent memory:\n${memoryContext.map((item) => `- ${item}`).join("\n")}` : ""}`
 }
 
 async function buildTurnContext(
+  userId: string,
   sessionId: string,
   triggerSequence: number,
   fallbackUserContent: string,
@@ -161,6 +166,8 @@ async function buildTurnContext(
       where: { id: sessionId },
       select: {
         objective: true,
+        agentId: true,
+        agent: { select: { name: true, description: true, instructions: true } },
         localProject: {
           select: {
             id: true,
@@ -250,6 +257,10 @@ async function buildTurnContext(
       }
     : null
 
+  const memoryContext = session.agentId
+    ? await searchAgentMemory({ userId, agentId: session.agentId, query: fallbackUserContent, limit: 5 }).then((matches) => matches.map((match) => match.content)).catch(() => [])
+    : []
+
   const localProjectNote = localProject
     ? localProject.repositoryFullName
       ? `Active project “${localProject.displayName}” is GitHub repo ${localProject.repositoryFullName} (${localProject.fileCount} indexed paths). Packed sources land in <nova_local_files>. Implement against them with concrete diffs — do not ask the user to re-attach those files.`
@@ -257,14 +268,14 @@ async function buildTurnContext(
     : null
 
   const chatMessages: HarnessChatMessage[] = [
-    { role: "system", content: buildSystemPrompt(session.objective, effort, localProjectNote, mode) },
+    { role: "system", content: buildSystemPrompt(session.objective, effort, localProjectNote, mode, memoryContext, session.agent ?? undefined) },
     ...window.map((entry) => ({
       role: entry.role,
       content: entry.content,
     })),
   ]
 
-  return { objective: session.objective, messages: chatMessages, localProject }
+  return { objective: session.objective, messages: chatMessages, localProject, agentId: session.agentId }
 }
 
 function harnessContentToText(content: HarnessChatMessage["content"]): string {
@@ -512,6 +523,7 @@ export async function* runWebTurn(input: {
     }
 
     const context = await buildTurnContext(
+      input.userId,
       input.sessionId,
       posted.message.sequence,
       content,
@@ -978,6 +990,26 @@ export async function* runWebTurn(input: {
       body,
       model: modelTag,
     })
+    if (context.agentId) {
+      void rememberAgentMemory({
+        userId: input.userId,
+        agentId: context.agentId,
+        sessionId: input.sessionId,
+        content: `User request:\n${content.slice(0, 2000)}\n\nAgent result:\n${text.slice(0, 4000)}`,
+        memoryType: "task-result",
+        source: "agent",
+      }).catch(() => undefined)
+      if (/\\b(remember this|remember that|save this|keep this in mind)\\b/i.test(content)) {
+        void rememberAgentMemory({
+          userId: input.userId,
+          agentId: context.agentId,
+          sessionId: input.sessionId,
+          content: content.replace(/^\\s*(please\\s+)?(remember this|remember that|save this|keep this in mind)[:,-]?\\s*/i, "").slice(0, 4000),
+          memoryType: "preference",
+          source: "user",
+        }).catch(() => undefined)
+      }
+    }
     yield { type: "activity", activity: completed.activity }
     yield {
       type: "finish",

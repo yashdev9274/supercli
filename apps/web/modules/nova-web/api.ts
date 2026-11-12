@@ -1,6 +1,7 @@
 import type {
   AgentSessionSummary,
   ApprovalRequest,
+  NovaAgent,
   ConnectorStatus,
   SessionDetail,
   SyncCursor,
@@ -25,13 +26,69 @@ export async function requestJson<T>(url: string, init?: RequestInit): Promise<T
   return payload as T
 }
 
-export function listSessions(parentSessionId?: string) {
-  return requestJson<{ sessions: AgentSessionSummary[] }>(`/api/nova/sessions${parentSessionId ? `?parentSessionId=${encodeURIComponent(parentSessionId)}` : ""}`)
+export function listSessions(parentSessionId?: string, agentId?: string) {
+  const params = new URLSearchParams()
+  if (parentSessionId) params.set("parentSessionId", parentSessionId)
+  if (agentId) params.set("agentId", agentId)
+  const query = params.toString()
+  return requestJson<{ sessions: AgentSessionSummary[] }>(`/api/nova/sessions${query ? `?${query}` : ""}`)
+}
+
+export function listAgents() {
+  return requestJson<{ agents: NovaAgent[] }>("/api/nova/agents")
+}
+
+export function getAgent(id: string) {
+  return requestJson<{ agent: NovaAgent }>(`/api/nova/agents/${encodeURIComponent(id)}`)
+}
+
+export type AgentMemoryMatch = {
+  id: string
+  content: string
+  metadata: Record<string, unknown>
+  similarity: number
+}
+
+export function searchAgentMemory(agentId: string, query: string) {
+  return requestJson<{ memories: AgentMemoryMatch[] }>(`/api/nova/agents/${encodeURIComponent(agentId)}/memory?q=${encodeURIComponent(query)}`)
+}
+
+export function deleteAgentMemory(agentId: string, memoryId: string) {
+  return requestJson<void>(`/api/nova/agents/${encodeURIComponent(agentId)}/memory/${encodeURIComponent(memoryId)}`, { method: "DELETE" })
+}
+
+export function updateAgent(id: string, input: Partial<{ name: string; description: string; instructions: string; provider: string; model: string; effort: NovaEffort; avatarType: string; avatarColor: string; status: "active" | "archived" }>) {
+  return requestJson<{ agent: NovaAgent }>(`/api/nova/agents/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  })
+}
+
+export function deleteAgent(id: string) {
+  return requestJson<void>(`/api/nova/agents/${encodeURIComponent(id)}`, { method: "DELETE" })
+}
+
+export function createAgent(input: {
+  name: string
+  description?: string
+  instructions: string
+  provider?: string
+  model?: string
+  effort?: NovaEffort
+  avatarType?: string
+  avatarColor?: string
+}) {
+  return requestJson<{ agent: NovaAgent }>("/api/nova/agents", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  })
 }
 
 export function createSession(
   objective: string,
-  options?: { localProjectId?: string | null; mode?: "agent" | "plan" | "chat"; parentSessionId?: string },
+  options?: { localProjectId?: string | null; mode?: "agent" | "plan" | "chat"; parentSessionId?: string; agentId?: string },
 ) {
   return requestJson<{ session: AgentSessionSummary }>("/api/nova/sessions", {
     method: "POST",
@@ -42,6 +99,7 @@ export function createSession(
       surface: "web",
       localProjectId: options?.localProjectId ?? undefined,
       parentSessionId: options?.parentSessionId,
+      agentId: options?.agentId,
     }),
   })
 }
@@ -175,6 +233,20 @@ export type TurnEvent =
   | { type: "error"; message: string }
   | { type: "finish"; reason: string; runId?: string; latestSequence?: number; model?: string }
 
+export function decideHarnessInteraction(sessionId: string, input: {
+  runId: string
+  invocationId: string
+  hash: string
+  decision: "approve" | "deny" | "answer"
+  answers?: string[]
+}) {
+  return requestJson<{ runId: string; status: string }>(`/api/nova/sessions/${encodeURIComponent(sessionId)}/interactions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  })
+}
+
 export async function* streamTurn(
   sessionId: string,
   content: string,
@@ -187,6 +259,7 @@ export async function* streamTurn(
     mode?: "agent" | "plan" | "chat"
     references?: NovaReference[]
     localAttachments?: LocalAttachment[]
+    resumeRunId?: string
   },
 ): AsyncGenerator<TurnEvent> {
   const response = await fetch(`/api/nova/sessions/${sessionId}/turn`, {
@@ -213,6 +286,7 @@ export async function* streamTurn(
         text: file.text,
         dataBase64: file.dataBase64,
       })),
+      resumeRunId: options?.resumeRunId,
     }),
   })
   if (!response.ok || !response.body) {

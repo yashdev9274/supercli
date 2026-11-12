@@ -107,6 +107,7 @@ export function Composer({
   onLocalFilesChange,
   onLocalProjectChange,
   projectLocked = false,
+  modelLocked = false,
 }: {
   value: string
   onChange: (value: string) => void
@@ -130,6 +131,7 @@ export function Composer({
   onLocalFilesChange?: (files: LocalAttachment[]) => void
   onLocalProjectChange?: (project: LocalWorkspaceState) => void
   projectLocked?: boolean
+  modelLocked?: boolean
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const attachRef = useRef<HTMLButtonElement>(null)
@@ -615,7 +617,7 @@ export function Composer({
           provider={provider}
           model={model}
           chip={chip}
-          disabled={streaming}
+          disabled={streaming || modelLocked}
           onChange={onModelChange}
         />
 
@@ -802,18 +804,22 @@ function EffortPicker({
   )
 }
 
-function ModelPicker({
+export function ModelPicker({
   provider,
   model,
   chip,
   disabled,
   onChange,
+  effort,
+  onEffortChange,
 }: {
   provider: HarnessProvider
   model: string
   chip: string
   disabled?: boolean
   onChange?: (selection: { provider: HarnessProvider; model: string }) => void
+  effort?: NovaEffort
+  onEffortChange?: (effort: NovaEffort) => void
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
@@ -825,6 +831,8 @@ function ModelPicker({
     .filter(([id, state]) => Boolean(state?.connected && !HARNESS_PROVIDERS.some((item) => item.id === id)))
     .map(([id, state]) => ({ id: id as HarnessProvider, label: providerConnections.states[id]?.name || PROVIDER_INTEGRATION_BY_ID[id]?.label || id, models: (state?.models ?? []).map((entry) => ({ id: entry.id, provider: id as HarnessProvider, label: entry.label, desc: entry.description ?? "Available through the connected provider" })) })), [providerConnections.states])
   const dynamicModels = useMemo(() => dynamicProviders.flatMap((item) => item.models), [dynamicProviders])
+  const codexModel = codex.models.find((item) => item.id === model)
+  const effortOptions = provider === "codex" ? CODEX_EFFORT_LABELS.filter((item) => codexModel?.efforts.includes(item.id)) : NOVA_EFFORTS
   function changeOpen(nextOpen: boolean) {
     setOpen(nextOpen)
     if (!nextOpen) setQuery("")
@@ -984,6 +992,7 @@ function ModelPicker({
                 <p className="px-3 py-6 text-center text-[12px] text-[#5c5c5c]">No models match</p>
               ) : null}
             </div>
+            {effort && onEffortChange ? <div className="flex shrink-0 items-center justify-between gap-3 border-t border-white/[0.06] px-3 py-2 text-[11px] text-[#999]"><span>Effort</span><select aria-label="Agent effort" value={effort} onChange={(event) => onEffortChange(event.target.value as NovaEffort)} className="h-7 min-w-28 rounded-md border border-white/10 bg-[#303030] px-2 text-[12px] text-[#e8e8e8] outline-none focus:border-[#2dd4bf]">{(effortOptions.length ? effortOptions : NOVA_EFFORTS).map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></div> : null}
             <div className="shrink-0 border-t border-white/[0.06] px-3 py-2 text-[10px] leading-4 text-[#888]">
               <div className="flex items-center justify-between gap-2"><span>{HARNESS_PROVIDERS.length} providers · Subscription & cloud models</span><button type="button" onClick={openProviderSettings} className="text-[#aaa] hover:text-white">Manage providers</button></div>
             </div>

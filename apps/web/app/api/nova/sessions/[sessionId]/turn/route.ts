@@ -1,4 +1,5 @@
 import { auth } from "@super/auth/server"
+import prisma from "@super/db"
 import { headers } from "next/headers"
 import { NextRequest } from "next/server"
 import { z } from "zod"
@@ -68,7 +69,16 @@ export async function POST(
     })
   }
 
-  if (parsed.data.provider === CHATGPT_PROVIDER) {
+  const agentSelection = await prisma.agentSession.findFirst({
+    where: { id: sessionId, initiatorMembership: { userId: session.user.id } },
+    select: { agent: { select: { provider: true, model: true, effort: true } } },
+  })
+  const provider = parsed.data.provider ?? agentSelection?.agent?.provider ?? undefined
+  const model = parsed.data.model ?? agentSelection?.agent?.model ?? undefined
+  const agentEffort = codexEffortSchema.safeParse(agentSelection?.agent?.effort).success ? codexEffortSchema.parse(agentSelection?.agent?.effort) : undefined
+  const effort = parsed.data.effort ?? agentEffort
+
+  if (provider === CHATGPT_PROVIDER) {
     return Response.json(
       { error: CHATGPT_UNAVAILABLE_MESSAGE, code: CHATGPT_HOSTED_STATUS },
       { status: 503, headers: { "Cache-Control": "no-store" } },
@@ -81,28 +91,28 @@ export async function POST(
     return Response.json({ error: error instanceof Error ? error.message : "Invalid machine size" }, { status: 400 })
   }
 
-  const isCodex = parsed.data.provider === CODEX_PROVIDER
-  const isExternalProvider = Boolean(parsed.data.provider && isProviderCredentialProvider(parsed.data.provider))
+  const isCodex = provider === CODEX_PROVIDER
+  const isExternalProvider = Boolean(provider && isProviderCredentialProvider(provider))
   let chatTransport: ChatTransport | undefined
   if (isCodex) {
     try {
       assertCodexOrigin(request)
       const runtime = createCodexRuntime(await codexContextForRequest(request))
-      chatTransport = await runtime.prepare(parsed.data.model, parsed.data.effort, request.signal)
+      chatTransport = await runtime.prepare(model, effort, request.signal)
     } catch (error) {
       const safe = codexPublicError(error)
       return Response.json({ error: safe.message }, { status: safe.statusCode, headers: { "Cache-Control": "no-store" } })
     }
   } else if (isExternalProvider) {
     try {
-      const state = await readProviderConfig(request, parsed.data.provider!)
+      const state = await readProviderConfig(request, provider!)
       if (!state.config) throw new ProviderCredentialError(`Connect ${state.provider} in Settings → Models`, 409)
       chatTransport = createProviderTransport(state.provider, state.config)
     } catch (error) {
       const status = error instanceof ProviderCredentialError ? error.statusCode : 502
       return Response.json({ error: error instanceof Error ? error.message : "Provider connection failed" }, { status, headers: { "Cache-Control": "no-store" } })
     }
-  } else if (parsed.data.effort === "none" || parsed.data.effort === "minimal") {
+  } else if (effort === "none" || effort === "minimal") {
     return Response.json({ error: "This provider does not support the selected reasoning effort" }, { status: 400 })
   }
 
@@ -152,9 +162,9 @@ export async function POST(
           resumeRunId: parsed.data.resumeRunId,
           content: parsed.data.content,
           clientMessageId: parsed.data.clientMessageId,
-          model: parsed.data.model,
-          provider: parsed.data.provider,
-          effort: parsed.data.effort,
+          model,
+          provider,
+          effort,
           machineSize: parsed.data.machineSize,
           mode: parsed.data.mode ?? resolveNovaTurnMode({ message: parsed.data.content }).mode,
           harnessToken: harnessAuth?.token ?? "",

@@ -34,6 +34,16 @@ export type TimelineMessage = SyncCursor["messages"][number] & { kind: "message"
 export type TimelineActivity = SyncCursor["activities"][number] & { kind: "activity" }
 export type TimelineEntry = TimelineMessage | TimelineActivity
 
+export type HarnessQuestionOption = { label: string; description?: string }
+export type HarnessQuestion = { question: string; header?: string; options?: HarnessQuestionOption[]; multiple?: boolean }
+export type HarnessInteractionData = {
+  invocationId: string
+  kind: "question" | "approval"
+  payload: { toolName: string; args: { questions?: HarnessQuestion[] } }
+  expiresAt: string
+  decision?: string
+}
+
 export type NovaUser = {
   id: string
   name: string
@@ -44,6 +54,8 @@ export type NovaUser = {
 export type WorkspaceView =
   | "home"
   | "session"
+  | "agent-chat"
+  | "agents"
   | "approvals"
   | "automations"
   | "connections"
@@ -53,6 +65,23 @@ export type WorkspaceView =
   | "settings"
 
 export type { AgentSessionSummary, ApprovalRequest, ConnectorStatus }
+
+export type NovaAgent = {
+  id: string
+  ownerUserId: string
+  name: string
+  description: string
+  instructions: string
+  provider: string
+  model: string
+  avatarType: string
+  avatarColor: string
+  effort: string
+  status: string
+  createdAt: string
+  updatedAt: string
+  archivedAt: string | null
+}
 
 export const statusStyles: Record<string, string> = {
   active: "bg-emerald-400",

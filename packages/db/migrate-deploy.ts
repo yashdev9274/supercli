@@ -54,7 +54,7 @@ function resolveMigrateUrl(): string {
     return stripPooler(raw)
   }
   throw new Error(
-    "No database URL set for migrate. Expected DATABASE_URL_UNPOOLED, DIRECT_URL, or DATABASE_URL.",
+    "No database URL set for migrate. Set DATABASE_URL (or DATABASE_URL_UNPOOLED / DIRECT_URL) in apps/web/.env.local.",
   )
 }
 

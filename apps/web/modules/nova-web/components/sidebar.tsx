@@ -1,26 +1,40 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { BotAvatar, type BotAvatarType } from "bot-avatars"
 import {
+  Bot,
+  ChevronRight,
+  CircleDot,
+  Copy,
+  ExternalLink,
+  FolderInput,
   GitPullRequest,
   Link2,
   MessageSquare,
   MoreHorizontal,
   PanelLeft,
   Pencil,
+  Pin,
   Search,
+  Settings2,
+  Trash2,
   Zap,
   X,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { createAgent, deleteAgent, listAgents, listSessions } from "@/modules/nova-web/api"
 import { markThreadsRead } from "@/modules/nova-web/sidebar-state"
 import { useSidebarPreferences } from "@/modules/nova-web/use-sidebar-preferences"
+import type { NovaEffort } from "@/modules/nova-web/models"
 import { SidebarOptions } from "./sidebar-options"
 import { SidebarFolderDialog, SidebarThreads } from "./sidebar-threads"
 import { AccountMenu } from "@/modules/nova-web/components/account-menu"
 import { NovaChangelog } from "@/modules/nova-web/components/changelog"
 import { NovaIcon } from "@/modules/nova-web/components/nova-icon"
+import { AgentSettingsCard } from "@/modules/nova-web/components/agent-settings-card"
+import type { NovaAgent } from "@/modules/nova-web/types"
 import {
   type AgentSessionSummary,
   type NovaUser,
@@ -31,6 +45,7 @@ export function NovaSidebar({
   user,
   sessions,
   selectedId,
+  selectedAgentId,
   selectedPullId,
   view,
   query,
@@ -42,6 +57,7 @@ export function NovaSidebar({
   user: NovaUser
   sessions: AgentSessionSummary[]
   selectedId: string | null
+  selectedAgentId?: string | null
   selectedPullId?: string | null
   view: WorkspaceView
   query: string
@@ -61,8 +77,13 @@ export function NovaSidebar({
     updatePreferences((current) => ({ ...current, filters: { project: "all", participant: "all", creator: "all", origin: "all" }, collapsed: [] }))
   }
 
+  if (view === "agents" || view === "agent-chat") {
+    return <AgentSidebar user={user} selectedId={selectedId} selectedAgentId={selectedAgentId} onNavigate={onNavigate} />
+  }
+
   const threadsActive = view === "home" || view === "session"
   const pullsActive = view === "pulls" || view === "pull"
+  const agentsActive = false
 
   return (
     <aside className="flex h-full w-[244px] shrink-0 flex-col bg-[#0c0c0c] text-[#e8e8e8]">
@@ -110,6 +131,12 @@ export function NovaSidebar({
           onClick={() => onNavigate("/")}
         />
         <NavItem
+          active={agentsActive}
+          icon={<Bot className="size-3.5" strokeWidth={1.75} />}
+          label="Agents"
+          onClick={() => onNavigate("/agents")}
+        />
+        <NavItem
           active={view === "automations"}
           icon={<Zap className="size-3.5" strokeWidth={1.75} />}
           label="Automations"
@@ -138,7 +165,7 @@ export function NovaSidebar({
       <div className="mt-1 flex min-h-0 flex-1 flex-col border-t border-white/[0.04] pt-2">
         <div className="flex items-center px-3 pb-1.5">
           <span className="text-[11px] font-medium text-[#5c5c5c]">
-            {pullsActive ? "Review" : "Threads"}
+            {pullsActive ? "Review" : agentsActive ? "Agents" : "Threads"}
           </span>
           <div className="ml-auto flex items-center gap-0.5">
             <IconBtn
@@ -207,6 +234,10 @@ export function NovaSidebar({
                 Open a PR to run AI review, inspect diffs, and publish findings.
               </p>
             </div>
+          ) : agentsActive ? (
+            <div className="px-3 py-3 text-[11px] leading-4 text-[#5c5c5c]">
+              Create and manage your private agents in this workspace.
+            </div>
           ) : (
             <SidebarThreads
               sessions={sessions}
@@ -234,6 +265,128 @@ export function NovaSidebar({
       }} /> : null}
     </aside>
   )
+}
+
+function AgentSidebar({ user, selectedId, selectedAgentId, onNavigate }: { user: NovaUser; selectedId: string | null; selectedAgentId?: string | null; onNavigate: (href: string) => void }) {
+  const [agents, setAgents] = useState<NovaAgent[]>([])
+  const [chats, setChats] = useState<Record<string, AgentSessionSummary[]>>({})
+  const [query, setQuery] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [contextMenu, setContextMenu] = useState<{ agent: NovaAgent; x: number; y: number } | null>(null)
+  const [settingsAgent, setSettingsAgent] = useState<NovaAgent | null>(null)
+  const [hiddenIds, setHiddenIds] = useState<string[]>([])
+  const [pinnedIds, setPinnedIds] = useState<string[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    void listAgents()
+      .then(async ({ agents: nextAgents }) => {
+        const sessionEntries = await Promise.all(nextAgents.map(async (agent) => [agent.id, (await listSessions(undefined, agent.id)).sessions] as const))
+        if (cancelled) return
+        setAgents(nextAgents)
+        setChats(Object.fromEntries(sessionEntries))
+      })
+      .catch(() => { if (!cancelled) { setAgents([]); setChats({}) } })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    window.addEventListener("click", close)
+    window.addEventListener("scroll", close, true)
+    return () => { window.removeEventListener("click", close); window.removeEventListener("scroll", close, true) }
+  }, [contextMenu])
+
+  const filtered = useMemo(() => {
+    const value = query.trim().toLowerCase()
+    const visible = agents.filter((agent) => !hiddenIds.includes(agent.id))
+    const matching = !value ? visible : visible.filter((agent) => `${agent.name} ${agent.description}`.toLowerCase().includes(value) || (chats[agent.id] ?? []).some((chat) => chat.objective.toLowerCase().includes(value)))
+    return [...matching].sort((a, b) => Number(pinnedIds.includes(b.id)) - Number(pinnedIds.includes(a.id)))
+  }, [agents, chats, hiddenIds, pinnedIds, query])
+
+  function openContextMenu(event: React.MouseEvent, agent: NovaAgent) {
+    event.preventDefault()
+    event.stopPropagation()
+    setContextMenu({ agent, x: Math.min(event.clientX, window.innerWidth - 246), y: Math.min(event.clientY, window.innerHeight - 390) })
+  }
+
+  async function duplicateAgent(agent: NovaAgent) {
+    const result = await createAgent({ name: `${agent.name} copy`, description: agent.description, instructions: agent.instructions, provider: agent.provider, model: agent.model, effort: agent.effort as NovaEffort, avatarType: agent.avatarType, avatarColor: agent.avatarColor })
+    setAgents((current) => [result.agent, ...current])
+    setContextMenu(null)
+  }
+
+  async function removeAgent(agent: NovaAgent) {
+    await deleteAgent(agent.id)
+    setAgents((current) => current.filter((item) => item.id !== agent.id))
+    setContextMenu(null)
+  }
+
+  function runAction(action: string, agent: NovaAgent) {
+    setContextMenu(null)
+    if (action === "pin") setPinnedIds((current) => current.includes(agent.id) ? current.filter((id) => id !== agent.id) : [...current, agent.id])
+    if (action === "thread") onNavigate(`/agents/${agent.id}/chats/new`)
+    if (action === "window") window.open(`/agents/${agent.id}`, "_blank", "noopener,noreferrer")
+    if (action === "edit" || action === "settings") setSettingsAgent(agent)
+    if (action === "hide") setHiddenIds((current) => [...current, agent.id])
+    if (action === "duplicate") void duplicateAgent(agent)
+    if (action === "delete") void removeAgent(agent)
+  }
+
+  return (
+    <>
+      <aside className="flex h-full w-[320px] shrink-0 bg-[#1b1b1b] text-[#e8e8e8]">
+        <div className="flex w-[54px] shrink-0 flex-col items-center border-r border-white/[0.08] bg-[#171717] py-2">
+          <RailButton label="Nova home" active={false} onClick={() => onNavigate("/")}><NovaIcon size="sm" alt="" /></RailButton>
+          <div className="mt-2 space-y-1">
+            <RailButton label="New thread" onClick={() => onNavigate("/")}><Pencil className="size-4" /></RailButton>
+            <RailButton label="Agents" active onClick={() => onNavigate("/agents")}><Bot className="size-4" /></RailButton>
+            <RailButton label="Automations" onClick={() => onNavigate("/automations")}><Zap className="size-4" /></RailButton>
+            <RailButton label="Pull requests" onClick={() => onNavigate("/pulls")}><GitPullRequest className="size-4" /></RailButton>
+            <RailButton label="Connections" onClick={() => onNavigate("/connections")}><Link2 className="size-4" /></RailButton>
+            <RailButton label="More" onClick={() => onNavigate("/more")}><MoreHorizontal className="size-4" /></RailButton>
+          </div>
+          <div className="mt-auto"><AccountMenu user={user} onNavigate={onNavigate} compact /></div>
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex h-11 items-center gap-2 px-3"><span className="text-[14px] font-medium text-[#e8e8e8]">Agents</span><button type="button" aria-label="New agent" onClick={() => onNavigate("/agents/new")} className="ml-auto flex size-7 items-center justify-center rounded-md text-[#8f8f8f] transition hover:bg-white/[0.07] hover:text-white"><span className="text-xl leading-none">+</span></button></div>
+          <div className="px-2 pb-2"><div className="flex h-8 items-center gap-2 rounded-lg bg-[#292929] px-2.5 text-[#8f8f8f] focus-within:text-[#c8c8c8]"><Search className="size-3.5 shrink-0" /><input aria-label="Search agents" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search agents" className="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-[#8f8f8f]" /><MoreHorizontal className="size-3.5 rotate-90 opacity-70" /></div></div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+            <button type="button" onClick={() => onNavigate("/agents/new")} className="mb-2 flex w-full items-center gap-3 rounded-lg bg-[#303030] px-3 py-2.5 text-left transition hover:bg-[#383838]"><span className="flex size-8 items-center justify-center rounded-md border border-dashed border-[#888] text-[#bdbdbd]"><PlusIcon /></span><span className="min-w-0"><span className="block text-[13px] text-[#e2e2e2]">New agent</span><span className="mt-0.5 block truncate text-[12px] text-[#9a9a9a]">Describe it in the chat</span></span></button>
+            {loading ? <div className="px-2 py-6 text-xs text-[#777]">Loading agents…</div> : filtered.length ? filtered.map((agent) => <div key={agent.id} className="mb-1"><button type="button" onContextMenu={(event) => openContextMenu(event, agent)} onClick={() => onNavigate(`/agents/${agent.id}`)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition", selectedId === agent.id || selectedAgentId === agent.id ? "bg-white/[0.08]" : "hover:bg-white/[0.05]")}><BotAvatar type={(agent.avatarType as BotAvatarType) || "clover"} color={agent.avatarColor || "#3b93ed"} size={29} paused interactive={false} /><span className="min-w-0"><span className="block truncate text-[13px] text-[#e5e5e5]">{agent.name}</span><span className="mt-0.5 block truncate text-[12px] text-[#8f8f8f]">@ {agent.status === "active" ? "On demand" : agent.status}</span></span></button>{(chats[agent.id] ?? []).slice(0, 4).map((chat) => <button key={chat.id} type="button" onContextMenu={(event) => openContextMenu(event, agent)} onClick={() => onNavigate(`/agents/${agent.id}/chats/${chat.id}`)} className={cn("ml-9 flex w-[calc(100%-2.25rem)] items-center rounded-md px-2 py-1.5 text-left text-[11px] transition", selectedId === chat.id ? "bg-white/[0.08] text-white" : "text-[#969696] hover:bg-white/[0.05] hover:text-[#d0d0d0]")}><MessageSquare className="mr-2 size-3 shrink-0" /><span className="truncate">{chat.objective}</span></button>)}</div>) : <div className="px-2 py-6 text-xs text-[#777]">No agents found.</div>}
+          </div>
+        </div>
+      </aside>
+      {contextMenu ? <AgentContextMenu agent={contextMenu.agent} x={contextMenu.x} y={contextMenu.y} onAction={(action) => runAction(action, contextMenu.agent)} /> : null}
+      <AgentSettingsCard agent={settingsAgent} onClose={() => setSettingsAgent(null)} onSaved={(next) => { setAgents((current) => current.map((agent) => agent.id === next.id ? next : agent)); setSettingsAgent(next) }} />
+    </>
+  )
+}
+
+function AgentContextMenu({ agent, x, y, onAction }: { agent: NovaAgent; x: number; y: number; onAction: (action: string) => void }) {
+  const items = [
+    ["pin", <Pin key="pin" />, "Pin"],
+    ["unread", <CircleDot key="unread" />, "Mark unread"],
+    ["thread", <MessageSquare key="thread" />, "New thread"],
+    ["window", <ExternalLink key="window" />, "Open in new window"],
+    ["move", <FolderInput key="move" />, "Move to", true],
+    ["edit", <Pencil key="edit" />, "Edit agent"],
+    ["settings", <Settings2 key="settings" />, "Settings"],
+    ["duplicate", <Copy key="duplicate" />, "Duplicate agent"],
+    ["hide", <CircleDot key="hide" />, "Hide agent"],
+    ["delete", <Trash2 key="delete" />, "Delete agent"],
+  ] as const
+  return <div role="menu" style={{ left: x, top: y }} onClick={(event) => event.stopPropagation()} className="fixed z-[80] w-[196px] overflow-hidden rounded-xl border border-white/[0.14] bg-[#191919] p-1.5 text-[#ededed] shadow-2xl shadow-black/50">{items.map(([action, icon, label, arrow], index) => <div key={action}>{index === 5 || index === 9 ? <div className="my-1 border-t border-white/[0.07]" /> : null}<button type="button" role="menuitem" onClick={() => action === "move" ? undefined : onAction(action)} className={cn("flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[12px] transition hover:bg-white/[0.08]", action === "delete" ? "text-red-400 hover:bg-red-400/10" : "text-[#e2e2e2]")}><span className="flex size-4 items-center justify-center [&>svg]:size-3.5">{icon}</span><span className="flex-1">{label}</span>{arrow ? <ChevronRight className="size-3.5 text-[#888]" /> : null}</button></div>)}</div>
+}
+
+function RailButton({ children, label, active, onClick }: { children: React.ReactNode; label: string; active?: boolean; onClick: () => void }) {
+  return <button type="button" aria-label={label} title={label} onClick={onClick} className={cn("flex size-8 items-center justify-center rounded-lg transition", active ? "bg-[#343434] text-white" : "text-[#9a9a9a] hover:bg-white/[0.07] hover:text-white")}>{children}</button>
+}
+
+function PlusIcon() {
+  return <span aria-hidden="true" className="relative block size-4 before:absolute before:left-1/2 before:top-0 before:h-full before:w-px before:-translate-x-1/2 before:bg-current after:absolute after:left-0 after:top-1/2 after:h-px after:w-full after:-translate-y-1/2 after:bg-current" />
 }
 
 function NavItem({

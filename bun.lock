@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 1,
   "workspaces": {
     "": {
       "name": "super-platform",
@@ -147,6 +146,7 @@
         "@prisma/client": "^7.8.0",
         "@prisma/client-runtime-utils": "^7.8.0",
         "@prisma/driver-adapter-utils": "^7.8.0",
+        "@super/billing": "workspace:*",
         "@vercel/connect": "^0.3.2",
         "ai": "^6.0.195",
         "better-auth": "^1.6.23",
@@ -268,6 +268,7 @@
         "@vercel/speed-insights": "^1.3.1",
         "ai": "^7.0.77",
         "better-auth": "^1.4.10",
+        "bot-avatars": "0.2.2",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "cmdk": "^1.1.1",
@@ -304,6 +305,7 @@
         "remark-gfm": "^4.0.1",
         "resend": "^6.14.0",
         "sonner": "^2.0.7",
+        "supermemory": "^5.1.2",
         "tailwind-merge": "^3.4.0",
         "three": "^0.187.0",
         "vaul": "^1.1.2",
@@ -2113,6 +2115,8 @@
 
     "body-parser": ["body-parser@2.2.2", "", { "dependencies": { "bytes": "^3.1.2", "content-type": "^1.0.5", "debug": "^4.4.3", "http-errors": "^2.0.0", "iconv-lite": "^0.7.0", "on-finished": "^2.4.1", "qs": "^6.14.1", "raw-body": "^3.0.1", "type-is": "^2.0.1" } }, "sha512-oP5VkATKlNwcgvxi0vM0p/D3n2C3EReYVX+DNYs5TjZFn/oQt2j+4sVJtSMr18pdRr8wjTcBl6LoV+FUwzPmNA=="],
 
+    "bot-avatars": ["bot-avatars@0.2.2", "", { "peerDependencies": { "react": ">=18.0.0" } }, "sha512-EszpDsXfbO7SD3Jv/g8/7mt3I4EpN4WuDy6Uk3reuzIgU+dl4iKtk+fuIzGgfXjOraF1jQqUjaDOdcql1khXHQ=="],
+
     "bottleneck": ["bottleneck@2.19.5", "", {}, "sha512-VHiNCbI1lKdl44tGrhNfU3lup0Tj/ZBMJB5/2ZbNXRCPuRCO7ed2mgcK4r17y+KB2EfuYuRaVlwNbAeaWGSpbw=="],
 
     "bowser": ["bowser@2.14.1", "", {}, "sha512-tzPjzCxygAKWFOJP011oxFHs57HzIhOEracIgAePE4pqB3LikALKnSzUyU4MGs9/iCEUuHlAJTjTc5M+u7YEGg=="],
@@ -3794,6 +3798,8 @@
     "supercode-cortex": ["supercode-cortex@workspace:packages/cortex-sdk"],
 
     "superdesign": ["superdesign@workspace:apps/superdesign"],
+
+    "supermemory": ["supermemory@5.1.2", "", { "bin": { "supermemory": "bin/cli.mjs" } }, "sha512-dUVDfciBjUpjJ17l01IvWRuNRicUvfSMrtmi9+YDLTQ04yoVdiA+fQNdEu2uKYTWqWf3LsbBH1N3MUDTpSHOMA=="],
 
     "supports-color": ["supports-color@7.2.0", "", { "dependencies": { "has-flag": "^4.0.0" } }, "sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw=="],
 

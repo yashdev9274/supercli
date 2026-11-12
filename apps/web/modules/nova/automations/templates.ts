@@ -69,7 +69,7 @@ export function templateDraft(templateId: string | null, membershipId: string): 
     onlyRunWhen: template?.onlyRunWhen ?? "",
     triggers: [defaultTrigger(template?.type ?? "slack.message")],
     model: "x-ai/grok-4-5", provider: "concentrateai", effort: "medium",
-    repositoryIds: [], runAsMembershipId: membershipId,
+    repositoryIds: [], agentId: "", runAsMembershipId: membershipId,
     maxRunsPerDay: 10, cooldownMinutes: 5, status: "active", postAsRunAs: false,
   }
 }
