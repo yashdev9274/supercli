@@ -34,6 +34,16 @@ export type TimelineMessage = SyncCursor["messages"][number] & { kind: "message"
 export type TimelineActivity = SyncCursor["activities"][number] & { kind: "activity" }
 export type TimelineEntry = TimelineMessage | TimelineActivity
 
+export type HarnessQuestionOption = { label: string; description?: string }
+export type HarnessQuestion = { question: string; header?: string; options?: HarnessQuestionOption[]; multiple?: boolean }
+export type HarnessInteractionData = {
+  invocationId: string
+  kind: "question" | "approval"
+  payload: { toolName: string; args: { questions?: HarnessQuestion[] } }
+  expiresAt: string
+  decision?: string
+}
+
 export type NovaUser = {
   id: string
   name: string

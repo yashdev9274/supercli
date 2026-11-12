@@ -6,7 +6,7 @@ import { Brain, Bot, Check, ChevronDown, Loader2, Plus, Search, Trash2, X } from
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
-import { createAgent, createSession, deleteAgent, deleteAgentMemory, getAgent, listAgents, listSessions, searchAgentMemory, streamTurn, updateAgent } from "@/modules/nova-web/api"
+import { createAgent, createSession, deleteAgent, deleteAgentMemory, getAgent, listAgents, listSessions, searchAgentMemory, updateAgent } from "@/modules/nova-web/api"
 import { useCodexCatalog } from "@/modules/nova-web/codex-catalog"
 import { codexModelEntries } from "@/modules/nova-web/model-settings"
 import { CLOUD_MODELS, modelChipLabel, NOVA_EFFORTS, CODEX_EFFORT_LABELS, type HarnessProvider, type NovaEffort, type NovaModelEntry } from "@/modules/nova-web/models"
@@ -88,30 +88,30 @@ export function AgentsView({ path, onNavigate }: { path: string; onNavigate: (hr
     }
   }
 
-  async function runInitialAgentTurn(sessionId: string, agent: NovaAgent) {
+  async function openAgentChat(agent: NovaAgent) {
+    const data = await createSession(`Chat with ${agent.name}`, { agentId: agent.id, mode: "agent" })
     const kickoff = [
       "Start working now using your configured role and instructions.",
       agent.description ? `Your role is: ${agent.description}` : "",
       "Begin with the first useful response you can provide, and ask for input only when it is required to continue.",
     ].filter(Boolean).join("\n\n")
-    try {
-      for await (const event of streamTurn(sessionId, kickoff, {
-        mode: "agent",
-        provider: agent.provider,
-        model: agent.model,
-        effort: agent.effort as NovaEffort,
-      })) {
-        if (event?.type === "error") break
-      }
-    } catch {
-      // The turn endpoint persists any provider error; the chat page will show it.
-    }
-  }
 
-  async function openAgentChat(agent: NovaAgent) {
-    const data = await createSession(`Chat with ${agent.name}`, { agentId: agent.id, mode: "agent" })
+    // Let the chat page own the first turn. This keeps the live stream attached
+    // to the mounted chat instead of starting it from the agents page that is
+    // immediately unmounted by navigation.
+    try {
+      sessionStorage.setItem("nova:pending-turn", JSON.stringify({
+        sessionId: data.session.id,
+        content: kickoff,
+        model: agent.model,
+        provider: agent.provider,
+        effort: agent.effort,
+        mode: "agent",
+      }))
+    } catch {
+      // The chat can still be opened; the user can send a normal message.
+    }
     onNavigate(`/agents/${agent.id}/chats/${data.session.id}`)
-    void runInitialAgentTurn(data.session.id, agent)
   }
 
   async function openNewChat() {

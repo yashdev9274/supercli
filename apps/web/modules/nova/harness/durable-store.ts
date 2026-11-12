@@ -69,8 +69,9 @@ export function durableStore(sessionId: string, runId: string): JournalStore {
         if (claim.count !== 1) return
         const run = await tx.agentRun.updateMany({ where: { id: runId, status: "executing", cancellationAt: null }, data: { status: "awaiting_input", version: { increment: 1 } } })
         if (run.count !== 1) throw new Error("Run changed while requesting input")
+        const invocation = await tx.toolInvocation.findUniqueOrThrow({ where: { id } })
         const sequence = await tx.agentSession.update({ where: { id: sessionId }, data: { nextSequence: { increment: 1 } } })
-        await tx.agentActivity.create({ data: { agentSessionId: sessionId, runId, sequence: sequence.nextSequence - 1, type: "harness_interaction", status: "pending", title: kind === "question" ? "Nova has a question" : "Approval required", data: json({ invocationId: id, kind, payload, expiresAt: new Date(Date.now() + 86_400_000).toISOString() }) } })
+        await tx.agentActivity.create({ data: { agentSessionId: sessionId, runId, sequence: sequence.nextSequence - 1, type: "harness_interaction", status: "pending", title: kind === "question" ? "Nova has a question" : "Approval required", data: json({ invocationId: id, normalizedArgsHash: invocation.normalizedArgsHash, kind, payload, expiresAt: new Date(Date.now() + 86_400_000).toISOString() }) } })
       })
     },
   }

@@ -29,6 +29,7 @@ import {
   sessionUiStatus,
   type ApprovalRequest,
   type SessionDetail,
+  type TimelineActivity,
   type TimelineEntry,
 } from "@/modules/nova-web/types"
 import type { LocalProjectDto } from "@/modules/nova-web/api"
@@ -89,6 +90,8 @@ export function ThreadView({
   onRefresh,
   onToggleDetails,
   onDecision,
+  onInteractionAnswer,
+  decidingInteractionId,
   chatOnly = false,
   agentName = "Nova",
 }: {
@@ -131,6 +134,8 @@ export function ThreadView({
   onRefresh: () => void
   onToggleDetails: () => void
   onDecision: (approval: ApprovalRequest, decision: "approved" | "denied") => void
+  onInteractionAnswer?: (activity: TimelineActivity, answers: string[]) => void
+  decidingInteractionId?: string | null
 }) {
   const conversationSplit = useContext(ConversationSplitContext)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -319,7 +324,7 @@ export function ThreadView({
                   return (
                     <div key={`${entry.kind}-${entry.id}`}>
                       {showWorked && workedMs != null ? <WorkedFor ms={workedMs} /> : null}
-                      <TimelineItem entry={entry} />
+                      <TimelineItem entry={entry} onInteractionAnswer={onInteractionAnswer} decidingInteractionId={decidingInteractionId} />
                     </div>
                   )
                 })}

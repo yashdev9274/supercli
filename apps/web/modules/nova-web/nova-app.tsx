@@ -8,6 +8,7 @@ import {
   bindSessionLocalProject,
   createSession,
   decideApproval,
+  decideHarnessInteraction,
   getAgent,
   getSession,
   listApprovals,
@@ -60,6 +61,7 @@ import type {
   ConnectorStatus,
   NovaUser,
   SessionDetail,
+  TimelineActivity,
   TimelineEntry,
   WorkspaceView,
 } from "@/modules/nova-web/types"
@@ -299,6 +301,7 @@ export function NovaApp({
   const [fileProposals, setFileProposals] = useState<FileProposalDto[]>([])
   const [applyStatus, setApplyStatus] = useState<string | null>(null)
   const [decidingApprovalId, setDecidingApprovalId] = useState<string | null>(null)
+  const [decidingInteractionId, setDecidingInteractionId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const abortRef = useRef(false)
@@ -664,6 +667,7 @@ export function NovaApp({
       machineSize?: MachineSize
       references?: NovaReference[]
       localAttachments?: LocalAttachment[]
+      resumeRunId?: string
     },
   ) => {
     if (streamingRef.current) return
@@ -755,6 +759,7 @@ export function NovaApp({
         mode: turnMode,
         references: opts?.references ?? [],
         localAttachments: packedAttachments,
+        resumeRunId: opts?.resumeRunId,
       })) {
         if (abortRef.current) break
         if (event.type === "status") {
@@ -959,6 +964,27 @@ export function NovaApp({
       .finally(() => setDecidingApprovalId(null))
   }
 
+  function onInteractionAnswer(activity: TimelineActivity, answers: string[]) {
+    if (!selectedId || !activity.runId || decidingInteractionId) return
+    const runId = activity.runId
+    const data = activity.data as { invocationId?: string; normalizedArgsHash?: string } | null
+    if (!data?.invocationId || !data.normalizedArgsHash) return
+    setDecidingInteractionId(activity.id)
+    void decideHarnessInteraction(selectedId, {
+      runId,
+      invocationId: data.invocationId,
+      hash: data.normalizedArgsHash,
+      decision: "answer",
+      answers,
+    })
+      .then(() => runTurn(selectedId, "", { resumeRunId: runId, mode: isAgentChat ? "chat" : agentMode }))
+      .then(() => loadSharedState())
+      .catch((decisionError) => {
+        setError(decisionError instanceof Error ? decisionError.message : "Could not continue Nova")
+      })
+      .finally(() => setDecidingInteractionId(null))
+  }
+
   const sidebar = (
     <NovaSidebar
       user={user}
@@ -1086,6 +1112,8 @@ export function NovaApp({
           }}
           onToggleDetails={() => setDetailsOpen((value) => !value)}
           onDecision={onDecision}
+           onInteractionAnswer={onInteractionAnswer}
+           decidingInteractionId={decidingInteractionId}
           chatOnly={isAgentChat}
           agentName={agentChatAgent?.name ?? "Agent"}
         />

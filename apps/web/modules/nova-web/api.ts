@@ -233,6 +233,20 @@ export type TurnEvent =
   | { type: "error"; message: string }
   | { type: "finish"; reason: string; runId?: string; latestSequence?: number; model?: string }
 
+export function decideHarnessInteraction(sessionId: string, input: {
+  runId: string
+  invocationId: string
+  hash: string
+  decision: "approve" | "deny" | "answer"
+  answers?: string[]
+}) {
+  return requestJson<{ runId: string; status: string }>(`/api/nova/sessions/${encodeURIComponent(sessionId)}/interactions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  })
+}
+
 export async function* streamTurn(
   sessionId: string,
   content: string,
@@ -245,6 +259,7 @@ export async function* streamTurn(
     mode?: "agent" | "plan" | "chat"
     references?: NovaReference[]
     localAttachments?: LocalAttachment[]
+    resumeRunId?: string
   },
 ): AsyncGenerator<TurnEvent> {
   const response = await fetch(`/api/nova/sessions/${sessionId}/turn`, {
@@ -271,6 +286,7 @@ export async function* streamTurn(
         text: file.text,
         dataBase64: file.dataBase64,
       })),
+      resumeRunId: options?.resumeRunId,
     }),
   })
   if (!response.ok || !response.body) {

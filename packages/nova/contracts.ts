@@ -95,6 +95,7 @@ export const agentActivityTypeSchema = z.enum([
   "plan",
   "action",
   "approval_request",
+  "harness_interaction",
   "response",
   "error",
   "result",
