@@ -295,7 +295,7 @@ function AgentSidebar({ user, selectedId, selectedAgentId, onNavigate }: { user:
           <RailButton label="Connections" onClick={() => onNavigate("/connections")}><Link2 className="size-4" /></RailButton>
           <RailButton label="More" onClick={() => onNavigate("/more")}><MoreHorizontal className="size-4" /></RailButton>
         </div>
-        <div className="mt-auto"><AccountMenu user={user} onNavigate={onNavigate} /></div>
+        <div className="mt-auto"><AccountMenu user={user} onNavigate={onNavigate} compact /></div>
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex h-11 items-center gap-2 px-3">
