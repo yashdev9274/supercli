@@ -1,4 +1,5 @@
 import { serve } from "inngest/next"
+import { processNovaAgentRoutine, scheduleNovaAgentRoutines } from "@/inngest/functions/routines"
 import { reconcileNovaSandboxes } from "@/inngest/functions/sandbox"
 import { processNovaAutomation, scheduleNovaAutomations } from "@/inngest/functions/automations"
 import { inngest } from "../../../inngest/client"
@@ -30,6 +31,8 @@ export const { GET, POST, PUT } = serve({
     reconcileNovaSandboxes,
     processNovaAutomation,
     scheduleNovaAutomations,
+    processNovaAgentRoutine,
+    scheduleNovaAgentRoutines,
     processNovaInboundEvent,
     processNovaRun,
     processNovaApprovalDecision,

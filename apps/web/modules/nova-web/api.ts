@@ -65,6 +65,15 @@ export function updateAgent(id: string, input: Partial<{ name: string; descripti
   })
 }
 
+
+export type AgentRoutine = {
+  id: string; agentId: string; name: string; instructions: string; scheduleType: "daily" | "weekly"; dayOfWeek: number | null; hour: number; minute: number; timezone: string; requiresCalendar: boolean; separateThread: boolean; status: "active" | "paused"; createdAt: string; updatedAt: string; lastRunAt: string | null; runs: Array<{ id: string; status: string; reason: string | null; createdAt: string; completedAt: string | null }>;
+}
+export function listAgentRoutines(agentId: string) { return requestJson<{ routines: AgentRoutine[] }>(`/api/nova/agents/${encodeURIComponent(agentId)}/routines`) }
+export function createAgentRoutine(agentId: string, input: Omit<AgentRoutine, "id" | "agentId" | "createdAt" | "updatedAt" | "lastRunAt" | "runs">) { return requestJson<{ routine: AgentRoutine }>(`/api/nova/agents/${encodeURIComponent(agentId)}/routines`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }) }
+export function updateAgentRoutine(agentId: string, routineId: string, input: Partial<Omit<AgentRoutine, "id" | "agentId" | "createdAt" | "updatedAt" | "lastRunAt" | "runs">>) { return requestJson<{ routine: AgentRoutine }>(`/api/nova/agents/${encodeURIComponent(agentId)}/routines/${encodeURIComponent(routineId)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }) }
+export function deleteAgentRoutine(agentId: string, routineId: string) { return requestJson<void>(`/api/nova/agents/${encodeURIComponent(agentId)}/routines/${encodeURIComponent(routineId)}`, { method: "DELETE" }) }
+
 export function deleteAgent(id: string) {
   return requestJson<void>(`/api/nova/agents/${encodeURIComponent(id)}`, { method: "DELETE" })
 }
