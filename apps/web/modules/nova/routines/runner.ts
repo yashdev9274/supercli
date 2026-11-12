@@ -25,7 +25,7 @@ export async function executeRoutineRun(runId: string) {
   const row = await prisma.novaAgentRoutineRun.findUniqueOrThrow({ where: { id: runId }, include: { routine: { include: { agent: true, ownerUser: true } } } })
   const routine = row.routine
   const input = routineInputSchema.parse(routine)
-  const { token } = await ensureHarnessToken({ id: routine.ownerUser.id, email: routine.ownerUser.email, name: routine.ownerUser.name, background: true })
+  const { token } = await ensureHarnessToken({ email: routine.ownerUser.email, name: routine.ownerUser.name, background: true })
   const session = await prisma.agentSession.create({ data: { organizationId: routine.organizationId, initiatorMembershipId: (await prisma.organizationMembership.findUniqueOrThrow({ where: { organizationId_userId: { organizationId: routine.organizationId, userId: routine.ownerUserId } }, select: { id: true } })).id, agentId: routine.agentId, objective: input.name, mode: "agent", nextSequence: 2, policySnapshot: json({ routineId: routine.id, separateThread: input.separateThread }) } })
   await prisma.sessionSurface.create({ data: { agentSessionId: session.id, provider: "web", surfaceKey: `${routine.organizationId}:routine:${session.id}`, externalSurfaceId: session.id } })
   await prisma.agentSessionMessage.create({ data: { agentSessionId: session.id, sequence: 1, role: "user", content: `${routine.agent.instructions}\n\nRoutine instructions:\n${input.instructions}`, senderType: "routine", senderId: routine.id } })
