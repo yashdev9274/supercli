@@ -69,7 +69,7 @@ export function AgentSettingsCard({ agent, onClose, onSaved }: { agent: NovaAgen
   const updatedLabel = agent ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(agent.updatedAt)) : ""
 
   return (
-    <Dialog open={agent !== null} onOpenChange={(open) => { if (!open && !saving) { setRoutinesOpen(false); onClose() } }}>
+    <Dialog open={agent !== null && !routinesOpen} onOpenChange={(open) => { if (!open && !saving) { setRoutinesOpen(false); onClose() } }}>
       <DialogContent className="max-h-[calc(100vh-24px)] gap-0 overflow-y-auto rounded-2xl border-white/10 bg-[#181818] p-0 text-[#ededed] shadow-2xl sm:max-w-[800px]">
         {agent ? (
           <div className="p-4 sm:p-6">
