@@ -27,6 +27,7 @@ const WEB_TOOLS = new Set([
   "firecrawl_scrape",
   "firecrawl_map",
   "exa_search",
+  "keenable_search",
   "exa_fetch",
 ])
 const AGENT_TOOLS = new Set([

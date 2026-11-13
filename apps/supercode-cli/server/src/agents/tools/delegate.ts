@@ -52,6 +52,7 @@ const READ_ONLY_TOOLS = new Set([
   "firecrawl_scrape",
   "firecrawl_map",
   "exa_search",
+  "keenable_search",
   "exa_fetch",
   "task",
 ])
