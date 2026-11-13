@@ -16,7 +16,16 @@ export async function reconcileRoutines(now = new Date()) {
   for (const run of pending) await inngest.send({ name: "nova/agent-routine.run", data: { routineId: run.routineId, runId: run.id } })
   const rows = await prisma.novaAgentRoutine.findMany({ where: { status: "active" }, take: 1000 })
   let scheduled = 0
-  for (const row of rows) { const input = routineInputSchema.parse(row); const slot = routineSlot(input, now); if (slot && await queueRoutine(row.id, `schedule:${slot}`)) scheduled++ }
+  // Inngest cron invocations can arrive a little late. Check a short trailing
+  // window so a routine scheduled on the minute is not lost to that jitter.
+  const slots = Array.from({ length: 6 }, (_, index) => new Date(now.getTime() - index * 60_000))
+  for (const row of rows) {
+    const input = routineInputSchema.parse(row)
+    for (const candidate of slots) {
+      const slot = routineSlot(input, candidate)
+      if (slot && await queueRoutine(row.id, `schedule:${slot}`)) scheduled++
+    }
+  }
   return { queued: pending.length, scheduled }
 }
 export async function executeRoutineRun(runId: string) {
