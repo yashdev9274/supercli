@@ -11,6 +11,7 @@ import { useCodexCatalog } from "@/modules/nova-web/codex-catalog"
 import { codexModelEntries } from "@/modules/nova-web/model-settings"
 import { CLOUD_MODELS, modelChipLabel, NOVA_EFFORTS, CODEX_EFFORT_LABELS, type HarnessProvider, type NovaEffort, type NovaModelEntry } from "@/modules/nova-web/models"
 import { PROVIDER_INTEGRATION_BY_ID } from "@/modules/nova-web/provider-integrations"
+import { modelLogo, PROVIDER_LOGOS } from "@/modules/nova-web/model-logos"
 import { useProviderConnectionStates } from "@/modules/nova-web/components/provider-connections"
 import type { AgentSessionSummary, NovaAgent } from "@/modules/nova-web/types"
 
@@ -199,7 +200,7 @@ function AgentCard({ agent, onOpen }: { agent: NovaAgent; onOpen: () => void }) 
 }
 
 
-const AGENT_COLORS = ["#3b93ed", "#ef4444", "#f59e0b", "#facc15", "#84cc16", "#34d399", "#2dd4bf", "#38bdf8", "#6366f1", "#8b5cf6", "#d946ef", "#fb7185", "#9f1239", "#a16207", "#d6b98c", "#a3a3a3"]
+export const AGENT_COLORS = ["#3b93ed", "#ef4444", "#f59e0b", "#facc15", "#84cc16", "#34d399", "#2dd4bf", "#38bdf8", "#6366f1", "#8b5cf6", "#d946ef", "#fb7185", "#9f1239", "#a16207", "#d6b98c", "#a3a3a3"]
 
 const AGENT_SUGGESTIONS: Array<{ name: string; description: string; instructions: string; type: BotAvatarType; color: string }> = [
   { name: "Inbox Helper", description: "Drafts replies and keeps follow-ups from slipping.", instructions: "Triage messages, draft concise replies, and call out anything that needs my decision.", type: "square", color: "#ec4899" },
@@ -225,7 +226,7 @@ type AgentProviderGroup = {
   models: NovaModelEntry[]
 }
 
-function AgentModelPicker({ provider, model, effort, onChange, onEffortChange }: { provider: HarnessProvider; model: string; effort: NovaEffort; onChange: (selection: { provider: HarnessProvider; model: string }) => void; onEffortChange: (effort: NovaEffort) => void }) {
+export function AgentModelPicker({ provider, model, effort, onChange, onEffortChange }: { provider: HarnessProvider; model: string; effort: NovaEffort; onChange: (selection: { provider: HarnessProvider; model: string }) => void; onEffortChange: (effort: NovaEffort) => void }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [activeProvider, setActiveProvider] = useState<HarnessProvider>(provider)
@@ -250,10 +251,10 @@ function AgentModelPicker({ provider, model, effort, onChange, onEffortChange }:
   const selectedChip = `${modelChipLabel(provider, model)} · ${effortLabel}`
 
   return <Popover open={open} onOpenChange={(next) => { if (next) setActiveProvider(provider); setOpen(next); if (!next) setQuery("") }}>
-    <PopoverTrigger asChild><button type="button" aria-label={`Select model: ${selectedChip}`} className="flex h-11 w-full items-center gap-3 rounded-lg border border-white/10 bg-[#202020] px-3 text-left transition hover:border-white/20"><span className="flex size-6 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.08] text-[11px] text-neutral-200">{groups.find((group) => group.id === provider)?.glyph ?? "AI"}</span><span className="min-w-0 flex-1 truncate text-sm text-neutral-200">{selectedChip}</span><ChevronDown className={cn("size-4 text-neutral-500 transition-transform", open && "rotate-180")} /></button></PopoverTrigger>
+    <PopoverTrigger asChild><button type="button" aria-label={`Select model: ${selectedChip}`} className="flex h-11 w-full items-center gap-3 rounded-lg border border-white/10 bg-[#202020] px-3 text-left transition hover:border-white/20"><ProviderLogo provider={provider} model={model} label={groups.find((group) => group.id === provider)?.label ?? "AI"} /><span className="min-w-0 flex-1 truncate text-sm text-neutral-200">{selectedChip}</span><ChevronDown className={cn("size-4 text-neutral-500 transition-transform", open && "rotate-180")} /></button></PopoverTrigger>
     <PopoverContent side="top" align="start" sideOffset={8} collisionPadding={12} className="dark flex h-[min(500px,var(--radix-popover-content-available-height))] w-[360px] max-w-[calc(100vw-24px)] overflow-hidden rounded-xl border-white/10 bg-[#1a1a1a] p-0 text-[#e8e8e8] shadow-[0_20px_60px_rgba(0,0,0,0.55)]">
       <div className="flex min-h-0 w-full">
-        <div className="w-[52px] shrink-0 overflow-y-auto border-r border-white/[0.07] bg-[#141414] py-2">{groups.map((group) => <button key={group.id} type="button" aria-label={group.label} aria-pressed={activeGroup?.id === group.id} onClick={() => setActiveProvider(group.id)} className={cn("mx-auto mb-1 flex size-8 items-center justify-center rounded-lg text-[13px] transition", activeGroup?.id === group.id ? "bg-[#343434] text-white ring-1 ring-white/10" : "text-[#909090] hover:bg-white/[0.07] hover:text-white")}>{group.glyph}</button>)}</div>
+        <div className="w-[52px] shrink-0 overflow-y-auto border-r border-white/[0.07] bg-[#141414] py-2">{groups.map((group) => <button key={group.id} type="button" aria-label={group.label} aria-pressed={activeGroup?.id === group.id} onClick={() => setActiveProvider(group.id)} className={cn("mx-auto mb-1 flex size-8 items-center justify-center rounded-lg text-[13px] transition", activeGroup?.id === group.id ? "bg-[#343434] text-white ring-1 ring-white/10" : "text-[#909090] hover:bg-white/[0.07] hover:text-white")}><ProviderLogo provider={group.id} model={group.models[0]?.id ?? ""} label={group.label} compact /></button>)}</div>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="flex h-11 shrink-0 items-center gap-2 border-b border-white/[0.06] px-3"><div className="min-w-0 flex-1"><p className="truncate text-[13px] font-medium text-white">{activeGroup?.label ?? "Model provider"}</p><p className="truncate text-[10px] text-[#777]">{activeGroup?.version ?? `${activeGroup?.models.length ?? 0} models`}</p></div></div>
           <div className="flex h-9 shrink-0 items-center gap-2 px-2"><Search className="size-3.5 text-[#666]" /><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search models" aria-label="Search models" className="h-7 min-w-0 flex-1 rounded-md bg-[#2a2a2a] px-2.5 text-[12px] text-white outline-none placeholder:text-[#888]" /></div>
@@ -263,6 +264,12 @@ function AgentModelPicker({ provider, model, effort, onChange, onEffortChange }:
       </div>
     </PopoverContent>
   </Popover>
+}
+
+function ProviderLogo({ provider, model, label, compact = false }: { provider: HarnessProvider; model: string; label: string; compact?: boolean }) {
+  const entry = { id: model, provider, label, desc: label }
+  const logo = PROVIDER_LOGOS[provider] ?? modelLogo(entry)
+  return <span className={cn("flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/10 bg-white/[0.08]", compact ? "size-5" : "size-6")}><img src={logo.src} alt={`${label} logo`} className={cn("object-contain", compact ? "size-4" : "size-4.5", logo.monochrome && "brightness-0 invert opacity-80")} /></span>
 }
 
 function AgentMemoryView({ agent, query, matches, loading, onQueryChange, onBack, onDelete }: {
