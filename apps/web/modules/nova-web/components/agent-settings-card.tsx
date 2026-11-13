@@ -73,6 +73,7 @@ export function AgentSettingsCard({ agent, onClose, onSaved }: { agent: NovaAgen
       <DialogContent className="max-h-[calc(100vh-24px)] gap-0 overflow-y-auto rounded-2xl border-white/10 bg-[#181818] p-0 text-[#ededed] shadow-2xl sm:max-w-[800px]">
         {agent ? (
           <div className="p-4 sm:p-6">
+            <DialogTitle className="sr-only">Settings for {agent.name}</DialogTitle>
             <div className="flex flex-col items-center border-b border-white/[0.07] pb-5">
               <BotAvatar type={(agent.avatarType as BotAvatarType) || "clover"} color={chatColor} size={66} state="default" seed={agent.id.length / 10} interactive={false} />
             </div>
