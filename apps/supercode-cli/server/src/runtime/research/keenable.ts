@@ -88,7 +88,13 @@ export async function keenableFetch({
   if (direct.status && direct.status !== 401 && direct.status !== 403) return direct
 
   const proxy = await proxyToolCall("/api/tools/keenable-search", { query, maxResults })
-  if (proxy.ok) return { ok: true, data: proxy.data }
+  if (proxy.ok) {
+    const data = proxy.data as KeenableResult["data"]
+    if (!Array.isArray(data?.results)) {
+      return { ok: false, error: "Keenable proxy returned a malformed response" }
+    }
+    return { ok: true, data }
+  }
 
   return direct.ok === false && direct.error
     ? { ...direct, error: `${direct.error}. Proxy: ${proxy.error}` }

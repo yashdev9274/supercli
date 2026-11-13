@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test } from "bun:test"
+import { afterEach, beforeEach, expect, mock, test } from "bun:test"
 import { isKeenableEnabled, keenableFetch } from "./keenable"
 import { keenableSearchTool } from "../../agents/tools/keenable_search"
 
@@ -76,4 +76,15 @@ test("keyed endpoint when KEENABLE_API_KEY is set", async () => {
   expect(result.ok).toBe(true)
   expect(url).toBe("https://api.keenable.ai/v1/search")
   expect(headers?.get("X-API-Key")).toBe("keen_test")
+})
+
+test("proxy fallback rejects a 200 body without a results array", async () => {
+  process.env.KEENABLE_API_KEY = "keen_bad"
+  mock.module("../stream/proxy-tools", () => ({
+    proxyToolCall: async () => ({ ok: true, data: { error: "not search results" } }),
+  }))
+  globalThis.fetch = (async () => new Response("{}", { status: 401 })) as unknown as typeof fetch
+
+  const result = await keenableFetch({ query: "q", maxResults: 5 })
+  expect(result.ok).toBe(false)
 })

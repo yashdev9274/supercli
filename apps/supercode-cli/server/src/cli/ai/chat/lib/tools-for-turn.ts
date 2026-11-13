@@ -4,6 +4,7 @@
 import { tools } from "src/agents/tools/registry.ts"
 import { getMcpManager } from "src/mcp/mcp-manager"
 import { loadEnvOnce } from "src/lib/load-env"
+import { isKeenableEnabled } from "src/lib/keenable"
 
 export type ToolsForTurn = {
   tools: Record<string, unknown>
@@ -31,6 +32,11 @@ export async function buildToolsForTurn(
 
   // Legacy Google CSE path is retired in chat — use Exa / Firecrawl only.
   delete toolsToUse.web_search
+
+  // Keenable is opt-in: keep it out of the turn (and delegated agents) unless enabled.
+  if (!isKeenableEnabled()) {
+    delete toolsToUse.keenable_search
+  }
 
   // Keep Exa + Firecrawl tools always available. Local keys are preferred; when
   // missing/invalid the tools fall back to the authenticated server proxy and
