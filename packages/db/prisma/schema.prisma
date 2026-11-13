@@ -64,6 +64,7 @@ model Organization {
   desktopDevices           DesktopDevice[]
   webLocalProjects         WebLocalProject[]
   automations              NovaAutomation[]
+  routines                 NovaAgentRoutine[]
   agents                   NovaAgent[]
   browserSessions          NovaBrowserSession[]
   feedbacks                NovaFeedback[]
@@ -95,6 +96,7 @@ model User {
   webLocalProjects        WebLocalProject[]
   browserSessions         NovaBrowserSession[]
   novaAgents              NovaAgent[]
+  novaAgentRoutines       NovaAgentRoutine[]
   agentMemoryLinks         NovaAgentMemoryLink[]
 
   @@unique([email])
@@ -235,6 +237,7 @@ model NovaAgent {
   sessions       AgentSession[]
   memoryLinks    NovaAgentMemoryLink[]
   automations    NovaAutomation[]
+  routines       NovaAgentRoutine[]
 
   @@index([organizationId, ownerUserId, status, updatedAt])
   @@index([ownerUserId, createdAt])
@@ -262,6 +265,52 @@ model NovaAgentMemoryLink {
   @@index([ownerUserId, agentId, status])
   @@index([agentId, createdAt])
   @@map("nova_agent_memory_link")
+}
+
+model NovaAgentRoutine {
+  id                  String   @id @default(cuid())
+  organizationId      String
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ownerUserId         String
+  ownerUser           User @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  agentId             String
+  agent               NovaAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  name                String
+  instructions        String @db.Text
+  scheduleType        String @default("daily")
+  dayOfWeek           Int?
+  hour                Int
+  minute              Int
+  timezone            String
+  requiresCalendar    Boolean @default(false)
+  separateThread      Boolean @default(false)
+  status              String @default("active")
+  lastRunAt           DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  runs                NovaAgentRoutineRun[]
+
+  @@index([organizationId, agentId, status])
+  @@index([ownerUserId, createdAt])
+  @@map("nova_agent_routine")
+}
+
+model NovaAgentRoutineRun {
+  id             String   @id @default(cuid())
+  routineId      String
+  routine        NovaAgentRoutine @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  deliveryId     String
+  status         String @default("queued")
+  reason         String? @db.Text
+  agentSessionId String? @unique
+  agentSession   AgentSession? @relation(fields: [agentSessionId], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
+  completedAt    DateTime?
+
+  @@unique([routineId, deliveryId])
+  @@index([routineId, createdAt])
+  @@index([status, createdAt])
+  @@map("nova_agent_routine_run")
 }
 
 model NovaAutomation {
@@ -603,6 +652,7 @@ model AgentSession {
   auditEvents    NovaAuditEvent[]
   usageLedger    NovaUsageLedger[]
   automationRun  NovaAutomationRun?
+  routineRun      NovaAgentRoutineRun?
   sandboxSessions NovaSandboxSession[]
   feedbacks       NovaFeedback[]
   memoryLinks     NovaAgentMemoryLink[]

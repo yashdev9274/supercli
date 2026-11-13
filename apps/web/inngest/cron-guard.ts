@@ -4,15 +4,16 @@
  * That is unrelated to nova-feedback capture (which only runs inside a user
  * session turn).
  *
- * Enable maintenance crons only when explicitly on, or in production.
- * Set `NOVA_MAINTENANCE_CRONS=on` to force-enable locally.
- * Set `NOVA_MAINTENANCE_CRONS=off` to force-disable in production.
+ * Enable maintenance crons in production and with the local Inngest dev
+ * server. Set `NOVA_MAINTENANCE_CRONS=on` to force-enable them locally.
+ * Set `NOVA_MAINTENANCE_CRONS=off` to force-disable them everywhere.
  */
 export function novaMaintenanceCronsEnabled(): boolean {
   const flag = (process.env.NOVA_MAINTENANCE_CRONS ?? "").trim().toLowerCase()
   if (flag === "off" || flag === "false" || flag === "0") return false
   if (flag === "on" || flag === "true" || flag === "1") return true
   return (
+    process.env.INNGEST_DEV === "1" ||
     process.env.VERCEL_ENV === "production" ||
     process.env.NODE_ENV === "production"
   )
