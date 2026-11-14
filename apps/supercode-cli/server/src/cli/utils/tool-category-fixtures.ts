@@ -4,7 +4,7 @@ export const TOOL_CATEGORY_FIXTURES: [string, string][] = [
   ["read_file", "READ"], ["write_file", "WRITE"], ["edit_file", "EDIT"],
   ["search_files", "FILE SEARCH"], ["grep", "FILE SEARCH"], ["glob", "FILE SEARCH"],
   ["list_files", "FILE LIST"], ["list_directory", "FILE LIST"],
-  ["web_search", "WEB SEARCH"], ["exa_search", "WEB SEARCH"], ["firecrawl_search", "WEB SEARCH"],
+  ["web_search", "WEB SEARCH"], ["exa_search", "WEB SEARCH"], ["firecrawl_search", "WEB SEARCH"], ["keenable_search", "WEB SEARCH"],
   ["web_fetch", "WEB FETCH"], ["fetch_url", "WEB FETCH"], ["url_fetch", "WEB FETCH"],
   ["exa_fetch", "WEB FETCH"], ["firecrawl_scrape", "WEB FETCH"], ["firecrawl_map", "WEB SEARCH"],
   ["read_instructions", "READ"], ["skill", "READ"], ["delegate", "AGENT"], ["task", "AGENT"],
