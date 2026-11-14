@@ -175,6 +175,7 @@ export function CodexDeviceConnectionCard({ embedded = false, hideSummary = fals
           </> : busy ? <p role="status" className="flex items-center gap-2 py-4 text-[13px] text-[#aaa]"><Loader2 className="size-4 animate-spin" />Preparing device authorization…</p> : <p role="status" className="text-[13px] text-[#aaa]">{active ? "Preparing device authorization…" : error ? "Could not start the connection." : "Authorization ended. Start a new connection to retry."}</p>}
           {copied ? <p role="status" className="text-xs text-[#aaa]">Copied to clipboard</p> : null}
           {error ? <p role="alert" className="text-xs text-red-300">{error}</p> : null}
+          {active && !view?.attemptId && !busy ? <div className="space-y-3"><p role="status" className="text-[13px] text-[#aaa]">This authorization belongs to another session. Disconnect it, then connect again to start a new login.</p><button type="button" className={buttonClass} onClick={() => void act({ action: "disconnect" })}>Disconnect authorization</button></div> : null}
           {!connected && !active && !busy ? <button type="button" className={buttonClass} onClick={() => void act({ action: "start" })}>Start new connection</button> : null}
           <div className="mt-2 flex items-center justify-between text-[12px]">
             <a href="https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer" className="text-[#f97316] hover:underline">OpenAI sign-in help ↗</a>
