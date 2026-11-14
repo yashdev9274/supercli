@@ -96,6 +96,7 @@ apps/web/scripts/
 /brag-output
 
 # tauri app (apps/jarvis)
+apps/jarvis 
 apps/jarvis/src-tauri/target/
 apps/jarvis/src-tauri/gen/
 apps/jarvis/img/
