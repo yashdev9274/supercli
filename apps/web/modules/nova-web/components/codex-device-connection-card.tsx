@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import { Copy, ExternalLink, Loader2, Plus } from "lucide-react"
 
@@ -49,12 +49,6 @@ export function CodexDeviceConnectionCard({ embedded = false, hideSummary = fals
   }, [])
 
   useEffect(() => {
-    function onOpen() { setOpen(true) }
-    window.addEventListener("nova:open-codex-connect", onOpen)
-    return () => window.removeEventListener("nova:open-codex-connect", onOpen)
-  }, [])
-
-  useEffect(() => {
     if (!open || busy || !view || !ACTIVE.includes(view.state) || !view.attemptId) return
     const epoch = generation.current
     const controller = new AbortController()
@@ -76,18 +70,23 @@ export function CodexDeviceConnectionCard({ embedded = false, hideSummary = fals
     return () => { clearTimeout(timer); controller.abort() }
   }, [open, busy, view])
 
-  async function act(action?: { action: string; attemptId?: string }) {
+  const act = useCallback(async (action?: { action: string; attemptId?: string }) => {
     if (busyRef.current) return
     busyRef.current = true
     setBusy(true)
     setError(null)
     setCopied(false)
-    if (action?.action === "start") setOpen(true)
+    if (action?.action === "start" || action?.action === "connect") setOpen(true)
     const epoch = ++generation.current
     const controller = new AbortController()
     request.current = controller
     try {
-      const result = await connectionRequest(action, controller.signal)
+      let result = await connectionRequest(action?.action === "connect" ? undefined : action, controller.signal)
+      if (generation.current !== epoch) return
+      setView(result)
+      if (action?.action === "connect" && result.state !== "connected" && !ACTIVE.includes(result.state)) {
+        result = await connectionRequest({ action: "start" }, controller.signal)
+      }
       if (generation.current !== epoch) return
       setView(result)
       window.dispatchEvent(new Event("nova:codex-connection"))
@@ -99,7 +98,13 @@ export function CodexDeviceConnectionCard({ embedded = false, hideSummary = fals
       busyRef.current = false
       setBusy(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    const onOpen = () => void act({ action: "connect" })
+    window.addEventListener("nova:open-codex-connect", onOpen)
+    return () => window.removeEventListener("nova:open-codex-connect", onOpen)
+  }, [act])
 
   async function copy(value: string) {
     try {
@@ -112,7 +117,7 @@ export function CodexDeviceConnectionCard({ embedded = false, hideSummary = fals
   const connected = view?.state === "connected"
   const Root = embedded || hideSummary ? "div" : "section"
   return (
-    <Root aria-labelledby="codex-device-heading" className={embedded || hideSummary ? undefined : "mt-10"}>
+    <Root aria-labelledby={hideSummary ? undefined : "codex-device-heading"} className={embedded || hideSummary ? undefined : "mt-10"}>
       {!hideSummary ? <>
         <h2 id="codex-device-heading" className="text-[13px] font-medium">Your connections</h2>
         <p className="mt-2 text-[12px] text-[#8a8a8a]">Connect your own subscriptions to model providers.</p>
@@ -141,15 +146,16 @@ export function CodexDeviceConnectionCard({ embedded = false, hideSummary = fals
         </div>
       </div>
       {!embedded ? <p className="mt-2 text-[11px] leading-5 text-[#8a8a8a]">Choose OpenAI Codex in the chat model picker to use your subscription. Models and reasoning levels depend on your account. Credentials stay encrypted on Nova’s backend. Disconnect removes Nova’s credentials, not other OpenAI sessions.</p> : null}
-      {!embedded && !hideSummary ? <ProviderConnectionsSection showHeading={false} /> : null}
       {view?.state === "expired" || view?.state === "failed" ? <p role="status" className="mt-2 text-[12px] text-[#a0a0a0]">{view.state === "expired" ? "The code expired." : "Authorization failed."} Start a new connection using +.</p> : null}
       {error ? <div className="mt-2 flex flex-wrap items-center gap-3"><p role="alert" className="text-[12px] text-red-300">{error}</p><button type="button" disabled={busy} onClick={() => void act()} className="text-[12px] text-[#a0a0a0] underline">Retry</button></div> : null}
       </> : null}
+      {!embedded ? <ProviderConnectionsSection showHeading={hideSummary} codex={{ view, busy, connect: () => void act({ action: "connect" }), disconnect: () => void act({ action: "disconnect" }), refresh: () => void act() }} /> : null}
+      {hideSummary && !open && error ? <p role="alert" className="mt-2 text-[12px] text-red-300">{error} <button type="button" disabled={busy} className="underline" onClick={() => void act()}>Retry</button></p> : null}
       <Dialog open={open} onOpenChange={(next) => { if (!busy) setOpen(next) }}>
         <DialogContent className="gap-3 rounded-xl border-white/15 bg-[#292929] p-5 text-[#ededed] sm:max-w-[448px]">
           <DialogTitle className="text-[14px] font-medium">Connect Codex</DialogTitle>
-          <DialogDescription className="text-[13px] text-[#999]">Use your own subscription for this provider’s models.</DialogDescription>
-          {connected ? <p role="status" className="text-sm">Codex connected. Your credentials were saved securely.</p> : active && view?.userCode ? <>
+          <DialogDescription className="text-[13px] text-[#999]">Use your own subscription for this provider’s models. To switch profiles, open the verification page in a browser signed in to the ChatGPT account you want to use.</DialogDescription>
+          {connected ? <div className="space-y-3"><p role="status" className="text-sm">Codex connected. Disconnect to sign in with another ChatGPT profile.</p><button type="button" disabled={busy} className={buttonClass} onClick={() => void act({ action: "disconnect" })}>Disconnect Codex</button></div> : active && view?.userCode ? <>
             <ol className="list-decimal space-y-3 pl-6 text-[13px] leading-[17px] marker:text-[#888]">
               <li>In ChatGPT Settings → Security, turn on device code authorization for Codex.
                 <p className="mt-1 text-[#888]">If your workspace hides the switch, ask your workspace owner to enable device code authentication for Codex CLI.</p>
@@ -169,6 +175,7 @@ export function CodexDeviceConnectionCard({ embedded = false, hideSummary = fals
           </> : busy ? <p role="status" className="flex items-center gap-2 py-4 text-[13px] text-[#aaa]"><Loader2 className="size-4 animate-spin" />Preparing device authorization…</p> : <p role="status" className="text-[13px] text-[#aaa]">{active ? "Preparing device authorization…" : error ? "Could not start the connection." : "Authorization ended. Start a new connection to retry."}</p>}
           {copied ? <p role="status" className="text-xs text-[#aaa]">Copied to clipboard</p> : null}
           {error ? <p role="alert" className="text-xs text-red-300">{error}</p> : null}
+          {!connected && !active && !busy ? <button type="button" className={buttonClass} onClick={() => void act({ action: "start" })}>Start new connection</button> : null}
           <div className="mt-2 flex items-center justify-between text-[12px]">
             <a href="https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer" className="text-[#f97316] hover:underline">OpenAI sign-in help ↗</a>
             <button type="button" disabled={busy} className="px-2 py-1 text-[#aaa] hover:text-white disabled:opacity-40" onClick={() => active && view?.attemptId ? void act({ action: "cancel", attemptId: view.attemptId }) : setOpen(false)}>{active ? "Cancel" : "Close"}</button>

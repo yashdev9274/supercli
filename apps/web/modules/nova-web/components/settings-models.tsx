@@ -6,7 +6,6 @@ import { Check, ChevronDown, Search } from "lucide-react"
 
 import { ChatGPTConnectionCard } from "@/modules/nova-web/components/chatgpt-connection-card"
 import { CodexDeviceConnectionCard } from "@/modules/nova-web/components/codex-device-connection-card"
-import { ProviderConnectionsSection } from "@/modules/nova-web/components/provider-connections"
 import { filterSettingsModels, PROVIDER_CONFIGURATION } from "@/modules/nova-web/model-settings"
 import { modelLogo, PROVIDER_LOGOS, type BrandLogo } from "@/modules/nova-web/model-logos"
 import { HARNESS_PROVIDERS, menuId, type HarnessProvider, type NovaModelEntry } from "@/modules/nova-web/models"
@@ -30,7 +29,6 @@ export function ModelsSection({ provider, model, onUseModel }: {
       <p className="mt-2 text-[13px] leading-5 text-[#8a8a8a]">For each model, a thread runs on the first subscription or key below that serves it.</p>
 
       <CodexDeviceConnectionCard hideSummary />
-      <ProviderConnectionsSection />
       <div className="mt-3 flex items-center justify-between gap-3 text-[12px] text-[#8a8a8a]">
         {codex.loading ? <p role="status">Loading Codex account models…</p>
           : codex.error ? <p role="alert" className="text-amber-300">{codex.error}</p>
