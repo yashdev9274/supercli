@@ -423,7 +423,7 @@
     "type": "function",
     "function": {
       "name": "task",
-      "description": "Run one or more focused subtasks against subagents. When `parallel: true`, all items run concurrently and you get a combined summary. Use this for investigation/research tasks where you'd otherwise have to call `delegate` 3+ times in a row. Default is sequential (in order) so callers can rely on deterministic ordering when they need it.",
+      "description": "Run one or more focused subtasks against subagents. When `parallel: true`, up to three explore items run concurrently, general items run exclusively, and you get a combined summary. Use this for investigation/research tasks where you'd otherwise have to call `delegate` 3+ times in a row. Default is sequential (in order) so callers can rely on deterministic ordering when they need it.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -462,12 +462,13 @@
               "additionalProperties": false
             },
             "minItems": 1,
-            "description": "Subtasks to run. Each is independent and runs concurrently."
+            "maxItems": 8,
+            "description": "Up to eight subtasks to run in order, with optional read-only parallelism."
           },
           "parallel": {
             "type": "boolean",
             "default": false,
-            "description": "Set true to run all items in parallel via Promise.all. Default: false (sequential, in order)."
+            "description": "Set true to run up to three explore items concurrently; general items run exclusively. Default: false (sequential, in order)."
           }
         },
         "required": [

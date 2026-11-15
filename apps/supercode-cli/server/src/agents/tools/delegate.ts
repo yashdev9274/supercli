@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto"
 import { z } from "zod"
 import type { LanguageModel, ToolSet } from "ai"
+import { executeTaskGraph } from "@super/agent-runtime/task-graph"
 import { agentService } from "src/agents/service.ts"
 import type { GenerateOptions, GenerateResult } from "src/agents/lib/types.ts"
 import { writeScratch } from "src/lib/scratch.ts"
 import { getCurrentAgent } from "src/agents/lib/approval.ts"
-import { defineTool } from "../lib/define.ts"
+import { defineTool, type ToolExecuteContext } from "../lib/define.ts"
 
 const delegateSchema = z.object({
   task: z
@@ -53,7 +54,6 @@ const READ_ONLY_TOOLS = new Set([
   "firecrawl_map",
   "exa_search",
   "exa_fetch",
-  "task",
 ])
 
 //
@@ -93,20 +93,35 @@ export function delegateActivityCallbacks(rt: Pick<DelegateRuntime, "onToolCall"
 function filterTools(
   requested: string[] | undefined,
   agentName: string,
+  rt: DelegateRuntime,
 ): ToolSet | undefined {
   const defaults =
     agentName === "general"
       ? undefined // use everything
       : Array.from(READ_ONLY_TOOLS)
 
-  const wanted = new Set(requested ?? defaults ?? Object.keys(runtime.allTools))
+  const wanted = new Set(requested ?? defaults ?? Object.keys(rt.allTools))
   const tools: ToolSet = {}
   for (const name of wanted) {
-    if (runtime.allTools[name]) {
-      tools[name] = runtime.allTools[name] as any
+    if (name === "task" || name === "delegate") continue
+    if (rt.allTools[name]) {
+      tools[name] = rt.allTools[name] as any
     }
   }
   return Object.keys(tools).length > 0 ? tools : undefined
+}
+
+function childResultError(result: GenerateResult): string | undefined {
+  if (result.error) return result.error
+  if (result.finishReason === "tool-calls" || result.finishReason === "tool_calls") {
+    return "Subagent exhausted its tool-step budget before completing the task"
+  }
+  if (result.finishReason === "length") return "Subagent reached its output limit before completing the task"
+  if (result.finishReason === "error" || result.finishReason === "cancelled") {
+    return `Subagent ended with ${result.finishReason} before completing the task`
+  }
+  if (!result.text.trim()) return "Subagent returned an empty summary"
+  return undefined
 }
 
 const _delegateDef = {
@@ -120,8 +135,11 @@ const _delegateDef = {
     "The general agent is write-capable (it still asks for permission on destructive operations). " +
     "The explore agent is strictly read-only (it cannot modify files or system state).",
   inputSchema: delegateSchema,
-  execute: async (args: DelegateArgs) => {
-    if (!runtime.model) {
+  execute: async (args: DelegateArgs, ctx?: ToolExecuteContext) => {
+    const rt = { ...runtime, allTools: { ...runtime.allTools } }
+    const parentAgent = ctx?.agentName ?? getCurrentAgent()
+    ctx?.signal?.throwIfAborted()
+    if (!rt.model) {
       return JSON.stringify({
         success: false,
         error: "delegate: no model available in this session",
@@ -136,31 +154,35 @@ const _delegateDef = {
       })
     }
 
-    const tools = filterTools(args.tools, args.agent)
+    const tools = filterTools(args.tools, args.agent, rt)
 
     const generateOpts: GenerateOptions = {
-      model: runtime.model,
+      model: rt.model,
       tools,
       prompt: args.task,
       budget: args.budget ?? agent.info.steps,
-      onChunk: runtime.onChunk,
-      ...delegateActivityCallbacks(runtime),
-      parentAgent: getCurrentAgent(),
+      onChunk: rt.onChunk,
+      ...delegateActivityCallbacks(rt),
+      parentAgent,
+      signal: ctx?.signal,
     }
 
     try {
       const result: GenerateResult = await agent.generate!(generateOpts)
+      ctx?.signal?.throwIfAborted()
+      const error = childResultError(result)
 
       // Persist structured artifacts for the parent's follow-up
-      const scratchName = `delegate-${args.agent}-${Date.now()}`
+      const scratchName = `delegate-${args.agent}-${randomUUID()}`
       const scratchPath = await writeScratch(scratchName, {
         task: args.task,
         agent: args.agent,
         result,
       })
+      ctx?.signal?.throwIfAborted()
 
       return JSON.stringify({
-        success: !result.error,
+        success: !error,
         agent: args.agent,
         summary: result.text,
         scratchPath,
@@ -170,9 +192,11 @@ const _delegateDef = {
           tokens: result.tokens,
           finishReason: result.finishReason,
         },
-        error: result.error,
+        error,
       })
     } catch (error: any) {
+      ctx?.signal?.throwIfAborted()
+      if (error?.name === "AbortError") throw error
       return JSON.stringify({
         success: false,
         error: error?.message ?? String(error),
@@ -181,12 +205,6 @@ const _delegateDef = {
   },
 }
 
-//
-// `task` tool — the parallel-friendly sibling of `delegate`. Accepts an
-// array of subtasks, runs them concurrently via Promise.all, and returns a
-// combined summary. This is what the parent agent should reach for when it
-// has 2+ independent lookups.
-//
 const taskItemSchema = z.object({
   task: z.string().describe("Self-contained subtask"),
   agent: z.enum(["explore", "general"]).optional().default("explore"),
@@ -198,13 +216,14 @@ const taskSchema = z.object({
   items: z
     .array(taskItemSchema)
     .min(1)
-    .describe("Subtasks to run. Each is independent and runs concurrently."),
+    .max(8)
+    .describe("Up to eight subtasks to run in order, with optional read-only parallelism."),
   parallel: z
     .boolean()
     .optional()
     .default(false)
     .describe(
-      "Set true to run all items in parallel via Promise.all. Default: " +
+      "Set true to run up to three explore items concurrently; general items run exclusively. Default: " +
         "false (sequential, in order).",
     ),
 })
@@ -214,54 +233,63 @@ export type TaskArgs = z.infer<typeof taskSchema>
 const _taskDef = {
   description:
     "Run one or more focused subtasks against subagents. When `parallel: true`, " +
-    "all items run concurrently and you get a combined summary. Use this for " +
+    "up to three explore items run concurrently, general items run exclusively, and you get a combined summary. Use this for " +
     "investigation/research tasks where you'd otherwise have to call `delegate` " +
     "3+ times in a row. Default is sequential (in order) so callers can rely on " +
     "deterministic ordering when they need it.",
   inputSchema: taskSchema,
-  execute: async (args: TaskArgs) => {
-    if (!runtime.model) {
+  execute: async (args: TaskArgs, ctx?: ToolExecuteContext) => {
+    const rt = { ...runtime, allTools: { ...runtime.allTools } }
+    const parentAgent = ctx?.agentName ?? getCurrentAgent()
+    ctx?.signal?.throwIfAborted()
+    if (!rt.model) {
       return JSON.stringify({
         success: false,
         error: "task: no model available in this session",
       })
     }
 
-    const MAX_PARALLEL = 3
-    const items = args.items.slice(0, 8) // hard cap to avoid runaway token usage
+    const items = args.items
     const isParallel = args.parallel && items.length > 1
 
-    const runOne = async (item: z.infer<typeof taskItemSchema>, idx: number) => {
+    const runOne = async (item: z.infer<typeof taskItemSchema>, idx: number, signal: AbortSignal) => {
+      signal.throwIfAborted()
       const agent = agentService.get(item.agent)
       if (!agent) {
         return {
           index: idx,
+          agent: item.agent,
           success: false,
           error: `task: agent '${item.agent}' not registered`,
         }
       }
-      const tools = filterTools(item.tools, item.agent)
+      const tools = filterTools(item.tools, item.agent, rt)
       try {
         const result = await agent.generate!({
-          model: runtime.model!,
+          model: rt.model!,
           tools,
           prompt: item.task,
           budget: item.budget ?? agent.info.steps,
-          onChunk: runtime.onChunk,
-          ...delegateActivityCallbacks(runtime),
-          parentAgent: getCurrentAgent(),
+          onChunk: rt.onChunk,
+          ...delegateActivityCallbacks(rt),
+          parentAgent,
+          signal,
         })
+        signal.throwIfAborted()
+        const error = childResultError(result)
         return {
           index: idx,
           agent: item.agent,
-          success: !result.error,
+          success: !error,
           summary: result.text,
           filesRead: result.filesRead ?? [],
           filesChanged: result.filesChanged ?? [],
           tokens: result.tokens,
-          error: result.error,
+          error,
         }
       } catch (error: any) {
+        signal.throwIfAborted()
+        if (error?.name === "AbortError") throw error
         return {
           index: idx,
           agent: item.agent,
@@ -271,23 +299,17 @@ const _taskDef = {
       }
     }
 
-    const results = isParallel
-      ? await Promise.all(items.map((it, i) => runOne(it, i)))
-      : (await Promise.all(
-          items.map(async (it, i) => {
-            if (i > 0 && i >= MAX_PARALLEL) {
-              // soft cap on sequential runs — first MAX_PARALLEL only
-              return null
-            }
-            return runOne(it, i)
-          }),
-        )).filter((r): r is NonNullable<typeof r> => r !== null)
+    const results = await executeTaskGraph(items.map((item, index) => ({
+      readOnly: item.agent === "explore",
+      run: (signal: AbortSignal) => runOne(item, index, signal),
+    })), isParallel, ctx?.signal)
 
-    const scratchName = `task-${Date.now()}`
+    const scratchName = `task-${randomUUID()}`
     const scratchPath = await writeScratch(scratchName, {
       parallel: isParallel,
       results,
     })
+    ctx?.signal?.throwIfAborted()
 
     // Compose a summary string the parent can read directly
     const lines = results.map(

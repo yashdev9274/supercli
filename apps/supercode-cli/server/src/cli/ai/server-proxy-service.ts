@@ -21,6 +21,7 @@ import prisma from "src/lib/prisma"
 import { stripOrphanToolCalls } from "./sanitize-messages"
 import { serializeToolsForHttp, validateToolArgs } from "./tools-util"
 import { getSupercodeServerUrl } from "src/lib/load-env"
+import { executeToolBatch } from "./tool-batch"
 
 const MAX_STEPS = 8
 
@@ -441,10 +442,11 @@ export class ServerProxyService {
     calls: ToolCall[],
     currentMessages: ModelMessage[],
     onToolResult?: (params: { id?: string; toolName: string; args: unknown; result: string }) => void,
+    signal?: AbortSignal,
   ): Promise<Array<{ toolName: string; args: unknown; result: string }>> {
     const stepResults: Array<{ toolName: string; args: unknown; result: string }> = []
 
-    for (const call of calls) {
+    await executeToolBatch(calls, async (call) => {
       const toolFn = tools?.[call.toolName]
       let toolResult: string
 
@@ -456,16 +458,12 @@ export class ServerProxyService {
             issues: validated.issues,
             received: validated.received,
           })
-          stepResults.push({ toolName: call.toolName, args: call.args, result: toolResult })
           onToolResult?.({ id: call.toolCallId, toolName: call.toolName, args: call.args, result: toolResult })
-          pushAssistantToolCall(currentMessages, call)
-          pushToolResult(currentMessages, call, toolResult)
-          this.collectedToolCalls.push(call)
-          continue
+          return toolResult
         }
 
         try {
-          toolResult = await toolFn.execute(validated.data)
+          toolResult = await toolFn.execute(validated.data, { toolCallId: call.toolCallId, messages: currentMessages, abortSignal: signal })
         } catch (err: any) {
           toolResult = JSON.stringify({ error: err.message || "Tool execution failed" })
         }
@@ -473,12 +471,14 @@ export class ServerProxyService {
         toolResult = JSON.stringify({ error: `Tool "${call.toolName}" is not available locally` })
       }
 
-      stepResults.push({ toolName: call.toolName, args: call.args, result: toolResult })
       onToolResult?.({ id: call.toolCallId, toolName: call.toolName, args: call.args, result: toolResult })
+      return toolResult
+    }, (call, toolResult) => {
+      stepResults.push({ toolName: call.toolName, args: call.args, result: toolResult })
       pushAssistantToolCall(currentMessages, call)
       pushToolResult(currentMessages, call, toolResult)
       this.collectedToolCalls.push(call)
-    }
+    }, signal)
 
     return stepResults
   }
@@ -577,6 +577,7 @@ export class ServerProxyService {
         result.toolCalls,
         currentMessages,
         onToolResult,
+        signal,
       )
 
       seenStepResults.length = 0

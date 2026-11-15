@@ -42,10 +42,15 @@ export async function* streamOriginalHarness(input: BridgeInput): AsyncGenerator
   let runId = ""
   let terminal = false
   let buffer = ""
+  const pending = new Set<Promise<void>>()
+  let handoffFailure: unknown
+  let handoffFailed = false
+  const drain = async () => {
+    await Promise.all(pending)
+    if (handoffFailed) throw handoffFailure
+  }
   const reply = async (event: Record<string, unknown>) => {
     const id = event.id
-    if (!runId || typeof id !== "string" || consumed.has(id) || typeof event.hash !== "string") throw new Error("Invalid or replayed CLI handoff")
-    consumed.add(id)
     const payload = event.payload as Record<string, unknown>
     let value: unknown
     let error: string | undefined
@@ -110,21 +115,47 @@ export async function* streamOriginalHarness(input: BridgeInput): AsyncGenerator
           runId = event.runId
         } else if (event.type === "handoff") {
           if (terminal) throw new Error("Handoff after terminal outcome")
-          await reply(event)
+          if (!runId || typeof event.id !== "string" || consumed.has(event.id) || typeof event.hash !== "string") throw new Error("Invalid or replayed CLI handoff")
+          consumed.add(event.id)
+          const payload = event.payload as Record<string, unknown> | undefined
+          const name = typeof payload?.toolName === "string" ? payload.toolName : ""
+          const concurrent = !input.journal && event.kind === "tool" && tools.get(name)?.access === "read"
+            && name !== "question" && !input.approvalTools?.includes(name)
+          if (!concurrent) {
+            await drain()
+            await reply(event)
+          } else {
+            if (pending.size >= 4) await Promise.race(pending)
+            if (handoffFailed) throw handoffFailure
+            input.signal?.throwIfAborted()
+            const task = reply(event).catch((failure) => {
+              if (!handoffFailed) {
+                handoffFailed = true
+                handoffFailure = failure
+              }
+              cancellation.abort()
+            }).finally(() => pending.delete(task))
+            pending.add(task)
+          }
         }
         else if (event.type === "error") throw new Error(String(event.message ?? "CLI harness failed"))
         else if (event.type === "finish") {
           if (terminal || !runId) throw new Error("Invalid CLI terminal event")
+          await drain()
           terminal = true
           yield event as BridgeEvent
         } else if (!terminal) yield event as BridgeEvent
       }
       if (next.done) break
     }
+    await drain()
     if (!terminal) throw new Error("CLI harness stream ended without a terminal outcome")
+  } catch (failure) {
+    throw handoffFailed ? handoffFailure : failure
   } finally {
     cancellation.abort()
     await reader.cancel().catch(() => {})
+    await Promise.all(pending)
     reader.releaseLock()
   }
 }

@@ -130,6 +130,8 @@ export async function runAgent(
         if (opts.signal?.aborted) return undefined
         if (stopForRepetition) {
           return {
+            toolChoice: "none" as const,
+            activeTools: [],
             messages: [
               ...currentMessages,
               {

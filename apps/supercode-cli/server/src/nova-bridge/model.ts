@@ -29,7 +29,7 @@ export function createBridgeModel(rpc: Rpc): Model {
       const current = round++
       const raw = await rpc("inference", {
         messages: bridgeMessages(options.prompt),
-        tools: options.tools?.flatMap((tool) => tool.type === "function" ? [{ type: "function", function: { name: tool.name, description: tool.description ?? "", parameters: tool.inputSchema } }] : []),
+        tools: options.tools?.flatMap((tool) => tool.type === "function" ? [{ type: "function", function: { name: tool.name, description: tool.description ?? "", parameters: tool.inputSchema } }] : []) ?? [],
       })
       if (!Array.isArray(raw) || raw.length > 10_000) throw new Error("Invalid inference reply")
       type Part = Awaited<ReturnType<Model["doStream"]>>["stream"] extends ReadableStream<infer P> ? P : never
