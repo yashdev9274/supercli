@@ -1,5 +1,6 @@
 import prisma from "@super/db"
 import { createDurableJournal, InteractionPending } from "../harness/durable"
+import { persistSubagentActivity } from "../harness/subagent-activity"
 import { authorizeHarnessRun, durableStore, harnessCheckpoint } from "../harness/durable-store"
 
 import { browserService } from "@/modules/nova/browser/server"
@@ -396,6 +397,7 @@ export async function* runWebTurn(input: {
   harnessToken: string
   /** Account/model validated by the authenticated route before any turn writes. */
   chatTransport?: ChatTransport
+  childTransport?: (signal?: AbortSignal) => Promise<ChatTransport>
   signal?: AbortSignal
   references?: ReferenceInput[]
   localAttachments?: LocalAttachment[]
@@ -731,6 +733,7 @@ export async function* runWebTurn(input: {
     for await (const event of withFeedbackRecording(streamHarnessAgent({
       token: input.harnessToken,
       chatTransport: input.chatTransport,
+      childTransport: input.childTransport,
       journal: createDurableJournal(durableStore(input.sessionId, posted.runId)),
       checkpoint: (value) => harnessCheckpoint(input.sessionId, posted.runId, value, { content, provider: selection.provider, model: selection.model, effort: input.effort, mode, machineSize }, Boolean(workspace)),
       skipConnectedTools: !input.harnessToken,
@@ -757,7 +760,12 @@ export async function* runWebTurn(input: {
         return executeNativeGithubTool(input.userId, toolName, args)
       },
     }), feedbackRecorder)) {
-      if (event.type === "status") {
+      if (event.type === "subagent") {
+        const activity = await persistSubagentActivity((run) => prisma.$transaction(run), {
+          sessionId: input.sessionId, surfaceId: posted.surfaceId, runId: posted.runId,
+        }, event)
+        yield { type: "activity", activity }
+      } else if (event.type === "status") {
         yield {
           type: "status",
           phase: event.phase ?? "harness",

@@ -262,6 +262,7 @@ export function reduceWorkingSteps(
   }
 
   if (event.type === "activity") {
+    if (event.activity.type === "subagent") return steps
     const closed = finishActive(steps, now)
     if (event.activity.type === "response" || event.activity.type === "error") {
       return closed
