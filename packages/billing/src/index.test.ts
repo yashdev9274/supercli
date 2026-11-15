@@ -48,30 +48,39 @@ beforeEach(async () => {
 afterAll(async () => { await db.close() })
 
 describe("durable product credits", () => {
-  it("provisions new Free users at exactly 1000 product credits", async () => {
+  it("provisions new Free users at exactly 500 product credits", async () => {
     const balance = await service.getBalance("user")
-    expect(balance.balanceCredits).toBe(1000)
-    expect(balance.balanceMicrocredits).toBe(1_000_000_000)
+    expect(balance.balanceCredits).toBe(500)
+    expect(balance.balanceMicrocredits).toBe(500_000_000)
     expect(balance.resetAt.getUTCDate()).toBe(1)
   })
 
   it("gives grandfathered Spark the same allowance despite legacy plan amount", async () => {
-    await db.exec(`INSERT INTO plan (id,tier,"creditAmountCents","monthlyCredits") VALUES ('spark','spark',500,500); INSERT INTO subscription ("userId","planId",status) VALUES ('user','spark','active');`)
-    expect((await service.getBalance("user")).allowanceCredits).toBe(1000)
+    await db.exec(`INSERT INTO plan (id,tier,"creditAmountCents","monthlyCredits") VALUES ('spark','spark',1000,1000); INSERT INTO subscription ("userId","planId",status) VALUES ('user','spark','active');`)
+    expect((await service.getBalance("user")).allowanceCredits).toBe(500)
+  })
+
+  it("reduces an existing Free allowance to 500 while preserving committed usage", async () => {
+    await service.getBalance("user")
+    await db.exec(`UPDATE credit_account SET "allowanceMicrocredits"=1000000000, "balanceMicrocredits"=800000000, "committedMicrocredits"=200000000;`)
+    const balance = await service.getBalance("user")
+    expect(balance.allowanceCredits).toBe(500)
+    expect(balance.balanceCredits).toBe(300)
+    expect((await service.getBalance("user")).balanceCredits).toBe(300)
   })
 
   it("enforces exhausted credits before work and preserves fractional calls", async () => {
     const tiny = await reserve("tiny", 3)
     await service.settle({ reservationId: tiny.id, actualMicrocredits: 1 })
-    await reserve("rest", 999_999_999)
+    await reserve("rest", 499_999_999)
     await expect(reserve("denied", 1)).rejects.toThrow("exhausted")
     expect((await service.getBalance("user")).balanceMicrocredits).toBe(0)
   })
 
   it("atomically admits only funded concurrent reservations", async () => {
-    const results = await Promise.allSettled(Array.from({ length: 8 }, (_, i) => reserve(String(i), 300_000_000)))
+    const results = await Promise.allSettled(Array.from({ length: 8 }, (_, i) => reserve(String(i), 150_000_000)))
     expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(3)
-    expect((await service.getBalance("user")).balanceMicrocredits).toBe(100_000_000)
+    expect((await service.getBalance("user")).balanceMicrocredits).toBe(50_000_000)
   })
 
   it("replays reserve and settlement exactly once across service instances", async () => {
@@ -82,7 +91,7 @@ describe("durable product credits", () => {
     expect(replay.replayed).toBe(true)
     await other.settle({ reservationId: initial.id, actualMicrocredits: 40 })
     expect((await service.settle({ reservationId: initial.id, actualMicrocredits: 40 })).replayed).toBe(true)
-    expect((await service.getBalance("user")).balanceMicrocredits).toBe(999_999_960)
+    expect((await service.getBalance("user")).balanceMicrocredits).toBe(499_999_960)
     await expect(service.settle({ reservationId: initial.id, actualMicrocredits: 39 })).rejects.toThrow("differs")
     await expect(reserve("same", 101)).rejects.toThrow("different charge")
     expect((await other.getReservation({ userId: "user", key: "same" }))?.status).toBe("settled")
@@ -93,7 +102,7 @@ describe("durable product credits", () => {
     failStatement = "INSERT INTO credit_reservation"
     await expect(reserve("failed", 100)).rejects.toThrow("Injected")
     failStatement = ""
-    expect((await service.getBalance("user")).balanceMicrocredits).toBe(1_000_000_000)
+    expect((await service.getBalance("user")).balanceMicrocredits).toBe(500_000_000)
     expect(await service.getReservation({ userId: "user", key: "failed" })).toBeNull()
   })
 
@@ -102,25 +111,25 @@ describe("durable product credits", () => {
     failStatement = "UPDATE credit_reservation"
     await expect(service.settle({ reservationId: reservation.id, actualMicrocredits: 20 })).rejects.toThrow("Injected")
     failStatement = ""
-    expect((await service.getBalance("user")).balanceMicrocredits).toBe(999_999_900)
+    expect((await service.getBalance("user")).balanceMicrocredits).toBe(499_999_900)
     await service.settle({ reservationId: reservation.id, actualMicrocredits: 20 })
-    expect((await service.getBalance("user")).balanceMicrocredits).toBe(999_999_980)
+    expect((await service.getBalance("user")).balanceMicrocredits).toBe(499_999_980)
   })
 
   it("does not mint a new-period refund for an old reservation", async () => {
     const reservation = await reserve("old", 100)
     await db.exec(`UPDATE credit_account SET "periodStart"='2020-01-01', "resetAt"='2020-02-01'; UPDATE credit_reservation SET "periodStart"='2020-01-01';`)
     await service.settle({ reservationId: reservation.id, actualMicrocredits: 20 })
-    expect((await service.getBalance("user")).balanceMicrocredits).toBe(1_000_000_000)
+    expect((await service.getBalance("user")).balanceMicrocredits).toBe(500_000_000)
     expect((await service.getReservation({ userId: "user", key: "old" }))?.actualMicrocredits).toBe(20)
   })
 
   it("holds unknown/abandoned usage until explicit recovery and forbids oversettlement", async () => {
     const reservation = await reserve("unknown", 100)
     await expect(service.settle({ reservationId: reservation.id, actualMicrocredits: 101 })).rejects.toThrow("exceeds")
-    expect((await service.getBalance("user")).balanceMicrocredits).toBe(999_999_900)
+    expect((await service.getBalance("user")).balanceMicrocredits).toBe(499_999_900)
     await service.settle({ reservationId: reservation.id, actualMicrocredits: reservation.reservedMicrocredits })
-    expect((await service.getBalance("user")).balanceMicrocredits).toBe(999_999_900)
+    expect((await service.getBalance("user")).balanceMicrocredits).toBe(499_999_900)
   })
 
   it("rejects invalid amounts and missing users instead of granting unmetered work", async () => {
@@ -129,10 +138,10 @@ describe("durable product credits", () => {
   })
 
   it("preserves consumed credits across upgrades and downgrades without repeatable topups", async () => {
-    await reserve("free-spend", 700_000_000)
+    await reserve("free-spend", 400_000_000)
     await db.exec(`INSERT INTO plan (id,tier,"creditAmountCents","monthlyCredits") VALUES ('paid','pro',2000,2000); INSERT INTO subscription ("userId","planId",status) VALUES ('user','paid','active');`)
-    expect((await service.getBalance("user")).balanceCredits).toBe(1300)
-    await reserve("paid-spend", 800_000_000)
+    expect((await service.getBalance("user")).balanceCredits).toBe(1600)
+    await reserve("paid-spend", 1_100_000_000)
     await db.exec(`UPDATE subscription SET status='cancelled';`)
     expect((await service.getBalance("user")).balanceCredits).toBe(0)
     await db.exec(`UPDATE subscription SET status='active';`)
@@ -149,7 +158,7 @@ describe("durable product credits", () => {
         return adapter.$transaction(operation, options)
       },
     }
-    expect((await createBillingService(transient).getBalance("user")).balanceCredits).toBe(1000)
+    expect((await createBillingService(transient).getBalance("user")).balanceCredits).toBe(500)
     expect(attempts).toBe(2)
     const unavailable: BillingDatabase = { async $transaction() { throw new Error("database unavailable") } }
     await expect(createBillingService(unavailable).reserve({ userId: "user", key: "failure", kind: "test", amountMicrocredits: 1 })).rejects.toThrow("database unavailable")

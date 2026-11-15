@@ -21,7 +21,7 @@ mock.module("../model-access", () => ({
   getUpgradeSuggestion: () => "Upgrade your plan.",
 }))
 
-const { ensureSparkSubscription, getSubscriptionPlan } = await import("../subscription-check")
+const { ensureSparkSubscription, getSubscriptionPlan, getActiveSubscription } = await import("../subscription-check")
 const { checkPlanGate } = await import("../plan-gate")
 
 const sparkPlan = {
@@ -50,13 +50,47 @@ beforeEach(() => {
 })
 
 describe("subscription verification and free provisioning", () => {
+  it("selects paid Spark before a newer active free subscription", async () => {
+    const paid = {
+      ...sparkSubscription,
+      plan: { ...sparkPlan, tier: "spark-premium", name: "Spark", monthlyCredits: 500 },
+      currentPeriodEnd: new Date(Date.now() + 86400000),
+    }
+    findFirstMock.mockImplementation(async (args) => {
+      const query = args as { where: { plan?: { tier: unknown } } }
+      return typeof query.where.plan?.tier === "object" ? paid : sparkSubscription
+    })
+    expect(await getSubscriptionPlan("user-paid")).toMatchObject({ tier: "spark-premium", monthlyCredits: 500 })
+    expect(findFirstMock).toHaveBeenCalledTimes(1)
+    expect(findFirstMock.mock.calls[0]?.[0]).toMatchObject({
+      where: {
+        userId: "user-paid",
+        status: { in: ["active", "trialing"] },
+        plan: { tier: { not: "spark" } },
+        OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: expect.any(Date) } }],
+      },
+      orderBy: { createdAt: "desc" },
+    })
+    expect(subscriptionUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it("retains the selected plan pricing and region for Studio", async () => {
+    const paid = {
+      ...sparkSubscription,
+      plan: { ...sparkPlan, tier: "pro", variant: "in", priceCents: 154900, currency: "INR", interval: "month" },
+    }
+    findFirstMock.mockResolvedValueOnce(paid)
+    expect((await getActiveSubscription("user-paid"))?.plan).toMatchObject({
+      tier: "pro", variant: "in", priceCents: 154900, currency: "INR", interval: "month",
+    })
+  })
   it("provisions deterministic free subscriptions without refilling legacy balances", async () => {
     planFindFirstMock.mockResolvedValue(sparkPlan)
     subscriptionUpsertMock.mockResolvedValue(sparkSubscription)
     for (let attempt = 0; attempt < 2; attempt++) {
       const plan = await getSubscriptionPlan("user-new")
       expect(plan?.tier).toBe("spark")
-      expect(plan?.monthlyCredits).toBe(1000)
+      expect(plan?.monthlyCredits).toBe(500)
       expect(plan?.contextLimit).toBe(16000)
       expect(plan?.isGrandfathered).toBe(false)
     }
@@ -98,7 +132,7 @@ describe("subscription verification and free provisioning", () => {
     findFirstMock.mockResolvedValue({ ...sparkSubscription, metadata: { grandfathered: true } })
     const plan = await getSubscriptionPlan("user-grandfathered")
     expect(plan?.isGrandfathered).toBe(true)
-    expect(plan?.monthlyCredits).toBe(1000)
+    expect(plan?.monthlyCredits).toBe(500)
     expect(plan?.contextLimit).toBe(16000)
     expect(plan?.creditAmountCents).toBe(500)
     expect(subscriptionUpsertMock).not.toHaveBeenCalled()
@@ -113,7 +147,7 @@ describe("subscription verification and free provisioning", () => {
     }
     findFirstMock.mockResolvedValueOnce(paid)
     expect(await getSubscriptionPlan("user-paid")).toMatchObject({ tier: "pro", contextLimit: 128000, monthlyCredits: 2500, creditAmountCents: 2000 })
-    findFirstMock.mockResolvedValueOnce({ ...paid, currentPeriodEnd: new Date(0) })
+    findFirstMock.mockResolvedValueOnce(null)
     findFirstMock.mockResolvedValueOnce(sparkSubscription)
     expect(await getSubscriptionPlan("user-paid")).toMatchObject({ tier: "spark", contextLimit: 16000 })
   })
@@ -129,7 +163,7 @@ describe("plan gate", () => {
     findFirstMock.mockResolvedValue(sparkSubscription)
     expect(await checkPlanGate("user-free", "deepseek-v4-flash", { totalTokens: 16000 })).toMatchObject({
       allowed: true,
-      plan: { contextLimit: 16000, monthlyCredits: 1000 },
+      plan: { contextLimit: 16000, monthlyCredits: 500 },
     })
     expect(creditUpsertMock).not.toHaveBeenCalled()
     requestLimitMock.mockResolvedValueOnce({ allowed: false, message: "Request cap reached" })

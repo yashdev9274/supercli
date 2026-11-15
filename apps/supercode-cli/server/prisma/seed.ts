@@ -42,7 +42,7 @@ const PLANS = [
   {
     tier: "spark",
     name: "Free",
-    description: "1000 product credits per month, free BYOK, free Codex/Claude/OpenCode connect, 1 vCPU / 4 GB. 16K context, with 1M context for native DeepSeek V4 Flash only.",
+    description: "500 product credits per month, free BYOK, free Codex/Claude/OpenCode connect, 1 vCPU / 4 GB. 16K context, with 1M context for native DeepSeek V4 Flash only.",
     variant: null,
     interval: null,
     priceCents: 0,
@@ -51,7 +51,7 @@ const PLANS = [
     contextLimit: 16000,
     modelAccess: "open",
     creditAmountCents: 1000,
-    monthlyCredits: 1000,
+    monthlyCredits: 500,
     dodoProductId: null,
     sortOrder: 1,
   },

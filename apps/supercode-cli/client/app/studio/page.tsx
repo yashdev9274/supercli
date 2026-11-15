@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { authClient } from "@/lib/auth-client"
+import { creditsLabel, creditPercentage, studioBillingHeaders, type ProductCreditBalance } from "@/lib/studio-billing"
 import { Spinner } from "@/components/ui/spinner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -61,12 +62,6 @@ type SubscriptionInfo = {
   trialEndsAt: string | null
   cancelAtPeriodEnd: boolean
   isGrandfathered: boolean
-}
-
-type CreditBalance = {
-  balanceCents: number
-  totalCredits: number
-  resetAt: string | null
 }
 
 const TIER_COLORS: Record<string, string> = {
@@ -168,16 +163,6 @@ function modelAccessLabel(tier: string, access?: string): string {
   return "DeepSeek only"
 }
 
-function creditsLabel(plan: Plan | null | undefined, region: "in" | "int"): string {
-  if (!plan) return "—"
-  if (plan.tier === "spark") return "Fixed DeepSeek"
-  if (plan.tier === "spark-premium") return "$5 / mo"
-  if (plan.tier === "pro") return region === "in" ? "$20 / mo" : "$25 / mo"
-  if (plan.tier === "ultra") return "$110 / mo"
-  if (plan.creditAmountCents) return `$${(plan.creditAmountCents / 100).toFixed(0)} / mo`
-  return "—"
-}
-
 function planBlurb(tier: string): string {
   if (tier === "spark") {
     return "Fixed DeepSeek credits, free BYOK, free Codex/Claude/OpenCode connect, and 1 vCPU / 4 GB machines."
@@ -229,14 +214,14 @@ function PlanLimitBar({ used, limit }: { used: number; limit: number }) {
   )
 }
 
-function CreditMeter({ balance }: { balance: CreditBalance }) {
-  const pct = Math.min(100, Math.round((balance.balanceCents / Math.max(balance.totalCredits, 1)) * 100))
+function CreditMeter({ balance }: { balance: ProductCreditBalance }) {
+  const pct = creditPercentage(balance)
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
         <span className="text-[11px] text-zinc-500 font-mono">Credits remaining</span>
         <span className="text-[11px] font-mono text-zinc-400">
-          ${(balance.balanceCents / 100).toFixed(2)} / ${(balance.totalCredits / 100).toFixed(2)} ({pct}%)
+          {balance.balanceCredits.toLocaleString(undefined, { maximumFractionDigits: 2 })} / {balance.allowanceCredits.toLocaleString()} credits ({pct}%)
         </span>
       </div>
       <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
@@ -278,7 +263,7 @@ function StudioPage() {
   const [plans, setPlans] = useState<Plan[]>([])
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null)
   const [currentPlan, setCurrentPlan] = useState<Plan | null>(null)
-  const [creditBalance, setCreditBalance] = useState<CreditBalance | null>(null)
+  const [creditBalance, setCreditBalance] = useState<ProductCreditBalance | null>(null)
   const [requestsUsed, setRequestsUsed] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -289,6 +274,7 @@ function StudioPage() {
   const [region, setRegion] = useState<"in" | "int">("int")
 
   const userId = session?.user?.id
+  const sessionToken = session?.session?.token
 
   useEffect(() => {
     setRegion(detectVariant())
@@ -324,10 +310,12 @@ function StudioPage() {
     if (!userId) return
     try {
       setError(null)
-      const variant = detectVariant()
       const [plansRes, statusRes] = await Promise.all([
-        fetch(`/api/billing/plans?isGrandfathered=true&variant=${variant}`),
-        fetch(`/api/billing/status?userId=${encodeURIComponent(userId)}`),
+        fetch("/api/billing/plans", { cache: "no-store" }),
+        fetch(`/api/billing/status?userId=${encodeURIComponent(userId)}`, {
+          cache: "no-store",
+          headers: studioBillingHeaders(sessionToken),
+        }),
       ])
       if (!plansRes.ok) throw new Error(`Plans API: ${plansRes.status}`)
       if (!statusRes.ok) throw new Error(`Status API: ${statusRes.status}`)
@@ -336,14 +324,14 @@ function StudioPage() {
       setPlans(plansData.plans ?? [])
       setSubscription(statusData.subscription ?? null)
       setCurrentPlan(statusData.plan ?? null)
-      setCreditBalance(statusData.creditBalance ?? null)
+      setCreditBalance(statusData.productCreditBalance ?? null)
       setRequestsUsed(statusData.requestsUsed ?? 0)
     } catch (err) {
       setError(String(err))
     } finally {
       setLoading(false)
     }
-  }, [userId])
+  }, [userId, sessionToken])
 
   useEffect(() => {
     if (userId) fetchData()
@@ -363,7 +351,7 @@ function StudioPage() {
     try {
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...studioBillingHeaders(sessionToken) },
         body: JSON.stringify({ userId, planId: confirmingPlan.id }),
       })
       const data = await res.json()
@@ -375,7 +363,7 @@ function StudioPage() {
       setConfirmingPlan(null)
       toast.error(err instanceof Error ? err.message : "Checkout failed")
     }
-  }, [confirmingPlan, userId])
+  }, [confirmingPlan, userId, sessionToken])
 
   const handleCancel = useCallback(async () => {
     if (!userId) return
@@ -383,6 +371,7 @@ function StudioPage() {
     try {
       const res = await fetch(`/api/billing/status?userId=${encodeURIComponent(userId)}`, {
         method: "DELETE",
+        headers: studioBillingHeaders(sessionToken),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Failed to cancel subscription")
@@ -394,7 +383,7 @@ function StudioPage() {
     } finally {
       setCancelling(false)
     }
-  }, [userId, fetchData])
+  }, [userId, sessionToken, fetchData])
 
   const handleRefund = useCallback(async () => {
     if (!userId) return
@@ -402,7 +391,7 @@ function StudioPage() {
     try {
       const res = await fetch("/api/billing/refund", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...studioBillingHeaders(sessionToken) },
         body: JSON.stringify({ userId }),
       })
       const data = await res.json()
@@ -414,14 +403,14 @@ function StudioPage() {
     } finally {
       setRefunding(false)
     }
-  }, [userId, fetchData])
+  }, [userId, sessionToken, fetchData])
 
   const handlePortal = useCallback(async () => {
     if (!userId) return
     try {
       const res = await fetch("/api/billing/status", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...studioBillingHeaders(sessionToken) },
         body: JSON.stringify({ userId, action: "portal" }),
       })
       const data = await res.json()
@@ -430,7 +419,7 @@ function StudioPage() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to open portal")
     }
-  }, [userId])
+  }, [userId, sessionToken])
 
   if (sessionLoading || (!session?.session && !loading)) {
     return (
@@ -533,14 +522,14 @@ function StudioPage() {
 
                 {/* Stats grid — mirrors /pricing card chips */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-5">
-                  <StatBadge label="Credits" value={creditsLabel(currentPlan, variant)} />
+                  <StatBadge label="Credits" value={creditsLabel(currentPlan)} />
                   <StatBadge label="Max VM" value={tierVmLabel(currentTier)} />
                   <StatBadge label="Models" value={modelAccessLabel(currentTier, currentPlan?.modelAccess)} />
                   <StatBadge
                     label="Price"
                     value={
                       currentPlan && currentPlan.priceCents > 0
-                        ? `${formatPrice(currentPlan)}/mo`
+                        ? `${formatPrice(currentPlan)}/${currentPlan.interval === "year" ? "yr" : "mo"}`
                         : "$0/mo"
                     }
                   />
@@ -559,6 +548,10 @@ function StudioPage() {
                       </p>
                     )}
                   </div>
+                )}
+
+                {!creditBalance && (
+                  <p className="mt-4 text-[12px] text-zinc-500">Credit balance is temporarily unavailable.</p>
                 )}
 
                 {/* Features list */}
@@ -689,7 +682,7 @@ function StudioPage() {
                                 <span className="text-[12px] text-zinc-500 font-mono">/month</span>
                               </div>
                               <div className="text-[11px] font-mono text-cyan-400/90 mt-0.5">
-                                {creditsLabel(plan, variant)} credits included
+                                {creditsLabel(plan)} included
                               </div>
                             </div>
                           </div>
@@ -697,7 +690,7 @@ function StudioPage() {
                           <div className="grid grid-cols-2 gap-2 mb-4 p-3 rounded-lg bg-zinc-950/50 border border-zinc-800/80">
                             <div>
                               <div className="text-[10px] font-mono text-zinc-600 uppercase tracking-wider">Credits</div>
-                              <div className="text-[12px] font-mono text-zinc-300">{creditsLabel(plan, variant)}</div>
+                              <div className="text-[12px] font-mono text-zinc-300">{creditsLabel(plan)}</div>
                             </div>
                             <div>
                               <div className="text-[10px] font-mono text-zinc-600 uppercase tracking-wider">Models</div>
@@ -804,7 +797,7 @@ function StudioPage() {
                     {planBlurb(confirmingPlan.tier)}
                   </p>
                   <p className="text-[11px] text-zinc-600 mt-1 font-mono">
-                    {creditsLabel(confirmingPlan, variant)} credits · {tierVmLabel(confirmingPlan.tier)} · billed{" "}
+                    {creditsLabel(confirmingPlan)} included · {tierVmLabel(confirmingPlan.tier)} · billed{" "}
                     {confirmingPlan.interval === "year" ? "yearly" : "monthly"}
                   </p>
                 </div>
