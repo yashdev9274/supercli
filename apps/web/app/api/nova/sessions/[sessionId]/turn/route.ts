@@ -94,11 +94,13 @@ export async function POST(
   const isCodex = provider === CODEX_PROVIDER
   const isExternalProvider = Boolean(provider && isProviderCredentialProvider(provider))
   let chatTransport: ChatTransport | undefined
+  let childTransport: ((signal?: AbortSignal) => Promise<ChatTransport>) | undefined
   if (isCodex) {
     try {
       assertCodexOrigin(request)
       const runtime = createCodexRuntime(await codexContextForRequest(request))
       chatTransport = await runtime.prepare(model, effort, request.signal)
+      childTransport = (signal) => runtime.prepare(model, effort, signal ?? request.signal)
     } catch (error) {
       const safe = codexPublicError(error)
       return Response.json({ error: safe.message }, { status: safe.statusCode, headers: { "Cache-Control": "no-store" } })
@@ -107,7 +109,9 @@ export async function POST(
     try {
       const state = await readProviderConfig(request, provider!)
       if (!state.config) throw new ProviderCredentialError(`Connect ${state.provider} in Settings → Models`, 409)
-      chatTransport = createProviderTransport(state.provider, state.config)
+      const config = state.config
+      chatTransport = createProviderTransport(state.provider, config)
+      childTransport = async () => createProviderTransport(state.provider, config)
     } catch (error) {
       const status = error instanceof ProviderCredentialError ? error.statusCode : 502
       return Response.json({ error: error instanceof Error ? error.message : "Provider connection failed" }, { status, headers: { "Cache-Control": "no-store" } })
@@ -169,6 +173,7 @@ export async function POST(
           mode: parsed.data.mode ?? resolveNovaTurnMode({ message: parsed.data.content }).mode,
           harnessToken: harnessAuth?.token ?? "",
           chatTransport,
+          childTransport,
           signal,
           references: parsed.data.references,
           localAttachments: parsed.data.localAttachments,

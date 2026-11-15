@@ -8,11 +8,13 @@ import {
 } from "./client"
 import { requestHarnessComposio, type ComposioTool } from "./composio-client"
 import { toolsAllowedForMode } from "./tool-policy"
+import { multiplexEvents } from "./event-stream"
+import type { SubagentEvent } from "./subagent-events"
 
 /** Cap tools sent to the model to avoid overflowing context / provider limits. */
 const MAX_TOOLS_TO_MODEL = 64
 
-export type HarnessAgentEvent = HarnessStreamEvent | {
+export type HarnessAgentEvent = HarnessStreamEvent | SubagentEvent | {
   type: "tool-result"
   toolName: string
   toolCallId: string
@@ -149,16 +151,19 @@ Connected GitHub and native GitHub may authorize different repositories. Discove
   }
   if (new Set(bridge.tools.map((tool) => tool.function.name)).size !== bridge.tools.length) throw new Error("Duplicate capability names")
   bridge.approvalTools = bridge.tools.filter((tool) => ["write", "execute"].includes(tool.access) && available.has(tool.function.name)).map((tool) => tool.function.name)
-  const session = createNovaSessionTools(bridge, input)
-  const execute = bridge.execute
-  const allTools = [...bridge.tools, ...session.tools]
-  const frozen = await input.checkpoint?.({ messages: bridge.messages, tools: allTools, provider: bridge.provider, model: bridge.model, mode: bridge.mode })
-  if (frozen && frozen.tools.some((tool) => !allTools.some((current) => current.function.name === tool.function.name && current.access === tool.access))) throw new Error("Checkpoint capabilities are no longer available")
-  yield* streamOriginalHarness({
-    ...bridge,
-    ...frozen,
-    tools: frozen?.tools ?? allTools,
-    execute: (name, args, signal) => session.tools.some((tool) => tool.function.name === name)
-      ? session.execute(name, args, signal) : execute(name, args, signal),
-  })
+  yield* multiplexEvents<HarnessAgentEvent>(async function* (emit, signal) {
+    const session = createNovaSessionTools({ ...bridge, signal }, { ...input, onSubagentEvent: emit })
+    const execute = bridge.execute
+    const allTools = [...bridge.tools, ...session.tools]
+    const frozen = await input.checkpoint?.({ messages: bridge.messages, tools: allTools, provider: bridge.provider, model: bridge.model, mode: bridge.mode })
+    if (frozen && frozen.tools.some((tool) => !allTools.some((current) => current.function.name === tool.function.name && current.access === tool.access))) throw new Error("Checkpoint capabilities are no longer available")
+    yield* streamOriginalHarness({
+      ...bridge,
+      ...frozen,
+      signal,
+      tools: frozen?.tools ?? allTools,
+      execute: (name, args, signal) => session.tools.some((tool) => tool.function.name === name)
+        ? session.execute(name, args, signal) : execute(name, args, signal),
+    })
+  }, input.signal)
 }

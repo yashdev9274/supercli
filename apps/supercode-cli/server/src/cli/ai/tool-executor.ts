@@ -17,6 +17,7 @@ import {
   runToolExecute,
 } from "./tool-result"
 import { parseStreamedContent, KNOWN_TOOL_NAMES } from "src/lib/embedded-tool-calls"
+import { executeToolBatch } from "./tool-batch"
 
 export interface ToolExecutorCallbacks {
   onChunk?: (chunk: string) => void
@@ -209,7 +210,7 @@ export async function executeToolLoop(
 
     const stepResults: Array<{ toolName: string; args: unknown; result: string }> = []
 
-    for (const tc of toolCalls) {
+    await executeToolBatch(toolCalls, async (tc) => {
       callbacks.onToolCall?.({ id: tc.toolCallId, toolName: tc.toolName, args: tc.args })
 
       const toolDef = functions?.[tc.toolName]
@@ -222,9 +223,11 @@ export async function executeToolLoop(
         return typeof output === "string" ? output : JSON.stringify(output ?? null)
       } : undefined, tc.toolName, tc.args)
 
+      callbacks.onToolResult?.({ id: tc.toolCallId, toolName: tc.toolName, args: tc.args, result: resultStr })
+      return resultStr
+    }, (tc, resultStr) => {
       allToolResults.push({ toolName: tc.toolName, result: resultStr })
       stepResults.push({ toolName: tc.toolName, args: tc.args, result: resultStr })
-      callbacks.onToolResult?.({ id: tc.toolCallId, toolName: tc.toolName, args: tc.args, result: resultStr })
 
       if (denialGuard.record(tc.toolName, resultStr)) stopForDenialLoop = true
       if (repetitionGuard.record(tc.toolName, tc.args)) stopForRepetition = true
@@ -238,7 +241,7 @@ export async function executeToolLoop(
           output: { type: "text", value: resultStr },
         }],
       })
-    }
+    }, callbacks.signal)
 
     if (callbacks.onStepFinish && toolCalls.length > 0) {
       callbacks.onStepFinish({

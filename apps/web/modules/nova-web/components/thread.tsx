@@ -161,6 +161,7 @@ export function ThreadView({
   const visibleTimeline = useMemo(() => {
     return timeline.filter((entry) => {
       if (entry.kind !== "activity") return true
+      if (entry.type === "subagent") return false
       // Working/tool noise lives in WorkingProcess, not as separate timeline cards.
       if (entry.type === "acknowledgement" && entry.status === "working") return false
       if (entry.type === "action" || entry.type === "result") return false
@@ -251,7 +252,7 @@ export function ThreadView({
           <WorkspacePanel
             key={session.id}
             session={session}
-            timeline={visibleTimeline}
+            timeline={timeline}
             workingSteps={workingSteps}
             streaming={streaming}
             localProject={localProject}

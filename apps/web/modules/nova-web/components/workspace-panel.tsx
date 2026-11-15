@@ -13,6 +13,7 @@ import {
   FolderOpen,
   Globe,
   LayoutDashboard,
+  Laptop,
   ListTodo,
   Loader2,
   Maximize2,
@@ -34,6 +35,8 @@ import {
 import type { LocalAttachment } from "@/modules/nova/attachments/contracts"
 import type { SessionDetail, TimelineEntry } from "@/modules/nova-web/types"
 import { sessionUiLabel } from "@/modules/nova-web/types"
+import { collectSubagents, type WorkspaceSubagent } from "@/modules/nova-web/subagents"
+import { SubagentDetail, SubagentOverview } from "./subagent-panel"
 
 type PanelTab =
   | { id: "overview"; kind: "overview"; title: string }
@@ -42,6 +45,7 @@ type PanelTab =
   | { id: "setup"; kind: "setup"; title: string }
   | { id: "browser"; kind: "browser"; title: string }
   | { id: string; kind: "file"; title: string; path: string }
+  | { id: string; kind: "subagent"; title: string; runId: string; childId: string }
 
 type OverviewTodo = {
   id: string
@@ -288,7 +292,11 @@ function OverviewPane({
   onOpenPath,
   onOpenPanel,
   proposalCount,
+  subagents,
+  onOpenSubagent,
 }: {
+  subagents: WorkspaceSubagent[]
+  onOpenSubagent: (child: WorkspaceSubagent) => void
   onOpenPanel: (kind: "files" | "diffs" | "browser") => void
   proposalCount: number
   session: SessionDetail
@@ -306,6 +314,7 @@ function OverviewPane({
 
   return (
     <div className="mx-auto max-w-2xl space-y-5 px-5 pb-8 pt-7">
+      <SubagentOverview onOpen={onOpenSubagent}>{subagents}</SubagentOverview>
       <div className="flex flex-col items-center px-5 py-8 text-center">
         <div className="relative mb-5 flex h-16 w-20 -rotate-6 items-center justify-center rounded-xl border border-white/[0.1] bg-white/[0.025] shadow-[8px_8px_0_0_#ffffff04]">
           <FolderOpen strokeWidth={1} className="size-8 text-[#777]" />
@@ -593,6 +602,7 @@ export function WorkspacePanel({
 
   const todos = useMemo(() => buildTodos(workingSteps, streaming), [workingSteps, streaming])
   const tasks = useMemo(() => buildTasks(workingSteps, timeline, streaming), [workingSteps, timeline, streaming])
+  const subagents = useMemo(() => collectSubagents(timeline, session.runs), [timeline, session.runs])
   const touchedPaths = useMemo(
     () => collectTouchedPaths(workingSteps, localFiles, localProject, fileProposals),
     [workingSteps, localFiles, localProject, fileProposals],
@@ -748,8 +758,10 @@ export function WorkspacePanel({
                   className="flex min-w-0 items-center gap-1.5"
                   title={tab.kind === "file" ? tab.path : tab.title}
                   aria-pressed={active}
+                  aria-label={tab.kind === "subagent" ? `${tab.title}: ${subagents.find((child) => child.key === tab.id)?.title ?? "Subagent details"}` : tab.title}
                 >
                   {tab.kind === "overview" ? <LayoutDashboard className="size-3 shrink-0" /> : null}
+                  {tab.kind === "subagent" ? <Laptop aria-hidden="true" className="size-3 shrink-0" /> : null}
                   {tab.kind === "files" ? <FolderOpen className="size-3 shrink-0" /> : null}
                   {tab.kind === "file" ? (
                     <span className={cn("rounded px-0.5 font-mono text-[9px]", langTone(languageFromPath(tab.path)))}>
@@ -846,6 +858,8 @@ export function WorkspacePanel({
               session={session}
               todos={todos}
               tasks={tasks}
+              subagents={subagents}
+              onOpenSubagent={(child) => ensureTab({ id: child.key, kind: "subagent", title: `Subagent ${child.index}`, runId: child.runId, childId: child.childId })}
               touchedPaths={touchedPaths}
               localProject={localProject}
               streaming={streaming}
@@ -859,6 +873,7 @@ export function WorkspacePanel({
             />
           </div>
         ) : null}
+        {activeTab.kind === "subagent" ? <SubagentDetail child={subagents.find((child) => child.key === activeTab.id)} /> : null}
         {activeTab.kind === "files" ? (
           <FilesPane
             localProject={localProject}
