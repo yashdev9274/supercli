@@ -40,25 +40,25 @@ export const TIERS: Tier[] = [
     badge: "Free to start",
     badgeClass: "text-emerald-400",
     description:
-      "1,000 monthly credits shared across DeepSeek, cloud machines, and app queries, plus free BYOK and subscription connections.",
+      "Fixed DeepSeek credits, plus free BYOK and subscription connections.",
     price: {
       monthly: "$0",
       yearly: "$0",
     },
     credits: {
-      monthly: "1,000 credits / month",
-      yearly: "1,000 credits / month",
+      monthly: "Fixed DeepSeek credits",
+      yearly: "Fixed DeepSeek credits",
     },
     popular: false,
     features: [
-      "1,000 monthly credits — DeepSeek with 1M context",
+      "Fixed DeepSeek credits with 1M context",
       "Free bring-your-own API keys (BYOK)",
       "Connect Codex / Claude / OpenCode subs — free",
       "1 vCPU / 4 GB RAM cloud machines",
       "Unlimited members",
       "Discord community support",
     ],
-    creditsLabel: "1,000 monthly credits",
+    creditsLabel: "Fixed DeepSeek credits",
     ctaLabel: "Continue free",
     ctaHref: "https://nova.supercodeai.tech",
     accent: "emerald",
@@ -75,7 +75,7 @@ export const TIERS: Tier[] = [
     },
     credits: {
       monthly: "$5 credits",
-      yearly: "$50 credits",
+      yearly: "$5 monthly credits",
     },
     popular: false,
     features: [
@@ -105,7 +105,7 @@ export const TIERS: Tier[] = [
     },
     credits: {
       monthly: { indian: "$20", international: "$25" },
-      yearly: { indian: "$200", international: "$250" },
+      yearly: { indian: "$20 monthly", international: "$25 monthly" },
     },
     popular: true,
     features: [
@@ -135,7 +135,7 @@ export const TIERS: Tier[] = [
     },
     credits: {
       monthly: "$110 credits",
-      yearly: "$1,100 credits",
+      yearly: "$110 monthly credits",
     },
     popular: false,
     features: [

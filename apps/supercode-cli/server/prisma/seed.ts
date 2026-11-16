@@ -42,7 +42,7 @@ const PLANS = [
   {
     tier: "spark",
     name: "Free",
-    description: "1000 product credits per month, free BYOK, free Codex/Claude/OpenCode connect, 1 vCPU / 4 GB. 16K context, with 1M context for native DeepSeek V4 Flash only.",
+    description: "Fixed DeepSeek credits, free BYOK, free Codex/Claude/OpenCode connect, 1 vCPU / 4 GB. 16K context, with 1M context for native DeepSeek V4 Flash only.",
     variant: null,
     interval: null,
     priceCents: 0,
@@ -141,7 +141,7 @@ const PLANS = [
     description: "Everything in Spark, plus frontier models, $25 credits, up to 4 vCPU / 16 GB.",
     variant: "int",
     interval: "year",
-    priceCents: 20000,
+    priceCents: 10000,
     currency: "USD",
     requestLimit: 25000,
     contextLimit: 128000,
@@ -186,26 +186,24 @@ const PLANS = [
 ]
 
 const MODELS = [
-  // ── Spark / Spark Premium (minTier: "spark") — all open / cloud free models ──
-  // Spark Premium uses the same open catalog (higher limits/credits); gating is by tier order.
+  // ── Free / Spark (minTier: "spark") — DeepSeek only ──
   { slug: "deepseek-v4-flash",         displayName: "DeepSeek V4 Flash",       provider: "deepseek",   minTier: "spark", inputPrice: 0.15,  outputPrice: 0.60,  cachedPrice: 0 },
   { slug: "deepseek/deepseek-v4-flash", displayName: "DeepSeek V4 Flash (OR)",  provider: "openrouter", minTier: "spark", inputPrice: 0.15,  outputPrice: 0.60,  cachedPrice: 0 },
-  { slug: "hy3",                       displayName: "Hunyuan Hy3",             provider: "supercode",  minTier: "spark", inputPrice: 0.15,  outputPrice: 0.60,  cachedPrice: 0 },
-  { slug: "MiniMax-M3",                displayName: "MiniMax M3",               provider: "minimax",    minTier: "spark", inputPrice: 0.20,  outputPrice: 0.80,  cachedPrice: 0.04 },
-  // CLI cloud picker uses this slug; keep both so plan-gate matches either form
-  { slug: "minimax-m3",                displayName: "MiniMax M3 (cloud)",       provider: "supercode",  minTier: "spark", inputPrice: 0.20,  outputPrice: 0.80,  cachedPrice: 0.04 },
-  { slug: "mimo-v2.5",                displayName: "MiMo v2.5",                provider: "orcarouter", minTier: "spark", inputPrice: 0.15,  outputPrice: 0.60,  cachedPrice: 0 },
-  // Single unique slug — both Supercode cloud and OpenRouter routes use this.
-  // (slug is @unique; a second row with the same slug can never be upserted.)
-  { slug: "stealth/ox-alpha",         displayName: "OX Alpha",                 provider: "supercode", minTier: "spark", inputPrice: 0,     outputPrice: 0,      cachedPrice: 0 },
-  { slug: "kimi-k2-6",                 displayName: "Kimi K2.6",               provider: "openrouter", minTier: "spark", inputPrice: 0.15,  outputPrice: 0.60,  cachedPrice: 0 },
-  { slug: "kimi-k2-7-code",           displayName: "Kimi K2.7 Code",           provider: "openrouter", minTier: "spark", inputPrice: 0.25,  outputPrice: 1.00,  cachedPrice: 0 },
-  { slug: "kimi-k3",                   displayName: "Kimi K3",                  provider: "openrouter", minTier: "spark", inputPrice: 0.50,  outputPrice: 2.00,  cachedPrice: 0 },
-  { slug: "glm-5.2",                   displayName: "GLM 5.2",                 provider: "openrouter", minTier: "spark", inputPrice: 0.10,  outputPrice: 0.40,  cachedPrice: 0 },
-  { slug: "glm-5.1",                   displayName: "GLM 5.1",                 provider: "openrouter", minTier: "spark", inputPrice: 0.10,  outputPrice: 0.40,  cachedPrice: 0 },
-  { slug: "gemini-2.5-flash",          displayName: "Gemini 2.5 Flash",        provider: "google",     minTier: "spark", inputPrice: 0.15,  outputPrice: 0.60,  cachedPrice: 0.025 },
-  { slug: "meta/llama-3.3-70b-instruct", displayName: "Llama 3.3 70B",         provider: "openrouter", minTier: "spark", inputPrice: 0.59,  outputPrice: 0.99,  cachedPrice: 0 },
-  { slug: "orcarouter/auto",           displayName: "OrcaRouter Auto",         provider: "orcarouter", minTier: "spark", inputPrice: 0,     outputPrice: 0,      cachedPrice: 0 },
+
+  // ── Spark Premium (minTier: "spark-premium") — open-source hosted models ──
+  { slug: "hy3",                       displayName: "Hunyuan Hy3",             provider: "supercode",  minTier: "spark-premium", inputPrice: 0.15,  outputPrice: 0.60,  cachedPrice: 0 },
+  { slug: "MiniMax-M3",                displayName: "MiniMax M3",               provider: "minimax",    minTier: "spark-premium", inputPrice: 0.20,  outputPrice: 0.80,  cachedPrice: 0.04 },
+  { slug: "minimax-m3",                displayName: "MiniMax M3 (cloud)",       provider: "supercode",  minTier: "spark-premium", inputPrice: 0.20,  outputPrice: 0.80,  cachedPrice: 0.04 },
+  { slug: "mimo-v2.5",                displayName: "MiMo v2.5",                provider: "orcarouter", minTier: "spark-premium", inputPrice: 0.15,  outputPrice: 0.60,  cachedPrice: 0 },
+  { slug: "stealth/ox-alpha",         displayName: "OX Alpha",                 provider: "supercode",  minTier: "spark-premium", inputPrice: 0,     outputPrice: 0,      cachedPrice: 0 },
+  { slug: "kimi-k2-6",                 displayName: "Kimi K2.6",               provider: "openrouter", minTier: "spark-premium", inputPrice: 0.15,  outputPrice: 0.60,  cachedPrice: 0 },
+  { slug: "kimi-k2-7-code",           displayName: "Kimi K2.7 Code",           provider: "openrouter", minTier: "spark-premium", inputPrice: 0.25,  outputPrice: 1.00,  cachedPrice: 0 },
+  { slug: "kimi-k3",                   displayName: "Kimi K3",                  provider: "openrouter", minTier: "spark-premium", inputPrice: 0.50,  outputPrice: 2.00,  cachedPrice: 0 },
+  { slug: "glm-5.2",                   displayName: "GLM 5.2",                 provider: "openrouter", minTier: "spark-premium", inputPrice: 0.10,  outputPrice: 0.40,  cachedPrice: 0 },
+  { slug: "glm-5.1",                   displayName: "GLM 5.1",                 provider: "openrouter", minTier: "spark-premium", inputPrice: 0.10,  outputPrice: 0.40,  cachedPrice: 0 },
+  { slug: "gemini-2.5-flash",          displayName: "Gemini 2.5 Flash",        provider: "google",     minTier: "spark-premium", inputPrice: 0.15,  outputPrice: 0.60,  cachedPrice: 0.025 },
+  { slug: "meta/llama-3.3-70b-instruct", displayName: "Llama 3.3 70B",         provider: "openrouter", minTier: "spark-premium", inputPrice: 0.59,  outputPrice: 0.99,  cachedPrice: 0 },
+  { slug: "orcarouter/auto",           displayName: "OrcaRouter Auto",         provider: "orcarouter", minTier: "spark-premium", inputPrice: 0,     outputPrice: 0,      cachedPrice: 0 },
 
   // ── Pro (minTier: "pro") — premium models ──
   { slug: "anthropic/claude-sonnet-4.6", displayName: "Claude Sonnet 4.6",     provider: "openrouter", minTier: "pro",   inputPrice: 3.00,  outputPrice: 15.00, cachedPrice: 0.30 },
