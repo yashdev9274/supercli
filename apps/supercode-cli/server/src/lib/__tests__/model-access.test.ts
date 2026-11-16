@@ -18,79 +18,79 @@ beforeEach(() => {
   invalidateModelCache()
 })
 
-describe("isModelAllowedForTier — Free DeepSeek and Spark Premium hosted models", () => {
+describe("isModelAllowedForTier — Free DeepSeek and Spark hosted models", () => {
   it("denies stealth/ox-alpha for Free when DB has no rows", async () => {
     findManyMock.mockResolvedValueOnce([])
-    const ok = await isModelAllowedForTier("stealth/ox-alpha", "spark")
+    const ok = await isModelAllowedForTier("stealth/ox-alpha", "free")
     expect(ok).toBe(false)
   })
 
   it("denies ox-alpha bare slug for Free", async () => {
     findManyMock.mockResolvedValueOnce([])
-    const ok = await isModelAllowedForTier("ox-alpha", "spark")
+    const ok = await isModelAllowedForTier("ox-alpha", "free")
     expect(ok).toBe(false)
   })
 
-  it("allows hosted open models for Spark Premium when DB has no rows", async () => {
+  it("allows hosted open models for Spark when DB has no rows", async () => {
     findManyMock.mockResolvedValueOnce([])
-    const ok = await isModelAllowedForTier("stealth/ox-alpha", "spark-premium")
+    const ok = await isModelAllowedForTier("stealth/ox-alpha", "spark")
     expect(ok).toBe(true)
   })
 
-  it("respects a Spark Premium DB row", async () => {
+  it("respects a Spark DB row", async () => {
     findManyMock.mockResolvedValueOnce([
-      { slug: "stealth/ox-alpha", minTier: "spark-premium" },
+      { slug: "stealth/ox-alpha", minTier: "spark" },
     ])
-    const free = await isModelAllowedForTier("stealth/ox-alpha", "spark")
+    const free = await isModelAllowedForTier("stealth/ox-alpha", "free")
     expect(free).toBe(false)
 
     invalidateModelCache()
     findManyMock.mockResolvedValueOnce([
-      { slug: "stealth/ox-alpha", minTier: "spark-premium" },
+      { slug: "stealth/ox-alpha", minTier: "spark" },
     ])
-    const premium = await isModelAllowedForTier("stealth/ox-alpha", "spark-premium")
-    expect(premium).toBe(true)
+    const spark = await isModelAllowedForTier("stealth/ox-alpha", "spark")
+    expect(spark).toBe(true)
   })
 
-  it("denies pro models for spark", async () => {
+  it("denies pro models for Free", async () => {
     findManyMock.mockResolvedValueOnce([
       { slug: "anthropic/claude-sonnet-4.6", minTier: "pro" },
     ])
-    const ok = await isModelAllowedForTier("anthropic/claude-sonnet-4.6", "spark")
+    const ok = await isModelAllowedForTier("anthropic/claude-sonnet-4.6", "free")
     expect(ok).toBe(false)
   })
 
-  it("allows only the Free DeepSeek Flash model for spark", async () => {
+  it("allows only the Free DeepSeek Flash model for Free", async () => {
     findManyMock.mockResolvedValueOnce([])
-    const flash = await isModelAllowedForTier("deepseek-v4-flash", "spark")
+    const flash = await isModelAllowedForTier("deepseek-v4-flash", "free")
     expect(flash).toBe(true)
 
     invalidateModelCache()
     findManyMock.mockResolvedValueOnce([])
-    const reasoner = await isModelAllowedForTier("deepseek/deepseek-reasoner", "spark")
+    const reasoner = await isModelAllowedForTier("deepseek/deepseek-reasoner", "free")
     expect(reasoner).toBe(false)
   })
 
-  it("keeps hosted open models behind Spark Premium when DB throws", async () => {
+  it("keeps hosted open models behind Spark when DB throws", async () => {
     findManyMock.mockRejectedValueOnce(new Error("ECONNREFUSED"))
-    const free = await isModelAllowedForTier("stealth/ox-alpha", "spark")
+    const free = await isModelAllowedForTier("stealth/ox-alpha", "free")
     expect(free).toBe(false)
 
     invalidateModelCache()
     findManyMock.mockRejectedValueOnce(new Error("ECONNREFUSED"))
-    const premium = await isModelAllowedForTier("stealth/ox-alpha", "spark-premium")
-    expect(premium).toBe(true)
+    const spark = await isModelAllowedForTier("stealth/ox-alpha", "spark")
+    expect(spark).toBe(true)
   })
 
   it("still denies unknown premium-looking slugs when missing", async () => {
     findManyMock.mockResolvedValueOnce([])
-    const ok = await isModelAllowedForTier("anthropic/claude-opus-secret", "spark")
+    const ok = await isModelAllowedForTier("anthropic/claude-opus-secret", "free")
     expect(ok).toBe(false)
   })
 })
 
 describe("getUpgradeSuggestion", () => {
-  it("points spark users at Spark Premium", () => {
-    expect(getUpgradeSuggestion("spark")).toContain("Spark Premium")
+  it("points Free users at Spark", () => {
+    expect(getUpgradeSuggestion("free")).toContain("Spark")
   })
 })

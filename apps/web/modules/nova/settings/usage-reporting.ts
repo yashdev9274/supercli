@@ -98,8 +98,8 @@ export async function readSettingsUsage(
         tx.$queryRawUnsafe<Array<{ tier: string; metadata: { grandfathered?: boolean } | null }>>(
           `SELECT p.tier, s.metadata FROM subscription s JOIN plan p ON p.id = s."planId"
            WHERE s."userId" = $1 AND s.status IN ('active', 'trialing')
-             AND (p.tier = 'spark' OR s."currentPeriodEnd" IS NULL OR s."currentPeriodEnd" > NOW())
-           ORDER BY CASE WHEN p.tier = 'spark' THEN 1 ELSE 0 END, s."createdAt" DESC LIMIT 1`,
+             AND (p.tier = 'free' OR s."currentPeriodEnd" IS NULL OR s."currentPeriodEnd" > NOW())
+           ORDER BY CASE WHEN p.tier = 'free' THEN 1 ELSE 0 END, s."createdAt" DESC LIMIT 1`,
           session.userId,
         ),
       ])
@@ -129,8 +129,8 @@ export async function readSettingsUsage(
         day[field] += amount
       }
     }
-    const tier = plans[0]?.tier ?? "spark"
-    const planNames: Record<string, string> = { spark: "Free", "spark-premium": "Spark", pro: "Pro", ultra: "Ultra" }
+    const tier = plans[0]?.tier ?? "free"
+    const planNames: Record<string, string> = { free: "Free", spark: "Spark", pro: "Pro", ultra: "Ultra" }
     return {
       ...unavailable,
       resetAt: balance.resetAt.toISOString(),

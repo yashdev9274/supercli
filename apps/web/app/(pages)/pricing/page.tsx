@@ -180,7 +180,7 @@ const ENTERPRISE_FEATURES = [
 const FAQ = [
   {
     q: "What is included in the Free plan?",
-    a: "Free includes fixed DeepSeek credits, free BYOK (bring your own API keys), and 2 vCPU / 4 GB cloud machines. App connectors and PR reviews are not included — upgrade to Spark for those.",
+    a: "Free includes fixed DeepSeek credits, free BYOK (bring your own API keys), and 1 vCPU / 4 GB cloud machines. App connectors and PR reviews are not included — upgrade to Spark for those.",
   },
   {
     q: "How does regional pricing work for Spark?",
@@ -204,7 +204,7 @@ const FAQ = [
   },
   {
     q: "What machine sizes do I get?",
-    a: "Free and Spark: 2 vCPU / 4 GB. Pro: machines up to 16 GB. Ultra: machines up to 32 GB. Enterprise can go custom.",
+    a: "Free: 1 vCPU / 4 GB. Spark: up to 2 vCPU / 8 GB. Pro: up to 4 vCPU / 16 GB. Ultra: up to 16 vCPU / 64 GB. Enterprise can go custom.",
   },
   {
     q: "Are app connectors and PR reviews included?",
@@ -506,9 +506,9 @@ const VM_SIZES: {
     label: "2 vCPU · 4 GB",
     vcpu: 2,
     ramGb: 4,
-    novaPlan: "Spark / Spark Premium",
-    novaPriceUsd: 1,
-    novaCreditsUsd: 1,
+    novaPlan: "Spark",
+    novaPriceUsd: 5,
+    novaCreditsUsd: 5,
   },
   {
     id: "4x16",
@@ -544,10 +544,10 @@ function competitorsForVm(vm: VmSizeId): CompetitorRow[] {
     return [
       {
         name: "Nova",
-        plan: "Spark Premium",
-        monthlyUsd: 1,
-        creditsUsd: 1,
-        maxVm: "2 vCPU / 4 GB",
+        plan: "Spark",
+        monthlyUsd: 5,
+        creditsUsd: 5,
+        maxVm: "2 vCPU / 8 GB",
         highlight: true,
       },
       {
@@ -866,7 +866,7 @@ function UsageComparisonCalculator() {
       <div className="px-5 md:px-8 py-4 border-t border-border/60">
         <p className="text-[11px] text-muted-foreground/50 font-mono leading-relaxed">
           Estimates use public list prices for Capy (Lite / Pro / Max) and Devin (Free / Pro / Team / Max).
-          Nova credits: Spark fixed DeepSeek · Pro $12 INT / $10 IN · Ultra $110. VM size is the max concurrent
+          Nova credits: Free fixed DeepSeek · Spark $5 · Pro $25 INT / $20 IN · Ultra $110. VM size is the max concurrent
           machine on that plan. Competitor figures are approximate and may change.
         </p>
       </div>

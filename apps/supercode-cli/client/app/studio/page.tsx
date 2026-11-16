@@ -70,15 +70,15 @@ type CreditBalance = {
 }
 
 const TIER_COLORS: Record<string, string> = {
-  spark: "text-emerald-400 border-emerald-500/30",
-  "spark-premium": "text-cyan-400 border-cyan-500/30",
+  free: "text-emerald-400 border-emerald-500/30",
+  spark: "text-cyan-400 border-cyan-500/30",
   pro: "text-amber-400 border-amber-500/30",
   ultra: "text-purple-400 border-purple-500/30",
 }
 
 const TIER_BG: Record<string, string> = {
-  spark: "bg-emerald-500/[0.03]",
-  "spark-premium": "bg-cyan-500/[0.03]",
+  free: "bg-emerald-500/[0.03]",
+  spark: "bg-cyan-500/[0.03]",
   pro: "bg-amber-500/[0.04]",
   ultra: "bg-purple-500/[0.03]",
 }
@@ -95,7 +95,7 @@ function BackgroundGlow() {
 
 /** Feature lists — keep in sync with apps/web /pricing */
 function getFeatures(tier: string) {
-  if (tier === "spark") return [
+  if (tier === "free") return [
     { label: "Fixed credits — DeepSeek model", included: true },
     { label: "Free bring-your-own API keys (BYOK)", included: true },
     { label: "Connect Codex / Claude / OpenCode subs — free", included: true },
@@ -106,7 +106,7 @@ function getFeatures(tier: string) {
     { label: "PR reviews", included: false },
     { label: "Machines up to 64 GB RAM", included: false },
   ]
-  if (tier === "spark-premium") return [
+  if (tier === "spark") return [
     { label: "Everything in Free", included: true },
     { label: "$5 monthly credits (INT & IN)", included: true },
     { label: "Connect Codex / Claude / OpenCode subs — free", included: true },
@@ -144,24 +144,24 @@ function getFeatures(tier: string) {
 
 function displayPlanName(plan: Plan | null | undefined): string {
   if (!plan) return "No active plan"
-  if (plan.tier === "spark") return "Free"
-  if (plan.tier === "spark-premium") return "Spark"
+  if (plan.tier === "free") return "Free"
+  if (plan.tier === "spark") return "Spark"
   if (plan.tier === "pro") return "Pro"
   if (plan.tier === "ultra") return "Ultra"
   return plan.name
 }
 
 function tierVmLabel(tier: string): string {
-  if (tier === "spark") return "1 vCPU / 4 GB"
-  if (tier === "spark-premium") return "2 vCPU / 8 GB"
+  if (tier === "free") return "1 vCPU / 4 GB"
+  if (tier === "spark") return "2 vCPU / 8 GB"
   if (tier === "pro") return "4 vCPU / 16 GB"
   if (tier === "ultra") return "16 vCPU / 64 GB"
   return "—"
 }
 
 function modelAccessLabel(tier: string, access?: string): string {
-  if (tier === "spark") return "DeepSeek only"
-  if (tier === "spark-premium") return "Open Source only"
+  if (tier === "free") return "DeepSeek only"
+  if (tier === "spark") return "Open Source only"
   if (tier === "pro" || tier === "ultra" || access === "premium" || access === "all") {
     return "Frontier models + BYOK"
   }
@@ -170,8 +170,8 @@ function modelAccessLabel(tier: string, access?: string): string {
 
 function creditsLabel(plan: Plan | null | undefined, region: "in" | "int"): string {
   if (!plan) return "—"
-  if (plan.tier === "spark") return "Fixed DeepSeek"
-  if (plan.tier === "spark-premium") return "$5 / mo"
+  if (plan.tier === "free") return "Fixed DeepSeek"
+  if (plan.tier === "spark") return "$5 / mo"
   if (plan.tier === "pro") return region === "in" ? "$20 / mo" : "$25 / mo"
   if (plan.tier === "ultra") return "$110 / mo"
   if (plan.creditAmountCents) return `$${(plan.creditAmountCents / 100).toFixed(0)} / mo`
@@ -179,10 +179,10 @@ function creditsLabel(plan: Plan | null | undefined, region: "in" | "int"): stri
 }
 
 function planBlurb(tier: string): string {
-  if (tier === "spark") {
+  if (tier === "free") {
     return "Fixed DeepSeek credits, free BYOK, free Codex/Claude/OpenCode connect, and 1 vCPU / 4 GB machines."
   }
-  if (tier === "spark-premium") {
+  if (tier === "spark") {
     return "Everything in Free, plus $5 credits, app connectors, and limited PR reviews."
   }
   if (tier === "pro") {
@@ -195,8 +195,8 @@ function planBlurb(tier: string): string {
 }
 
 function tierRank(tier: string): number {
-  if (tier === "spark") return 0
-  if (tier === "spark-premium") return 1
+  if (tier === "free") return 0
+  if (tier === "spark") return 1
   if (tier === "pro") return 2
   if (tier === "ultra") return 3
   return -1
@@ -349,7 +349,7 @@ function StudioPage() {
     if (userId) fetchData()
   }, [userId, fetchData])
 
-  const currentTier = currentPlan?.tier ?? "spark"
+  const currentTier = currentPlan?.tier ?? "free"
   const isGrandfathered = subscription?.isGrandfathered ?? false
   const variant = region
 
@@ -581,7 +581,7 @@ function StudioPage() {
                 </div>
 
                 {/* Cancel button */}
-                {currentTier !== "spark" && (
+                {currentTier !== "free" && (
                   <div className="mt-5 pt-4 border-t border-zinc-800">
                     <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
                       <AlertDialogTrigger asChild>
@@ -641,7 +641,7 @@ function StudioPage() {
                 <div className="grid grid-cols-1 gap-3">
                   {upgradePlans.map((plan) => {
                     const isPro = plan.tier === "pro"
-                    const isSpark = plan.tier === "spark-premium"
+                    const isSpark = plan.tier === "spark"
                     return (
                       <Card
                         key={plan.id}
@@ -752,7 +752,7 @@ function StudioPage() {
             )}
 
             {/* Refund section (Spark only) */}
-            {currentTier === "spark-premium" && (
+            {currentTier === "spark" && (
               <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-xl">
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between">

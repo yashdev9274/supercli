@@ -17,14 +17,14 @@ router.post("/", async (req, res) => {
       where: {
         userId,
         status: "active",
-        plan: { tier: "spark-premium" },
+        plan: { tier: "spark" },
       },
       include: { plan: true },
       orderBy: { createdAt: "desc" },
     })
 
     if (!subscription) {
-      res.json({ eligible: false, reason: "No active Spark Premium subscription found." })
+      res.json({ eligible: false, reason: "No active Spark subscription found." })
       return
     }
 
@@ -77,7 +77,7 @@ router.post("/", async (req, res) => {
           if (paymentId) {
             await dodo.refunds.create({
               payment_id: paymentId,
-              reason: "Spark Premium $1 refund — under $5 credits and 7.5K queries",
+              reason: "Spark refund — under $5 credits and 7.5K queries",
               metadata: { userId, subscriptionId: subscription.dodoSubscriptionId },
             })
             refunded = true

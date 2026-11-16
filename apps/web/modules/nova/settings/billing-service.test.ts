@@ -12,7 +12,7 @@ test("billing displays product credits without treating 1000 credits as dollars"
   spyOn(globalThis, "fetch")
     .mockResolvedValueOnce(Response.json({ id: "terminal-user" }))
     .mockResolvedValueOnce(Response.json({
-      plan: { tier: "spark" },
+      plan: { tier: "free" },
       productCreditBalance: { balanceCredits: 999.6, allowanceCredits: 1000, resetAt: "2026-12-01T00:00:00.000Z" },
       creditBalance: { balanceCents: 500, totalCredits: 500 },
     }))
@@ -26,7 +26,7 @@ test("billing displays product credits without treating 1000 credits as dollars"
 test("older harnesses do not mislabel dollar balances as product credits", async () => {
   spyOn(globalThis, "fetch")
     .mockResolvedValueOnce(Response.json({ id: "terminal-user" }))
-    .mockResolvedValueOnce(Response.json({ plan: { tier: "spark" }, creditBalance: { balanceCents: 100, totalCredits: 500 } }))
+    .mockResolvedValueOnce(Response.json({ plan: { tier: "free" }, creditBalance: { balanceCents: 100, totalCredits: 500 } }))
   const info = await getBillingInfo({ userId: "web-user", email: "user@example.com" })
   expect(info.balanceCredits).toBeNull()
   expect(info.totalCredits).toBeNull()

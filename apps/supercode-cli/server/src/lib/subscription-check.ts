@@ -1,7 +1,7 @@
 import prisma from "./prisma"
 
 export interface PlanInfo {
-  tier: "spark" | "spark-premium" | "pro" | "ultra"
+  tier: "free" | "spark" | "pro" | "ultra"
   name: string
   requestLimit: number
   contextLimit: number
@@ -29,7 +29,7 @@ function planInfoFromRow(subscription: {
     tier: subscription.plan.tier as PlanInfo["tier"],
     name: subscription.plan.name,
     requestLimit: subscription.plan.requestLimit,
-    contextLimit: subscription.plan.tier === "spark" ? 16_000 : subscription.plan.contextLimit,
+    contextLimit: subscription.plan.tier === "free" ? 16_000 : subscription.plan.contextLimit,
     modelAccess: subscription.plan.modelAccess as PlanInfo["modelAccess"],
     creditAmountCents: subscription.plan.creditAmountCents,
     monthlyCredits: subscription.plan.monthlyCredits,
@@ -38,32 +38,32 @@ function planInfoFromRow(subscription: {
   }
 }
 
-export async function ensureSparkSubscription(userId: string): Promise<PlanInfo | null> {
+export async function ensureFreeSubscription(userId: string): Promise<PlanInfo | null> {
   try {
     const existing = await prisma.subscription.findFirst({
       where: {
         userId,
         status: { in: ["active", "trialing"] },
-        plan: { tier: "spark" },
+        plan: { tier: "free" },
       },
       include: { plan: true },
       orderBy: { createdAt: "desc" },
     })
     if (existing?.plan) return planInfoFromRow(existing)
 
-    const sparkPlan = await prisma.plan.findFirst({
-      where: { tier: "spark", active: true },
+    const freePlan = await prisma.plan.findFirst({
+      where: { tier: "free", active: true },
       orderBy: { sortOrder: "asc" },
     })
-    if (!sparkPlan) return null
+    if (!freePlan) return null
 
     const subscription = await prisma.subscription.upsert({
-      where: { dodoSubscriptionId: `spark-${userId}` },
-      update: { planId: sparkPlan.id, status: "active", currentPeriodEnd: null },
+      where: { dodoSubscriptionId: `free-${userId}` },
+      update: { planId: freePlan.id, status: "active", currentPeriodEnd: null },
       create: {
         userId,
-        planId: sparkPlan.id,
-        dodoSubscriptionId: `spark-${userId}`,
+        planId: freePlan.id,
+        dodoSubscriptionId: `free-${userId}`,
         status: "active",
         currentPeriodStart: new Date(),
         currentPeriodEnd: null,
@@ -73,7 +73,7 @@ export async function ensureSparkSubscription(userId: string): Promise<PlanInfo 
     })
     return planInfoFromRow(subscription)
   } catch (error) {
-    console.error("[subscription-check] Unable to provision Spark:", error)
+    console.error("[subscription-check] Unable to provision Free:", error)
     return null
   }
 }
@@ -88,14 +88,14 @@ export async function getSubscriptionPlan(userId: string): Promise<PlanInfo | nu
       include: { plan: true },
       orderBy: { createdAt: "desc" },
     })
-    if (!subscription?.plan) return ensureSparkSubscription(userId)
+    if (!subscription?.plan) return ensureFreeSubscription(userId)
 
     if (
-      subscription.plan.tier !== "spark" &&
+      subscription.plan.tier !== "free" &&
       subscription.currentPeriodEnd &&
       new Date() > subscription.currentPeriodEnd
     ) {
-      return ensureSparkSubscription(userId)
+      return ensureFreeSubscription(userId)
     }
 
     return planInfoFromRow(subscription)

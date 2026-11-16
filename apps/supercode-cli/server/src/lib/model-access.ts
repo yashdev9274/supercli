@@ -1,7 +1,7 @@
 import prisma from "./prisma"
 
 /** Ordered tier levels for comparison: higher index = more access */
-const TIER_ORDER = ["spark", "spark-premium", "pro", "ultra"] as const
+const TIER_ORDER = ["free", "spark", "pro", "ultra"] as const
 type Tier = (typeof TIER_ORDER)[number]
 
 type ModelRow = { slug: string; minTier: string }
@@ -10,37 +10,37 @@ type ModelRow = { slug: string; minTier: string }
  * Static catalog mirroring prisma/seed.ts.
  * Used when the Model table is empty, unreachable, or missing a newly shipped
  * slug (e.g. stealth/ox-alpha before prod seed runs). Missing rows fall back
- * to the same Free DeepSeek / Spark Premium boundary used by the seed.
+ * to the same Free DeepSeek / Spark boundary used by the seed.
  */
 const STATIC_MODEL_CATALOG: ModelRow[] = [
-  // Neon catalog: exact provider-qualified slugs retain the Spark Premium / Pro policy.
+  // Neon catalog: exact provider-qualified slugs retain the Spark / Pro policy.
   { slug: "neon/gpt-5-mini", minTier: "pro" },
   { slug: "neon/gpt-5-3-codex", minTier: "pro" },
   { slug: "neon/claude-sonnet-4-6", minTier: "pro" },
   { slug: "neon/claude-opus-4-6", minTier: "pro" },
   { slug: "neon/claude-haiku-4-5", minTier: "pro" },
   { slug: "neon/gemini-3-flash", minTier: "pro" },
-  { slug: "neon/kimi-k3", minTier: "spark-premium" },
-  { slug: "neon/glm-5-3", minTier: "spark-premium" },
-  { slug: "neon/llama-4-maverick", minTier: "spark-premium" },
+  { slug: "neon/kimi-k3", minTier: "spark" },
+  { slug: "neon/glm-5-3", minTier: "spark" },
+  { slug: "neon/llama-4-maverick", minTier: "spark" },
   // Free / Spark: DeepSeek only
-  { slug: "deepseek-v4-flash", minTier: "spark" },
-  { slug: "deepseek/deepseek-v4-flash", minTier: "spark" },
-  // Spark Premium: other hosted open-source models
-  { slug: "hy3", minTier: "spark-premium" },
-  { slug: "MiniMax-M3", minTier: "spark-premium" },
-  { slug: "minimax-m3", minTier: "spark-premium" },
-  { slug: "mimo-v2.5", minTier: "spark-premium" },
-  { slug: "stealth/ox-alpha", minTier: "spark-premium" },
-  { slug: "ox-alpha", minTier: "spark-premium" },
-  { slug: "kimi-k2-6", minTier: "spark-premium" },
-  { slug: "kimi-k2-7-code", minTier: "spark-premium" },
-  { slug: "kimi-k3", minTier: "spark-premium" },
-  { slug: "glm-5.2", minTier: "spark-premium" },
-  { slug: "glm-5.1", minTier: "spark-premium" },
-  { slug: "gemini-2.5-flash", minTier: "spark-premium" },
-  { slug: "meta/llama-3.3-70b-instruct", minTier: "spark-premium" },
-  { slug: "orcarouter/auto", minTier: "spark-premium" },
+  { slug: "deepseek-v4-flash", minTier: "free" },
+  { slug: "deepseek/deepseek-v4-flash", minTier: "free" },
+  // Spark: other hosted open-source models
+  { slug: "hy3", minTier: "spark" },
+  { slug: "MiniMax-M3", minTier: "spark" },
+  { slug: "minimax-m3", minTier: "spark" },
+  { slug: "mimo-v2.5", minTier: "spark" },
+  { slug: "stealth/ox-alpha", minTier: "spark" },
+  { slug: "ox-alpha", minTier: "spark" },
+  { slug: "kimi-k2-6", minTier: "spark" },
+  { slug: "kimi-k2-7-code", minTier: "spark" },
+  { slug: "kimi-k3", minTier: "spark" },
+  { slug: "glm-5.2", minTier: "spark" },
+  { slug: "glm-5.1", minTier: "spark" },
+  { slug: "gemini-2.5-flash", minTier: "spark" },
+  { slug: "meta/llama-3.3-70b-instruct", minTier: "spark" },
+  { slug: "orcarouter/auto", minTier: "spark" },
   // Pro
   { slug: "anthropic/claude-sonnet-4.6", minTier: "pro" },
   { slug: "anthropic/claude-opus-4.7", minTier: "pro" },
@@ -80,9 +80,9 @@ function findModel(models: ModelRow[], modelSlug: string): ModelRow | undefined 
 }
 
 /**
- * Hosted models that ship in the CLI picker for Spark Premium users.
+ * Hosted models that ship in the CLI picker for Spark users.
  * If the DB row is missing entirely, preserve the Free DeepSeek exception and
- * keep the remaining hosted models behind Spark Premium.
+ * keep the remaining hosted models behind Spark.
  */
 function isFreeDeepSeekSlug(modelSlug: string): boolean {
   const n = modelSlug.trim().toLowerCase()
@@ -134,10 +134,10 @@ export function tierIndex(tier: string): number {
  * Checks whether a model slug is allowed for the user's plan tier.
  * Model gating is backed by the `Model` table's `minTier` field, with a
  * static fallback catalog so missing seed rows / DB blips preserve the
- * Free DeepSeek and Spark Premium hosted-model boundary.
+ * Free DeepSeek and Spark hosted-model boundary.
  *
- * Tier ladder: spark < spark-premium < pro < ultra
- * Free gets DeepSeek; Spark Premium gets the remaining hosted open models.
+ * Tier ladder: free < spark < pro < ultra
+ * Free gets DeepSeek; Spark gets the remaining hosted open models.
  */
 export async function isModelAllowedForTier(
   modelSlug: string,
@@ -152,8 +152,8 @@ export async function isModelAllowedForTier(
     }
 
     // DB + static catalog miss: allow only the Free DeepSeek Flash exception;
-    // keep the remaining hosted open-model catalog behind Spark Premium.
-    const minimumTier = isFreeDeepSeekSlug(modelSlug) ? "spark" : "spark-premium"
+    // keep the remaining hosted open-model catalog behind Spark.
+    const minimumTier = isFreeDeepSeekSlug(modelSlug) ? "free" : "spark"
     if (isKnownOpenModelSlug(modelSlug) && tierIndex(userTier) >= tierIndex(minimumTier)) {
       console.warn(
         `[model-access] Allowing unlisted hosted model "${modelSlug}" for tier "${userTier}" (static catalog fallback)`,
@@ -165,8 +165,8 @@ export async function isModelAllowedForTier(
   } catch (error) {
     console.error("[model-access] Failed to resolve model access:", error)
     // Infra failure: fail open only according to the same Free DeepSeek /
-    // Spark Premium hosted-model boundary; never unlock Pro or Ultra.
-    const minimumTier = isFreeDeepSeekSlug(modelSlug) ? "spark" : "spark-premium"
+    // Spark hosted-model boundary; never unlock Pro or Ultra.
+    const minimumTier = isFreeDeepSeekSlug(modelSlug) ? "free" : "spark"
     if (isKnownOpenModelSlug(modelSlug) && tierIndex(userTier) >= tierIndex(minimumTier)) {
       return true
     }
@@ -175,8 +175,8 @@ export async function isModelAllowedForTier(
 }
 
 export function getUpgradeSuggestion(userTier: string): string {
-  if (tierIndex(userTier) < tierIndex("spark-premium")) {
-    return "To access more open models and higher limits, run /upgrade (Spark Premium)"
+  if (tierIndex(userTier) < tierIndex("spark")) {
+    return "To access more open models and higher limits, run /upgrade (Spark)"
   }
   if (tierIndex(userTier) < tierIndex("pro")) {
     return "To access premium models (Claude, GPT, etc.), run /upgrade"
