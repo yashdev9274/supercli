@@ -22,8 +22,8 @@ describe("Studio billing display", () => {
   })
 
   it("matches the Free, Spark, and Ultra allowances", () => {
-    expect(creditsLabel({ tier: "spark", creditAmountCents: 1000 })).toBe("500 credits / mo")
-    expect(creditsLabel({ tier: "spark-premium", creditAmountCents: 500 })).toBe("$5 / mo")
+    expect(creditsLabel({ tier: "free", creditAmountCents: 1000 })).toBe("Fixed DeepSeek")
+    expect(creditsLabel({ tier: "spark", creditAmountCents: 500 })).toBe("$5 / mo")
     expect(creditsLabel({ tier: "ultra", creditAmountCents: 11000 })).toBe("$110 / mo")
     expect(creditsLabel(null)).toBe("—")
   })

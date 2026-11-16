@@ -129,7 +129,7 @@ router.delete("/", async (req, res) => {
       where: {
         userId,
         status: { in: ["active", "trialing"] },
-        plan: { tier: { not: "spark" } },
+        plan: { tier: { not: "free" } },
       },
       orderBy: { createdAt: "desc" },
     })

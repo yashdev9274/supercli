@@ -1,7 +1,7 @@
 import prisma from "./prisma"
 
 /** Ordered tier levels for comparison: higher index = more access */
-const TIER_ORDER = ["spark", "spark-premium", "pro", "ultra"] as const
+const TIER_ORDER = ["free", "spark", "pro", "ultra"] as const
 type Tier = (typeof TIER_ORDER)[number]
 
 type ModelRow = { slug: string; minTier: string }
@@ -9,12 +9,11 @@ type ModelRow = { slug: string; minTier: string }
 /**
  * Static catalog mirroring prisma/seed.ts.
  * Used when the Model table is empty, unreachable, or missing a newly shipped
- * slug (e.g. stealth/ox-alpha before prod seed runs). Without this, unknown
- * open models hard-deny grandfathered Spark users even though the CLI exposes
- * them in the picker.
+ * slug (e.g. stealth/ox-alpha before prod seed runs). Missing rows fall back
+ * to the same Free DeepSeek / Spark boundary used by the seed.
  */
 const STATIC_MODEL_CATALOG: ModelRow[] = [
-  // Neon catalog: exact provider-qualified slugs retain the existing open / Pro policy.
+  // Neon catalog: exact provider-qualified slugs retain the Spark / Pro policy.
   { slug: "neon/gpt-5-mini", minTier: "pro" },
   { slug: "neon/gpt-5-3-codex", minTier: "pro" },
   { slug: "neon/claude-sonnet-4-6", minTier: "pro" },
@@ -24,9 +23,10 @@ const STATIC_MODEL_CATALOG: ModelRow[] = [
   { slug: "neon/kimi-k3", minTier: "spark" },
   { slug: "neon/glm-5-3", minTier: "spark" },
   { slug: "neon/llama-4-maverick", minTier: "spark" },
-  // Spark / open
-  { slug: "deepseek-v4-flash", minTier: "spark" },
-  { slug: "deepseek/deepseek-v4-flash", minTier: "spark" },
+  // Free / Spark: DeepSeek only
+  { slug: "deepseek-v4-flash", minTier: "free" },
+  { slug: "deepseek/deepseek-v4-flash", minTier: "free" },
+  // Spark: other hosted open-source models
   { slug: "hy3", minTier: "spark" },
   { slug: "MiniMax-M3", minTier: "spark" },
   { slug: "minimax-m3", minTier: "spark" },
@@ -80,15 +80,20 @@ function findModel(models: ModelRow[], modelSlug: string): ModelRow | undefined 
 }
 
 /**
- * Open / free cloud models that ship in the CLI picker for Spark users.
- * If the DB row is missing entirely, still allow these on spark+ tiers so a
- * stale production seed cannot lock grandfathered users out of free models.
+ * Hosted models that ship in the CLI picker for Spark users.
+ * If the DB row is missing entirely, preserve the Free DeepSeek exception and
+ * keep the remaining hosted models behind Spark.
  */
+function isFreeDeepSeekSlug(modelSlug: string): boolean {
+  const n = modelSlug.trim().toLowerCase()
+  return n === "deepseek-v4-flash" || n === "deepseek/deepseek-v4-flash"
+}
+
 function isKnownOpenModelSlug(modelSlug: string): boolean {
   const n = modelSlug.trim().toLowerCase()
   if (!n) return false
+  if (isFreeDeepSeekSlug(n)) return true
   if (n.includes("stealth/") || n.endsWith("ox-alpha") || n === "ox-alpha") return true
-  if (n.includes("deepseek")) return true
   if (n.includes("minimax") || n === "minimax-m3") return true
   if (n === "hy3" || n.includes("hunyuan")) return true
   if (n.includes("mimo")) return true
@@ -128,11 +133,11 @@ export function tierIndex(tier: string): number {
 /**
  * Checks whether a model slug is allowed for the user's plan tier.
  * Model gating is backed by the `Model` table's `minTier` field, with a
- * static fallback catalog so missing seed rows / DB blips don't lock users
- * out of free open models (e.g. stealth/ox-alpha on Spark Grandfathered).
+ * static fallback catalog so missing seed rows / DB blips preserve the
+ * Free DeepSeek and Spark hosted-model boundary.
  *
- * Tier ladder: spark < spark-premium < pro < ultra
- * Open models use minTier "spark" so both Spark and Spark Premium get them.
+ * Tier ladder: free < spark < pro < ultra
+ * Free gets DeepSeek; Spark gets the remaining hosted open models.
  */
 export async function isModelAllowedForTier(
   modelSlug: string,
@@ -146,11 +151,12 @@ export async function isModelAllowedForTier(
       return tierIndex(userTier) >= tierIndex(model.minTier)
     }
 
-    // DB + static catalog miss: still allow known open/free cloud slugs on
-    // spark+ so a lagging production seed cannot break the free tier.
-    if (isKnownOpenModelSlug(modelSlug) && tierIndex(userTier) >= tierIndex("spark")) {
+    // DB + static catalog miss: allow only the Free DeepSeek Flash exception;
+    // keep the remaining hosted open-model catalog behind Spark.
+    const minimumTier = isFreeDeepSeekSlug(modelSlug) ? "free" : "spark"
+    if (isKnownOpenModelSlug(modelSlug) && tierIndex(userTier) >= tierIndex(minimumTier)) {
       console.warn(
-        `[model-access] Allowing unlisted open model "${modelSlug}" for tier "${userTier}" (static open-model fallback)`,
+        `[model-access] Allowing unlisted hosted model "${modelSlug}" for tier "${userTier}" (static catalog fallback)`,
       )
       return true
     }
@@ -158,8 +164,10 @@ export async function isModelAllowedForTier(
     return false
   } catch (error) {
     console.error("[model-access] Failed to resolve model access:", error)
-    // Infra failure: fail open for known open models only; never unlock pro.
-    if (isKnownOpenModelSlug(modelSlug) && tierIndex(userTier) >= tierIndex("spark")) {
+    // Infra failure: fail open only according to the same Free DeepSeek /
+    // Spark hosted-model boundary; never unlock Pro or Ultra.
+    const minimumTier = isFreeDeepSeekSlug(modelSlug) ? "free" : "spark"
+    if (isKnownOpenModelSlug(modelSlug) && tierIndex(userTier) >= tierIndex(minimumTier)) {
       return true
     }
     return false
@@ -167,8 +175,8 @@ export async function isModelAllowedForTier(
 }
 
 export function getUpgradeSuggestion(userTier: string): string {
-  if (tierIndex(userTier) < tierIndex("spark-premium")) {
-    return "To access more open models and higher limits, run /upgrade (Spark Premium)"
+  if (tierIndex(userTier) < tierIndex("spark")) {
+    return "To access more open models and higher limits, run /upgrade (Spark)"
   }
   if (tierIndex(userTier) < tierIndex("pro")) {
     return "To access premium models (Claude, GPT, etc.), run /upgrade"

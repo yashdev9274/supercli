@@ -36,10 +36,10 @@ router.post("/", async (req, res) => {
 
     // Resolve Dodo product — Spark IN/INT may share one product until separate SKUs exist
     let dodoProductId = plan.dodoProductId
-    if (!dodoProductId && plan.tier === "spark-premium") {
+    if (!dodoProductId && plan.tier === "spark") {
       const fallback = await prisma.plan.findFirst({
         where: {
-          tier: "spark-premium",
+          tier: "spark",
           interval: plan.interval ?? "month",
           dodoProductId: { not: null },
           active: true,

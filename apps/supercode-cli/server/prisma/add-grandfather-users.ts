@@ -10,14 +10,14 @@ const adapter = new PrismaPg({
 const prisma = new PrismaClient({ adapter })
 
 async function main() {
-  console.log("Grandfathering existing users into Spark (Grandfathered)...")
+  console.log("Grandfathering existing users into Free...")
 
-  const sparkPlan = await prisma.plan.findFirst({
-    where: { tier: "spark", active: true },
+  const freePlan = await prisma.plan.findFirst({
+    where: { tier: "free", active: true },
   })
 
-  if (!sparkPlan) {
-    console.error("Spark (Grandfathered) plan not found. Run seed first.")
+  if (!freePlan) {
+    console.error("Free plan not found. Run seed first.")
     process.exit(1)
   }
 
@@ -36,7 +36,7 @@ async function main() {
     await prisma.subscription.create({
       data: {
         userId: user.id,
-        planId: sparkPlan.id,
+        planId: freePlan.id,
         dodoSubscriptionId: dodoSubId,
         status: "active",
         metadata: { grandfathered: true },
@@ -44,20 +44,21 @@ async function main() {
     })
 
     const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    const freeCredits = freePlan.creditAmountCents
     await prisma.creditBalance.upsert({
       where: {
-        userId_planId: { userId: user.id, planId: sparkPlan.id },
+        userId_planId: { userId: user.id, planId: freePlan.id },
       },
       update: {
-        balanceCents: 500,
-        totalCredits: 500,
+        balanceCents: freeCredits,
+        totalCredits: freeCredits,
         resetAt: periodEnd,
       },
       create: {
         userId: user.id,
-        planId: sparkPlan.id,
-        balanceCents: 500,
-        totalCredits: 500,
+        planId: freePlan.id,
+        balanceCents: freeCredits,
+        totalCredits: freeCredits,
         resetAt: periodEnd,
       },
     })
@@ -65,7 +66,7 @@ async function main() {
     count++
   }
 
-  console.log(`Grandfathered ${count} users into Spark (10K req, 16K ctx).`)
+  console.log(`Grandfathered ${count} users into Free (10K req, 16K ctx).`)
 }
 
 main()
