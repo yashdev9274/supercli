@@ -11,8 +11,8 @@ export type ProductCreditBalance = {
 
 export function creditsLabel(plan: { tier: string; variant?: string | null; creditAmountCents: number } | null | undefined): string {
   if (!plan) return "—"
-  if (plan.tier === "spark") return "500 credits / mo"
-  if (plan.tier === "spark-premium") return "$5 / mo"
+  if (plan.tier === "free") return "Fixed DeepSeek"
+  if (plan.tier === "spark") return "$5 / mo"
   if (plan.tier === "pro") return plan.variant === "in" ? "$20 / mo" : "$25 / mo"
   if (plan.tier === "ultra") return "$110 / mo"
   return plan.creditAmountCents ? `$${plan.creditAmountCents / 100} / mo` : "—"

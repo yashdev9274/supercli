@@ -57,7 +57,7 @@ export function createInferenceFetch(options: {
     const inputTokens = hasMedia || nativeDeepSeek ? contextWindow : Math.min(inputBytes + overhead, contextWindow)
     const gate = await (options.planGate ?? checkPlanGate)(options.userId, model, { totalTokens: nativeDeepSeek ? Math.min(inputBytes + overhead, contextWindow) : inputBytes + overhead, nativeDeepSeek })
     if (!gate.allowed) throw Object.assign(new Error(gate.message || "Plan limit exceeded"), { status: 403 })
-    if (!options.clientKey && gate.plan?.tier !== "spark") await checkDailyTokenBudget(options.userId)
+    if (!options.clientKey && gate.plan?.tier !== "free") await checkDailyTokenBudget(options.userId)
     const signal = AbortSignal.any([request.signal, ...(options.signal ? [options.signal] : [])])
     signal.throwIfAborted()
     const reservation = options.clientKey ? undefined : await (options.reserve ?? reserveInference)(options.userId, model, { inputTokens, maxOutputTokens })

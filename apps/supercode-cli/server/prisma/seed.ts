@@ -13,7 +13,7 @@ const prisma = new PrismaClient({ adapter })
 const isTest = process.env.DODO_MODE === "test"
 
 const DODO_PRODUCT_IDS = {
-  sparkPremium: isTest
+  spark: isTest
     ? "pdt_0Nk0u6EggnAdDxGtoLa1W"
     : "pdt_0NkW4k2cUeO1f7a8yLje5",
   proMonthlyIn: isTest
@@ -40,9 +40,9 @@ console.log(`[seed] DODO_MODE=${process.env.DODO_MODE ?? "live"} — using ${isT
 
 const PLANS = [
   {
-    tier: "spark",
+    tier: "free",
     name: "Free",
-    description: "500 product credits per month, free BYOK, free Codex/Claude/OpenCode connect, 1 vCPU / 4 GB. 16K context, with 1M context for native DeepSeek V4 Flash only.",
+    description: "Fixed DeepSeek credits, free BYOK, free Codex/Claude/OpenCode connect, 1 vCPU / 4 GB. 16K context, with 1M context for native DeepSeek V4 Flash only.",
     variant: null,
     interval: null,
     priceCents: 0,
@@ -51,12 +51,12 @@ const PLANS = [
     contextLimit: 16000,
     modelAccess: "open",
     creditAmountCents: 1000,
-    monthlyCredits: 500,
+    monthlyCredits: 1000,
     dodoProductId: null,
     sortOrder: 1,
   },
   {
-    tier: "spark-premium",
+    tier: "spark",
     name: "Spark Monthly (India)",
     description: "Everything in Free, plus $5 credits, open-source models, connectors, limited PR reviews, up to 2 vCPU / 8 GB.",
     variant: "in",
@@ -68,11 +68,11 @@ const PLANS = [
     modelAccess: "open",
     creditAmountCents: 500,
     monthlyCredits: 500,
-    dodoProductId: DODO_PRODUCT_IDS.sparkPremium,
+    dodoProductId: DODO_PRODUCT_IDS.spark,
     sortOrder: 2,
   },
   {
-    tier: "spark-premium",
+    tier: "spark",
     name: "Spark Monthly (International)",
     description: "Everything in Free, plus $5 credits, open-source models, connectors, limited PR reviews, up to 2 vCPU / 8 GB.",
     variant: "int",
@@ -84,7 +84,7 @@ const PLANS = [
     modelAccess: "open",
     creditAmountCents: 500,
     monthlyCredits: 500,
-    dodoProductId: DODO_PRODUCT_IDS.sparkPremium,
+    dodoProductId: DODO_PRODUCT_IDS.spark,
     sortOrder: 3,
   },
   {
@@ -141,7 +141,7 @@ const PLANS = [
     description: "Everything in Spark, plus frontier models, $25 credits, up to 4 vCPU / 16 GB.",
     variant: "int",
     interval: "year",
-    priceCents: 20000,
+    priceCents: 10000,
     currency: "USD",
     requestLimit: 25000,
     contextLimit: 128000,
@@ -186,18 +186,16 @@ const PLANS = [
 ]
 
 const MODELS = [
-  // ── Spark / Spark Premium (minTier: "spark") — all open / cloud free models ──
-  // Spark Premium uses the same open catalog (higher limits/credits); gating is by tier order.
-  { slug: "deepseek-v4-flash",         displayName: "DeepSeek V4 Flash",       provider: "deepseek",   minTier: "spark", inputPrice: 0.15,  outputPrice: 0.60,  cachedPrice: 0 },
-  { slug: "deepseek/deepseek-v4-flash", displayName: "DeepSeek V4 Flash (OR)",  provider: "openrouter", minTier: "spark", inputPrice: 0.15,  outputPrice: 0.60,  cachedPrice: 0 },
+  // ── Free (minTier: "free") — DeepSeek only ──
+  { slug: "deepseek-v4-flash",         displayName: "DeepSeek V4 Flash",       provider: "deepseek",   minTier: "free", inputPrice: 0.15,  outputPrice: 0.60,  cachedPrice: 0 },
+  { slug: "deepseek/deepseek-v4-flash", displayName: "DeepSeek V4 Flash (OR)",  provider: "openrouter", minTier: "free", inputPrice: 0.15,  outputPrice: 0.60,  cachedPrice: 0 },
+
+  // ── Spark (minTier: "spark") — open-source hosted models ──
   { slug: "hy3",                       displayName: "Hunyuan Hy3",             provider: "supercode",  minTier: "spark", inputPrice: 0.15,  outputPrice: 0.60,  cachedPrice: 0 },
   { slug: "MiniMax-M3",                displayName: "MiniMax M3",               provider: "minimax",    minTier: "spark", inputPrice: 0.20,  outputPrice: 0.80,  cachedPrice: 0.04 },
-  // CLI cloud picker uses this slug; keep both so plan-gate matches either form
   { slug: "minimax-m3",                displayName: "MiniMax M3 (cloud)",       provider: "supercode",  minTier: "spark", inputPrice: 0.20,  outputPrice: 0.80,  cachedPrice: 0.04 },
   { slug: "mimo-v2.5",                displayName: "MiMo v2.5",                provider: "orcarouter", minTier: "spark", inputPrice: 0.15,  outputPrice: 0.60,  cachedPrice: 0 },
-  // Single unique slug — both Supercode cloud and OpenRouter routes use this.
-  // (slug is @unique; a second row with the same slug can never be upserted.)
-  { slug: "stealth/ox-alpha",         displayName: "OX Alpha",                 provider: "supercode", minTier: "spark", inputPrice: 0,     outputPrice: 0,      cachedPrice: 0 },
+  { slug: "stealth/ox-alpha",         displayName: "OX Alpha",                 provider: "supercode",  minTier: "spark", inputPrice: 0,     outputPrice: 0,      cachedPrice: 0 },
   { slug: "kimi-k2-6",                 displayName: "Kimi K2.6",               provider: "openrouter", minTier: "spark", inputPrice: 0.15,  outputPrice: 0.60,  cachedPrice: 0 },
   { slug: "kimi-k2-7-code",           displayName: "Kimi K2.7 Code",           provider: "openrouter", minTier: "spark", inputPrice: 0.25,  outputPrice: 1.00,  cachedPrice: 0 },
   { slug: "kimi-k3",                   displayName: "Kimi K3",                  provider: "openrouter", minTier: "spark", inputPrice: 0.50,  outputPrice: 2.00,  cachedPrice: 0 },
@@ -293,7 +291,32 @@ async function upsertPlan(plan: (typeof PLANS)[number]) {
   }
 }
 
+async function migrateLegacyTierNames() {
+  // Preserve existing plan IDs and subscriptions while renaming the old
+  // legacy database values: old Free tier → free, old Spark tier → spark.
+  await prisma.plan.updateMany({
+    where: { tier: "spark", name: "Free" },
+    data: { tier: "free" },
+  })
+  await prisma.plan.updateMany({
+    where: { tier: "spark-premium" },
+    data: { tier: "spark" },
+  })
+  await prisma.model.updateMany({
+    where: {
+      minTier: "spark",
+      slug: { in: ["deepseek-v4-flash", "deepseek/deepseek-v4-flash"] },
+    },
+    data: { minTier: "free" },
+  })
+  await prisma.model.updateMany({
+    where: { minTier: "spark-premium" },
+    data: { minTier: "spark" },
+  })
+}
+
 async function main() {
+  await migrateLegacyTierNames()
   console.log("Seeding plans...")
 
   const keptIds: string[] = []

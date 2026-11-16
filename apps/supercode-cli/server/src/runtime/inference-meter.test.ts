@@ -16,7 +16,7 @@ function harness(overrides: Partial<Parameters<typeof createInferenceFetch>[0]> 
     planGate: async (_user, _model, opts) => {
       events.push("gate")
       requests.push(opts)
-      return { allowed: true, plan: { tier: "spark" } } as any
+      return { allowed: true, plan: { tier: "free" } } as any
     },
     reserve: async (...args) => {
       events.push("reserve")
