@@ -53,16 +53,16 @@ const TIERS: Tier[] = [
     badge: "Free to start",
     badgeClass: "text-emerald-400",
     description:
-      "Fixed DeepSeek credits, free BYOK, free Codex/Claude/OpenCode connect, and 1 vCPU / 4 GB machines.",
+      "500 monthly DeepSeek credits, free BYOK, free Codex/Claude/OpenCode connect, and 1 vCPU / 4 GB machines.",
     cta: "Start free",
     href: "https://nova.supercodeai.tech",
     popular: false,
     stats: {
-      requests: "Fixed DeepSeek credits",
+      requests: "500 monthly DeepSeek credits",
       models: "DeepSeek only",
     },
     features: [
-      { label: "Fixed credits — DeepSeek model", included: true },
+      { label: "500 monthly credits — DeepSeek model", included: true },
       { label: "Free bring-your-own API keys (BYOK)", included: true },
       { label: "Connect Codex / Claude / OpenCode subs — free", included: true },
       { label: "1 vCPU / 4 GB RAM cloud machines", included: true },
@@ -192,7 +192,7 @@ const FAQ = [
   },
   {
     q: "How do credits work?",
-    a: "Credits are spent on hosted model usage on Nova. Free includes fixed DeepSeek credits. Spark includes $5 credits (₹449 IN / $5 INT). Pro includes $25 (INT) or $20 (IN) credits per month. Ultra includes $110 credits per month. BYOK usage does not consume Nova credits.",
+    a: "Credits are spent on hosted model usage on Nova. Free includes 500 monthly DeepSeek credits. Spark includes $5 credits (₹449 IN / $5 INT). Pro includes $25 (INT) or $20 (IN) credits per month. Ultra includes $110 credits per month. BYOK usage does not consume Nova credits.",
   },
   {
     q: "Can I upgrade or downgrade at any time?",
@@ -507,8 +507,8 @@ const VM_SIZES: {
     vcpu: 2,
     ramGb: 4,
     novaPlan: "Spark",
-    novaPriceUsd: 5,
-    novaCreditsUsd: 5,
+    novaPriceUsd: 1,
+    novaCreditsUsd: 1,
   },
   {
     id: "4x16",
@@ -545,9 +545,9 @@ function competitorsForVm(vm: VmSizeId): CompetitorRow[] {
       {
         name: "Nova",
         plan: "Spark",
-        monthlyUsd: 5,
-        creditsUsd: 5,
-        maxVm: "2 vCPU / 8 GB",
+        monthlyUsd: 1,
+        creditsUsd: 1,
+        maxVm: "2 vCPU / 4 GB",
         highlight: true,
       },
       {
@@ -897,7 +897,7 @@ const COMPETITOR_COMPARE: {
   },
   {
     label: "Credits / usage included",
-    free: ["Fixed DeepSeek credits", "Limited free usage", "—"],
+    free: ["500 monthly DeepSeek credits", "Limited free usage", "—"],
     twenty: ["$25 INT / $20 IN credits", "ACU usage pool", "$20 credits + deals"],
     hundred: ["$110 credits", "Higher ACU pool", "$105 credits + 5% bonus"],
   },

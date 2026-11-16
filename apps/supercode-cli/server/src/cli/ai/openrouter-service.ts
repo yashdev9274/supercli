@@ -7,6 +7,7 @@ import { isEmptyToolResult, isDeniedToolResult, summarizeToolResult } from "./to
 import { parseStreamedContent, KNOWN_TOOL_NAMES } from "src/lib/embedded-tool-calls"
 import { stripOrphanToolCalls } from "./sanitize-messages"
 import { toolParametersToJsonSchema } from "./tools-util"
+import { executeToolBatch } from "./tool-batch"
 
 const MODEL_MAX_TOKENS: Record<string, number> = {
   "moonshotai/kimi-k2.6": 256,
@@ -240,7 +241,7 @@ export class OpenRouterService {
     onToolCall?: any,
     signal?: AbortSignal,
     onReasoning?: (chunk: string) => void,
-    onToolResult?: (params: { toolName: string; args: unknown; result: string }) => void,
+    onToolResult?: (params: { id?: string; toolName: string; args: unknown; result: string }) => void,
     onStepFinish?: (params: { stepNumber: number; toolCalls: Array<{ toolName: string; args: unknown }>; toolResults: Array<{ toolName: string; args: unknown; result: string }> }) => void,
   ) {
     // Drop orphan tool_calls before forwarding — see sanitize-messages.ts.
@@ -343,13 +344,13 @@ export class OpenRouterService {
 
       if (result.toolCalls.length === 0) break
 
-      for (const call of result.toolCalls) {
+      await executeToolBatch(result.toolCalls, async (call) => {
         const toolFn = tools?.[call.toolName]
         let toolResult: string
 
         if (toolFn?.execute) {
           try {
-            toolResult = await toolFn.execute(call.args)
+            toolResult = await toolFn.execute(call.args, { toolCallId: call.toolCallId, messages: currentMessages, abortSignal: signal })
           } catch (err: any) {
             toolResult = JSON.stringify({ error: err.message || "Tool execution failed" })
           }
@@ -357,10 +358,12 @@ export class OpenRouterService {
           toolResult = JSON.stringify({ error: `Tool "${call.toolName}" is not available locally` })
         }
 
-        allToolResults.push({ toolName: call.toolName, result: toolResult })
         if (onToolResult) {
-          onToolResult({ toolName: call.toolName, args: call.args, result: toolResult })
+          onToolResult({ id: call.toolCallId, toolName: call.toolName, args: call.args, result: toolResult })
         }
+        return toolResult
+      }, (call, toolResult) => {
+        allToolResults.push({ toolName: call.toolName, result: toolResult })
         if (isDeniedToolResult(toolResult)) {
           const prev = deniedCounts.get(call.toolName) ?? 0
           deniedCounts.set(call.toolName, prev + 1)
@@ -387,7 +390,7 @@ export class OpenRouterService {
           content: toolResult,
         })
         toolCallsThisTurn += result.toolCalls.length
-      }
+      }, signal)
 
       // Notify chat loop of step finish (OpenRouter uses a manual polling
       // loop, so each iteration is a "step" for our purposes).

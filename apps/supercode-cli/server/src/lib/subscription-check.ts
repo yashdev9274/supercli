@@ -1,3 +1,4 @@
+import { FREE_MONTHLY_CREDITS } from "@super/billing"
 import prisma from "./prisma"
 
 export interface PlanInfo {
@@ -32,7 +33,7 @@ function planInfoFromRow(subscription: {
     contextLimit: subscription.plan.tier === "free" ? 16_000 : subscription.plan.contextLimit,
     modelAccess: subscription.plan.modelAccess as PlanInfo["modelAccess"],
     creditAmountCents: subscription.plan.creditAmountCents,
-    monthlyCredits: subscription.plan.monthlyCredits,
+    monthlyCredits: subscription.plan.tier === "free" ? FREE_MONTHLY_CREDITS : subscription.plan.monthlyCredits,
     isGrandfathered: (subscription.metadata as Record<string, unknown> | null)?.grandfathered === true,
     currentPeriodEnd: subscription.currentPeriodEnd,
   }
@@ -67,7 +68,7 @@ export async function ensureFreeSubscription(userId: string): Promise<PlanInfo |
         status: "active",
         currentPeriodStart: new Date(),
         currentPeriodEnd: null,
-        metadata: { source: "auto-ensure-spark" },
+        metadata: { source: "auto-ensure-free" },
       },
       include: { plan: true },
     })
@@ -78,25 +79,30 @@ export async function ensureFreeSubscription(userId: string): Promise<PlanInfo |
   }
 }
 
+export async function getActiveSubscription(userId: string) {
+  const paid = await prisma.subscription.findFirst({
+    where: {
+      userId,
+      status: { in: ["active", "trialing"] },
+      plan: { tier: { not: "free" } },
+      OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: new Date() } }],
+    },
+    include: { plan: true },
+    orderBy: { createdAt: "desc" },
+  })
+  if (paid) return paid
+
+  return prisma.subscription.findFirst({
+    where: { userId, status: { in: ["active", "trialing"] }, plan: { tier: "free" } },
+    include: { plan: true },
+    orderBy: { createdAt: { sort: "desc" } },
+  })
+}
+
 export async function getSubscriptionPlan(userId: string): Promise<PlanInfo | null> {
   try {
-    const subscription = await prisma.subscription.findFirst({
-      where: {
-        userId,
-        status: { in: ["active", "trialing"] },
-      },
-      include: { plan: true },
-      orderBy: { createdAt: "desc" },
-    })
+    const subscription = await getActiveSubscription(userId)
     if (!subscription?.plan) return ensureFreeSubscription(userId)
-
-    if (
-      subscription.plan.tier !== "free" &&
-      subscription.currentPeriodEnd &&
-      new Date() > subscription.currentPeriodEnd
-    ) {
-      return ensureFreeSubscription(userId)
-    }
 
     return planInfoFromRow(subscription)
   } catch (error) {

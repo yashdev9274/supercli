@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "bun run db:generate && bun run db:migrate && bun scripts/dev.ts",
     "dev:web": "next dev --port 3003",
-    "dev:inngest": "bunx inngest-cli@latest dev",
+    "dev:inngest": "npm exec --yes --ignore-scripts=false --package=inngest-cli@latest -- inngest-cli dev",
     "build": "bun run db:generate && bun run db:migrate && next build --webpack",
     "postinstall": "bun run db:generate",
     "start": "next start --port 3003",

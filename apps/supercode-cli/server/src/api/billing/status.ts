@@ -2,46 +2,13 @@ import { Router } from "express"
 import prisma from "../../lib/prisma"
 import { getDodo } from "../../lib/dodo"
 import { billing } from "../../lib/credit-meter"
-import { getSubscriptionPlan } from "../../lib/subscription-check"
+import { getActiveSubscription, getSubscriptionPlan } from "../../lib/subscription-check"
 
 const router = Router()
 
 function studioUrl(path: string): string {
   const clientUrl = process.env.CLIENT_URL || "http://localhost:3000"
   return `${clientUrl.replace(/\/$/, "")}${path}`
-}
-
-const PLAN_SELECT = {
-  tier: true,
-  name: true,
-  requestLimit: true,
-  contextLimit: true,
-  modelAccess: true,
-  creditAmountCents: true,
-  monthlyCredits: true,
-} as const
-
-async function getActiveSubscription(userId: string) {
-  const subscription = await prisma.subscription.findFirst({
-    where: {
-      userId,
-      status: { in: ["active", "trialing"] },
-    },
-    include: { plan: { select: PLAN_SELECT } },
-    orderBy: { createdAt: "desc" },
-  })
-  return subscription
-}
-
-async function getGrandfatheredFallback(userId: string) {
-  return prisma.subscription.findFirst({
-    where: {
-      userId,
-      plan: { tier: "free" },
-      status: "active",
-    },
-    include: { plan: { select: PLAN_SELECT } },
-  })
 }
 
 function isGrandfathered(sub: { metadata: unknown }): boolean {
@@ -74,32 +41,6 @@ router.get("/", async (req, res) => {
       return
     }
 
-    // Expired paid period → fall back to the Free plan (never locked out)
-    if (
-      subscription.plan.tier !== "free" &&
-      !isGrandfathered(subscription) &&
-      subscription.currentPeriodEnd &&
-      new Date() > subscription.currentPeriodEnd
-    ) {
-      const fallback = await getGrandfatheredFallback(userId)
-      if (fallback) {
-        res.json({
-          subscription: {
-            id: fallback.id,
-            status: fallback.status,
-            metadata: fallback.metadata,
-          },
-          plan: fallback.plan,
-          creditBalance: null,
-          productCreditBalance,
-          requestsUsed,
-        })
-        return
-      }
-      res.json({ subscription: null, plan: null, creditBalance: null, productCreditBalance, requestsUsed })
-      return
-    }
-
     res.json({
       subscription: {
         id: subscription.id,
@@ -111,7 +52,21 @@ router.get("/", async (req, res) => {
         metadata: subscription.metadata,
         isGrandfathered: isGrandfathered(subscription),
       },
-      plan: subscription.plan,
+      plan: {
+        id: subscription.plan.id,
+        tier: subscription.plan.tier,
+        name: subscription.plan.name,
+        description: subscription.plan.description,
+        variant: subscription.plan.variant,
+        interval: subscription.plan.interval,
+        priceCents: subscription.plan.priceCents,
+        currency: subscription.plan.currency,
+        requestLimit: subscription.plan.requestLimit,
+        contextLimit: subscription.plan.contextLimit,
+        modelAccess: subscription.plan.modelAccess,
+        creditAmountCents: subscription.plan.creditAmountCents,
+        monthlyCredits: subscription.plan.monthlyCredits,
+      },
       creditBalance: null,
       productCreditBalance,
       requestsUsed,

@@ -6,6 +6,7 @@
   "exports": {
     ".": "./index.ts",
     "./tool-result": "./tool-result.ts",
+    "./task-graph": "./task-graph.ts",
     "./split-think-content": "./split-think-content.ts",
     "./prompts/*": "./prompts/*.ts"
   },

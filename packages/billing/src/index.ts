@@ -1,5 +1,5 @@
 export const MICROCREDITS_PER_CREDIT = 1_000_000
-export const FREE_MONTHLY_CREDITS = 1000
+export const FREE_MONTHLY_CREDITS = 500
 
 export type BillingConfig = { creditsPerUsd: number; providerMarkup: number }
 

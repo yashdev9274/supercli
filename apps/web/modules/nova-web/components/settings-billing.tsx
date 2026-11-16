@@ -177,7 +177,7 @@ export function BillingSection() {
                 <p className="mt-1.5 text-[12.5px] leading-5 text-[#6b6b6b]">
                   {hasPlan
                     ? "Recurring monthly subscription with included credits."
-                    : "1,000 credits each month, shared across hosted DeepSeek, cloud machines, and app queries."}
+                    : "500 credits each month, shared across hosted DeepSeek, cloud machines, and app queries."}
                 </p>
               </>
             )}
