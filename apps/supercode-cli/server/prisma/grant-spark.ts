@@ -1,10 +1,10 @@
-// apps/supercode-cli/server/prisma/grant-spark-premium.ts
-// Grant (or renew) Spark Premium for one or more users.
+// apps/supercode-cli/server/prisma/grant-spark.ts
+// Grant (or renew) Spark for one or more users.
 //
 // Run:
-//   bun run prisma/grant-spark-premium.ts yashdev.yvd@gmail.com
-//   bun run prisma/grant-spark-premium.ts xSoo2kQhYFJqp5l1n608ooU328vM4Nq1
-//   DAYS=60 bun run prisma/grant-spark-premium.ts user@example.com
+//   bun run prisma/grant-spark.ts yashdev.yvd@gmail.com
+//   bun run prisma/grant-spark.ts xSoo2kQhYFJqp5l1n608ooU328vM4Nq1
+//   DAYS=60 bun run prisma/grant-spark.ts user@example.com
 import "dotenv/config"
 import { PrismaPg } from "@prisma/adapter-pg"
 import { PrismaClient } from "../src/generated"
@@ -31,11 +31,11 @@ async function grant(ref: string) {
   }
 
   const premium = await prisma.plan.findFirst({
-    where: { tier: "spark-premium", active: true },
+    where: { tier: "spark", active: true },
     orderBy: { sortOrder: "asc" },
   })
   if (!premium) {
-    throw new Error("Spark Premium plan not found. Run: bun run prisma/seed.ts")
+    throw new Error("Spark plan not found. Run: bun run prisma/seed.ts")
   }
 
   const now = new Date()
@@ -60,7 +60,7 @@ async function grant(ref: string) {
     ...(typeof existing?.metadata === "object" && existing.metadata
       ? (existing.metadata as Record<string, unknown>)
       : {}),
-    tier: "spark-premium",
+    tier: "spark",
     planId: premium.id,
     userId: user.id,
     source: "manual-admin-grant",
@@ -83,7 +83,7 @@ async function grant(ref: string) {
         data: {
           userId: user.id,
           planId: premium.id,
-          dodoSubscriptionId: `manual-spark-premium-${user.id}-${Date.now()}`,
+          dodoSubscriptionId: `manual-spark-${user.id}-${Date.now()}`,
           status: "active",
           currentPeriodStart: now,
           currentPeriodEnd: periodEnd,
@@ -132,12 +132,12 @@ async function main() {
   const refs = process.argv.slice(2).filter(Boolean)
   if (refs.length === 0) {
     console.error(
-      "Usage: bun run prisma/grant-spark-premium.ts <email-or-userId> [...more]",
+      "Usage: bun run prisma/grant-spark.ts <email-or-userId> [...more]",
     )
     process.exit(1)
   }
 
-  console.log(`Granting Spark Premium for ${days} day(s)...`)
+  console.log(`Granting Spark for ${days} day(s)...`)
   for (const ref of refs) {
     await grant(ref)
   }

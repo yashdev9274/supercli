@@ -37,7 +37,7 @@ async function getGrandfatheredFallback(userId: string) {
   return prisma.subscription.findFirst({
     where: {
       userId,
-      plan: { tier: "spark" },
+      plan: { tier: "free" },
       status: "active",
     },
     include: { plan: { select: PLAN_SELECT } },
@@ -74,9 +74,9 @@ router.get("/", async (req, res) => {
       return
     }
 
-    // Expired paid period → fall back to grandfathered Spark (never locked out)
+    // Expired paid period → fall back to the Free plan (never locked out)
     if (
-      subscription.plan.tier !== "spark" &&
+      subscription.plan.tier !== "free" &&
       !isGrandfathered(subscription) &&
       subscription.currentPeriodEnd &&
       new Date() > subscription.currentPeriodEnd
@@ -174,7 +174,7 @@ router.delete("/", async (req, res) => {
       where: {
         userId,
         status: { in: ["active", "trialing"] },
-        plan: { tier: { not: "spark" } },
+        plan: { tier: { not: "free" } },
       },
       orderBy: { createdAt: "desc" },
     })
