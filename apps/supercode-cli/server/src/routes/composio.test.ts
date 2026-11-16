@@ -41,7 +41,7 @@ describe("CLI Composio connections", () => {
         create: mock(async () => ({ id: "ac_managed" })),
       },
       toolkits: {
-        get: mock(async () => ["github", "googlecalendar", "linear"].map((slug) => ({ slug, name: slug, meta: {} }))),
+        get: mock(async () => ["github", "googlecalendar", "linear"].map((slug) => ({ slug, name: slug, meta: { categories: [{ slug: slug === "github" ? "developer-tools" : slug === "googlecalendar" ? "productivity" : "project-management", name: slug === "github" ? "Developer tools" : slug === "googlecalendar" ? "Productivity" : "Project management" }] } }))),
       },
       sessions: {
         create: mock(async (_userId: string, _options: unknown) => ({ sessionId: "session_1", mcp: { url: "https://mcp.composio.dev/session_1", headers: { "x-mcp-secret": "test-only" } } })),
@@ -109,6 +109,9 @@ describe("CLI Composio connections", () => {
     const payload = await response.json()
     expect(payload.apps).toHaveLength(3)
     expect(payload.apps.find((app: { slug: string }) => app.slug === "googlecalendar").connectedAccountId).toBe("ca_calendar")
+    expect(payload.apps.find((app: { slug: string }) => app.slug === "github").categories).toEqual([
+      { slug: "developer-tools", name: "Developer tools" },
+    ])
     expect(payload.apps.find((app: { slug: string }) => app.slug === "github").connected).toBe(false)
     expect(client.connectedAccounts.list.mock.calls[0]?.[0].userIds).toEqual(["user_1"])
   })
