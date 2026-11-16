@@ -32,7 +32,7 @@ function planInfoFromRow(subscription: {
     contextLimit: subscription.plan.tier === "spark" ? 16_000 : subscription.plan.contextLimit,
     modelAccess: subscription.plan.modelAccess as PlanInfo["modelAccess"],
     creditAmountCents: subscription.plan.creditAmountCents,
-    monthlyCredits: subscription.plan.tier === "spark" ? 1000 : subscription.plan.monthlyCredits,
+    monthlyCredits: subscription.plan.monthlyCredits,
     isGrandfathered: (subscription.metadata as Record<string, unknown> | null)?.grandfathered === true,
     currentPeriodEnd: subscription.currentPeriodEnd,
   }
