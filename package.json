@@ -24,6 +24,7 @@
     "packages/*"
   ],
   "scripts": {
+    "workspace:local": "bun apps/supercode-cli/server/src/nova/workspaces/cli.ts",
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",

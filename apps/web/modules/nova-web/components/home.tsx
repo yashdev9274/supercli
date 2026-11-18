@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type CSSProperties } from "react"
+import { useState, type CSSProperties, type ReactNode } from "react"
 import { ChevronDown, Cloud } from "lucide-react"
 
 import { AsciiBackground } from "@/modules/nova-web/components/ascii-background"
@@ -36,6 +36,7 @@ export function EmptyHome({
   onProjectChange,
   onManageProjects,
   localProject,
+  workspaceControls,
 }: {
   onStart: (value: string, references?: NovaReference[], localFiles?: LocalAttachment[]) => void
   busy?: boolean
@@ -49,6 +50,7 @@ export function EmptyHome({
   onProjectChange?: (selection: ProjectSelection) => void
   onManageProjects?: () => void
   localProject?: LocalProjectDto | null
+  workspaceControls?: ReactNode
 }) {
   const { appearance, update } = useChatAppearance()
   const text = appearance.text ?? contrastingText(appearance.background)
@@ -85,7 +87,7 @@ export function EmptyHome({
       <AsciiBackground color={appearance.ascii} />
       <ChatAppearancePicker appearance={appearance} onChange={update} />
       <div className="relative z-[1] flex flex-1 flex-col items-center justify-center px-5 pb-24">
-        <div className="mb-3 flex items-center gap-3 text-[12px] text-[var(--chat-muted)]">
+        <div className="mb-3 flex w-full max-w-[640px] flex-wrap items-center gap-3 text-[12px] text-[var(--chat-muted)]">
           <ProjectPicker
             className="[&>button]:text-[var(--chat-muted)] [&>button:hover]:bg-[var(--chat-hover)] [&>button:hover]:text-[var(--chat-text)]"
             value={localProject}
@@ -93,14 +95,14 @@ export function EmptyHome({
             onChange={(selection) => onProjectChange?.(selection)}
             onManageProjects={onManageProjects}
           />
-          <button
+          {workspaceControls ?? <button
             type="button"
             className="flex items-center gap-1.5 rounded-md px-1.5 py-1 transition hover:bg-[var(--chat-hover)] hover:text-[var(--chat-text)]"
           >
             <Cloud className="size-3.5" strokeWidth={1.75} />
             Web harness
             <ChevronDown className="size-3 opacity-70" />
-          </button>
+          </button>}
         </div>
 
         <div className="w-full max-w-[640px]">

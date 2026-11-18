@@ -1,6 +1,6 @@
 "use client"
 
-import { useContext, useEffect, useMemo, useRef, useState } from "react"
+import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import {
   ChevronDown,
   MoreHorizontal,
@@ -63,6 +63,8 @@ export function ThreadView({
   localFiles,
   onLocalFilesChange,
   localProject,
+  workspaceControls,
+  readWorkspaceFile,
   onLocalProjectChange,
   onProjectChange,
   onManageProjects,
@@ -107,6 +109,8 @@ export function ThreadView({
   localFiles: LocalAttachment[]
   onLocalFilesChange: (files: LocalAttachment[]) => void
   localProject?: LocalProjectDto | null
+  workspaceControls?: ReactNode
+  readWorkspaceFile?: (path: string) => Promise<string>
   onLocalProjectChange?: (project: LocalWorkspaceState) => void
   onProjectChange?: (selection: ProjectSelection) => void
   onManageProjects?: () => void
@@ -256,6 +260,7 @@ export function ThreadView({
             workingSteps={workingSteps}
             streaming={streaming}
             localProject={localProject}
+            readWorkspaceFile={readWorkspaceFile}
             localFiles={localFiles}
             fileProposals={fileProposals}
             expanded={expanded}
@@ -365,6 +370,7 @@ export function ThreadView({
 
       <div className="shrink-0 px-4 pb-4 pt-2 sm:px-6">
         <div className="mx-auto max-w-[720px]">
+          {!chatOnly && workspaceControls && <div className="mb-2 flex items-center gap-3">{workspaceControls}</div>}
           {fileProposals && fileProposals.length > 0 ? (
             <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-[#2dd4bf]/25 bg-[#2dd4bf]/[0.06] px-3 py-2">
               <p className="min-w-0 flex-1 text-[12.5px] leading-5 text-[#b8d9d4]">

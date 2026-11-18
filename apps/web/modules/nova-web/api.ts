@@ -12,6 +12,7 @@ import type { LocalAttachment } from "@/modules/nova/attachments/contracts"
 import type { NovaReference } from "@/modules/nova/references/contracts"
 import type { NovaEffort } from "@/modules/nova-web/models"
 import type { MachineSize } from "@/modules/nova/sandbox/machine-sizes"
+import type { WorktreeContext } from "@/modules/nova/local-projects/worktree-context"
 
 export async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init)
@@ -24,6 +25,16 @@ export async function requestJson<T>(url: string, init?: RequestInit): Promise<T
     )
   }
   return payload as T
+}
+
+export type LocalWorktreeBinding = { workspaceId: string; projectId: string; sourceRef: string; baseSha: string; mode: "current" | "worktree" }
+
+export function getLocalWorktreeBinding(sessionId: string) {
+  return requestJson<{ binding: LocalWorktreeBinding | null }>(`/api/nova/sessions/${encodeURIComponent(sessionId)}/worktree`)
+}
+
+export function bindLocalWorktree(sessionId: string, binding: LocalWorktreeBinding) {
+  return requestJson<{ binding: LocalWorktreeBinding }>(`/api/nova/sessions/${encodeURIComponent(sessionId)}/worktree`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ binding }) })
 }
 
 export function listSessions(parentSessionId?: string, agentId?: string) {
@@ -269,6 +280,7 @@ export async function* streamTurn(
     references?: NovaReference[]
     localAttachments?: LocalAttachment[]
     resumeRunId?: string
+    localWorktree?: WorktreeContext
   },
 ): AsyncGenerator<TurnEvent> {
   const response = await fetch(`/api/nova/sessions/${sessionId}/turn`, {
@@ -281,6 +293,7 @@ export async function* streamTurn(
       provider: options?.provider,
       effort: options?.effort,
       machineSize: options?.machineSize,
+      localWorktree: options?.localWorktree,
       mode: options?.mode,
       // Local workspace ids are attached as localAttachments client-side; never send them as GitHub refs.
       references: options?.references
