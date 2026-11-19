@@ -120,7 +120,8 @@ export async function openSandboxWorkspace(input: WorkspaceInput) {
         sandbox = await createE2BWorkspace(sandboxName, input.signal, machineSize)
         await prisma.novaSandboxSession.updateMany({ where: { id: registry.id, leaseRunId: input.runId }, data: { providerSandboxId: sandbox.sandbox.sandboxId } })
         preparationStage = "repository checkout"
-        await checkoutE2B(sandbox, input.repositoryFullName, token, input.signal, source?.sha)
+        await checkoutE2B(sandbox, input.repositoryFullName, token, input.signal, source?.sha, (stage) => { preparationStage = stage })
+        preparationStage = "checking out repository baseline"
         const head = await runBounded(sandbox, "/usr/bin/git", ["rev-parse", "HEAD"], { signal: input.signal })
         baseSha = head.stdout.trim()
         if (!head.successful || !/^[a-f0-9]{40}$/.test(baseSha)) throw new Error("Could not determine checkout base commit")
