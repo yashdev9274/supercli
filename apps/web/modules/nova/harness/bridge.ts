@@ -3,6 +3,23 @@ import { InteractionPending, type createDurableJournal } from "./durable"
 import { terminalHarnessUrl, streamHarnessChat, type HarnessChatMessage, type HarnessChatTool, type HarnessStreamEvent } from "./client"
 
 const VERSION = "nova-cli-harness/1"
+
+export function prepareBridgeMessages(messages: HarnessChatMessage[]): HarnessChatMessage[] {
+  const prepared = messages.flatMap((message) => {
+    if (typeof message.content !== "string" || message.content.length <= 200_000) return [message]
+    const parts: HarnessChatMessage[] = []
+    for (let start = 0; start < message.content.length;) {
+      let end = Math.min(start + 200_000, message.content.length)
+      const last = message.content.charCodeAt(end - 1)
+      if (end < message.content.length && last >= 0xd800 && last <= 0xdbff) end--
+      parts.push({ ...message, content: message.content.slice(start, end) })
+      start = end
+    }
+    return parts
+  })
+  if (prepared.length > 100) throw new Error("Local context exceeds the CLI harness's 100-message limit. Start a new thread or select fewer files.")
+  return prepared
+}
 export type BridgeEvent = HarnessStreamEvent | { type: "tool-result"; toolName: string; toolCallId: string; args: Record<string, unknown>; content: string; status: "completed" | "failed" | "denied"; message: string }
 export type BridgeInput = {
   token: string
@@ -29,11 +46,13 @@ export async function* streamOriginalHarness(input: BridgeInput): AsyncGenerator
   const headers = { Authorization: `Bearer ${input.token}`, "Content-Type": "application/json", Accept: "application/x-ndjson" }
   const response = await fetch(`${terminalHarnessUrl()}/api/nova/harness/turn`, {
     method: "POST", headers, signal: input.signal, cache: "no-store", redirect: "error",
-    body: JSON.stringify({ version: VERSION, mode: input.mode, messages: input.messages, tools: input.tools, budget: input.budget ?? 30 }),
+    body: JSON.stringify({ version: VERSION, mode: input.mode, messages: prepareBridgeMessages(input.messages), tools: input.tools, budget: input.budget ?? 30 }),
   })
   if (!response.ok || !response.body) {
     await response.body?.cancel()
-    throw new Error(`Original CLI harness bridge unavailable (HTTP ${response.status}). Deploy matching CLI server and Nova versions.`)
+    throw new Error(response.status === 400
+      ? "CLI harness rejected the request (HTTP 400). Check message and tool limits and CLI server compatibility."
+      : `Original CLI harness bridge unavailable (HTTP ${response.status}). Check CLI server availability and compatibility.`)
   }
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
