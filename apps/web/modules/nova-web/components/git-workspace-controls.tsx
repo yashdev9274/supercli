@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog"
 import type { GitWorkspaceState } from "../use-git-workspace"
 import { GitWorkspaceToolbar } from "./git-workspace-toolbar"
+import { matchWorkspaceProject } from "../workspace-discovery"
 import type {
   GitBranch as Branch,
   GitProject,
@@ -38,12 +39,14 @@ export function GitWorkspaceControls({
   repositoryFullName,
   onOpenWorkspace,
   workspaceLabels,
+  localRootName,
 }: {
   state: GitWorkspaceState
   disabled?: boolean
   repositoryFullName?: string | null
   onOpenWorkspace?: (threadId: string) => void
   workspaceLabels?: Record<string, string>
+  localRootName?: string | null
 }) {
   const [open, setOpen] = useState(false)
   const [port, setPort] = useState("47832")
@@ -67,15 +70,7 @@ export function GitWorkspaceControls({
   async function loadProjects() {
     const items = await client.projects()
     setProjects(items)
-    const selected =
-      items.find((item) => item.id === choice?.projectId) ??
-      items.find(
-        (item) =>
-          repositoryFullName &&
-          item.repositoryFullName?.toLowerCase() ===
-            repositoryFullName.toLowerCase(),
-      ) ??
-      items[0]
+    const selected = matchWorkspaceProject(items, { projectId: choice?.projectId, repositoryFullName, rootName: localRootName })
     setProjectId(selected?.id ?? "")
   }
 
@@ -87,15 +82,7 @@ export function GitWorkspaceControls({
       .then((items) => {
         if (!current) return
         setProjects(items)
-        const selected =
-          items.find((item) => item.id === choice?.projectId) ??
-          items.find(
-            (item) =>
-              repositoryFullName &&
-              item.repositoryFullName?.toLowerCase() ===
-                repositoryFullName.toLowerCase(),
-          ) ??
-          items[0]
+        const selected = matchWorkspaceProject(items, { projectId: choice?.projectId, repositoryFullName, rootName: localRootName })
         setProjectId(selected?.id ?? "")
       })
       .catch((cause) => {
@@ -104,7 +91,7 @@ export function GitWorkspaceControls({
     return () => {
       current = false
     }
-  }, [open, client, choice?.projectId, repositoryFullName])
+  }, [open, client, choice?.projectId, repositoryFullName, localRootName])
 
   useEffect(() => {
     if (!open || !projectId || !client.connected) return
@@ -150,7 +137,7 @@ export function GitWorkspaceControls({
   const project = projects.find((item) => item.id === projectId)
   return (
     <>
-      <GitWorkspaceToolbar state={state} disabled={disabled} repositoryFullName={repositoryFullName} onSettings={() => setOpen(true)} onOpenWorkspace={onOpenWorkspace} workspaceLabels={workspaceLabels} />
+      <GitWorkspaceToolbar state={state} disabled={disabled} repositoryFullName={repositoryFullName} localRootName={localRootName} onSettings={() => setOpen(true)} onOpenWorkspace={onOpenWorkspace} workspaceLabels={workspaceLabels} />
       <Dialog
         open={open}
         onOpenChange={(value) => {

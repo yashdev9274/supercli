@@ -8,7 +8,7 @@ import {
   type WorkspaceChoice,
   type PublishInput,
 } from "./git-workspace"
-import { bindLocalWorktree, getLocalWorktreeBinding } from "./api"
+import { bindLocalWorktree, getLocalWorktreeBinding, listGithubSourceFiles, readGithubSourceFile } from "./api"
 import { activateManagedWorkspace } from "./local-workspace"
 
 function readSaved<T>(key: string): T | null {
@@ -24,23 +24,30 @@ export function useGitWorkspace(
   sessionId: string | null,
   projectId: string | null,
   enabled = true,
+  githubSource?: { repositoryFullName: string; branch: string; sha: string },
 ) {
   const client = useMemo(() => new GitWorkspaceClient(userId), [userId])
   const [revision, setRevision] = useState(0)
   const [workspace, setWorkspace] = useState<GitWorkspace | null>(null)
   const [paths, setPaths] = useState<string[]>([])
   const [choice, setChoice] = useState<WorkspaceChoice | null>(null)
+  const [githubBranch, setGithubBranch] = useState<string | null>(null)
   const [publishAction, setPublishAction] = useState<
     PublishInput["action"] | null
   >(null)
   const [bindingError, setBindingError] = useState<string | null>(null)
   const selectionKey = `nova:git-selection:${userId}:${projectId ?? "none"}`
+  const githubSourceSha = githubSource?.sha
+  const githubRepository = githubSource?.repositoryFullName
   const threadKey = useCallback(
     (id: string) => `nova:git-thread:${userId}:${id}`,
     [userId],
   )
 
   useEffect(() => {
+    if (enabled && sessionId && githubSourceSha && githubRepository) {
+      return activateManagedWorkspace({ projectId, rootName: githubRepository, paths, read: async path => (await readGithubSourceFile(sessionId, path)).text })
+    }
     if (!enabled || !workspace || workspace.threadId !== sessionId) return
     return activateManagedWorkspace({
       projectId,
@@ -48,18 +55,32 @@ export function useGitWorkspace(
       paths,
       read: (path) => client.read(workspace.id, path),
     })
-  }, [workspace, sessionId, projectId, paths, client, enabled])
+  }, [workspace, sessionId, projectId, paths, client, enabled, githubSourceSha, githubRepository])
+
+  useEffect(() => {
+    if (!enabled || !sessionId || !githubSourceSha) return
+    const controller = new AbortController()
+    queueMicrotask(() => { if (!controller.signal.aborted) { setPaths([]); setBindingError(null) } })
+    void listGithubSourceFiles(sessionId, controller.signal).then(result => {
+      if (!controller.signal.aborted) setPaths(result.paths)
+    }).catch(cause => {
+      if (!controller.signal.aborted) setBindingError(cause instanceof Error ? cause.message : "GitHub source files are unavailable")
+    })
+    return () => controller.abort()
+  }, [enabled, sessionId, githubSourceSha])
 
   useEffect(() => {
     let current = true
-    const saved = sessionId
+    const saved = sessionId && !githubSourceSha
       ? readSaved<GitWorkspace>(threadKey(sessionId))
       : null
     queueMicrotask(() => {
       if (!current) return
-      setChoice(readSaved<WorkspaceChoice>(selectionKey))
+      setChoice(githubSourceSha ? null : readSaved<WorkspaceChoice>(selectionKey))
+      const savedBranch = readSaved<unknown>(`${selectionKey}:github-branch`)
+      setGithubBranch(typeof savedBranch === "string" ? savedBranch : null)
       setWorkspace(saved)
-      setPaths([])
+      if (!githubSourceSha) setPaths([])
       setBindingError(null)
       if (saved && client.connected)
         void client
@@ -68,7 +89,7 @@ export function useGitWorkspace(
             if (current) setPaths(value)
           })
           .catch(() => {})
-      if (sessionId && enabled)
+      if (sessionId && enabled && !githubSourceSha)
         void getLocalWorktreeBinding(sessionId)
           .then(async ({ binding }) => {
             if (!binding || !current) return
@@ -100,7 +121,7 @@ export function useGitWorkspace(
     return () => {
       current = false
     }
-  }, [selectionKey, sessionId, threadKey, revision, client, enabled])
+  }, [selectionKey, sessionId, threadKey, revision, client, enabled, githubSourceSha])
 
   const select = useCallback(
     (value: WorkspaceChoice | null) => {
@@ -164,12 +185,24 @@ export function useGitWorkspace(
     [client, selectionKey, threadKey],
   )
 
+  const selectGithubBranch = useCallback((branch: string) => {
+    if (sessionId) throw new Error("Start a new thread to change its starting branch")
+    localStorage.setItem(`${selectionKey}:github-branch`, JSON.stringify(branch))
+    localStorage.removeItem(selectionKey)
+    setChoice(null)
+    setGithubBranch(branch)
+  }, [selectionKey, sessionId])
+
   return {
     client,
     workspace,
     paths,
     choice,
     select,
+    githubBranch: githubSource?.branch ?? (sessionId ? null : githubBranch),
+    githubSource,
+    selectGithubBranch,
+    webProjectId: projectId,
     ensure,
     bindingError,
     locked: Boolean(sessionId),

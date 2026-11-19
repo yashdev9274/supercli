@@ -137,6 +137,11 @@ export const agentActivitySchema = z.object({
 })
 
 export const agentSessionSummarySchema = z.object({
+  githubSource: z.object({
+    repositoryFullName: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
+    branch: z.string().min(1).max(255),
+    sha: z.string().regex(/^[a-f0-9]{40}$/),
+  }).optional(),
   contractVersion: z.literal(NOVA_CONTRACT_VERSION),
   id: z.string().min(1),
   agentId: z.string().nullable().optional(),

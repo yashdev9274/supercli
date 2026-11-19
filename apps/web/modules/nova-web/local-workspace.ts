@@ -518,7 +518,7 @@ export async function writeLocalWorkspaceFile(
   path: string,
   content: string,
 ): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
-  if (managedWorkspace) return { ok: false, error: "Apply this thread’s changes through its paired worktree companion" }
+  if (managedWorkspace) return { ok: false, error: "Apply changes through this thread’s authorized workspace, not the original folder" }
   try {
     if (!memoryHandle) {
       return { ok: false, error: "No local folder linked. Re-open the project folder with write access." }
@@ -621,7 +621,7 @@ export async function ensureLocalWorkspaceWritable(): Promise<{
   prompted: boolean
   error?: string
 }> {
-  if (managedWorkspace) return { ok: false, prompted: false, error: "Apply this thread’s changes through its paired worktree companion" }
+  if (managedWorkspace) return { ok: false, prompted: false, error: "Apply changes through this thread’s authorized workspace, not the original folder" }
   // Already writable
   if (memoryHandle) {
     const allowed = await ensureWritePermission(memoryHandle)

@@ -2,10 +2,11 @@ import type { E2BWorkspace } from "./e2b"
 import { WORKSPACE } from "./policy"
 
 // Fetch the archive in the control plane; no GitHub credential enters the VM.
-export async function checkoutE2B(workspace: E2BWorkspace, repository: string, token: string, signal: AbortSignal): Promise<void> {
+export async function checkoutE2B(workspace: E2BWorkspace, repository: string, token: string, signal: AbortSignal, sha?: string): Promise<void> {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) throw new Error("Invalid repository binding")
+  if (sha !== undefined && !/^[a-f0-9]{40}$/.test(sha)) throw new Error("Invalid GitHub source commit")
   const boundedSignal = AbortSignal.any([signal, AbortSignal.timeout(90_000)])
-  const response = await fetch(`https://api.github.com/repos/${repository}/tarball`, {
+  const response = await fetch(`https://api.github.com/repos/${repository}/tarball${sha ? `/${sha}` : ""}`, {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
     signal: boundedSignal, redirect: "follow",
   })

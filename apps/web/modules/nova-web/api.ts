@@ -108,7 +108,7 @@ export function createAgent(input: {
 
 export function createSession(
   objective: string,
-  options?: { localProjectId?: string | null; mode?: "agent" | "plan" | "chat"; parentSessionId?: string; agentId?: string },
+  options?: { localProjectId?: string | null; mode?: "agent" | "plan" | "chat"; parentSessionId?: string; agentId?: string; githubBranch?: string },
 ) {
   return requestJson<{ session: AgentSessionSummary }>("/api/nova/sessions", {
     method: "POST",
@@ -120,8 +120,25 @@ export function createSession(
       localProjectId: options?.localProjectId ?? undefined,
       parentSessionId: options?.parentSessionId,
       agentId: options?.agentId,
+      githubBranch: options?.githubBranch,
     }),
   })
+}
+
+export function listGithubProjectBranches(projectId: string, signal?: AbortSignal) {
+  return requestJson<{
+    branches: Array<{ name: string; sha: string; isDefault: boolean }>
+    defaultBranch: string
+    truncated: boolean
+  }>(`/api/nova/local-projects/${encodeURIComponent(projectId)}/branches`, { signal, cache: "no-store" })
+}
+
+export function listGithubSourceFiles(sessionId: string, signal?: AbortSignal) {
+  return requestJson<{ paths: string[]; truncated: boolean }>(`/api/nova/sessions/${encodeURIComponent(sessionId)}/source-file`, { signal, cache: "no-store" })
+}
+
+export function readGithubSourceFile(sessionId: string, path: string) {
+  return requestJson<{ path: string; text: string }>(`/api/nova/sessions/${encodeURIComponent(sessionId)}/source-file?path=${encodeURIComponent(path)}`, { cache: "no-store" })
 }
 
 export type LocalProjectDto = {

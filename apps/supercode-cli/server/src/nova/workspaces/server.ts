@@ -6,6 +6,10 @@ import { NovaWorkspaceGit } from "./git"
 const MAX_BODY = 2 * 1024 * 1024
 const SESSION_MS = 60 * 60 * 1000
 const SAFE_WORKSPACE_ERRORS = new Set([
+  "Git worktree listing exceeds discovery limits",
+  "Workspace registry exceeds discovery limits",
+  "Invalid Git worktree listing",
+  "Project root or ancestors cannot be symlinks",
   "Use a GitHub repository name in owner/name format",
   "Another repository clone is in progress",
   "Managed clone destination already exists; no files were overwritten",
@@ -90,6 +94,7 @@ export interface WorkspaceService {
   cloneRepository(repositoryFullName: string): Promise<unknown>
   lookup(threadId: string): Promise<unknown>
   branches(projectId: string): Promise<unknown>
+  worktrees(projectId: string): Promise<unknown>
   fetchBranches(projectId: string): Promise<unknown>
   ignoredFiles(projectId: string): Promise<unknown>
   create(input: CreateWorkspaceInput): Promise<unknown>
@@ -243,6 +248,7 @@ export function startWorkspaceCompanion(options: {
             return reply({ branches: input.fetch ? await service.fetchBranches(input.projectId) : await service.branches(input.projectId) })
           }
           case "/ignored-files": return reply({ paths: await service.ignoredFiles(projectInput.parse(body).projectId) })
+          case "/worktrees": return reply({ worktrees: await service.worktrees(projectInput.parse(body).projectId) })
           case "/create": return reply({ workspace: await service.create(createInput.parse(body)) })
           case "/get": return reply({ workspace: await service.get(workspaceInput.parse(body).workspaceId) })
           case "/files": return reply({ paths: await service.files(workspaceInput.parse(body).workspaceId) })

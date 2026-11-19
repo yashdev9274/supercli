@@ -40,6 +40,17 @@ export const gitWorkspaceSchema = z.object({
 export type GitProject = z.infer<typeof gitProjectSchema>
 export type GitBranch = z.infer<typeof gitBranchSchema>
 export type GitWorkspace = z.infer<typeof gitWorkspaceSchema>
+export const localGitWorktreeSchema = z.object({
+  path: z.string(),
+  branch: z.string().nullable(),
+  head: z.string(),
+  main: z.boolean(),
+  locked: z.boolean(),
+  prunable: z.boolean(),
+  workspaceId: z.string().optional(),
+  threadId: z.string().optional(),
+})
+export type LocalGitWorktree = z.infer<typeof localGitWorktreeSchema>
 export type WorkspaceChoice = {
   projectId: string
   mode: "current" | "worktree"
@@ -225,6 +236,10 @@ export class GitWorkspaceClient {
       fetch: refresh,
     })
     return z.array(gitBranchSchema).parse(data.branches)
+  }
+  async worktrees(projectId: string) {
+    const data = await this.request<{ worktrees: unknown }>("/worktrees", { projectId })
+    return z.array(localGitWorktreeSchema).parse(data.worktrees)
   }
   async clone(repositoryFullName: string) {
     const data = await this.request<{ project: unknown }>("/clone", { repositoryFullName, confirmed: true })
