@@ -6,7 +6,7 @@ let retained: Record<string, unknown> | null = null
 const commands: string[][] = []
 const updates: Array<Record<string, unknown>> = []
 const db = {
-  $queryRaw: async () => [],
+  $executeRaw: async () => 0,
   novaSandboxSession: {
     count: async () => 0,
     findUnique: async () => retained,

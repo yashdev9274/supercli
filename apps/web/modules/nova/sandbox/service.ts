@@ -44,7 +44,7 @@ export async function openSandboxWorkspace(input: WorkspaceInput) {
   const now = new Date()
   // Serialize quota checks across all workspace claims in this organization.
   const registry = await prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`nova-sandbox:${input.organizationId}`}, 0))`
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`nova-sandbox:${input.organizationId}`}, 0))`
     const busy = await tx.novaSandboxSession.count({ where: { organizationId: input.organizationId, leaseRunId: { not: null } } })
     if (busy >= 2) throw new Error("Cloud workspace concurrency limit reached (2 per organization)")
     let row = await tx.novaSandboxSession.findUnique({ where: { sandboxName } })
