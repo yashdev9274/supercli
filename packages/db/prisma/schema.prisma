@@ -637,6 +637,7 @@ model AgentSession {
   sideThreads           AgentSession[]          @relation("SideThreads")
   localProjectId        String?
   localProject          WebLocalProject?        @relation(fields: [localProjectId], references: [id], onDelete: SetNull)
+  localWorkspaceBinding Json?
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
   completedAt           DateTime?

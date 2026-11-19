@@ -65,6 +65,19 @@ type IndexedDBHandleRecord = {
 }
 
 let memoryState: LocalWorkspaceState | null = null
+let managedWorkspace: {
+  projectId: string | null
+  rootName: string
+  paths: string[]
+  read: (path: string) => Promise<string>
+} | null = null
+
+export function activateManagedWorkspace(workspace: NonNullable<typeof managedWorkspace>): () => void {
+  managedWorkspace = workspace
+  return () => {
+    if (managedWorkspace === workspace) managedWorkspace = null
+  }
+}
 let memoryHandle: FileSystemDirectoryHandleLike | null = null
 let pathHandleCache = new Map<string, FileSystemFileHandleLike>()
 /** Paths from a DB/GitHub project when no folder handle is available. */
@@ -322,6 +335,18 @@ export async function restoreLocalWorkspace(projectId?: string | null): Promise<
 }
 
 export function getLocalWorkspace(): LocalWorkspaceState | null {
+  if (managedWorkspace) return {
+    projectId: managedWorkspace.projectId,
+    displayName: managedWorkspace.rootName,
+    rootName: managedWorkspace.rootName,
+    entries: managedWorkspace.paths.map((path) => ({
+      path,
+      name: path.split("/").pop() ?? path,
+      kind: classifyPath(path),
+    })),
+    truncated: false,
+    indexedAt: Date.now(),
+  }
   if (memoryState) return memoryState
   if (!virtualProject) return null
   return {
@@ -339,6 +364,7 @@ export function getLocalWorkspace(): LocalWorkspaceState | null {
 }
 
 export function getActiveLocalProjectId(): string | null {
+  if (managedWorkspace) return managedWorkspace.projectId
   return memoryState?.projectId ?? virtualProject?.projectId ?? null
 }
 
@@ -428,6 +454,12 @@ async function resolveHandleForPath(path: string): Promise<FileSystemFileHandleL
 
 export async function readLocalWorkspaceFile(path: string): Promise<LocalFileReadResult> {
   try {
+    if (managedWorkspace) {
+      if (!managedWorkspace.paths.includes(path)) return { ok: false, name: sanitizeFileName(path), error: "File is not in this thread’s worktree" }
+      const content = await managedWorkspace.read(path)
+      const read = await readLocalFile(new File([content], path, { type: "text/plain" }))
+      return read.ok ? { ...read, attachment: { ...read.attachment, name: path } } : read
+    }
     const handle = await resolveHandleForPath(path)
     if (!handle) {
       return { ok: false, name: sanitizeFileName(path), error: "Local file is no longer available. Re-open the folder." }
@@ -457,7 +489,7 @@ export function localWorkspaceSupportsPicker(): boolean {
 }
 
 export function localWorkspaceStatusMessage(): string | undefined {
-  const state = memoryState
+  const state = getLocalWorkspace()
   if (!state) {
     return supportsDirectoryPicker()
       ? "No local project linked. Open a folder to work on a local project (saved to your Nova workspace), or attach files with +."
@@ -486,6 +518,7 @@ export async function writeLocalWorkspaceFile(
   path: string,
   content: string,
 ): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
+  if (managedWorkspace) return { ok: false, error: "Apply this thread’s changes through its paired worktree companion" }
   try {
     if (!memoryHandle) {
       return { ok: false, error: "No local folder linked. Re-open the project folder with write access." }
@@ -588,6 +621,7 @@ export async function ensureLocalWorkspaceWritable(): Promise<{
   prompted: boolean
   error?: string
 }> {
+  if (managedWorkspace) return { ok: false, prompted: false, error: "Apply this thread’s changes through its paired worktree companion" }
   // Already writable
   if (memoryHandle) {
     const allowed = await ensureWritePermission(memoryHandle)

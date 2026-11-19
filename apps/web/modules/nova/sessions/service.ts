@@ -192,10 +192,11 @@ export async function createAgentSession(input: {
 
   return prisma.$transaction(async (tx) => {
     const parent = input.parentSessionId
-      ? await tx.agentSession.findFirst({ where: { id: input.parentSessionId, organizationId }, select: { id: true, parentSessionId: true, localProjectId: true, agentId: true } })
+      ? await tx.agentSession.findFirst({ where: { id: input.parentSessionId, organizationId }, select: { id: true, parentSessionId: true, localProjectId: true, agentId: true, localWorkspaceBinding: true } })
       : null
     if (input.parentSessionId && !parent) throw new Error("Parent thread not found")
     if (parent?.parentSessionId) throw new Error("Create side threads from the main thread")
+    if (parent?.localWorkspaceBinding) throw new Error("Start a separate worktree thread for parallel local Git work; side conversations are not supported for local worktree threads yet")
     const requestedAgentId = parent?.agentId ?? input.agentId ?? null
     if (requestedAgentId) {
       const agent = await tx.novaAgent.findFirst({ where: { id: requestedAgentId, organizationId, ownerUserId: input.userId, status: "active" }, select: { id: true } })

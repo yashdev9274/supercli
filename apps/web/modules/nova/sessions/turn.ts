@@ -38,6 +38,8 @@ import {
 } from "@/modules/nova/agent-files/parse-proposals"
 import { packGithubProjectForTurn } from "@/modules/nova/local-projects/pack"
 import { formatLocalProjectContext } from "@/modules/nova/local-projects/service"
+import { assertWorktreeContext, formatWorktreeContext, type WorktreeContext } from "@/modules/nova/local-projects/worktree-context"
+import { getLocalWorktreeBinding } from "@/modules/nova/local-projects/worktree-binding"
 import type { NovaReference, ReferenceInput } from "@/modules/nova/references/contracts"
 import { resolveNovaReferences } from "@/modules/nova/references/service"
 import {
@@ -401,6 +403,7 @@ export async function* runWebTurn(input: {
   signal?: AbortSignal
   references?: ReferenceInput[]
   localAttachments?: LocalAttachment[]
+  localWorktree?: WorktreeContext
   /** Optional override; otherwise resolved from the AgentSession row. */
   organizationId?: string
 }): AsyncGenerator<TurnStreamEvent> {
@@ -533,7 +536,8 @@ export async function* runWebTurn(input: {
       mode,
     )
 
-    const eligibility = mode === "agent" ? await sandboxEligibility(input.userId, input.sessionId) : null
+    assertWorktreeContext(await getLocalWorktreeBinding(input.userId, input.sessionId), input.localWorktree)
+    const eligibility = mode === "agent" && !input.localWorktree ? await sandboxEligibility(input.userId, input.sessionId) : null
     if (eligibility) {
       yield { type: "status", phase: "sandbox_provisioning", message: "Preparing isolated cloud workspace", runId: posted.runId }
       workspace = await openSandboxWorkspace({ ...eligibility, userId: input.userId, sessionId: input.sessionId, runId: posted.runId, machineSize, signal: turnSignal })
@@ -542,7 +546,7 @@ export async function* runWebTurn(input: {
     }
 
     // Packed-file proposals remain only the non-cloud fallback.
-    if (!workspace && context.localProject?.repositoryFullName) {
+    if (!workspace && !input.localWorktree && context.localProject?.repositoryFullName) {
       yield {
         type: "status",
         phase: "packing",
@@ -657,7 +661,9 @@ export async function* runWebTurn(input: {
       if (resolvedReferences.context) {
         text += `\n\n${resolvedReferences.context}`
       }
-      if (context.localProject && !workspace) {
+      if (input.localWorktree) {
+        text += `\n\n${formatWorktreeContext(input.localWorktree)}`
+      } else if (context.localProject && !workspace) {
         text += `\n\n${formatLocalProjectContext(context.localProject)}`
       }
       const localContext = formatLocalAttachmentsContext(localAttachments)
@@ -735,8 +741,8 @@ export async function* runWebTurn(input: {
       chatTransport: input.chatTransport,
       childTransport: input.childTransport,
       journal: createDurableJournal(durableStore(input.sessionId, posted.runId)),
-      checkpoint: (value) => harnessCheckpoint(input.sessionId, posted.runId, value, { content, provider: selection.provider, model: selection.model, effort: input.effort, mode, machineSize }, Boolean(workspace)),
-      skipConnectedTools: !input.harnessToken,
+      checkpoint: (value) => harnessCheckpoint(input.sessionId, posted.runId, value, { content, provider: selection.provider, model: selection.model, effort: input.effort, mode, machineSize, localWorktree: input.localWorktree }, Boolean(workspace)),
+      skipConnectedTools: !input.harnessToken || Boolean(input.localWorktree),
       messages: context.messages,
       provider: selection.provider,
       model: selection.model,
@@ -907,7 +913,7 @@ export async function* runWebTurn(input: {
 
     // Never send cloud changes into browser auto-apply.
     let proposals = workspace ? [] : parseFileProposals(text)
-    if (context.localProject?.paths?.length) {
+    if (!input.localWorktree && context.localProject?.paths?.length) {
       proposals = remapProposals(proposals, context.localProject.paths)
     }
 

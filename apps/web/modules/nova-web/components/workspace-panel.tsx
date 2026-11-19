@@ -574,6 +574,7 @@ export function WorkspacePanel({
   workingSteps,
   streaming,
   localProject,
+  readWorkspaceFile,
   localFiles = [],
   fileProposals = [],
   className,
@@ -589,6 +590,7 @@ export function WorkspacePanel({
   workingSteps: WorkingStep[]
   streaming: boolean
   localProject?: LocalProjectDto | null
+  readWorkspaceFile?: (path: string) => Promise<string>
   localFiles?: LocalAttachment[]
   fileProposals?: Array<{ path: string; content: string; language?: string }>
   className?: string
@@ -648,6 +650,16 @@ export function WorkspacePanel({
         ...current,
         [path]: { content: proposal.content, loading: false, error: null },
       }))
+      return
+    }
+
+    if (readWorkspaceFile) {
+      try {
+        const content = await readWorkspaceFile(path)
+        setFileBodies(current => ({ ...current, [path]: { content, loading: false, error: null } }))
+      } catch (cause) {
+        setFileBodies(current => ({ ...current, [path]: { content: null, loading: false, error: cause instanceof Error ? cause.message : "Worktree file unavailable" } }))
+      }
       return
     }
 

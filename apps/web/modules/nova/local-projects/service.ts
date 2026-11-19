@@ -155,9 +155,10 @@ export async function bindSessionLocalProject(
   const organizationId = await ensureOrg(userId)
   const session = await prisma.agentSession.findFirst({
     where: { id: sessionId, organizationId },
-    select: { id: true, localProjectId: true, parentSessionId: true, _count: { select: { sideThreads: true } } },
+    select: { id: true, localProjectId: true, parentSessionId: true, localWorkspaceBinding: true, _count: { select: { sideThreads: true } } },
   })
   if (!session) return null
+  if (session.localWorkspaceBinding && session.localProjectId !== projectId) throw new Error("A local worktree thread keeps its original project; start a new thread to choose another")
   if (session.localProjectId !== projectId && (session.parentSessionId || session._count.sideThreads > 0)) {
     throw new Error("Threads with side conversations share their original project")
   }
