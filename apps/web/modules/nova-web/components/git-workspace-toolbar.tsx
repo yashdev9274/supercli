@@ -22,9 +22,11 @@ import {
 import {
   type GitBranch as Branch,
   type GitProject,
-  type GitWorkspace,
+  type LocalGitWorktree,
 } from "../git-workspace"
 import type { GitWorkspaceState } from "../use-git-workspace"
+import { listGithubProjectBranches } from "../api"
+import { matchWorkspaceProject } from "../workspace-discovery"
 
 const row =
   "flex w-full min-w-0 items-center gap-2 rounded px-2 py-2 text-left text-xs text-[#ddd] hover:bg-white/5 disabled:opacity-40"
@@ -40,6 +42,7 @@ export function GitWorkspaceToolbar({
   onSettings,
   onOpenWorkspace,
   workspaceLabels = {},
+  localRootName,
 }: {
   state: GitWorkspaceState
   disabled: boolean
@@ -47,46 +50,57 @@ export function GitWorkspaceToolbar({
   onSettings: () => void
   onOpenWorkspace?: (threadId: string) => void
   workspaceLabels?: Record<string, string>
+  localRootName?: string | null
 }) {
   const [machineOpen, setMachineOpen] = useState(false)
   const [branchOpen, setBranchOpen] = useState(false)
   const [existingOpen, setExistingOpen] = useState(false)
   const [projects, setProjects] = useState<GitProject[]>([])
-  const [branches, setBranches] = useState<Branch[]>([])
-  const [existing, setExisting] = useState<GitWorkspace[]>([])
+  const [localBranches, setLocalBranches] = useState<Branch[]>([])
+  const [githubBranches, setGithubBranches] = useState<Branch[]>([])
+  const [githubDefaultBranch, setGithubDefaultBranch] = useState<string | null>(null)
+  const [truncated, setTruncated] = useState(false)
+  const [loadingBranches, setLoadingBranches] = useState(false)
+  const [existing, setExisting] = useState<LocalGitWorktree[]>([])
+  const [loadingWorktrees, setLoadingWorktrees] = useState(false)
   const [query, setQuery] = useState("")
   const [worktreeQuery, setWorktreeQuery] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [branchError, setBranchError] = useState<string | null>(null)
   const { client, choice, workspace, locked } = state
   const projectId = workspace?.projectId ?? choice?.projectId
-  const project = projectId
-    ? projects.find((item) => item.id === projectId)
-    : (projects.find(
-        (item) =>
-          repositoryFullName &&
-          item.repositoryFullName?.toLowerCase() ===
-            repositoryFullName.toLowerCase(),
-      ) ?? (!repositoryFullName ? projects[0] : undefined))
+  const project = matchWorkspaceProject(projects, {
+    projectId,
+    repositoryFullName,
+    rootName: localRootName,
+  })
+  const githubMode = Boolean(repositoryFullName && !choice && !workspace)
+  const branches = githubMode ? githubBranches : localBranches
+  const connected = client.connected
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
-    if ((!machineOpen && !branchOpen) || !client.connected) return
+    if (!connected) return
     let current = true
+    queueMicrotask(() => {
+      if (current) {
+        setProjects([])
+        setLocalBranches([])
+      }
+    })
     void client
       .projects()
       .then(async (items) => {
-        const selected = projectId
-          ? items.find((item) => item.id === projectId)
-          : (items.find(
-              (item) =>
-                repositoryFullName &&
-                item.repositoryFullName?.toLowerCase() ===
-                  repositoryFullName.toLowerCase(),
-            ) ?? (!repositoryFullName ? items[0] : undefined))
+        const selected = matchWorkspaceProject(items, {
+          projectId,
+          repositoryFullName,
+          rootName: localRootName,
+        })
         const refs = selected ? await client.branches(selected.id) : []
         if (current) {
           setProjects(items)
-          setBranches(refs)
+          setLocalBranches(refs)
           setError(null)
         }
       })
@@ -96,7 +110,85 @@ export function GitWorkspaceToolbar({
     return () => {
       current = false
     }
-  }, [machineOpen, branchOpen, client, projectId, repositoryFullName])
+  }, [
+    machineOpen,
+    client,
+    connected,
+    projectId,
+    repositoryFullName,
+    localRootName,
+  ])
+
+  useEffect(() => {
+    if (!githubMode || !state.webProjectId) return
+    const controller = new AbortController()
+    queueMicrotask(() => {
+      if (controller.signal.aborted) return
+      setLoadingBranches(true)
+      setGithubBranches([])
+      setGithubDefaultBranch(null)
+      setBranchError(null)
+    })
+    void listGithubProjectBranches(state.webProjectId, controller.signal)
+      .then((data) => {
+        if (controller.signal.aborted) return
+        setGithubBranches(
+          data.branches.map((branch) => ({
+            name: branch.name,
+            sha: branch.sha,
+            ref: `refs/heads/${branch.name}`,
+            current: branch.isDefault,
+            checkedOut: false,
+            remote: true,
+          })),
+        )
+      setTruncated(data.truncated)
+      setGithubDefaultBranch(data.defaultBranch)
+      })
+      .catch((cause) => {
+        if (!controller.signal.aborted)
+          setBranchError(
+            cause instanceof Error
+              ? cause.message
+              : "GitHub branches could not be loaded",
+          )
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingBranches(false)
+      })
+    return () => controller.abort()
+  }, [githubMode, state.webProjectId, refreshKey])
+
+  useEffect(() => {
+    if (!existingOpen || !connected || !project?.id) return
+    let current = true
+    queueMicrotask(() => {
+      if (current) {
+        setLoadingWorktrees(true)
+        setExisting([])
+        setError(null)
+      }
+    })
+    void client
+      .worktrees(project.id)
+      .then((items) => {
+        if (current) setExisting(items)
+      })
+      .catch((cause) => {
+        if (current)
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "Worktrees could not be loaded",
+          )
+      })
+      .finally(() => {
+        if (current) setLoadingWorktrees(false)
+      })
+    return () => {
+      current = false
+    }
+  }, [existingOpen, project?.id, connected, client])
 
   function settings() {
     setMachineOpen(false)
@@ -113,11 +205,16 @@ export function GitWorkspaceToolbar({
       projectId: project.id,
       sourceRef:
         mode === "current"
-          ? (branches.find((branch) => branch.current)?.ref ?? "")
+          ? (localBranches.find((branch) => branch.current)?.ref ?? "")
           : (ref ??
             choice?.sourceRef ??
-            branches.find((branch) => branch.current)?.ref ??
-            branches[0]?.ref ??
+            localBranches.find(
+              (branch) =>
+                branch.name === state.githubBranch ||
+                branch.name === `origin/${state.githubBranch}`,
+            )?.ref ??
+            localBranches.find((branch) => branch.current)?.ref ??
+            localBranches[0]?.ref ??
             ""),
       mode,
       copyIgnored: choice?.copyIgnored ?? false,
@@ -129,18 +226,17 @@ export function GitWorkspaceToolbar({
     setBranchOpen(false)
   }
 
-  async function openExisting(saved: GitWorkspace) {
+  async function openExisting(saved: LocalGitWorktree) {
+    if (!saved.workspaceId || !saved.threadId) return
     setBusy(true)
     setError(null)
     try {
-      const actual = await client.get(saved.id)
+      const actual = await client.get(saved.workspaceId)
       if (
-        actual.id !== saved.id ||
+        actual.id !== saved.workspaceId ||
         actual.threadId !== saved.threadId ||
-        actual.projectId !== saved.projectId ||
-        actual.baseSha !== saved.baseSha ||
-        actual.sourceRef !== saved.sourceRef ||
-        actual.mode !== saved.mode
+        actual.projectId !== project?.id ||
+        actual.path !== saved.path
       )
         throw new Error(
           "Worktree identity changed; reconnect its original companion",
@@ -159,6 +255,7 @@ export function GitWorkspaceToolbar({
     workspace?.branch ??
     workspace?.sourceRef ??
     choice?.sourceRef ??
+    (githubMode ? state.githubBranch ?? githubDefaultBranch : null) ??
     branches.find((branch) => branch.current)?.ref
   const branchLabel =
     source?.replace(/^refs\/(?:heads|remotes)\//, "") || "Choose branch"
@@ -235,22 +332,7 @@ export function GitWorkspaceToolbar({
           </button>
           <Popover open={existingOpen} onOpenChange={setExistingOpen}>
             <PopoverTrigger asChild>
-              <button
-                type="button"
-                className={row}
-                disabled={!onOpenWorkspace}
-                onClick={() => {
-                  setExisting(
-                    client
-                      .savedWorkspaces()
-                      .filter(
-                        (item) =>
-                          item.mode === "worktree" &&
-                          (!project || item.projectId === project.id),
-                      ),
-                  )
-                }}
-              >
+              <button type="button" className={row}>
                 <FolderGit2 className="size-3.5" />
                 Existing worktree
                 <ChevronRight className="ml-auto size-3" />
@@ -270,40 +352,62 @@ export function GitWorkspaceToolbar({
                 className="w-full min-w-0 border-b border-white/10 bg-transparent px-3 py-2 text-xs outline-none"
               />
               <p className="px-3 py-2 text-[10px] text-[#888]">
-                Continue a saved worktree’s existing thread.
+                {connected
+                  ? "Git worktrees on this computer. Nova-managed entries continue their bound thread."
+                  : "Connect this computer to discover its Git worktrees. GitHub cannot list worktrees on your disk."}
               </p>
               <div className="max-h-56 overflow-auto">
                 {existing
                   .filter((item) =>
-                      `${workspaceLabels[item.threadId] ?? ""} ${item.branch} ${item.sourceRef} ${item.threadId}`
+                    `${item.threadId ? (workspaceLabels[item.threadId] ?? "") : ""} ${item.branch} ${item.path}`
                       .toLowerCase()
                       .includes(worktreeQuery.toLowerCase()),
                   )
                   .map((item) => (
                     <button
                       type="button"
-                      key={item.id}
+                      key={item.path}
                       className={row}
-                      disabled={busy || !client.connected}
+                      disabled={
+                        busy ||
+                        !connected ||
+                        !item.threadId ||
+                        !item.workspaceId ||
+                        !onOpenWorkspace ||
+                        item.prunable
+                      }
                       onClick={() => void openExisting(item)}
                     >
                       <GitBranch className="size-3.5 shrink-0" />
                       <span className="min-w-0">
                         <span className="block truncate">
-                          {workspaceLabels[item.threadId] ??
-                            "Continue conversation"}
+                          {(item.threadId
+                            ? workspaceLabels[item.threadId]
+                            : null) ??
+                            item.branch ??
+                            `detached @ ${item.head.slice(0, 7)}`}
                         </span>
                         <span className="block truncate text-[10px] text-[#888]">
-                          {item.branch ??
-                            `detached @ ${item.baseSha.slice(0, 7)}`}
+                          {item.path}
+                          {item.main ? " · main checkout" : ""}
+                          {item.locked ? " · locked" : ""}
+                          {item.prunable ? " · missing" : ""}
+                          {!item.threadId ? " · discovery only" : ""}
                         </span>
                       </span>
                     </button>
                   ))}
               </div>
-              {!existing.length && (
+              {loadingWorktrees && (
+                <p className="px-3 py-2 text-xs text-[#999]">
+                  Loading Git worktrees…
+                </p>
+              )}
+              {!existing.length && !loadingWorktrees && connected && (
                 <p className="px-3 pb-3 text-xs text-[#999]">
-                  No saved worktrees for this project in this browser.
+                  {project
+                    ? "No worktrees found."
+                    : "Choose the matching project in workspace settings; Nova will not use a different folder."}
                 </p>
               )}
             </PopoverContent>
@@ -369,7 +473,12 @@ export function GitWorkspaceToolbar({
                   type="button"
                   className={row}
                   disabled={locked || (mode === "current" && !branch.current)}
-                  onClick={() => select(mode ?? "worktree", branch.ref)}
+                  onClick={() => {
+                    if (githubMode) {
+                      state.selectGithubBranch(branch.name)
+                      setBranchOpen(false)
+                    } else select(mode ?? "worktree", branch.ref)
+                  }}
                 >
                   <GitBranch className="size-3.5 shrink-0 text-[#777]" />
                   <span className="flex-1 truncate">{branch.name}</span>
@@ -378,17 +487,32 @@ export function GitWorkspaceToolbar({
                   )}
                   {(workspace
                     ? source === branch.name || source === branch.ref
-                    : (choice?.sourceRef ??
+                    : ((githubMode && state.githubBranch
+                        ? `refs/heads/${state.githubBranch}`
+                        : choice?.sourceRef) ??
                         branches.find((item) => item.current)?.ref) ===
                       branch.ref) && <Check className="size-3 shrink-0" />}
                 </button>
               ))}
           </div>
-          {!branches.length && (
+          {loadingBranches && (
+            <p className="flex items-center gap-2 px-2 py-3 text-xs text-[#999]">
+              <Loader2 className="size-3 animate-spin" />
+              Loading GitHub branches…
+            </p>
+          )}
+          {!branches.length && !loadingBranches && !branchError && (
             <p className="px-2 py-3 text-xs text-[#999]">
-              {client.connected
-                ? "No matching project branches. Open workspace settings."
-                : "Connect this computer to load its branches."}
+              {githubMode
+                ? "No branches found in this connected repository."
+                : client.connected
+                  ? "No matching project branches. Open workspace settings."
+                  : "Connect this computer to load its branches."}
+            </p>
+          )}
+          {githubMode && truncated && (
+            <p className="px-2 py-2 text-[11px] text-amber-200">
+              Branch listing is limited; more branches exist on GitHub.
             </p>
           )}
           {locked && (
@@ -401,12 +525,20 @@ export function GitWorkspaceToolbar({
             <button
               type="button"
               className={row}
-              disabled={!project || busy || !client.connected}
+              disabled={
+                busy ||
+                loadingBranches ||
+                (githubMode ? !state.webProjectId : !project || !connected)
+              }
               onClick={async () => {
+                if (githubMode) {
+                  setRefreshKey((value) => value + 1)
+                  return
+                }
                 if (!project) return
                 setBusy(true)
                 try {
-                  setBranches(await client.branches(project.id, true))
+                  setLocalBranches(await client.branches(project.id, true))
                   setError(null)
                 } catch (cause) {
                   setError(
@@ -421,9 +553,14 @@ export function GitWorkspaceToolbar({
               branches
             </button>
             <button type="button" className={row} onClick={settings}>
-              Settings…
+              {githubMode ? "Local setup…" : "Settings…"}
             </button>
           </div>
+          {branchError && (
+            <p role="alert" className="px-2 py-2 text-xs text-red-200">
+              {branchError}
+            </p>
+          )}
           {error && (
             <p role="alert" className="px-2 py-2 text-xs text-red-200">
               {error}

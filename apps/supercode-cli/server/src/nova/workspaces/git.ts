@@ -16,13 +16,50 @@ function canonical(path: string): string {
 }
 export type Project = { id: string; name: string; path: string; repositoryFullName: string | null; isGit: boolean }
 export type Branch = { name: string; ref: string; sha: string; remote: boolean; checkedOut: boolean; current: boolean }
+export type Worktree = { path: string; branch: string | null; head: string; main: boolean; locked: boolean; prunable: boolean; workspaceId?: string; threadId?: string }
+const MAX_WORKTREES = 256
+const MAX_WORKTREE_BYTES = 1024 * 1024
+
+export function parseGitWorktrees(output: string): Worktree[] {
+  const invalid = () => { throw new Error("Invalid Git worktree listing") }
+  if (Buffer.byteLength(output) > MAX_WORKTREE_BYTES) throw new Error("Git worktree listing exceeds discovery limits")
+  if (!output || !output.endsWith("\0\0")) return invalid()
+  const result: Worktree[] = []
+  const paths = new Set<string>()
+  for (const block of output.slice(0, -2).split("\0\0")) {
+    if (result.length >= MAX_WORKTREES) throw new Error("Git worktree listing exceeds discovery limits")
+    const fields = block.split("\0")
+    const first = fields.shift()!
+    if (!first.startsWith("worktree ")) return invalid()
+    const path = first.slice(9)
+    if (!isAbsolute(path) || paths.has(path)) return invalid()
+    paths.add(path)
+    const values = new Map<string, string>()
+    for (const field of fields) {
+      const space = field.indexOf(" ")
+      const key = space < 0 ? field : field.slice(0, space)
+      const value = space < 0 ? "" : field.slice(space + 1)
+      if (!["HEAD", "branch", "detached", "bare", "locked", "prunable"].includes(key) || values.has(key)) return invalid()
+      if (["bare", "detached"].includes(key) && value) return invalid()
+      values.set(key, value)
+    }
+    const head = values.get("HEAD") ?? ""
+    const branch = values.get("branch")
+    if (values.has("bare")) {
+      if (head || branch !== undefined || values.has("detached")) return invalid()
+    } else if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(head) || (branch === undefined) === !values.has("detached")) return invalid()
+    if (branch !== undefined && (!branch.startsWith("refs/heads/") || branch.length <= 11 || /[\x00-\x20\x7f]/.test(branch))) return invalid()
+    result.push({ path, branch: branch?.slice(11) ?? null, head, main: result.length === 0, locked: values.has("locked"), prunable: values.has("prunable") })
+  }
+  return result
+}
 export type Workspace = { id: string; projectId: string; threadId: string; path: string; sourceRef: string; baseSha: string; branch: string | null; mode: "current" | "worktree" }
 export type PublishInput = { workspaceId: string; action: "commit" | "push" | "pr"; branch: string; baseBranch: string; remote: string; message: string; files: string[]; title?: string; body?: string }
 export type Preview = PublishInput & { id: string; head: string; diff: string; expiresAt: string }
 type StoredPreview = { preview: Preview; fingerprint: string; remoteHeads: string; indexTree?: string; receipt?: { commitSha: string; branch: string; prUrl?: string }; stage?: "committed" | "attached" | "pushed" | "pr-started" | "done" }
 type PrPublisher = (input: { cwd: string; branch: string; baseBranch: string; remote: string; title: string; body: string }) => Promise<string>
 
-async function run(cwd: string, args: string[], env?: NodeJS.ProcessEnv, input?: Buffer, timeout = 30_000) {
+async function run(cwd: string, args: string[], env?: NodeJS.ProcessEnv, input?: Buffer, timeout = 30_000, maxBuffer = 16 * 1024 * 1024) {
   const config = ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null"]
   const environment = { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_LITERAL_PATHSPECS: args[0] === "check-ignore" ? "0" : "1", ...env }
   const filters = await exec("git", [...config, "-C", cwd, "config", "--name-only", "--get-regexp", "^filter\\."], { env: environment, timeout: 5000, maxBuffer: 1024 * 1024 }).then(result => result.stdout).catch(error => { if (error.code === 1) return ""; throw error })
@@ -30,7 +67,7 @@ async function run(cwd: string, args: string[], env?: NodeJS.ProcessEnv, input?:
     const match = key.match(/^filter\.(.+)\.(?:clean|smudge|process|required)$/)
     if (match) for (const attribute of ["clean", "smudge", "process", "required"]) config.push("-c", "filter." + match[1] + "." + attribute + "=" + (attribute === "required" ? "false" : ""))
   }
-  const pending = exec("git", [...config, "-C", cwd, ...args], { env: environment, timeout, maxBuffer: 16 * 1024 * 1024 })
+  const pending = exec("git", [...config, "-C", cwd, ...args], { env: environment, timeout, maxBuffer })
   pending.child.stdin?.end(input)
   const result = await pending
   return result.stdout.replace(/\n$/, "")
@@ -165,6 +202,61 @@ export class NovaWorkspaceGit {
       if (symref) return []
       return [{ name: ref.replace(/^refs\/(heads|remotes)\//, ""), ref, sha, remote: ref.startsWith("refs/remotes/"), checkedOut: occupied.split("\n").includes("branch " + ref), current: ref === current }]
     })
+  }
+
+  async worktrees(projectId: string): Promise<Worktree[]> {
+    const project = await this.project(projectId)
+    if (!project.isGit) return []
+    if (await fs.realpath(project.path) !== project.path) throw new Error("Project root or ancestors cannot be symlinks")
+    let output: string
+    try {
+      output = await run(project.path, ["worktree", "list", "--porcelain", "-z"], undefined, undefined, 10_000, MAX_WORKTREE_BYTES)
+    } catch (error) {
+      if ((error as { code?: string }).code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") throw new Error("Git worktree listing exceeds discovery limits")
+      throw error
+    }
+    const worktrees = parseGitWorktrees(output)
+    if (!await exists(this.registry)) return worktrees
+    const directory = await fs.opendir(this.registry).catch(error => {
+      if (error.code === "ENOENT") return null
+      throw error
+    })
+    if (!directory) return worktrees
+    let entries = 0
+    const ambiguous = new Set<string>()
+    for await (const entry of directory) {
+      if (++entries > 1024) throw new Error("Workspace registry exceeds discovery limits")
+      if (!entry.isFile() || !/^[0-9a-f]{32}\.json$/.test(entry.name)) continue
+      const id = entry.name.slice(0, -5)
+      const stat = await fs.lstat(join(this.registry, entry.name))
+      if (!stat.isFile() || stat.size > 64 * 1024) continue
+      let workspace: Workspace
+      try {
+        const manifest = await this.load<Workspace>(id)
+        if (manifest.projectId !== projectId || !/^[a-zA-Z0-9_-]{1,128}$/.test(manifest.threadId) || hash(projectId + ":" + manifest.threadId).slice(0, 32) !== id) continue
+        if (!["current", "worktree"].includes(manifest.mode)) continue
+        const candidate = worktrees.find(tree => tree.path === manifest.path && !tree.prunable)
+        if (!candidate) continue
+        const bindingStat = await fs.lstat(join(this.registry, "binding-" + id + ".json"))
+        if (!bindingStat.isFile() || bindingStat.size > 64 * 1024) continue
+        const binding = await this.load<Workspace>("binding-" + id)
+        if (binding.projectId !== projectId || binding.threadId !== manifest.threadId || binding.mode !== manifest.mode || binding.sourceRef !== manifest.sourceRef) continue
+        workspace = await this.get(id)
+      } catch {
+        continue
+      }
+      const tree = worktrees.find(tree => tree.path === workspace.path)!
+      if (ambiguous.has(tree.path)) continue
+      if (tree.workspaceId) {
+        ambiguous.add(tree.path)
+        delete tree.workspaceId
+        delete tree.threadId
+        continue
+      }
+      tree.workspaceId = workspace.id
+      tree.threadId = workspace.threadId
+    }
+    return worktrees
   }
 
   async fetchBranches(projectId: string): Promise<Branch[]> {

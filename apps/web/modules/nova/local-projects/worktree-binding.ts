@@ -1,5 +1,6 @@
 import prisma from "@super/db"
 import { z } from "zod"
+import { githubSourceFromPolicy } from "./github-source"
 
 import { Prisma } from "../../../../../packages/db/src/generated"
 
@@ -59,7 +60,7 @@ export function createLocalWorktreeBindingService(repository: BindingRepository)
   async function read(userId: string, sessionId: string) {
     const session = await repository.agentSession.findFirst({
       where: ownedWhere(userId, sessionId),
-      select: { localWorkspaceBinding: true, activeRunId: true, parentSessionId: true },
+      select: { localWorkspaceBinding: true, activeRunId: true, parentSessionId: true, policySnapshot: true },
     })
     if (!session) throw new LocalWorktreeBindingError("Session not found", 404)
     return session
@@ -73,6 +74,7 @@ export function createLocalWorktreeBindingService(repository: BindingRepository)
   async function bindLocalWorktree(userId: string, sessionId: string, input: LocalWorktreeBinding): Promise<LocalWorktreeBinding> {
     const binding = localWorktreeBindingSchema.parse(input)
     const session = await read(userId, sessionId)
+    if (githubSourceFromPolicy(session.policySnapshot)) throw new LocalWorktreeBindingError("GitHub source sessions cannot bind a local workspace", 409)
     if (session.parentSessionId) throw new LocalWorktreeBindingError("Side threads cannot bind a local workspace", 409)
     if (session.localWorkspaceBinding !== null) {
       const existing = localWorktreeBindingSchema.parse(session.localWorkspaceBinding)

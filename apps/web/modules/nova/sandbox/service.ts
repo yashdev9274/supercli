@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import { APIError, Sandbox } from "@vercel/sandbox"
 import { NotFoundError, Sandbox as E2BSandbox } from "e2b"
 import prisma from "@super/db"
+import { assertGithubSourceRepository, githubSourceFromPolicy, githubSourceSchema, type GithubSource } from "@/modules/nova/local-projects/github-source"
 
 import { getGithubTokenForUser } from "@/modules/github/lib/github"
 import { createE2BWorkspace, e2bCredentials, e2bNetwork, E2BWorkspace } from "./e2b"
@@ -18,24 +19,28 @@ export async function sandboxEligibility(userId: string, sessionId: string) {
   const session = await prisma.agentSession.findUnique({ where: { id: sessionId }, include: { localProject: true } })
   if (!session || !sandboxEnabled(userId, session.organizationId)) return null
   const project = session.localProject
+  const githubSource = githubSourceFromPolicy(session.policySnapshot)
+  if (githubSource) assertGithubSourceRepository(githubSource, project?.repositoryFullName)
   if (!project?.repositoryFullName || project.status !== "active") return null
   const membership = await prisma.organizationMembership.findUnique({ where: { organizationId_userId: { organizationId: session.organizationId, userId } } })
   if (membership?.status !== "active" || project.userId !== userId || project.organizationId !== session.organizationId) throw new Error("Cloud workspace access denied")
   const repository = await prisma.repository.findFirst({ where: { userId, fullName: project.repositoryFullName }, select: { fullName: true } })
   if (!repository) throw new Error("Connect the selected GitHub repository before using cloud Agent mode")
-  return { organizationId: session.organizationId, repositoryFullName: repository.fullName }
+  return { organizationId: session.organizationId, repositoryFullName: repository.fullName, ...(githubSource ? { githubSource } : {}) }
 }
 
-type WorkspaceInput = { userId: string; sessionId: string; runId: string; organizationId: string; repositoryFullName: string; machineSize?: MachineSize; signal: AbortSignal }
+type WorkspaceInput = { userId: string; sessionId: string; runId: string; organizationId: string; repositoryFullName: string; githubSource?: GithubSource; machineSize?: MachineSize; signal: AbortSignal }
 
 export async function openSandboxWorkspace(input: WorkspaceInput) {
+  const source = input.githubSource ? githubSourceSchema.parse(input.githubSource) : undefined
+  if (source) assertGithubSourceRepository(source, input.repositoryFullName)
   const provider = sandboxProvider()
   const machineSize = validateMachineSelection(input.machineSize)
   let resources: { cpuCount: number; memoryMB: number } | undefined
   const credentials = provider === "vercel" ? sandboxCredentials() : (e2bCredentials(), {})
   const policy = executionPolicy()
   const domains = typeof policy === "object" ? Object.keys(policy.allow ?? {}) : []
-  const sandboxName = `${provider === "e2b" ? "nova-e2b" : "nova"}-${createHash("sha256").update(JSON.stringify([input.organizationId, input.userId, input.sessionId, input.repositoryFullName])).digest("hex").slice(0, 40)}`
+  const sandboxName = `${provider === "e2b" ? "nova-e2b" : "nova"}-${createHash("sha256").update(JSON.stringify([input.organizationId, input.userId, input.sessionId, input.repositoryFullName, ...(source ? [source.sha] : [])])).digest("hex").slice(0, 40)}`
   const now = new Date()
   // Serialize quota checks across all workspace claims in this organization.
   const registry = await prisma.$transaction(async (tx) => {
@@ -46,6 +51,7 @@ export async function openSandboxWorkspace(input: WorkspaceInput) {
     if (row?.leaseRunId || row?.status === "recovering") throw new Error("This cloud workspace is busy or awaiting recovery; retry after cleanup")
     if (row && row.expiresAt <= now) throw new Error("Cloud workspace retention expired; start a new thread to avoid losing prior edits silently")
     if (row && !row.baseSha) throw new Error("Cloud workspace setup was interrupted; start a new thread")
+    if (row && source && (row.branch !== source.branch || (provider === "vercel" && row.baseSha !== source.sha))) throw new Error("Cloud workspace source does not match the session")
     if (row?.baseSha && provider === "e2b" && machineSize !== "default") {
       if (!row.providerSandboxId) throw new Error("E2B workspace identity is missing")
       const info = await E2BSandbox.getInfo(row.providerSandboxId, { ...e2bCredentials(), signal: input.signal, requestTimeoutMs: 10_000 })
@@ -109,7 +115,7 @@ export async function openSandboxWorkspace(input: WorkspaceInput) {
         const token = await getGithubTokenForUser(input.userId)
         sandbox = await createE2BWorkspace(sandboxName, input.signal, machineSize)
         await prisma.novaSandboxSession.updateMany({ where: { id: registry.id, leaseRunId: input.runId }, data: { providerSandboxId: sandbox.sandbox.sandboxId } })
-        await checkoutE2B(sandbox, input.repositoryFullName, token, input.signal)
+        await checkoutE2B(sandbox, input.repositoryFullName, token, input.signal, source?.sha)
         const head = await runBounded(sandbox, "/usr/bin/git", ["rev-parse", "HEAD"], { signal: input.signal })
         baseSha = head.stdout.trim()
         if (!head.successful || !/^[a-f0-9]{40}$/.test(baseSha)) throw new Error("Could not determine checkout base commit")
@@ -126,9 +132,16 @@ export async function openSandboxWorkspace(input: WorkspaceInput) {
       sandbox = await Sandbox.create({ ...credentials, name: sandboxName, image: "vercel/sandbox/universal:latest", resources: { vcpus: 2 }, timeout: VM_MS, persistent: true, snapshotExpiration: RETENTION_MS, keepLastSnapshots: { count: 1 }, networkPolicy: checkoutPolicy(input.repositoryFullName, token), signal: input.signal })
       const clone = await runBounded(sandbox, "/usr/bin/git", ["-c", "credential.helper=", "-c", "core.hooksPath=/dev/null", "-c", "filter.lfs.required=false", "-c", "filter.lfs.smudge=", "clone", "--depth=1", "--", `https://github.com/${input.repositoryFullName}.git`, WORKSPACE], { signal: input.signal, cwd: "/vercel/sandbox", timeoutMs: 90_000 })
       if (!clone.successful) throw new Error("GitHub checkout failed; check repository access")
+      if (source) {
+        const fetched = await runBounded(sandbox, "/usr/bin/git", ["-c", "credential.helper=", "-c", "core.hooksPath=/dev/null", "fetch", "--depth=1", "origin", source.sha], { signal: input.signal, timeoutMs: 90_000 })
+        if (!fetched.successful) throw new Error("Pinned GitHub commit is unavailable")
+        const checked = await runBounded(sandbox, "/usr/bin/git", ["-c", "core.hooksPath=/dev/null", "-c", "filter.lfs.required=false", "-c", "filter.lfs.smudge=", "checkout", "--detach", source.sha], { signal: input.signal })
+        if (!checked.successful) throw new Error("Pinned GitHub checkout failed")
+      }
       const head = await runBounded(sandbox, "/usr/bin/git", ["rev-parse", "HEAD"], { signal: input.signal })
       baseSha = head.stdout.trim()
       if (!head.successful || !/^[a-f0-9]{40}$/.test(baseSha)) throw new Error("Could not determine checkout base commit")
+      if (source && baseSha !== source.sha) throw new Error("GitHub checkout did not match the pinned commit")
     }
     // No repository-controlled code is executed while the GitHub broker is active.
     if (sandbox instanceof E2BWorkspace) {
@@ -138,7 +151,7 @@ export async function openSandboxWorkspace(input: WorkspaceInput) {
       assertMachineResources(machineSize, info, Boolean(registry.baseSha))
       await sandbox.sandbox.updateNetwork(e2bNetwork(domains), { signal: input.signal })
     } else await sandbox.update({ networkPolicy: policy }, { signal: input.signal })
-    await prisma.novaSandboxSession.updateMany({ where: { id: registry.id, leaseRunId: input.runId }, data: { baseSha, branch: "default", status: "running", providerSessionId: sandbox instanceof E2BWorkspace ? null : sandbox.currentSession().sessionId } })
+    await prisma.novaSandboxSession.updateMany({ where: { id: registry.id, leaseRunId: input.runId }, data: { baseSha, branch: source?.branch ?? "default", status: "running", providerSessionId: sandbox instanceof E2BWorkspace ? null : sandbox.currentSession().sessionId } })
     const activeSandbox = sandbox
     return {
       provider,

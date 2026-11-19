@@ -94,6 +94,7 @@ engine-managed clone location, never a browser-supplied path.
 | `/lookup` | `{threadId}` | `{workspace}` (or `{workspace:null}`) |
 | `/clone` | `{repositoryFullName:"owner/name",confirmed:true}` | `{project}` |
 | `/branches` | `{projectId,fetch?:boolean}` | `{branches}` |
+| `/worktrees` | `{projectId}` | `{worktrees}` |
 | `/ignored-files` | `{projectId}` | `{paths}` (names only, no contents) |
 | `/create` | `{projectId,threadId,sourceRef,mode,newBranch?,copyIgnored?}` | `{workspace}` |
 | `/get` | `{workspaceId}` | `{workspace}` |
@@ -115,6 +116,26 @@ GitHub `owner/name` identifier is accepted, not a URL, path, or clone command.
 Branch listing is local unless `fetch:true` explicitly requests a refresh from
 the configured remotes. Ignored-file listing returns only copy-candidate names
 for user consent, not file bytes.
+
+`/worktrees` reads Git's actual local `worktree list --porcelain -z` for an
+approved project, not browser cache. Each entry contains
+`{path,branch,head,main,locked,prunable,workspaceId?,threadId?}`. `branch` is the
+short local branch name or null for detached HEAD; `head` is the commit ID
+(all zeroes for an unborn branch). `main` identifies Git's primary checkout,
+not necessarily the approved project directory. Bare entries have an empty
+`head` and null branch. Paths, including spaces and newlines, are preserved.
+The companion remains required for local discovery and uses the same pairing,
+exact-Origin, Host and project authorization as other routes.
+
+External linked worktrees, including missing/prunable entries, are discovery
+only: listing never registers them, reads their files, or grants write access.
+Only an existing, validated engine binding adds `workspaceId` and `threadId`;
+stale or ambiguous bindings omit both. Listing does not attach a checkout to a
+new thread. Reuse a known thread deliberately, or create a separate worktree.
+Discovery is limited to 256 worktrees, 1 MiB of Git output, and 1024 immediate
+registry entries; it never scans home directories. Limit failures return 409
+rather than a misleading partial list. Git failures also return a sanitized
+409 rather than an empty successful list.
 
 Use `/lookup` after pairing again to recover a thread's existing workspace.
 Workspace IDs may be persisted as nonsecret browser state; bearer tokens should

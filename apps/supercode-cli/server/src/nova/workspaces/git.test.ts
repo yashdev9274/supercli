@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
 
-import { NovaWorkspaceGit } from "./git"
+import { NovaWorkspaceGit, parseGitWorktrees } from "./git"
 import type { PublishInput } from "./git"
 
 const exec = promisify(execFile)
@@ -49,6 +49,63 @@ async function fixture(options: { unborn?: boolean; publishPr?: ConstructorParam
 const publication = (workspaceId: string, extra: Partial<PublishInput> = {}): PublishInput => ({ workspaceId, action: "commit", branch: "feature/test", baseBranch: "main", remote: "origin", message: "selected changes", files: ["a.txt"], ...extra })
 
 describe("NovaWorkspaceGit", () => {
+  test("discovers real external, detached, locked and missing worktrees without registering them", async () => {
+    const f = await fixture()
+    const external = join(f.root, "external tree with spaces\nand newline")
+    const missing = join(f.root, "missing tree")
+    await git(f.repo, "worktree", "add", "-b", "external/topic", external)
+    await git(f.repo, "worktree", "lock", "--reason", "keep this tree", external)
+    await git(f.repo, "worktree", "add", "--detach", missing)
+    await fs.rm(missing, { recursive: true })
+    const managed = await f.create()
+    const head = await git(f.repo, "rev-parse", "HEAD")
+    const trees = await f.engine.worktrees(f.project.id)
+    expect(trees).toHaveLength(4)
+    expect(trees[0]).toEqual({ path: f.repo, branch: "main", head, main: true, locked: false, prunable: false })
+    expect(trees.find(tree => tree.path === external)).toEqual({ path: external, branch: "external/topic", head, main: false, locked: true, prunable: false })
+    expect(trees.find(tree => tree.path === missing)).toEqual({ path: missing, branch: null, head, main: false, locked: false, prunable: true })
+    expect(trees.find(tree => tree.path === managed.path)).toMatchObject({ branch: null, workspaceId: managed.id, threadId: managed.threadId })
+    expect(await f.engine.lookup("external")).toBeNull()
+    await expect(f.engine.get(external)).rejects.toThrow("Invalid registry ID")
+    await expect(f.engine.worktrees("unknown")).rejects.toThrow("Unknown project")
+    const linkedEngine = new NovaWorkspaceGit({ roots: [external], home: f.home })
+    const linkedProject = (await linkedEngine.listProjects())[0]!
+    const linkedTrees = await linkedEngine.worktrees(linkedProject.id)
+    expect(linkedTrees[0]?.main).toBe(true)
+    expect(linkedTrees.find(tree => tree.path === external)?.main).toBe(false)
+    expect(linkedTrees.every(tree => !tree.workspaceId && !tree.threadId)).toBe(true)
+  })
+
+  test("omits stale and ambiguous engine metadata without hiding Git entries", async () => {
+    const f = await fixture()
+    const managed = await f.create()
+    const bindingFile = join(f.home, ".nova/worktrees", "binding-" + managed.id + ".json")
+    const binding = JSON.parse(await fs.readFile(bindingFile, "utf8"))
+    await fs.writeFile(bindingFile, JSON.stringify({ ...binding, gitDir: "/stale" }))
+    expect((await f.engine.worktrees(f.project.id)).find(tree => tree.path === managed.path)?.workspaceId).toBeUndefined()
+    await fs.rm(managed.path, { recursive: true })
+    expect((await f.engine.worktrees(f.project.id)).find(tree => tree.path === managed.path)).toMatchObject({ prunable: true })
+    await f.create("current-one", "current")
+    await f.create("current-two", "current")
+    await f.create("current-three", "current")
+    const current = (await f.engine.worktrees(f.project.id))[0]!
+    expect(current.workspaceId).toBeUndefined()
+    expect(current.threadId).toBeUndefined()
+  })
+
+  test("lists unborn repositories and rejects malformed or oversized NUL porcelain", async () => {
+    const f = await fixture({ unborn: true })
+    expect(await f.engine.worktrees(f.project.id)).toEqual([{ path: f.repo, branch: "main", head: "0".repeat(40), main: true, locked: false, prunable: false }])
+    const block = "worktree /safe path\0HEAD " + "a".repeat(40) + "\0detached\0\0"
+    expect(parseGitWorktrees(block)[0]?.branch).toBeNull()
+    expect(parseGitWorktrees("worktree /bare\0bare\0\0")[0]?.head).toBe("")
+    for (const malformed of ["", block.slice(0, -1), block + block, block.replace("/safe path", "relative"), block.replace("detached", "branch refs/heads/main\0detached"), block.replace("detached", "locked"), block.replace("detached", "unknown value"), block.replace("HEAD ", "HEAD not-a-hash")]) {
+      expect(() => parseGitWorktrees(malformed)).toThrow("Invalid Git worktree listing")
+    }
+    expect(() => parseGitWorktrees("x".repeat(1024 * 1024 + 1))).toThrow("discovery limits")
+    expect(() => parseGitWorktrees(Array.from({ length: 257 }, (_, i) => block.replace("/safe path", "/tree-" + i)).join(""))).toThrow("discovery limits")
+  })
+
   test("creates an explicitly requested new working branch without switching the original checkout", async () => {
     const f = await fixture()
     const workspace = await f.create("named-worktree", "worktree", { newBranch: "nova/new-feature" })

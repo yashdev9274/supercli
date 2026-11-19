@@ -18,6 +18,7 @@ function fixture() {
     cloneRepository: call("cloneRepository", { id: "cloned-project" }),
     lookup: call("lookup", { id: "workspace" }),
     branches: call("branches", ["main"]),
+    worktrees: call("worktrees", [{ path: "/explicit-root", branch: "main", head: "a".repeat(40), main: true, locked: false, prunable: false }]),
     fetchBranches: call("fetchBranches", ["main", "origin/topic"]),
     ignoredFiles: call("ignoredFiles", [".env.local"]),
     create: call("create", { id: "workspace" }),
@@ -47,6 +48,24 @@ function fixture() {
 }
 
 describe("workspace companion protocol", () => {
+  test("protects discovery with pairing, exact origin and strict project-only input", async () => {
+    const f = fixture()
+    expect((await f.post("/worktrees", { projectId: "project" })).status).toBe(401)
+    const { token } = await f.pair()
+    expect((await f.post("/worktrees", { projectId: "project" }, token, otherOrigin)).status).toBe(403)
+    expect((await f.post("/worktrees", { projectId: "project" }, token, origin + "/")).status).toBe(403)
+    for (const body of [{}, { projectId: "project", path: "/arbitrary" }, { projectId: "project", threadId: "new-thread" }, { projectId: 42 }]) {
+      expect((await f.post("/worktrees", body, token)).status).toBe(400)
+    }
+    expect(f.calls).toEqual([])
+    f.service.worktrees = async () => { throw new Error("Unknown project") }
+    const unknown = await f.post("/worktrees", { projectId: "unknown" }, token)
+    expect(unknown.status).toBe(409)
+    expect(await unknown.json()).toEqual({ error: "Unknown project" })
+    f.service.worktrees = async () => { throw new Error("private Git stderr") }
+    expect(await (await f.post("/worktrees", { projectId: "project" }, token)).json()).toEqual({ error: "Workspace operation failed" })
+  })
+
   test("validates explicit project roots and exact origins", () => {
     expect(approvedWorkspaceOrigin(origin)).toBe(true)
     expect(approvedWorkspaceOrigin(otherOrigin)).toBe(true)
@@ -160,6 +179,7 @@ describe("workspace companion protocol", () => {
     const cases: [string, unknown, string, unknown[], unknown][] = [
       ["lookup", { threadId: "thread" }, "lookup", ["thread"], { workspace: { id: "workspace" } }],
       ["branches", { projectId: "project" }, "branches", ["project"], { branches: ["main"] }],
+      ["worktrees", { projectId: "project" }, "worktrees", ["project"], { worktrees: [{ path: "/explicit-root", branch: "main", head: "a".repeat(40), main: true, locked: false, prunable: false }] }],
       ["branches", { projectId: "project", fetch: false }, "branches", ["project"], { branches: ["main"] }],
       ["branches", { projectId: "project", fetch: true }, "fetchBranches", ["project"], { branches: ["main", "origin/topic"] }],
       ["ignored-files", { projectId: "project" }, "ignoredFiles", ["project"], { paths: [".env.local"] }],

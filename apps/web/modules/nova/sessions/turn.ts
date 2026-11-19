@@ -37,6 +37,7 @@ import {
   type FileProposal,
 } from "@/modules/nova/agent-files/parse-proposals"
 import { packGithubProjectForTurn } from "@/modules/nova/local-projects/pack"
+import { assertGithubSourceRepository, githubSourceFromPolicy } from "@/modules/nova/local-projects/github-source"
 import { formatLocalProjectContext } from "@/modules/nova/local-projects/service"
 import { assertWorktreeContext, formatWorktreeContext, type WorktreeContext } from "@/modules/nova/local-projects/worktree-context"
 import { getLocalWorktreeBinding } from "@/modules/nova/local-projects/worktree-binding"
@@ -169,6 +170,7 @@ async function buildTurnContext(
       where: { id: sessionId },
       select: {
         objective: true,
+        policySnapshot: true,
         agentId: true,
         agent: { select: { name: true, description: true, instructions: true } },
         localProject: {
@@ -243,6 +245,9 @@ async function buildTurnContext(
     })
   }
 
+  const githubSource = githubSourceFromPolicy(session.policySnapshot)
+  if (githubSource) assertGithubSourceRepository(githubSource, session.localProject?.repositoryFullName)
+  if (githubSource && session.localProject?.status !== "active") throw new Error("The pinned GitHub project is unavailable")
   const localProject = session.localProject && session.localProject.status === "active"
     ? {
         id: session.localProject.id,
@@ -278,7 +283,7 @@ async function buildTurnContext(
     })),
   ]
 
-  return { objective: session.objective, messages: chatMessages, localProject, agentId: session.agentId }
+  return { objective: session.objective, messages: chatMessages, localProject, githubSource, agentId: session.agentId }
 }
 
 function harnessContentToText(content: HarnessChatMessage["content"]): string {
@@ -555,12 +560,13 @@ export async function* runWebTurn(input: {
         model: selection.model,
       }
       try {
-        const before = localAttachments.length
+        const before = context.githubSource ? 0 : localAttachments.length
         localAttachments = await packGithubProjectForTurn(
           input.userId,
           context.localProject,
           content,
           localAttachments,
+          context.githubSource,
         )
         const added = localAttachments.slice(before)
         if (added.length > 0) {
@@ -608,6 +614,7 @@ export async function* runWebTurn(input: {
           }
         }
       } catch (error) {
+        if (context.githubSource) throw new Error("Could not load the pinned GitHub source; no default branch fallback was used")
         console.warn("[nova/turn] github project pack failed", error)
       }
     } else if (!workspace && localAttachments.length > 0) {
@@ -660,6 +667,9 @@ export async function* runWebTurn(input: {
       let text = harnessContentToText(userMessage.content) || content
       if (resolvedReferences.context) {
         text += `\n\n${resolvedReferences.context}`
+      }
+      if (context.githubSource) {
+        text += `\n\nGitHub execution source: ${context.githubSource.repositoryFullName}, branch ${context.githubSource.branch}, pinned commit ${context.githubSource.sha}. Project file reads and cloud checkout use this exact commit, not the current default branch. Unrelated user attachments are additional context, not replacements for this source.`
       }
       if (input.localWorktree) {
         text += `\n\n${formatWorktreeContext(input.localWorktree)}`
