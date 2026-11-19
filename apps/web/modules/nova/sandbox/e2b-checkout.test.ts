@@ -21,3 +21,17 @@ test("E2B archive request uses the exact commit rather than a branch or default"
     fetchSpy.mockRestore()
   }
 })
+
+test("archive authorization failures report only the safe HTTP status and checkout phase", async () => {
+  const fetchSpy = spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 403 }))
+  const stages: string[] = []
+  const workspace = { sandbox: { files: { write: async () => {} } }, runBounded: async () => ({ successful: true }) } as unknown as E2BWorkspace
+  try {
+    await expect(checkoutE2B(workspace, "owner/private-repo", "fixture", new AbortController().signal, undefined, (stage) => stages.push(stage)))
+      .rejects.toThrow("HTTP 403")
+    expect(stages).toEqual(["requesting GitHub archive"])
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  } finally {
+    fetchSpy.mockRestore()
+  }
+})
