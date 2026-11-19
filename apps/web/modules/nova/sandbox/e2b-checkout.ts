@@ -62,6 +62,6 @@ pathlib.Path("/tmp/nova-checkout.tar.gz").unlink()
   const extracted = await workspace.runBounded("/usr/bin/python3", ["-I", "-c", unpack], { signal: boundedSignal, cwd: "/tmp" })
   if (!extracted.successful) throw new Error("E2B archive extraction failed")
   // Archive workspaces have an immutable local baseline, not the upstream SHA.
-  const setup = await workspace.runBounded("/bin/bash", ["--noprofile", "--norc", "-c", `git -c init.templateDir= init && printf '%s\\n' '* -filter -text -ident' > .git/info/attributes && git -c core.hooksPath=/dev/null -c core.attributesFile=/dev/null add --all && git -c core.hooksPath=/dev/null -c user.name=Nova -c user.email=nova@localhost commit --allow-empty -m 'Nova archive baseline' && git remote add origin https://github.com/${repository}.git`], { signal: boundedSignal, cwd: WORKSPACE })
+  const setup = await workspace.runBounded("/bin/bash", ["--noprofile", "--norc", "-c", `git -c init.templateDir= init && mkdir -p .git/info && printf '%s\\n' '* -filter -text -ident' > .git/info/attributes && git -c core.hooksPath=/dev/null -c core.attributesFile=/dev/null add --all && git -c core.hooksPath=/dev/null -c user.name=Nova -c user.email=nova@localhost commit --allow-empty -m 'Nova archive baseline' && git remote add origin https://github.com/${repository}.git`], { signal: boundedSignal, cwd: WORKSPACE })
   if (!setup.successful) throw new Error("E2B baseline initialization failed")
 }

@@ -160,6 +160,16 @@ test("exhausted credits block provider acquisition and release the workspace lea
   expect(updates.some((data) => data.leaseRunId === null)).toBe(true)
 })
 
+test("startup errors identify the failed stage without exposing provider credentials", async () => {
+  row = retained()
+  spyOn(Sandbox, "get").mockRejectedValue(new Error("request Authorization: Bearer fixture-secret"))
+  const error = await openSandboxWorkspace(input()).then(() => null, (error: Error) => error)
+  expect(error?.message).toContain("during workspace resume")
+  expect(error?.message).toContain("existing work was not reset")
+  expect(error?.message).not.toContain("fixture-secret")
+  expect(error?.message).not.toContain("Authorization")
+})
+
 test("confirmed missing provider releases abandoned lease and fails the run", async () => {
   row = { ...retained(), leaseRunId: "r", leaseExpiresAt: new Date(0) }
   spyOn(Sandbox, "get").mockRejectedValue(new APIError(new Response(null, { status: 404 })))
