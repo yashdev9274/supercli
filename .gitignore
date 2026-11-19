@@ -84,7 +84,9 @@ apps/web/components/pitch
 
 # scripts
 scripts/
-apps/web/scripts/
+!apps/web/scripts/
+apps/web/scripts/*
+!apps/web/scripts/build-nova-machines.ts
 !apps/supercode-desktop/scripts/
 !apps/supercode-desktop/scripts/**
 .commandcode
