@@ -124,11 +124,9 @@ export async function generateReviewText(
 
   // Skip remaining models on a provider once its free-tier daily/global cap is hit.
   const providerExhausted = new Set<GatewayProviderName>()
-  const reviewUsesMerge = Boolean(process.env.MERGE_GATEWAY_API_KEY?.trim())
 
   for (const modelId of models) {
     const providers = gatewayProviderChain(modelId)
-      .filter((p) => !reviewUsesMerge || p !== "vercel")
       .sort((a, b) => Number(b === "merge") - Number(a === "merge"))
       .filter((p) => !providerExhausted.has(p) && providerSupportsModel(p, modelId))
 

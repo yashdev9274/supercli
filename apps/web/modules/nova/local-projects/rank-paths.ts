@@ -88,9 +88,12 @@ function expandNeedles(objective: string): { needles: string[]; implementIntent:
 
   for (const token of tokens) {
     if (IMPLEMENT_HINTS.has(token)) implementIntent = true
-    if (token.length >= 2) needles.add(token)
-    const extras = SYNONYMS[token]
-    if (extras) for (const extra of extras) needles.add(extra)
+    for (const needle of [token, ...token.split(/[/.]+/).filter((part) => part.length >= 2)]) {
+      if (needle.length < 2) continue
+      needles.add(needle)
+      const extras = SYNONYMS[needle]
+      if (extras) for (const extra of extras) needles.add(extra)
+    }
   }
 
   // Multi-word heuristics for common Nova web asks
@@ -137,7 +140,7 @@ export function scoreProjectPath(path: string, objective: string): number {
     if (lower.split("/").some((seg) => seg === needle || seg.startsWith(`${needle}.`))) score += 35
   }
 
-  if (lower.includes("/app/dashboard/")) score += 80
+  if (/\b(?:dashboard|dashbaord)\b/i.test(objective) && lower.includes("/app/dashboard/")) score += 80
 
   if (isSource) score += 12
   if (/\.tsx$/.test(base)) score += 8
