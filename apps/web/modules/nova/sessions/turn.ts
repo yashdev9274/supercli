@@ -5,7 +5,7 @@ import { authorizeHarnessRun, durableStore, harnessCheckpoint } from "../harness
 
 import { browserService } from "@/modules/nova/browser/server"
 import { browserHarnessTools, executeBrowserTool, isBrowserTool } from "@/modules/nova/browser/tools"
-import { createBrowserbaseProvider } from "@/modules/nova/browser/provider"
+import { browserbaseConfig, createBrowserbaseProvider } from "@/modules/nova/browser/provider"
 
 import { CHATGPT_PROVIDER, CHATGPT_UNAVAILABLE_MESSAGE } from "@/modules/nova/chatgpt/contracts"
 import { CODEX_PROVIDER } from "@/modules/nova/codex/models"
@@ -766,7 +766,7 @@ export async function* runWebTurn(input: {
         if (isBrowserTool(toolName)) {
           if (!browserClaim || mode !== "agent") return { successful: false, error: "Browser agent control is not enabled" }
           const { runCdpAction } = await import("@/modules/nova/browser/cdp")
-          const provider = createBrowserbaseProvider({ apiKey: process.env.BROWSERBASE_API_KEY ?? "", projectId: process.env.BROWSERBASE_PROJECT_ID ?? "" })
+          const provider = createBrowserbaseProvider(browserbaseConfig())
           return executeBrowserTool({ name: toolName, args, scope: browserScope, expected: browserClaim, service: browser, connection: provider.connection, run: runCdpAction, signal })
         }
         if (workspace) return workspace.execute(toolName, args)
