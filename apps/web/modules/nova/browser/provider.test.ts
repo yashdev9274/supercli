@@ -1,7 +1,20 @@
 import { describe, expect, test } from "bun:test"
 
-import { createBrowserbaseProvider, validateProviderUrl } from "./provider"
+import { browserConfigured, browserbaseConfig, createBrowserbaseProvider, validateProviderUrl } from "./provider"
 import { BrowserCreationRejectedError } from "./contracts"
+
+test("Browserbase config reads the Nova-prefixed production environment names", () => {
+  expect(browserbaseConfig({})).toEqual({ apiKey: "", projectId: "" })
+  expect(browserConfigured({})).toBe(false)
+  const config = browserbaseConfig({
+    NOVA_AGENT_BROWSER_BROWSERBASE_API_KEY: " key ",
+    NOVA_AGENT_BROWSER_BROWSERBASE_PROJECT_ID: " project ",
+  })
+  expect(config).toEqual({ apiKey: "key", projectId: "project" })
+  expect(browserConfigured({ NOVA_AGENT_BROWSER_BROWSERBASE_API_KEY: "key", NOVA_AGENT_BROWSER_BROWSERBASE_PROJECT_ID: "project" })).toBe(true)
+  expect(browserConfigured({ NOVA_AGENT_BROWSER_BROWSERBASE_API_KEY: " ", NOVA_AGENT_BROWSER_BROWSERBASE_PROJECT_ID: "project" })).toBe(false)
+  expect(browserbaseConfig({ NOVA_AGENT_BROWSER_BROWSERBASE_API_KEY: "", NOVA_AGENT_BROWSER_BROWSERBASE_PROJECT_ID: "project" })).toEqual({ apiKey: "", projectId: "project" })
+})
 
 describe("Browserbase creation failures", () => {
   for (const [status, detail, expected] of [

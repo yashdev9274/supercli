@@ -1,8 +1,18 @@
 import { BrowserCreationRejectedError, BrowserError, LIVE_VIEW_TTL_SECONDS, type BrowserProvider } from "./contracts"
 import { browserLiveViewUrl } from "@/modules/nova-web/browser-view"
 
-export function browserConfigured(): boolean {
-  return Boolean(process.env.BROWSERBASE_API_KEY?.trim() && process.env.BROWSERBASE_PROJECT_ID?.trim())
+type BrowserbaseEnvironment = Record<string, string | undefined>
+
+export function browserbaseConfig(env: BrowserbaseEnvironment = process.env) {
+  return {
+    apiKey: env.NOVA_AGENT_BROWSER_BROWSERBASE_API_KEY?.trim() ?? "",
+    projectId: env.NOVA_AGENT_BROWSER_BROWSERBASE_PROJECT_ID?.trim() ?? "",
+  }
+}
+
+export function browserConfigured(env: BrowserbaseEnvironment = process.env): boolean {
+  const config = browserbaseConfig(env)
+  return Boolean(config.apiKey && config.projectId)
 }
 
 export function validateProviderUrl(value: unknown, kind: "live" | "cdp"): string {
@@ -39,7 +49,7 @@ export function createBrowserbaseProvider(
         let message = "Browserbase request failed; retry later"
         let status = 502
         if (response.status === 401) {
-          message = "Browserbase rejected the API key; check the deployed BROWSERBASE_API_KEY"
+          message = "Browserbase rejected the API key; check the deployed NOVA_AGENT_BROWSER_BROWSERBASE_API_KEY"
           status = 503
         } else if ((response.status === 400 || response.status === 403 || response.status === 402) && /keep.?alive/.test(detail)) {
           message = "Browserbase requires a paid plan with keep-alive support for Nova's shared browser"
