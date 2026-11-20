@@ -1675,6 +1675,8 @@ app.put("/api/conversations/:id/title", async (req, res) => {
 
 const FIRECRAWL_BASE = "https://api.firecrawl.dev/v2"
 const EXA_BASE = "https://api.exa.ai"
+const KEENABLE_PUBLIC_URL = "https://api.keenable.ai/v1/search/public"
+const KEENABLE_KEYED_URL = "https://api.keenable.ai/v1/search"
 const CONTEXT_DEV_BASE = "https://api.context.dev/v1"
 
 /// Compact human-readable summary of a Composio tool result for the app's
@@ -1950,16 +1952,75 @@ app.post("/api/tools/exa-fetch", async (req, res) => {
   }
 })
 
+app.post("/api/tools/keenable-search", async (req, res) => {
+  try {
+    const user = await getUserFromBearer(req)
+    if (!user) { res.status(401).json({ error: "Unauthorized" }); return }
+
+    const flag = (process.env.KEENABLE_SEARCH || "").trim()
+    const apiKey = (process.env.KEENABLE_API_KEY || "").trim()
+    const enabled = /^(1|true|yes|on)$/i.test(flag) || Boolean(apiKey)
+    if (!enabled) { res.status(500).json({ error: "Keenable search is not enabled on server. Set KEENABLE_SEARCH=true or KEENABLE_API_KEY." }); return }
+
+    const { query, maxResults = 5 } = req.body
+    if (!query || typeof query !== "string") {
+      res.status(400).json({ error: "query is required" }); return
+    }
+    const url = apiKey ? KEENABLE_KEYED_URL : KEENABLE_PUBLIC_URL
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-Keenable-Title": "SuperCLI",
+    }
+    if (apiKey) headers["X-API-Key"] = apiKey
+
+    const response = await withToolCredits(user.id, "keenable_search", () => globalThis.fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ query, max_results: maxResults }),
+      signal: AbortSignal.timeout(30000),
+    }))
+    const data = await response.json()
+    res.status(response.status).json(data)
+  } catch (error: any) {
+    res.status(inferenceErrorStatus(error)).json({ error: error.message || "Keenable search proxy failed" })
+  }
+})
+
 app.post("/api/tools/web-search", async (req, res) => {
   try {
     const user = await getUserFromBearer(req)
     if (!user) { res.status(401).json({ error: "Unauthorized" }); return }
 
+    const { query, maxResults = 5, provider } = req.body
+    if (provider === "keenable") {
+      const flag = (process.env.KEENABLE_SEARCH || "").trim()
+      const keenKey = (process.env.KEENABLE_API_KEY || "").trim()
+      const enabled = /^(1|true|yes|on)$/i.test(flag) || Boolean(keenKey)
+      if (!enabled) { res.status(500).json({ error: "Keenable search is not enabled on server. Set KEENABLE_SEARCH=true or KEENABLE_API_KEY." }); return }
+      if (!query || typeof query !== "string") {
+        res.status(400).json({ error: "query is required" }); return
+      }
+      const keenUrl = keenKey ? KEENABLE_KEYED_URL : KEENABLE_PUBLIC_URL
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "X-Keenable-Title": "SuperCLI",
+      }
+      if (keenKey) headers["X-API-Key"] = keenKey
+      const response = await withToolCredits(user.id, "keenable_search", () => globalThis.fetch(keenUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ query, max_results: maxResults }),
+        signal: AbortSignal.timeout(30000),
+      }))
+      const data = await response.json()
+      res.status(response.status).json(data)
+      return
+    }
+
     const apiKey = process.env.GOOGLE_API_KEY
     const cx = process.env.GOOGLE_CSE_ID
     if (!apiKey || !cx) { res.status(500).json({ error: "Google Custom Search not configured on server" }); return }
 
-    const { query, maxResults = 5 } = req.body
     const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}`
     const response = await withToolCredits(user.id, "web_search", () => globalThis.fetch(url))
     const data = await response.json()
