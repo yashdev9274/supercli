@@ -1,14 +1,16 @@
 import { BrowserCreationRejectedError, BrowserError, LIVE_VIEW_TTL_SECONDS, type BrowserProvider } from "./contracts"
 import { browserLiveViewUrl } from "@/modules/nova-web/browser-view"
 
-export function browserbaseConfig(env: Pick<NodeJS.ProcessEnv, "NOVA_AGENT_BROWSER_BROWSERBASE_API_KEY" | "NOVA_AGENT_BROWSER_BROWSERBASE_PROJECT_ID"> = process.env) {
+type BrowserbaseEnvironment = Partial<Pick<NodeJS.ProcessEnv, "NOVA_AGENT_BROWSER_BROWSERBASE_API_KEY" | "NOVA_AGENT_BROWSER_BROWSERBASE_PROJECT_ID">>
+
+export function browserbaseConfig(env: BrowserbaseEnvironment = process.env) {
   return {
     apiKey: env.NOVA_AGENT_BROWSER_BROWSERBASE_API_KEY?.trim() ?? "",
     projectId: env.NOVA_AGENT_BROWSER_BROWSERBASE_PROJECT_ID?.trim() ?? "",
   }
 }
 
-export function browserConfigured(env: Pick<NodeJS.ProcessEnv, "NOVA_AGENT_BROWSER_BROWSERBASE_API_KEY" | "NOVA_AGENT_BROWSER_BROWSERBASE_PROJECT_ID"> = process.env): boolean {
+export function browserConfigured(env: BrowserbaseEnvironment = process.env): boolean {
   const config = browserbaseConfig(env)
   return Boolean(config.apiKey && config.projectId)
 }
