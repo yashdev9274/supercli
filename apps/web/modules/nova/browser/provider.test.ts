@@ -4,6 +4,8 @@ import { browserConfigured, browserbaseConfig, createBrowserbaseProvider, valida
 import { BrowserCreationRejectedError } from "./contracts"
 
 test("Browserbase config reads the Nova-prefixed production environment names", () => {
+  expect(browserbaseConfig({})).toEqual({ apiKey: "", projectId: "" })
+  expect(browserConfigured({})).toBe(false)
   const config = browserbaseConfig({
     NOVA_AGENT_BROWSER_BROWSERBASE_API_KEY: " key ",
     NOVA_AGENT_BROWSER_BROWSERBASE_PROJECT_ID: " project ",

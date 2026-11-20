@@ -1,7 +1,7 @@
 import { BrowserCreationRejectedError, BrowserError, LIVE_VIEW_TTL_SECONDS, type BrowserProvider } from "./contracts"
 import { browserLiveViewUrl } from "@/modules/nova-web/browser-view"
 
-type BrowserbaseEnvironment = Partial<Pick<NodeJS.ProcessEnv, "NOVA_AGENT_BROWSER_BROWSERBASE_API_KEY" | "NOVA_AGENT_BROWSER_BROWSERBASE_PROJECT_ID">>
+type BrowserbaseEnvironment = Record<string, string | undefined>
 
 export function browserbaseConfig(env: BrowserbaseEnvironment = process.env) {
   return {
