@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 
 import {
-  ACTION_LEASE_MS, BROWSER_TIMEOUT_MS, BrowserError, MAX_SCREENSHOT_BYTES, SCREENSHOT_TTL_MS,
+  ACTION_LEASE_MS, BROWSER_TIMEOUT_MS, BrowserCreationRejectedError, BrowserError, MAX_SCREENSHOT_BYTES, SCREENSHOT_TTL_MS,
   type BrowserControl, type BrowserProvider, type BrowserRow, type BrowserScope, type BrowserState, type BrowserStore,
 } from "./contracts"
 
@@ -77,7 +77,15 @@ export function createBrowserService(deps: {
     })
     if (!claim) return state(scope)
     // Never retry creation: a transport failure may have created a paid browser.
-    const created = await provider.create(claim.id)
+    let created: { id: string }
+    try {
+      created = await provider.create(claim.id)
+    } catch (error) {
+      if (error instanceof BrowserCreationRejectedError) {
+        await store.locked(scope, (repo) => repo.update(claim.id, { status: "ended" }))
+      }
+      throw error
+    }
     try {
       await store.locked(scope, async (repo) => {
         const current = await repo.get(claim.id)

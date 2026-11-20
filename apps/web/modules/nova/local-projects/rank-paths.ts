@@ -33,6 +33,8 @@ const CONFIG_NAMES = new Set([
 
 /** Objective tokens → extra path needles to search for. */
 const SYNONYMS: Record<string, string[]> = {
+  dashbaord: ["dashboard"],
+  dashboard: ["dashboard", "dashbaord"],
   sidebar: ["sidebar", "side-bar", "panel", "drawer", "shell", "layout", "rail"],
   panel: ["panel", "sidebar", "workspace-panel", "drawer"],
   right: ["right", "workspace-panel", "aside"],
@@ -134,6 +136,8 @@ export function scoreProjectPath(path: string, objective: string): number {
     // Path segment exact-ish match
     if (lower.split("/").some((seg) => seg === needle || seg.startsWith(`${needle}.`))) score += 35
   }
+
+  if (lower.includes("/app/dashboard/")) score += 80
 
   if (isSource) score += 12
   if (/\.tsx$/.test(base)) score += 8

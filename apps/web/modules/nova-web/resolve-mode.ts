@@ -6,6 +6,7 @@ const PLAN_ONLY = /\b(?:plan\s+(?:only|first)|only\s+(?:plan|design)|(?:do\s+not
 const PLAN_REQUEST = /^(?:please\s+)?(?:plan\b|design\b|architect\b|draft\s+(?:a\s+)?(?:plan|spec)|(?:give|write|create|make)\s+(?:me\s+)?(?:a\s+)?(?:plan|roadmap|spec(?:ification)?)\b)|\b(?:implementation\s+plan|how\s+should\s+we|what'?s\s+the\s+best\s+way|tradeoffs?|roadmap)\b/i
 const EXPLANATION = /^(?:please\s+)?(?:what\b|why\b|how\b|explain\b|summariz(?:e|ation)\b|describe\b|review\b|compare\b|show\b|list\b|fetch\b|find\b|search\b|read\b|look\s+up\b|tell\s+me\b)|\b(?:what\s+is|how\s+does|difference\s+between)\b/i
 const DIRECT_REQUEST = /^(?:please\s+)?(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:fix|implement|build|create|add|update|change|edit|refactor|delete|remove|rename|move|write|make|generate|scaffold)\b/i
+const HELP_REQUEST = /^(?:please\s+)?(?:help\s+me\s+)?(?:to\s+)?(?:fix|implement|build|create|add|update|change|edit|refactor|delete|remove|rename|move|write|make|generate|scaffold)\b|\bhelp\s+me\s+(?:fix|implement|build|create|add|update|change|edit|refactor|delete|remove|rename|move|write|make|generate|scaffold)\b/i
 
 /** This selects capabilities before execution; it never upgrades a locked read-only turn. */
 export function resolveNovaTurnMode(input: {
@@ -24,7 +25,7 @@ export function resolveNovaTurnMode(input: {
   const choose = (mode: NovaAgentMode, reason: string) => ({ mode, reason, auto: true })
   if (PLAN_ONLY.test(request)) return choose("plan", "Planning/read-only restriction — no file mutations")
   if (PLAN_REQUEST.test(request) && !IMPLEMENT_NOW.test(request)) return choose("plan", "Planning request — investigate and design without editing")
-  if (DIRECT_REQUEST.test(request) || IMPLEMENT_NOW.test(request)) return choose("agent", "Implementation requested — file mutation capabilities enabled")
+  if (DIRECT_REQUEST.test(request) || HELP_REQUEST.test(request) || IMPLEMENT_NOW.test(request)) return choose("agent", "Implementation requested — file mutation capabilities enabled")
   // Questions about creating/deleting are not authorization to perform those actions.
   if (EXPLANATION.test(request)) return choose("chat", "Question or read-only investigation — no mutations")
   if (ACTION.test(request) || /\bmake\s+these\s+changes\b/i.test(request)) return choose("agent", "Implementation or mutation requested — agent mode")

@@ -42,6 +42,16 @@ for (const message of [
 }
 
 for (const message of [
+  "fix this issue in apps/web/app/dashbaord",
+  "then help me fix it",
+  "Fix the review flow and explain what changed",
+]) {
+  test(`direct fix requests select Agent: ${message}`, () => {
+    expect(resolveNovaTurnMode({ message, explicitMode: "chat" }).mode).toBe("agent")
+  })
+}
+
+for (const message of [
   "Explain how to create a file",
   "How do I delete a branch?",
   "What is the update command?",
