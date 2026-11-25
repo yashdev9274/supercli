@@ -25,6 +25,13 @@ export function e2bNetwork(domains: string[] = []): SandboxNetworkOpts {
 
 const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`
 
+export async function pauseE2BSandbox(sandboxId: string, options: { apiKey: string; signal?: AbortSignal; requestTimeoutMs?: number }): Promise<void> {
+  const paused = await Sandbox.pause(sandboxId, { ...options, mode: "filesystem" })
+  if (!paused && (await Sandbox.getInfo(sandboxId, options)).state !== "paused") {
+    throw new Error("E2B filesystem-only pause was refused; workspace still requires recovery")
+  }
+}
+
 export class E2BWorkspace implements CommandRunner {
   constructor(public sandbox: Sandbox) {}
 
@@ -90,7 +97,7 @@ export class E2BWorkspace implements CommandRunner {
     }
     // Filesystem-only pause terminates every background process on resume.
     // Never silently substitute a memory-preserving pause if unsupported.
-    await this.sandbox.pause({ mode: "filesystem", signal: AbortSignal.timeout(60_000) })
+    await pauseE2BSandbox(this.sandbox.sandboxId, { ...e2bCredentials(), signal: AbortSignal.timeout(60_000), requestTimeoutMs: 60_000 })
     if (policyFailed) throw new Error("E2B workspace paused; network cleanup requires recovery")
   }
 

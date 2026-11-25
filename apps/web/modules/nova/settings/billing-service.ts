@@ -29,20 +29,20 @@ export type BillingInfo = {
 }
 
 // Mirror apps/supercode-cli/server/prisma/seed.ts plan names:
-//   spark            → "Free"
-//   spark-premium    → "Spark"
+//   free             → "Free"
+//   spark            → "Spark"
 //   pro              → "Pro"
 //   ultra            → "Ultra"
 const HARNESS_TIER_TO_NAME: Record<string, BillingPlanName> = {
-  spark: "Free",
-  "spark-premium": "Spark",
+  free: "Free",
+  spark: "Spark",
   pro: "Pro",
   ultra: "Ultra",
 }
 
 const HARNESS_TIER_TO_PRICE: Record<string, { price: string; credits: string }> = {
-  spark: { price: "$0/mo", credits: "1,000 monthly credits" },
-  "spark-premium": { price: "$5/mo", credits: "$5 credits" },
+  free: { price: "$0/mo", credits: "Fixed DeepSeek credits" },
+  spark: { price: "$5/mo", credits: "$5 credits" },
   pro: { price: "$20/mo", credits: "$25 credits" },
   ultra: { price: "$100/mo", credits: "$110 credits" },
 }

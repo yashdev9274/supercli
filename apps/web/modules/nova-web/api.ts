@@ -27,6 +27,16 @@ export async function requestJson<T>(url: string, init?: RequestInit): Promise<T
   return payload as T
 }
 
+export type LocalWorktreeBinding = { workspaceId: string; projectId: string; sourceRef: string; baseSha: string; mode: "current" | "worktree" }
+
+export function getLocalWorktreeBinding(sessionId: string) {
+  return requestJson<{ binding: LocalWorktreeBinding | null }>(`/api/nova/sessions/${encodeURIComponent(sessionId)}/worktree`)
+}
+
+export function bindLocalWorktree(sessionId: string, binding: LocalWorktreeBinding) {
+  return requestJson<{ binding: LocalWorktreeBinding }>(`/api/nova/sessions/${encodeURIComponent(sessionId)}/worktree`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ binding }) })
+}
+
 export function listSessions(parentSessionId?: string, agentId?: string) {
   const params = new URLSearchParams()
   if (parentSessionId) params.set("parentSessionId", parentSessionId)
@@ -98,7 +108,7 @@ export function createAgent(input: {
 
 export function createSession(
   objective: string,
-  options?: { localProjectId?: string | null; mode?: "agent" | "plan" | "chat"; parentSessionId?: string; agentId?: string },
+  options?: { localProjectId?: string | null; mode?: "agent" | "plan" | "chat"; parentSessionId?: string; agentId?: string; githubBranch?: string },
 ) {
   return requestJson<{ session: AgentSessionSummary }>("/api/nova/sessions", {
     method: "POST",
@@ -110,8 +120,25 @@ export function createSession(
       localProjectId: options?.localProjectId ?? undefined,
       parentSessionId: options?.parentSessionId,
       agentId: options?.agentId,
+      githubBranch: options?.githubBranch,
     }),
   })
+}
+
+export function listGithubProjectBranches(projectId: string, signal?: AbortSignal) {
+  return requestJson<{
+    branches: Array<{ name: string; sha: string; isDefault: boolean }>
+    defaultBranch: string
+    truncated: boolean
+  }>(`/api/nova/local-projects/${encodeURIComponent(projectId)}/branches`, { signal, cache: "no-store" })
+}
+
+export function listGithubSourceFiles(sessionId: string, signal?: AbortSignal) {
+  return requestJson<{ paths: string[]; truncated: boolean }>(`/api/nova/sessions/${encodeURIComponent(sessionId)}/source-file`, { signal, cache: "no-store" })
+}
+
+export function readGithubSourceFile(sessionId: string, path: string) {
+  return requestJson<{ path: string; text: string }>(`/api/nova/sessions/${encodeURIComponent(sessionId)}/source-file?path=${encodeURIComponent(path)}`, { cache: "no-store" })
 }
 
 export type LocalProjectDto = {
@@ -288,6 +315,7 @@ export async function* streamTurn(
       provider: options?.provider,
       effort: options?.effort,
       machineSize: options?.machineSize,
+      localWorktree: options?.localWorktree,
       mode: options?.mode,
       // Local workspace ids are attached as localAttachments client-side; never send them as GitHub refs.
       references: options?.references

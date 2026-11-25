@@ -5,7 +5,7 @@ import { authorizeHarnessRun, durableStore, harnessCheckpoint } from "../harness
 
 import { browserService } from "@/modules/nova/browser/server"
 import { browserHarnessTools, executeBrowserTool, isBrowserTool } from "@/modules/nova/browser/tools"
-import { createBrowserbaseProvider } from "@/modules/nova/browser/provider"
+import { browserbaseConfig, createBrowserbaseProvider } from "@/modules/nova/browser/provider"
 
 import { CHATGPT_PROVIDER, CHATGPT_UNAVAILABLE_MESSAGE } from "@/modules/nova/chatgpt/contracts"
 import { CODEX_PROVIDER } from "@/modules/nova/codex/models"
@@ -37,7 +37,10 @@ import {
   type FileProposal,
 } from "@/modules/nova/agent-files/parse-proposals"
 import { packGithubProjectForTurn } from "@/modules/nova/local-projects/pack"
+import { assertGithubSourceRepository, githubSourceFromPolicy } from "@/modules/nova/local-projects/github-source"
 import { formatLocalProjectContext } from "@/modules/nova/local-projects/service"
+import { assertWorktreeContext, formatWorktreeContext, type WorktreeContext } from "@/modules/nova/local-projects/worktree-context"
+import { getLocalWorktreeBinding } from "@/modules/nova/local-projects/worktree-binding"
 import type { NovaReference, ReferenceInput } from "@/modules/nova/references/contracts"
 import { resolveNovaReferences } from "@/modules/nova/references/service"
 import {
@@ -167,6 +170,7 @@ async function buildTurnContext(
       where: { id: sessionId },
       select: {
         objective: true,
+        policySnapshot: true,
         agentId: true,
         agent: { select: { name: true, description: true, instructions: true } },
         localProject: {
@@ -241,6 +245,9 @@ async function buildTurnContext(
     })
   }
 
+  const githubSource = githubSourceFromPolicy(session.policySnapshot)
+  if (githubSource) assertGithubSourceRepository(githubSource, session.localProject?.repositoryFullName)
+  if (githubSource && session.localProject?.status !== "active") throw new Error("The pinned GitHub project is unavailable")
   const localProject = session.localProject && session.localProject.status === "active"
     ? {
         id: session.localProject.id,
@@ -276,7 +283,7 @@ async function buildTurnContext(
     })),
   ]
 
-  return { objective: session.objective, messages: chatMessages, localProject, agentId: session.agentId }
+  return { objective: session.objective, messages: chatMessages, localProject, githubSource, agentId: session.agentId }
 }
 
 function harnessContentToText(content: HarnessChatMessage["content"]): string {
@@ -401,6 +408,7 @@ export async function* runWebTurn(input: {
   signal?: AbortSignal
   references?: ReferenceInput[]
   localAttachments?: LocalAttachment[]
+  localWorktree?: WorktreeContext
   /** Optional override; otherwise resolved from the AgentSession row. */
   organizationId?: string
 }): AsyncGenerator<TurnStreamEvent> {
@@ -533,7 +541,8 @@ export async function* runWebTurn(input: {
       mode,
     )
 
-    const eligibility = mode === "agent" ? await sandboxEligibility(input.userId, input.sessionId) : null
+    assertWorktreeContext(await getLocalWorktreeBinding(input.userId, input.sessionId), input.localWorktree)
+    const eligibility = mode === "agent" && !input.localWorktree ? await sandboxEligibility(input.userId, input.sessionId) : null
     if (eligibility) {
       yield { type: "status", phase: "sandbox_provisioning", message: "Preparing isolated cloud workspace", runId: posted.runId }
       workspace = await openSandboxWorkspace({ ...eligibility, userId: input.userId, sessionId: input.sessionId, runId: posted.runId, machineSize, signal: turnSignal })
@@ -542,7 +551,7 @@ export async function* runWebTurn(input: {
     }
 
     // Packed-file proposals remain only the non-cloud fallback.
-    if (!workspace && context.localProject?.repositoryFullName) {
+    if (!workspace && !input.localWorktree && context.localProject?.repositoryFullName) {
       yield {
         type: "status",
         phase: "packing",
@@ -551,12 +560,13 @@ export async function* runWebTurn(input: {
         model: selection.model,
       }
       try {
-        const before = localAttachments.length
+        const before = context.githubSource ? 0 : localAttachments.length
         localAttachments = await packGithubProjectForTurn(
           input.userId,
           context.localProject,
           content,
           localAttachments,
+          context.githubSource,
         )
         const added = localAttachments.slice(before)
         if (added.length > 0) {
@@ -604,6 +614,7 @@ export async function* runWebTurn(input: {
           }
         }
       } catch (error) {
+        if (context.githubSource) throw new Error("Could not load the pinned GitHub source; no default branch fallback was used")
         console.warn("[nova/turn] github project pack failed", error)
       }
     } else if (!workspace && localAttachments.length > 0) {
@@ -657,7 +668,12 @@ export async function* runWebTurn(input: {
       if (resolvedReferences.context) {
         text += `\n\n${resolvedReferences.context}`
       }
-      if (context.localProject && !workspace) {
+      if (context.githubSource) {
+        text += `\n\nGitHub execution source: ${context.githubSource.repositoryFullName}, branch ${context.githubSource.branch}, pinned commit ${context.githubSource.sha}. Project file reads and cloud checkout use this exact commit, not the current default branch. Unrelated user attachments are additional context, not replacements for this source.`
+      }
+      if (input.localWorktree) {
+        text += `\n\n${formatWorktreeContext(input.localWorktree)}`
+      } else if (context.localProject && !workspace) {
         text += `\n\n${formatLocalProjectContext(context.localProject)}`
       }
       const localContext = formatLocalAttachmentsContext(localAttachments)
@@ -735,8 +751,8 @@ export async function* runWebTurn(input: {
       chatTransport: input.chatTransport,
       childTransport: input.childTransport,
       journal: createDurableJournal(durableStore(input.sessionId, posted.runId)),
-      checkpoint: (value) => harnessCheckpoint(input.sessionId, posted.runId, value, { content, provider: selection.provider, model: selection.model, effort: input.effort, mode, machineSize }, Boolean(workspace)),
-      skipConnectedTools: !input.harnessToken,
+      checkpoint: (value) => harnessCheckpoint(input.sessionId, posted.runId, value, { content, provider: selection.provider, model: selection.model, effort: input.effort, mode, machineSize, localWorktree: input.localWorktree }, Boolean(workspace)),
+      skipConnectedTools: !input.harnessToken || Boolean(input.localWorktree),
       messages: context.messages,
       provider: selection.provider,
       model: selection.model,
@@ -750,7 +766,7 @@ export async function* runWebTurn(input: {
         if (isBrowserTool(toolName)) {
           if (!browserClaim || mode !== "agent") return { successful: false, error: "Browser agent control is not enabled" }
           const { runCdpAction } = await import("@/modules/nova/browser/cdp")
-          const provider = createBrowserbaseProvider({ apiKey: process.env.BROWSERBASE_API_KEY ?? "", projectId: process.env.BROWSERBASE_PROJECT_ID ?? "" })
+          const provider = createBrowserbaseProvider(browserbaseConfig())
           return executeBrowserTool({ name: toolName, args, scope: browserScope, expected: browserClaim, service: browser, connection: provider.connection, run: runCdpAction, signal })
         }
         if (workspace) return workspace.execute(toolName, args)
@@ -907,7 +923,7 @@ export async function* runWebTurn(input: {
 
     // Never send cloud changes into browser auto-apply.
     let proposals = workspace ? [] : parseFileProposals(text)
-    if (context.localProject?.paths?.length) {
+    if (!input.localWorktree && context.localProject?.paths?.length) {
       proposals = remapProposals(proposals, context.localProject.paths)
     }
 

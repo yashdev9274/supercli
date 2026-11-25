@@ -76,6 +76,7 @@ export const KNOWN_TOOL_NAMES = new Set([
   "firecrawl_scrape",
   "firecrawl_map",
   "exa_search",
+  "keenable_search",
   "exa_fetch",
   "code_exec",
   "read_instructions",

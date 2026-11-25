@@ -8,7 +8,7 @@ router.get("/", async (req, res) => {
     const where: Record<string, unknown> = { active: true }
 
     // All regional variants (Indian + International) and null-variant plans
-    // (Spark Premium, Ultra) are always returned — the studio shows every plan.
+    // (Spark, Ultra) are always returned — the studio shows every plan.
 
     const plans = await prisma.plan.findMany({
       where,

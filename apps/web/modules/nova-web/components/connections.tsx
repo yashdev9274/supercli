@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ChevronRight,
   ExternalLink,
@@ -15,11 +15,17 @@ import { requestJson } from "@/modules/nova-web/api"
 import { NovaMark } from "@/modules/nova-web/components/timeline"
 import type { ConnectorStatus } from "@/modules/nova-web/types"
 
+type ComposioCategory = {
+  slug: string
+  name: string
+}
+
 type ComposioApp = {
   slug: string
   name: string
   description: string
   logo: string | null
+  categories: ComposioCategory[]
   connected: boolean
   connectedAccountId: string | null
 }
@@ -39,6 +45,29 @@ const PROVIDER_BLURB: Record<string, string> = {
   github: "Repositories, pull requests, and your account",
   slack: "Start threads from Slack messages and reply in thread",
   linear: "Delegate issues to Nova from Linear",
+}
+
+const CATEGORY_ORDER = [
+  "monitoring",
+  "observability",
+  "deployment",
+  "devops",
+  "database",
+  "databases",
+  "developer-tools",
+  "development",
+  "project-management",
+  "communication",
+  "productivity",
+  "design",
+  "marketing",
+  "finance",
+  "security",
+]
+
+function categoryRank(slug: string): number {
+  const index = CATEGORY_ORDER.indexOf(slug.toLowerCase())
+  return index === -1 ? CATEGORY_ORDER.length : index
 }
 
 function ProviderGlyph({ slug, logo }: { slug: string; logo?: string | null }) {
@@ -174,6 +203,30 @@ export function ConnectionsView({
   const selectedApp = apps.find((app) => app.slug === detail) ?? null
   const selectedConnector = connectors.find((item) => item.provider === detail) ?? null
   const selectedTools = tools.filter((tool) => tool.toolkit === detail)
+  const groupedApps = useMemo(() => {
+    const groups = new Map<string, { category: ComposioCategory; apps: ComposioApp[] }>()
+
+    for (const app of apps) {
+      const categories = app.categories.length > 0
+        ? app.categories
+        : [{ slug: "other", name: "Other" }]
+      const category = [...categories].sort((a, b) => categoryRank(a.slug) - categoryRank(b.slug))[0]
+        ?? { slug: "other", name: "Other" }
+      const group = groups.get(category.slug)
+      if (group) group.apps.push(app)
+      else groups.set(category.slug, { category, apps: [app] })
+    }
+
+    return [...groups.values()]
+      .map((group) => ({
+        ...group,
+        apps: [...group.apps].sort((a, b) => a.connected === b.connected
+          ? a.name.localeCompare(b.name)
+          : a.connected ? -1 : 1),
+      }))
+      .sort((a, b) => categoryRank(a.category.slug) - categoryRank(b.category.slug)
+        || a.category.name.localeCompare(b.category.name))
+  }, [apps])
 
   // Detail pane for one integration
   if (selectedApp || selectedConnector) {
@@ -361,37 +414,50 @@ export function ConnectionsView({
               </p>
             </div>
           ) : (
-            apps.map((app, index) => (
-              <button
-                key={app.slug}
-                type="button"
-                onClick={() => setDetail(app.slug)}
-                className={cn(
-                  "flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[0.03]",
-                  index > 0 && "border-t border-white/[0.06]",
-                )}
-              >
-                <div className="flex size-9 items-center justify-center rounded-xl border border-white/[0.08] bg-[#1a1a1a]">
-                  <ProviderGlyph slug={app.slug} logo={app.logo} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-medium text-[#e4e4e4]">{app.name}</p>
-                  <p className="mt-0.5 truncate text-[12px] text-[#6b6b6b]">
-                    {PROVIDER_BLURB[app.slug] || app.description || "Composio toolkit"}
+            groupedApps.map((group) => (
+              <section key={group.category.slug} aria-labelledby={`connection-category-${group.category.slug}`}>
+                <div className="flex items-center justify-between border-b border-white/[0.06] bg-white/[0.015] px-4 py-2.5">
+                  <p
+                    id={`connection-category-${group.category.slug}`}
+                    className="text-[11px] font-medium uppercase tracking-[0.08em] text-[#8f8f8f]"
+                  >
+                    {group.category.name}
                   </p>
+                  <span className="text-[11px] text-[#555]">{group.apps.length}</span>
                 </div>
-                <span
-                  className={cn(
-                    "rounded-full px-2.5 py-1 text-[11px]",
-                    app.connected
-                      ? "bg-emerald-500/15 text-emerald-300"
-                      : "bg-white/[0.05] text-[#8a8a8a]",
-                  )}
-                >
-                  {app.connected ? "Connected" : "Not connected"}
-                </span>
-                <ChevronRight className="size-4 text-[#3d3d3d]" />
-              </button>
+                {group.apps.map((app, index) => (
+                  <button
+                    key={app.slug}
+                    type="button"
+                    onClick={() => setDetail(app.slug)}
+                    className={cn(
+                      "flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[0.03]",
+                      index > 0 && "border-t border-white/[0.06]",
+                    )}
+                  >
+                    <div className="flex size-9 items-center justify-center rounded-xl border border-white/[0.08] bg-[#1a1a1a]">
+                      <ProviderGlyph slug={app.slug} logo={app.logo} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-medium text-[#e4e4e4]">{app.name}</p>
+                      <p className="mt-0.5 truncate text-[12px] text-[#6b6b6b]">
+                        {PROVIDER_BLURB[app.slug] || app.description || "Composio toolkit"}
+                      </p>
+                    </div>
+                    <span
+                      className={cn(
+                        "rounded-full px-2.5 py-1 text-[11px]",
+                        app.connected
+                          ? "bg-emerald-500/15 text-emerald-300"
+                          : "bg-white/[0.05] text-[#8a8a8a]",
+                      )}
+                    >
+                      {app.connected ? "Connected" : "Not connected"}
+                    </span>
+                    <ChevronRight className="size-4 text-[#3d3d3d]" />
+                  </button>
+                ))}
+              </section>
             ))
           )}
         </div>

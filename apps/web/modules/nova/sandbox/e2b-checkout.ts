@@ -2,14 +2,16 @@ import type { E2BWorkspace } from "./e2b"
 import { WORKSPACE } from "./policy"
 
 // Fetch the archive in the control plane; no GitHub credential enters the VM.
-export async function checkoutE2B(workspace: E2BWorkspace, repository: string, token: string, signal: AbortSignal): Promise<void> {
+export async function checkoutE2B(workspace: E2BWorkspace, repository: string, token: string, signal: AbortSignal, sha?: string, onStage?: (stage: string) => void): Promise<void> {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) throw new Error("Invalid repository binding")
+  if (sha !== undefined && !/^[a-f0-9]{40}$/.test(sha)) throw new Error("Invalid GitHub source commit")
   const boundedSignal = AbortSignal.any([signal, AbortSignal.timeout(90_000)])
-  const response = await fetch(`https://api.github.com/repos/${repository}/tarball`, {
+  onStage?.("requesting GitHub archive")
+  const response = await fetch(`https://api.github.com/repos/${repository}/tarball${sha ? `/${sha}` : ""}`, {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
     signal: boundedSignal, redirect: "follow",
   })
-  if (!response.ok || !response.body) throw new Error("GitHub archive checkout failed; check repository access")
+  if (!response.ok || !response.body) throw new Error(`GitHub archive request failed (HTTP ${response.status})`)
   const reader = response.body.getReader()
   const chunks: Uint8Array[] = []
   let bytes = 0
@@ -31,6 +33,7 @@ export async function checkoutE2B(workspace: E2BWorkspace, repository: string, t
     archive.set(chunk, offset)
     offset += chunk.byteLength
   }
+  onStage?.("uploading repository archive")
   await workspace.sandbox.files.write("/tmp/nova-checkout.tar.gz", archive.buffer, { signal: boundedSignal })
   const unpack = String.raw`
 import tarfile,pathlib
@@ -58,9 +61,11 @@ with tarfile.open("/tmp/nova-checkout.tar.gz") as archive:
   else: raise Exception("Unsupported archive entry")
 pathlib.Path("/tmp/nova-checkout.tar.gz").unlink()
 `
+  onStage?.("extracting repository archive")
   const extracted = await workspace.runBounded("/usr/bin/python3", ["-I", "-c", unpack], { signal: boundedSignal, cwd: "/tmp" })
   if (!extracted.successful) throw new Error("E2B archive extraction failed")
   // Archive workspaces have an immutable local baseline, not the upstream SHA.
-  const setup = await workspace.runBounded("/bin/bash", ["--noprofile", "--norc", "-c", `git -c init.templateDir= init && printf '%s\\n' '* -filter -text -ident' > .git/info/attributes && git -c core.hooksPath=/dev/null -c core.attributesFile=/dev/null add --all && git -c core.hooksPath=/dev/null -c user.name=Nova -c user.email=nova@localhost commit --allow-empty -m 'Nova archive baseline' && git remote add origin https://github.com/${repository}.git`], { signal: boundedSignal, cwd: WORKSPACE })
+  onStage?.("initializing Git baseline")
+  const setup = await workspace.runBounded("/bin/bash", ["--noprofile", "--norc", "-c", `git -c init.templateDir= init --quiet && mkdir -p .git/info && printf '%s\\n' '* -filter -text -ident' > .git/info/attributes && git -c core.hooksPath=/dev/null -c core.attributesFile=/dev/null add --all && git -c core.hooksPath=/dev/null -c user.name=Nova -c user.email=nova@localhost commit --quiet --allow-empty -m 'Nova archive baseline' && git remote add origin https://github.com/${repository}.git`], { signal: boundedSignal, cwd: WORKSPACE })
   if (!setup.successful) throw new Error("E2B baseline initialization failed")
 }

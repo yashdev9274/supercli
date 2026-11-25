@@ -8,6 +8,8 @@ import {
   type LocalAttachment,
 } from "@/modules/nova/attachments/contracts"
 import type { LocalProjectSummary } from "@/modules/nova/local-projects/contracts"
+import { connectedGithubRepository } from "./github"
+import { assertGithubSourceRepository, type GithubSource } from "./github-source"
 import {
   isLikelyTextProjectPath,
   MAX_PROJECT_PACK_FILES,
@@ -41,17 +43,31 @@ export async function packGithubProjectForTurn(
   project: LocalProjectSummary,
   objective: string,
   existing: LocalAttachment[] = [],
+  source?: GithubSource,
 ): Promise<LocalAttachment[]> {
   const fullName = project.repositoryFullName
+  if (source) assertGithubSourceRepository(source, fullName)
   if (!fullName) return existing
   const [owner, name] = fullName.split("/")
   if (!owner || !name) return existing
 
-  const paths = (project.paths ?? []).filter(isLikelyTextProjectPath)
-  if (paths.length === 0) return existing
-
   const github = await githubForUser(userId)
-  if (!github) return existing
+  if (!github) {
+    if (source) throw new Error("GitHub authorization is unavailable")
+    return existing
+  }
+  let paths = (project.paths ?? []).filter(isLikelyTextProjectPath)
+  if (source) {
+    await connectedGithubRepository(userId, source.repositoryFullName)
+    const { data: tree } = await github.rest.git.getTree({ owner, repo: name, tree_sha: source.sha, recursive: "true" })
+    paths = (tree.tree ?? []).flatMap((item) => item.type === "blob" && item.path && isLikelyTextProjectPath(item.path) ? [item.path] : [])
+    project.paths = paths
+    project.fileCount = paths.length
+    project.truncated = Boolean(tree.truncated)
+    const sourcePaths = new Set((tree.tree ?? []).flatMap((item) => item.type === "blob" && item.path ? [item.path] : []))
+    existing = existing.filter((file) => !sourcePaths.has(file.name))
+  }
+  if (paths.length === 0) return existing
 
   const room = Math.max(0, MAX_PROJECT_PACK_FILES - existing.length)
   if (room === 0) return existing
@@ -69,7 +85,7 @@ export async function packGithubProjectForTurn(
     const results = await Promise.all(
       batch.map(async ({ path }) => {
         try {
-          const { data } = await github.rest.repos.getContent({ owner, repo: name, path })
+          const { data } = await github.rest.repos.getContent({ owner, repo: name, path, ...(source ? { ref: source.sha } : {}) })
           if (Array.isArray(data) || data.type !== "file" || !("content" in data) || typeof data.content !== "string") {
             return null
           }
@@ -86,6 +102,7 @@ export async function packGithubProjectForTurn(
             text: text.slice(0, MAX_LOCAL_FILE_BYTES),
           } satisfies LocalAttachment
         } catch {
+          if (source) throw new Error("Could not read immutable GitHub source")
           return null
         }
       }),

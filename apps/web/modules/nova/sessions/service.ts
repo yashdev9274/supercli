@@ -1,4 +1,6 @@
 import prisma from "@super/db"
+import { resolveGithubSource } from "@/modules/nova/local-projects/github"
+import { assertGithubSourceRepository, githubSourceFromPolicy, type GithubSource } from "@/modules/nova/local-projects/github-source"
 import {
   NOVA_CONTRACT_VERSION,
   type AgentSessionSummary,
@@ -38,6 +40,7 @@ function serializeSurface(surface: {
 }
 
 function serializeSession(session: {
+  policySnapshot?: unknown
   parentSessionId?: string | null
   agentId?: string | null
   id: string
@@ -63,6 +66,7 @@ function serializeSession(session: {
   return {
     contractVersion: NOVA_CONTRACT_VERSION,
     id: session.id,
+    githubSource: githubSourceFromPolicy(session.policySnapshot),
     agentId: session.agentId ?? null,
     parentSessionId: session.parentSessionId ?? null,
     createdAt: session.createdAt?.toISOString(),
@@ -182,6 +186,7 @@ export async function createAgentSession(input: {
   surface?: NovaSurfaceProvider
   parentSessionId?: string
   localProjectId?: string | null
+  githubBranch?: string
   agentId?: string | null
 }): Promise<AgentSessionSummary> {
   const organizationId = await ensureUserOrganization(input.userId)
@@ -189,13 +194,23 @@ export async function createAgentSession(input: {
   const objective = input.objective.trim()
   if (!objective) throw new Error("Session objective is required")
   const surfaceProvider = input.surface === "desktop" ? "desktop" : "web"
+  let resolvedSource: GithubSource | undefined
+  if (input.githubBranch && !input.parentSessionId) {
+    const project = input.localProjectId ? await prisma.webLocalProject.findFirst({
+      where: { id: input.localProjectId, userId: input.userId, organizationId, status: "active" },
+      select: { repositoryFullName: true },
+    }) : null
+    if (!project?.repositoryFullName) throw new Error("A connected GitHub project is required for branch selection")
+    resolvedSource = await resolveGithubSource(input.userId, project.repositoryFullName, input.githubBranch)
+  }
 
   return prisma.$transaction(async (tx) => {
     const parent = input.parentSessionId
-      ? await tx.agentSession.findFirst({ where: { id: input.parentSessionId, organizationId }, select: { id: true, parentSessionId: true, localProjectId: true, agentId: true } })
+      ? await tx.agentSession.findFirst({ where: { id: input.parentSessionId, organizationId }, select: { id: true, parentSessionId: true, localProjectId: true, agentId: true, localWorkspaceBinding: true, policySnapshot: true } })
       : null
     if (input.parentSessionId && !parent) throw new Error("Parent thread not found")
     if (parent?.parentSessionId) throw new Error("Create side threads from the main thread")
+    if (parent?.localWorkspaceBinding) throw new Error("Start a separate worktree thread for parallel local Git work; side conversations are not supported for local worktree threads yet")
     const requestedAgentId = parent?.agentId ?? input.agentId ?? null
     if (requestedAgentId) {
       const agent = await tx.novaAgent.findFirst({ where: { id: requestedAgentId, organizationId, ownerUserId: input.userId, status: "active" }, select: { id: true } })
@@ -203,6 +218,8 @@ export async function createAgentSession(input: {
     }
     const requestedProjectId = parent ? parent.localProjectId : input.localProjectId
     let localProjectId: string | null = null
+    const githubSource = parent ? githubSourceFromPolicy(parent.policySnapshot) : resolvedSource
+    if (parent && input.githubBranch && input.githubBranch !== githubSource?.branch) throw new Error("Side threads inherit their parent's GitHub source")
     if (requestedProjectId) {
       const project = await tx.webLocalProject.findFirst({
         where: {
@@ -211,10 +228,12 @@ export async function createAgentSession(input: {
           organizationId,
           status: "active",
         },
-        select: { id: true },
+        select: { id: true, repositoryFullName: true },
       })
       localProjectId = project?.id ?? null
+      if (githubSource) assertGithubSourceRepository(githubSource, project?.repositoryFullName)
     }
+    if (input.githubBranch && !localProjectId) throw new Error("A connected GitHub project is required for branch selection")
 
     const session = await tx.agentSession.create({
       data: {
@@ -226,6 +245,7 @@ export async function createAgentSession(input: {
         parentSessionId: parent?.id ?? null,
         agentId: requestedAgentId,
         localProjectId,
+        ...(githubSource ? { policySnapshot: { githubSource } } : {}),
       },
     })
     if (localProjectId) {

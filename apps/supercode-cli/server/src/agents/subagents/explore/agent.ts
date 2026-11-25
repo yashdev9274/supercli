@@ -17,6 +17,7 @@ export const agent = defineAgent({
     { permission: "firecrawl_scrape", pattern: "*", action: "allow" },
     { permission: "firecrawl_map", pattern: "*", action: "allow" },
     { permission: "exa_search", pattern: "*", action: "allow" },
+    { permission: "keenable_search", pattern: "*", action: "allow" },
     { permission: "exa_fetch", pattern: "*", action: "allow" },
     { permission: "task", pattern: "*", action: "allow" },
   ],

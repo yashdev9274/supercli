@@ -18,56 +18,79 @@ beforeEach(() => {
   invalidateModelCache()
 })
 
-describe("isModelAllowedForTier — open models on Spark", () => {
-  it("allows stealth/ox-alpha for spark even when DB has no rows", async () => {
+describe("isModelAllowedForTier — Free DeepSeek and Spark hosted models", () => {
+  it("denies stealth/ox-alpha for Free when DB has no rows", async () => {
     findManyMock.mockResolvedValueOnce([])
-    const ok = await isModelAllowedForTier("stealth/ox-alpha", "spark")
-    expect(ok).toBe(true)
-  })
-
-  it("allows ox-alpha bare slug for spark grandfathered", async () => {
-    findManyMock.mockResolvedValueOnce([])
-    const ok = await isModelAllowedForTier("ox-alpha", "spark")
-    expect(ok).toBe(true)
-  })
-
-  it("allows stealth/ox-alpha when DB row exists with minTier spark", async () => {
-    findManyMock.mockResolvedValueOnce([
-      { slug: "stealth/ox-alpha", minTier: "spark" },
-    ])
-    const ok = await isModelAllowedForTier("stealth/ox-alpha", "spark")
-    expect(ok).toBe(true)
-  })
-
-  it("denies pro models for spark", async () => {
-    findManyMock.mockResolvedValueOnce([
-      { slug: "anthropic/claude-sonnet-4.6", minTier: "pro" },
-    ])
-    const ok = await isModelAllowedForTier("anthropic/claude-sonnet-4.6", "spark")
+    const ok = await isModelAllowedForTier("stealth/ox-alpha", "free")
     expect(ok).toBe(false)
   })
 
-  it("allows deepseek open models for spark via static catalog", async () => {
+  it("denies ox-alpha bare slug for Free", async () => {
     findManyMock.mockResolvedValueOnce([])
-    const ok = await isModelAllowedForTier("deepseek-v4-flash", "spark")
+    const ok = await isModelAllowedForTier("ox-alpha", "free")
+    expect(ok).toBe(false)
+  })
+
+  it("allows hosted open models for Spark when DB has no rows", async () => {
+    findManyMock.mockResolvedValueOnce([])
+    const ok = await isModelAllowedForTier("stealth/ox-alpha", "spark")
     expect(ok).toBe(true)
   })
 
-  it("fails open for known open models when DB throws", async () => {
+  it("respects a Spark DB row", async () => {
+    findManyMock.mockResolvedValueOnce([
+      { slug: "stealth/ox-alpha", minTier: "spark" },
+    ])
+    const free = await isModelAllowedForTier("stealth/ox-alpha", "free")
+    expect(free).toBe(false)
+
+    invalidateModelCache()
+    findManyMock.mockResolvedValueOnce([
+      { slug: "stealth/ox-alpha", minTier: "spark" },
+    ])
+    const spark = await isModelAllowedForTier("stealth/ox-alpha", "spark")
+    expect(spark).toBe(true)
+  })
+
+  it("denies pro models for Free", async () => {
+    findManyMock.mockResolvedValueOnce([
+      { slug: "anthropic/claude-sonnet-4.6", minTier: "pro" },
+    ])
+    const ok = await isModelAllowedForTier("anthropic/claude-sonnet-4.6", "free")
+    expect(ok).toBe(false)
+  })
+
+  it("allows only the Free DeepSeek Flash model for Free", async () => {
+    findManyMock.mockResolvedValueOnce([])
+    const flash = await isModelAllowedForTier("deepseek-v4-flash", "free")
+    expect(flash).toBe(true)
+
+    invalidateModelCache()
+    findManyMock.mockResolvedValueOnce([])
+    const reasoner = await isModelAllowedForTier("deepseek/deepseek-reasoner", "free")
+    expect(reasoner).toBe(false)
+  })
+
+  it("keeps hosted open models behind Spark when DB throws", async () => {
     findManyMock.mockRejectedValueOnce(new Error("ECONNREFUSED"))
-    const ok = await isModelAllowedForTier("stealth/ox-alpha", "spark")
-    expect(ok).toBe(true)
+    const free = await isModelAllowedForTier("stealth/ox-alpha", "free")
+    expect(free).toBe(false)
+
+    invalidateModelCache()
+    findManyMock.mockRejectedValueOnce(new Error("ECONNREFUSED"))
+    const spark = await isModelAllowedForTier("stealth/ox-alpha", "spark")
+    expect(spark).toBe(true)
   })
 
   it("still denies unknown premium-looking slugs when missing", async () => {
     findManyMock.mockResolvedValueOnce([])
-    const ok = await isModelAllowedForTier("anthropic/claude-opus-secret", "spark")
+    const ok = await isModelAllowedForTier("anthropic/claude-opus-secret", "free")
     expect(ok).toBe(false)
   })
 })
 
 describe("getUpgradeSuggestion", () => {
-  it("points spark users at Spark Premium", () => {
-    expect(getUpgradeSuggestion("spark")).toContain("Spark Premium")
+  it("points Free users at Spark", () => {
+    expect(getUpgradeSuggestion("free")).toContain("Spark")
   })
 })

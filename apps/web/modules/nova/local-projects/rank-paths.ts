@@ -33,6 +33,8 @@ const CONFIG_NAMES = new Set([
 
 /** Objective tokens → extra path needles to search for. */
 const SYNONYMS: Record<string, string[]> = {
+  dashbaord: ["dashboard"],
+  dashboard: ["dashboard", "dashbaord"],
   sidebar: ["sidebar", "side-bar", "panel", "drawer", "shell", "layout", "rail"],
   panel: ["panel", "sidebar", "workspace-panel", "drawer"],
   right: ["right", "workspace-panel", "aside"],
@@ -86,9 +88,12 @@ function expandNeedles(objective: string): { needles: string[]; implementIntent:
 
   for (const token of tokens) {
     if (IMPLEMENT_HINTS.has(token)) implementIntent = true
-    if (token.length >= 2) needles.add(token)
-    const extras = SYNONYMS[token]
-    if (extras) for (const extra of extras) needles.add(extra)
+    for (const needle of [token, ...token.split(/[/.]+/).filter((part) => part.length >= 2)]) {
+      if (needle.length < 2) continue
+      needles.add(needle)
+      const extras = SYNONYMS[needle]
+      if (extras) for (const extra of extras) needles.add(extra)
+    }
   }
 
   // Multi-word heuristics for common Nova web asks
@@ -134,6 +139,8 @@ export function scoreProjectPath(path: string, objective: string): number {
     // Path segment exact-ish match
     if (lower.split("/").some((seg) => seg === needle || seg.startsWith(`${needle}.`))) score += 35
   }
+
+  if (/\b(?:dashboard|dashbaord)\b/i.test(objective) && lower.includes("/app/dashboard/")) score += 80
 
   if (isSource) score += 12
   if (/\.tsx$/.test(base)) score += 8
