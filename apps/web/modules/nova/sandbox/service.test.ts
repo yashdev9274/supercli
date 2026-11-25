@@ -9,6 +9,7 @@ let connected = true
 const updates: Array<Record<string, unknown>> = []
 const runUpdates: Array<Record<string, unknown>> = []
 const db = {
+  $executeRaw: async () => 1,
   $queryRaw: async () => [],
   agentSession: {
     findUnique: async () => ({ organizationId: "o", localProject: { repositoryFullName: "owner/repo", status: "active", userId: projectUser, organizationId: "o" } }),

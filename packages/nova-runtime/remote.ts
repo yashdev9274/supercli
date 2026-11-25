@@ -16,7 +16,7 @@ function client(config: EveRemoteConfig, scope: NovaScope) {
 }
 
 export async function submitRemoteTurn(config: EveRemoteConfig, scope: NovaScope, content: string, operationId: string, fetcher: typeof fetch = fetch): Promise<string> {
-  if (!/^[A-Za-z0-9_-]{1,256}$/.test(operationId)) throw new Error("Invalid Nova operation identity")
+  if (!/^[A-Za-z0-9_:-]{1,256}$/.test(operationId)) throw new Error("Invalid Nova operation identity")
   const response = await fetcher(`${config.origin}/eve/v1/session`, {
     method: "POST", headers: { "Content-Type": "application/json", authorization: `Bearer ${signNovaScope(scope, { secret: config.secret })}` },
     body: JSON.stringify({ message: content, operationId }), redirect: "error", cache: "no-store", signal: AbortSignal.timeout(20_000),

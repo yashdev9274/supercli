@@ -9,7 +9,8 @@ const submission = z.object({
   content: z.string().min(1).max(16000), clientMessageId: z.string().min(1).max(128),
   provider: z.string().min(1).max(64), model: z.string().min(1).max(128),
   effort: z.enum(["none", "minimal", "low", "medium", "high", "xhigh"]).optional(),
-  mode: z.enum(["chat", "plan"]),
+  mode: z.enum(["chat", "plan", "agent"]),
+  repository: z.object({ consent: z.literal(true), validationCommands: z.array(z.string().trim().min(1).max(2000)).min(1).max(3) }).strict().optional(),
 }).strict()
 const terminal = (status: string) => ["completed", "failed", "cancelled"].includes(status)
 

@@ -10,7 +10,7 @@ export default defineEval({
   async test(t) {
     const config = { origin: t.target.url.replace(/\/$/, ""), secret }
     const scope = fixtureScope("two")
-    const operation = `fixture-${crypto.randomUUID()}`
+    const operation = `nova-eve:${crypto.randomUUID()}`
     const [first, retry] = await Promise.all([
       submitRemoteTurn(config, scope, "Verify capabilities", operation),
       submitRemoteTurn(config, scope, "Verify capabilities", operation),

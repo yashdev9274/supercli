@@ -11,8 +11,10 @@ let submissions: string[]
 let controls: string[]
 let rejectControl = false
 let rejectAck = false
+let repositoryProof: any = null
 
 const invocation = {
+  findFirst: async () => repositoryProof,
   findFirstOrThrow: async () => ({ ...primary, run }),
   findUniqueOrThrow: async () => ({ ...primary, run }),
   findUnique: async ({ where }: any) => where.id ? primary : events.get(where.idempotencyKey) ?? null,
@@ -57,6 +59,7 @@ beforeEach(() => {
   primary = { id: "invocation", runId: "run", startedAt: null, status: "pending", result: { runtimeSessionId: null, nextLine: 0, replyParts: {} }, arguments: { scope: { userId: "user", organizationId: "org", membershipId: "member", novaSessionId: "session", provider: "codex", model: "fixture", connectionId: "connection" }, content: "question", history: [], surfaceId: "surface", expiresAt: new Date(Date.now() + 60_000).toISOString() } }
   events = new Map(); usage = new Map(); messages = []; batches = []; submissions = []; controls = []
   rejectAck = false; rejectControl = false
+  repositoryProof = null
 })
 afterAll(() => {
   if (oldFlag === undefined) delete process.env.NOVA_EVE_CANARY_ENABLED; else process.env.NOVA_EVE_CANARY_ENABLED = oldFlag
@@ -121,4 +124,26 @@ test("unreachable cancellation never fabricates a stopped run", async () => {
   await expect(observeEveRun("run")).rejects.toThrow("unreachable")
   expect(run.status).toBe("executing")
   expect(messages).toHaveLength(0)
+})
+
+test("an unverified model completion cannot report repository success", async () => {
+  primary.arguments.repository = { repositoryFullName: "owner/repo", validationCommands: ["bun test"] }
+  await dispatchEveRun("run")
+  batches.push({ events: [event(0, "content.completed", { partId: "reply", kind: "text", phase: "reply", value: "Claimed implementation" }), event(1, "turn.settled", { outcome: "completed" })], nextLine: 1, nextIndex: -1 })
+  expect((await observeEveRun("run")).terminal).toBe(true)
+  expect(run.status).toBe("failed")
+  expect(messages).toHaveLength(0)
+  expect([...events.values()].some((row) => row.result?.message?.includes("not finalized"))).toBe(true)
+})
+
+test("successful repository completion attaches control-plane verification and patch evidence", async () => {
+  primary.arguments.repository = { repositoryFullName: "owner/repo", validationCommands: ["bun test"] }
+  repositoryProof = { result: { success: true, data: { digest: "a".repeat(64), artifact: "Verified patch link", diff: "not copied into final response" } } }
+  await dispatchEveRun("run")
+  batches.push({ events: [event(0, "content.completed", { partId: "reply", kind: "text", phase: "reply", value: "Implemented" }), event(1, "turn.settled", { outcome: "completed" })], nextLine: 1, nextIndex: -1 })
+  expect((await observeEveRun("run")).terminal).toBe(true)
+  expect(run.status).toBe("completed")
+  expect(messages[0].content).toContain("Verified patch link")
+  expect(messages[0].content).toContain("a".repeat(64))
+  expect(messages[0].content).not.toContain("not copied")
 })

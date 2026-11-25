@@ -17,7 +17,7 @@ export function eventCursor(runId: string, line: number, index: number): string 
   return `nova-eve:${runId}:event:${String(line).padStart(12, "0")}:${String(index).padStart(6, "0")}`
 }
 
-export function projectEveEvent(event: SessionStreamEvent, state: EveProjectionState): {
+export function projectEveEvent(event: SessionStreamEvent, state: EveProjectionState, repository = false): {
   event?: ProjectedEvent
   usage?: { inputTokens: number; outputTokens: number; cacheReadTokens: number }
   terminal?: "completed" | "failed" | "cancelled"
@@ -39,10 +39,11 @@ export function projectEveEvent(event: SessionStreamEvent, state: EveProjectionS
     if (JSON.stringify(state.replyParts).length > 128_000) throw new Error("Eve reply exceeds canary limits")
     if (!state.partialParts?.[key]) return { event: { type: "text", content: event.data.value } }
   }
-  if (event.type === "model.started") return { event: { type: "status", phase: "executing", message: "Eve is responding · read-only canary" } }
+  if (event.type === "model.started") return { event: { type: "status", phase: "executing", message: repository ? "Eve is working in an isolated repository" : "Eve is responding · read-only canary" } }
   if (event.type === "call.requested") {
-    if (event.data.capability.kind !== "tool" || event.data.capability.name !== "runtime_info") throw new Error("Unexpected capability in the read-only canary")
-    return { event: { type: "status", phase: "tool", message: "Checking runtime capabilities" } }
+    const allowed = repository ? ["runtime_info", "read_file", "search_files", "read_instructions", "write_file", "edit_file", "run_command", "repository_verify", "repository_finish"] : ["runtime_info"]
+    if (event.data.capability.kind !== "tool" || !allowed.includes(event.data.capability.name)) throw new Error("Unexpected capability in the read-only canary")
+    return { event: { type: "status", phase: "tool", message: repository ? `Repository tool · ${event.data.capability.name}` : "Checking runtime capabilities" } }
   }
   if (event.type === "call.settled") return { event: { type: "status", phase: "tool", message: `Read-only tool ${event.data.outcome}` } }
   if (event.type === "usage.recorded") {

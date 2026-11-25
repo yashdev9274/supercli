@@ -12,6 +12,7 @@ test("every registered integration has a unique complete audit, without invented
     expect(Object.keys(entry.capabilities)).toHaveLength(9)
     expect(isIntegrationId(entry.id)).toBe(true)
     if (isOpenAICompatibleIntegration(entry.id)) expect(entry.eveAdapter).toBe("openai-compatible-contract-tested")
+    else if (entry.id === "anthropic") expect(entry.eveAdapter).toBe("anthropic-contract-tested")
     else if (entry.id !== "codex") expect(entry.eveAdapter).toBe("missing")
   }
   for (const value of ["", "made-up-provider", null, {}, 2]) expect(isIntegrationId(value)).toBe(false)

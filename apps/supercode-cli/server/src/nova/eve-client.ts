@@ -1,5 +1,18 @@
 export type EveEvent = { type: string; content?: string; message?: string; [key: string]: unknown }
 export type EveAdmission = { runtime: "eve"; runId: string; userMessage: unknown; latestSequence: number; eventsPath: string }
+export type EveRepositoryInput = { consent: true; validationCommands: string[] }
+
+export function eveRepositoryInput(repository?: boolean, validationCommands?: string[]): EveRepositoryInput | undefined {
+  if (!repository) {
+    if (validationCommands?.length) throw new Error("--validate requires explicit --repository consent")
+    return undefined
+  }
+  if (!Array.isArray(validationCommands) || validationCommands.length < 1 || validationCommands.length > 3
+    || validationCommands.some(command => typeof command !== "string" || !command.trim() || command.length > 2000 || /[\u0000\r\n]/.test(command))) {
+    throw new Error("Repository execution requires 1-3 nonempty, single-line --validate commands")
+  }
+  return { consent: true, validationCommands: [...validationCommands] }
+}
 
 type Options = {
   origin: string
@@ -71,12 +84,18 @@ export function createEveClient(options: Options) {
   }
 
   return {
-    async admit(sessionId: string, input: { content: string; clientMessageId: string; provider: string; model: string; effort?: string }, signal?: AbortSignal): Promise<EveAdmission> {
+    async admit(sessionId: string, input: { content: string; clientMessageId: string; provider: string; model: string; effort?: string; repository?: EveRepositoryInput }, signal?: AbortSignal): Promise<EveAdmission> {
       if (!input.content.trim() || input.content.length > 20_000
         || !/^[A-Za-z0-9_-]{1,128}$/.test(input.clientMessageId)
         || !input.provider.trim() || input.provider.length > 64 || !input.model.trim() || input.model.length > 128
         || (input.effort !== undefined && !["none", "minimal", "low", "medium", "high", "xhigh"].includes(input.effort))) throw new Error("Invalid Eve message or model selection")
-      const result = await request(sessionPath(sessionId), { method: "POST", body: JSON.stringify({ ...input, mode: "chat" }) }, signal)
+      if (input.repository !== undefined && (!record(input.repository) || input.repository.consent !== true)) throw new Error("Explicit repository consent required")
+      const repository = input.repository === undefined ? undefined : eveRepositoryInput(true, input.repository.validationCommands)
+      const result = await request(sessionPath(sessionId), { method: "POST", body: JSON.stringify({
+        content: input.content, clientMessageId: input.clientMessageId, provider: input.provider, model: input.model,
+        ...(input.effort === undefined ? {} : { effort: input.effort }),
+        ...(repository ? { repository } : {}), mode: repository ? "agent" : "chat",
+      }) }, signal)
       if (!record(result) || result.runtime !== "eve" || typeof result.runId !== "string"
         || !Number.isSafeInteger(result.latestSequence) || (result.latestSequence as number) < 0 || typeof result.eventsPath !== "string") throw new Error("Invalid Nova Eve admission")
       const expected = `${runPath(sessionId, result.runId)}/events`

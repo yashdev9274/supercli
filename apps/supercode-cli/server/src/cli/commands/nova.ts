@@ -8,7 +8,7 @@ import { spawnCodex } from "../../nova/codex-rpc"
 import { resolveCodexProfile } from "../../nova/profile"
 import { LocalCodexRuntime } from "../../nova/runtime"
 import { localOrigin, startCompanion } from "../../nova/server"
-import { createEveClient, eveOrigin } from "../../nova/eve-client"
+import { createEveClient, eveOrigin, eveRepositoryInput } from "../../nova/eve-client"
 import { getStoredToken } from "../../lib/token"
 
 export const novaCommand = new Command("nova").description("Local Nova integrations")
@@ -71,6 +71,8 @@ type EveOptions = {
   message: string
   effort?: string
   clientMessageId?: string
+  repository?: boolean
+  validate?: string[]
 }
 
 async function eveClient(origin: string) {
@@ -93,15 +95,18 @@ async function displayEveRun(client: ReturnType<typeof createEveClient>, session
 }
 
 novaCommand.command("eve")
-  .description("Explicitly start a read-only Eve canary turn in an existing Nova session")
+  .description("Start an Eve canary turn; read-only unless --repository is explicitly supplied")
   .requiredOption("--origin <origin>", "Trusted Nova HTTPS origin or loopback HTTP origin")
   .requiredOption("--session <id>", "Existing Nova session ID (not a legacy CLI conversation ID)")
   .requiredOption("--provider <provider>", "Exact connected Nova provider")
   .requiredOption("--model <model>", "Exact Nova model; no fallback")
-  .requiredOption("--message <message>", "Read-only chat message")
+  .requiredOption("--message <message>", "Turn message")
+  .option("--repository", "Consent to isolated repository edits and metered compute using the session's bound GitHub project; no push or PR")
+  .option("--validate <command>", "Validation command (repeat 1-3 times with --repository)", (command: string, commands: string[]) => [...commands, command], [])
   .option("--effort <effort>", "Explicit reasoning effort")
   .option("--client-message-id <id>", "Admission deduplication ID; reuse to retry the same message")
   .action(async (options: EveOptions) => {
+    const repository = eveRepositoryInput(options.repository, options.validate)
     if (options.effort && !["none", "minimal", "low", "medium", "high", "xhigh"].includes(options.effort)) throw new Error("Invalid reasoning effort")
     const client = await eveClient(options.origin)
     const observer = new AbortController()
@@ -109,7 +114,7 @@ novaCommand.command("eve")
     process.once("SIGINT", stop)
     process.once("SIGTERM", stop)
     const clientMessageId = options.clientMessageId ?? crypto.randomUUID()
-    process.stderr.write(`Eve read-only canary. Admission ID: ${clientMessageId}\n`)
+    process.stderr.write(`${repository ? "Eve repository canary: isolated edits and metered compute authorized; no push or PR." : "Eve read-only canary."} Admission ID: ${clientMessageId}\n`)
     try {
       const admission = await client.admit(options.session, {
         content: options.message,
@@ -117,6 +122,7 @@ novaCommand.command("eve")
         provider: options.provider,
         model: options.model,
         ...(options.effort ? { effort: options.effort } : {}),
+        ...(repository ? { repository } : {}),
       }, observer.signal)
       process.stderr.write(`Eve run: ${admission.runId}\n`)
       await displayEveRun(client, options.session, admission.runId, observer.signal)

@@ -117,6 +117,8 @@ bun run build
 bun run test:runtime
 bun run test:codex
 bun run test:compatible
+bun run test:anthropic
+bun run test:repository
 bun run test:security
 ```
 
@@ -240,7 +242,7 @@ agent jobs.
 
 Initial endpoints: OpenAI, OpenRouter, Vercel AI Gateway, xAI, Fireworks, Together,
 DeepInfra, NVIDIA and Baseten. These are protocol-contract-tested with synthetic
-responses, not live-account certified. Native Anthropic/Google, regional/custom
+responses, not live-account certified. Native Google, regional/custom
 gateways, localhost/Ollama, Neon, OpenCode and remote agents remain separate work.
 Custom/alternate endpoints fail rather than allowing server-side requests to
 unverified hosts. Redirects are refused. No endpoint is taken from the prompt.
@@ -259,3 +261,80 @@ not a claim about each upstream model's maximum. A canary must validate actual
 account/model capabilities and limits. Existing Nova web still uses its previous
 transport; these adapters do not change live traffic or fix the production
 timeout until the web execution path is migrated.
+
+## Native Anthropic adapter
+
+The separate Anthropic Messages path uses the pinned native SDK, sends tool
+schemas as `input_schema`, and reconstructs `tool_use` / `tool_result` blocks
+from saved Eve messages. Offline tests cover fragmented native streams, usage,
+connection-bound continuation, revocation, cancellation and malformed/unfinished
+responses. The Eve eval executes a full model/tool/model cycle across persisted
+steps. Neither fixture credentials nor synthetic upstream responses are used by
+the production agent.
+
+Only `https://api.anthropic.com/v1/messages` is allowed. The connection may store
+the API origin with or without `/v1`; arbitrary proxies and alternate auth headers
+are rejected. Extended thinking, structured output, image input and provider-side
+tools remain explicitly unsupported. A complete `message_stop` and successful
+finish are required before tools become executable. This does not verify a real
+Anthropic account, enable the web canary for Anthropic, or deploy the service.
+
+## Verified repository execution (step 4, opt-in)
+
+Repository execution remains off unless both Nova and Eve set
+`NOVA_EVE_REPOSITORY_ENABLED=true`, Nova sets an exact
+`NOVA_EVE_REPOSITORY_USER_IDS` allowlist, and the existing sandbox rollout flags
+and prepaid billing credentials are configured. Eve additionally needs
+`NOVA_CONTROL_PLANE_URL` pointing to the trusted Nova HTTPS origin and the same
+scope signing secret. Development-only loopback HTTP is supported. A repository
+grant never puts checkout credentials in the VM or model context.
+
+The CLI opt-in uses an existing Nova session bound to an authorized GitHub
+project, not a laptop directory or caller-supplied repository URL:
+
+```sh
+supercode nova eve --origin https://nova.supercodeai.tech \
+  --session SESSION_ID --provider codex --model ACCOUNT_MODEL \
+  --repository --validate 'bun test path/to/changed.test.ts' \
+  --message 'Implement the requested change and verify it'
+```
+
+`--repository` explicitly consents to isolated edits and metered compute;
+one to three validation commands are required. Without it the command stays
+read-only. The web/desktop submission API also accepts agent mode with
+`repository: { consent: true, validationCommands: [...] }`; ordinary `/eve`
+composer commands stay read-only. No new repository UI or automatic mode
+escalation is added. No push, merge or publication is permitted.
+
+Each tool callback validates its signed parent-run grant, active initiator,
+connected account, immutable project/provider, recorded Eve identity, cancellation
+and deadline. A parent-level serialized receipt stores a single child run before
+compute acquisition. Completed tool calls replay; uncertain calls never execute
+again or mint replacement compute. Parallel writers are not supported.
+
+The existing Vercel/E2B sandbox service reconnects the retained workspace, reserves
+compute credits for each operation, and stops/snapshots/settles before the receipt
+is acknowledged. This is intentionally more conservative (and slower) than keeping
+a worker hot. A callback cannot rely on a background process surviving into the
+next tool call. Cleanup failures leave the receipt uncertain and require recovery;
+they never authorize another mutation. Existing sandbox maintenance handles VM
+leases/credit recovery, while the Eve run reports the operation as incomplete.
+
+`repository_verify` runs only the admission's user-authorized validation commands,
+then records a digest of quiesced binary patch evidence, including untracked
+contents. Failed, truncated or state-changing checks cannot verify a task.
+`repository_finish` consumes the stored successful proof, rechecks the current
+digest, then compares it with the actual export before creating the patch.
+Later operations are refused. The parent cannot complete successfully without
+that finalization receipt, regardless of what the model claims. Retained prior
+edits are preserved; the patch is against the original checkout, not a claim that
+every included line was changed by this task. The original upstream/default
+checkout is used; custom branch selection is not implemented in this path.
+
+Tests include real Git tracked/untracked patch evidence in a temporary fixture,
+receipt/cleanup/authorization tests with mocked sandbox/database adapters, and an
+actual Eve model/write/verify/export cycle against a synthetic signed callback
+service. These do not provision a paid cloud VM or validate real provider keys.
+Production billing, checkout, recovery and patch download must be exercised in an
+authorized canary before enabling this feature for users. Step 4 is implemented
+as a gated code path, not deployed or live-account certified.

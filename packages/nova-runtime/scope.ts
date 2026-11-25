@@ -16,6 +16,7 @@ export type NovaScope = {
   connectionId: string
   model: string
   effort?: typeof EFFORTS[number]
+  repositoryRunId?: string
 }
 
 export type NovaScopeSession = {
@@ -72,6 +73,7 @@ function validScope(value: unknown): value is NovaScope {
     && value.model.trim() === value.model
     && !/[\u0000-\u001f\u007f]/.test(value.model)
     && (value.effort === undefined || EFFORTS.includes(value.effort as typeof EFFORTS[number]))
+    && (value.repositoryRunId === undefined || typeof value.repositoryRunId === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(value.repositoryRunId))
 }
 
 function scopeOnly(scope: NovaScope): NovaScope {
@@ -84,6 +86,7 @@ function scopeOnly(scope: NovaScope): NovaScope {
     connectionId: scope.connectionId,
     model: scope.model,
     ...(scope.effort === undefined ? {} : { effort: scope.effort }),
+    ...(scope.repositoryRunId === undefined ? {} : { repositoryRunId: scope.repositoryRunId }),
   }
 }
 
@@ -139,7 +142,7 @@ export function verifyNovaScopeToken(token: string, options: TokenOptions): Nova
     const header = decode(headerPart)
     if (!record(header) || Object.keys(header).length !== 2 || header.alg !== "HS256" || header.typ !== "JWT") return null
     const claims = decode(claimsPart)
-    const allowedKeys = ["organizationId", "userId", "membershipId", "novaSessionId", "provider", "connectionId", "model", "effort", "iss", "aud", "iat", "exp"]
+    const allowedKeys = ["organizationId", "userId", "membershipId", "novaSessionId", "provider", "connectionId", "model", "effort", "repositoryRunId", "iss", "aud", "iat", "exp"]
     if (!validScope(claims) || !record(claims) || Object.keys(claims).some(key => !allowedKeys.includes(key))) return null
     const { iss, aud, iat, exp } = claims as NovaScopeClaims
     const now = clock(options.now)

@@ -90,11 +90,11 @@ export const INTEGRATIONS: readonly IntegrationDefinition[] = INTEGRATION_IDS.ma
     },
   }
   if (id === "anthropic") return {
-    id, kind: "model", credential: "provider-key", webTransport: "generic-text", eveAdapter: "missing",
+    id, kind: "model", credential: "provider-key", webTransport: "generic-text", eveAdapter: "anthropic-contract-tested",
     capabilities: { ...GENERIC_WEB_CAPABILITIES },
     eveCapabilities: { ...UNKNOWN_CAPABILITIES, streaming: "contract-tested", tools: "contract-tested", reasoning: "unsupported", images: "unsupported", structuredOutput: "unsupported", cancellation: "contract-tested", continuation: "contract-tested", parallelCalls: "unsupported", usage: "contract-tested" },
-    evidence: ["apps/nova-agent/lib/anthropic-model.ts", "apps/nova-agent/lib/scoped-provider-model.ts"],
-    limitation: "Anthropic-native implementation was interrupted before verification and is not eligible for the Eve canary. The existing web generic path is unchanged",
+    evidence: ["apps/nova-agent/lib/anthropic-model.ts", "apps/nova-agent/lib/scoped-provider-model.ts", "apps/nova-agent/tests/anthropic.test.ts"],
+    limitation: "Native Messages text/tool-use contracts tested offline, including saved-step Eve continuation. Extended thinking, images and structured output are unsupported; live accounts are unverified. Web canary admission still excludes Anthropic",
   }
   return {
     id, kind: "model", credential: "provider-key", webTransport: "generic-text",

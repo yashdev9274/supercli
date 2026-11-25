@@ -36,7 +36,7 @@ export async function dispatchEveRun(runId: string): Promise<void> {
   await prisma.toolInvocation.update({ where: { id: row.id }, data: { status: "executing", startedAt: row.startedAt ?? new Date() } })
   const config = remoteConfig()
   const history = payload.history.map((message) => `${message.role}: ${message.text}`).join("\n\n")
-  const content = `${history ? `Previous conversation (context only):\n${history}\n\n` : ""}Current request:\n${payload.content}`
+  const content = `${history ? `Previous conversation (context only):\n${history}\n\n` : ""}Current request:\n${payload.content}${payload.repository ? `\n\nExecution target: isolated cloud checkout of ${payload.repository.repositoryFullName}. Authorized validation commands: ${JSON.stringify(payload.repository.validationCommands)}. You must call repository_verify and repository_finish successfully before reporting a verified implementation. No publication is permitted.` : ""}`
   const id = await submitRemoteTurn(config, payload.scope as NovaScope, content, `nova-eve:${runId}`)
   await prisma.$transaction(async (tx) => {
     const current = await tx.toolInvocation.findUniqueOrThrow({ where: { id: row.id } })
@@ -52,9 +52,18 @@ async function finish(tx: Prisma.TransactionClient, runId: string, payload: EveA
   if (terminal(run.status)) return
   const body = Object.values(state.replyParts).join("\n\n").trim()
   if (outcome === "completed" && !body) outcome = "failed"
+  let artifact = ""
+  if (outcome === "completed" && payload.repository) {
+    const receipt = await tx.toolInvocation.findFirst({ where: { runId, capability: "nova-eve:repository", toolName: "repository_finish", status: "completed", result: { path: ["success"], equals: true } }, orderBy: { completedAt: "desc" }, select: { result: true } })
+    if (!receipt) { outcome = "failed"; state.terminalError = "Repository work was not finalized against a verified diff. The task is incomplete." }
+    else {
+      const proof = receipt.result as unknown as { data?: { artifact?: string; digest?: string } }
+      artifact = `\n\nVerified workspace digest: ${proof.data?.digest ?? "unavailable"}\n${proof.data?.artifact ?? "Patch artifact unavailable"}`
+    }
+  }
   const sequence = await tx.agentSession.update({ where: { id: run.agentSessionId }, data: { nextSequence: { increment: 1 } }, select: { nextSequence: true } })
   if (outcome === "completed") {
-    await tx.agentSessionMessage.create({ data: { agentSessionId: run.agentSessionId, surfaceId: payload.surfaceId, sequence: sequence.nextSequence - 1, role: "assistant", content: body, senderType: "agent", metadata: json({ runId, runtime: "eve", provider: payload.scope.provider, model: payload.scope.model }) } })
+    await tx.agentSessionMessage.create({ data: { agentSessionId: run.agentSessionId, surfaceId: payload.surfaceId, sequence: sequence.nextSequence - 1, role: "assistant", content: body + artifact, senderType: "agent", metadata: json({ runId, runtime: "eve", provider: payload.scope.provider, model: payload.scope.model }) } })
   } else {
     await tx.agentActivity.create({ data: { agentSessionId: run.agentSessionId, surfaceId: payload.surfaceId, runId, sequence: sequence.nextSequence - 1, type: "error", status: outcome, title: outcome === "cancelled" ? "Eve run cancelled" : "Eve run did not complete", body: "The read-only canary did not produce a completed response." } })
   }
@@ -108,7 +117,7 @@ export async function observeEveRun(runId: string): Promise<{ terminal: boolean 
     for (const event of batch.events) {
       const cursor = eventCursor(runId, event.meta.position.line, event.meta.position.index)
       if (await tx.toolInvocation.findUnique({ where: { idempotencyKey: cursor }, select: { id: true } })) continue
-      const projected = projectEveEvent(event, saved)
+      const projected = projectEveEvent(event, saved, Boolean(payload.repository))
       await tx.toolInvocation.create({ data: { runId, idempotencyKey: cursor, toolName: "eve_event", capability: "nova-eve:event", riskClass: "read", normalizedArgsHash: "v1", arguments: json({ sourceType: event.type }), status: "completed", result: projected.event ? json({ ...projected.event, runId }) : { type: "heartbeat" } } })
       if (projected.usage) await tx.novaUsageLedger.upsert({ where: { reservationKey: `${cursor}:usage` }, update: {}, create: { organizationId: payload.scope.organizationId, agentSessionId: row.run.agentSessionId, runId, kind: "inference", quantity: 0, unit: "credits", reservationKey: `${cursor}:usage`, metadata: json({ billing: "personal_account", provider: payload.scope.provider, model: payload.scope.model, ...projected.usage }) } })
       if (projected.event?.type === "status") {

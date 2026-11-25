@@ -5,6 +5,7 @@ import { INTEGRATION_IDS, OPENAI_COMPATIBLE_BASE_URLS } from "@super/agent-runti
 import { readScopedProviderConfig } from "@super/provider-runtime/store"
 import { parseStoredProviderConfig } from "@super/provider-runtime/config"
 import { configuredProviderVault } from "@super/provider-runtime/vault"
+import { sandboxProvider } from "../sandbox/policy"
 import { z } from "zod"
 
 export class EveAdmissionError extends Error {
@@ -22,7 +23,8 @@ const inputSchema = z.object({
   provider: z.string().min(1),
   model: z.string().trim().min(1).max(128).refine((value) => !/[\u0000-\u001f\u007f]/.test(value)),
   effort: z.enum(["none", "minimal", "low", "medium", "high", "xhigh"]).optional(),
-  mode: z.enum(["chat", "plan"]),
+  mode: z.enum(["chat", "plan", "agent"]),
+  repository: z.object({ consent: z.literal(true), validationCommands: z.array(z.string().trim().min(1).max(2000)).min(1).max(3) }).strict().optional(),
   surface: z.enum(["web", "desktop"]),
 }).strict()
 
@@ -44,9 +46,10 @@ const argumentsSchema = z.object({
   scope: z.object({
     organizationId: z.string(), userId: z.string(), membershipId: z.string(),
     novaSessionId: z.string(), provider: z.enum(INTEGRATION_IDS), model: z.string(),
-    connectionId: z.string(), effort: inputSchema.shape.effort,
+    connectionId: z.string(), effort: inputSchema.shape.effort, repositoryRunId: z.string().optional(),
   }),
-  content: z.string(), mode: z.enum(["chat", "plan"]), surface: z.enum(["web", "desktop"]),
+  content: z.string(), mode: z.enum(["chat", "plan", "agent"]), surface: z.enum(["web", "desktop"]),
+  repository: z.object({ repositoryFullName: z.string(), projectId: z.string(), sandboxProvider: z.enum(["vercel", "e2b"]), validationCommands: z.array(z.string()) }).optional(),
   payloadHash: z.string(), history: z.array(z.object({ role: z.enum(["user", "assistant"]), text: z.string() })),
   surfaceId: z.string(), userMessage: userMessageSchema, expiresAt: z.string(),
 })
@@ -85,7 +88,9 @@ export async function admitEveTurn(raw: EveAdmissionInput, options: EveAdmission
   const parsed = inputSchema.safeParse(raw)
   if (!parsed.success) throw new EveAdmissionError("Eve requires text, a clientMessageId, and chat or plan mode; attachments and tools are not supported", 400)
   const input = parsed.data
+  if ((input.mode === "agent") !== Boolean(input.repository)) throw new EveAdmissionError("Repository agent mode requires explicit workspace/compute consent and validation commands", 400)
   const env = options.env ?? process.env
+  if (input.repository && (env.NOVA_EVE_REPOSITORY_ENABLED !== "true" || env.NOVA_SANDBOX_ENABLED !== "true" || !(env.NOVA_EVE_REPOSITORY_USER_IDS ?? "").split(",").map((value) => value.trim()).includes(input.userId))) throw new EveAdmissionError("Eve repository execution is not enabled for this user", 403)
   if (env.NOVA_EVE_CANARY_ENABLED !== "true"
     || !env.NOVA_EVE_CANARY_USER_IDS?.split(",").map((id) => id.trim()).includes(input.userId)) {
     throw new EveAdmissionError("Eve canary is not enabled for this user", 403)
@@ -99,7 +104,7 @@ export async function admitEveTurn(raw: EveAdmissionInput, options: EveAdmission
   }
   const db = await database(options)
   const now = options.now?.() ?? new Date()
-  const payloadHash = hash([input.userId, input.sessionId, input.clientMessageId, input.content, input.provider, input.model, input.effort ?? null, input.mode, input.surface])
+  const payloadHash = hash([input.userId, input.sessionId, input.clientMessageId, input.content, input.provider, input.model, input.effort ?? null, input.mode, input.surface, ...(input.repository ? [input.repository] : [])])
   const idempotencyKey = `nova-eve:${input.sessionId}:${input.clientMessageId}`
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM agent_session WHERE id = ${input.sessionId} FOR UPDATE`
@@ -117,6 +122,14 @@ export async function admitEveTurn(raw: EveAdmissionInput, options: EveAdmission
     }
     const active = await tx.agentRun.findFirst({ where: { agentSessionId: session.id, status: { notIn: terminalStatuses } }, select: { id: true } })
     if (active) throw new EveAdmissionError("A turn is already active in this session; wait or cancel it first", 409)
+    let repository: EveAdmissionArguments["repository"]
+    if (input.repository) {
+      const project = await tx.webLocalProject.findFirst({ where: { id: session.localProjectId ?? "", organizationId: session.organizationId, userId: input.userId, status: "active" }, select: { id: true, repositoryFullName: true } })
+      if (!project?.repositoryFullName) throw new EveAdmissionError("Select a connected GitHub project for repository execution", 403)
+      const connected = await tx.repository.findFirst({ where: { userId: input.userId, organizationId: session.organizationId, fullName: project.repositoryFullName }, select: { id: true } })
+      if (!connected) throw new EveAdmissionError("Repository authorization is missing", 403)
+      repository = { repositoryFullName: project.repositoryFullName, projectId: project.id, sandboxProvider: sandboxProvider(), validationCommands: input.repository.validationCommands }
+    }
     const owner = { id: membership.id, userId: input.userId, organizationId: session.organizationId, status: "active" }
     const connection = input.provider === "codex"
       ? await tx.novaCodexConnection.findFirst({
@@ -171,9 +184,12 @@ export async function admitEveTurn(raw: EveAdmissionInput, options: EveAdmission
     })
     const run = await tx.agentRun.create({ data: {
       agentSessionId: session.id, executionTarget: "eve", status: "queued",
-      policySnapshot: { readOnly: true, billing: "personal_account", credits: 0, allowedTools: ["runtime_info"], sandbox: false, mcp: false },
+      policySnapshot: repository
+        ? { readOnly: false, billing: "personal_account_plus_metered_sandbox", repositoryFullName: repository.repositoryFullName, sandbox: true, publication: false, mcp: false, consent: true }
+        : { readOnly: true, billing: "personal_account", credits: 0, allowedTools: ["runtime_info"], sandbox: false, mcp: false },
       budget: { credits: 0 },
     } })
+    if (repository) Object.assign(scope, { repositoryRunId: run.id })
     const message = await tx.agentSessionMessage.create({ data: {
       agentSessionId: session.id, surfaceId: surface.id, sequence: session.nextSequence,
       role: "user", content: input.content, senderType: "member", senderId: membership.id,
@@ -186,7 +202,7 @@ export async function admitEveTurn(raw: EveAdmissionInput, options: EveAdmission
     await tx.toolInvocation.create({ data: {
       runId: run.id, idempotencyKey, capability: "nova-eve:admission", toolName: "eve_admission", riskClass: "read",
       normalizedArgsHash: payloadHash, status: "pending",
-      arguments: { version: 1, scope, content: input.content, mode: input.mode, surface: input.surface, payloadHash, history, surfaceId: surface.id, userMessage, expiresAt: new Date(now.getTime() + 15 * 60 * 1000).toISOString() },
+      arguments: { version: 1, scope, content: input.content, mode: input.mode, ...(repository ? { repository } : {}), surface: input.surface, payloadHash, history, surfaceId: surface.id, userMessage, expiresAt: new Date(now.getTime() + 15 * 60 * 1000).toISOString() },
       result: { runtimeSessionId: null, nextLine: 0, replyParts: {} },
     } })
     await tx.agentSession.update({ where: { id: session.id }, data: { activeRunId: run.id, nextSequence: { increment: 1 } } })

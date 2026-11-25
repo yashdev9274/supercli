@@ -39,7 +39,7 @@ export async function openSandboxWorkspace(input: WorkspaceInput) {
   const now = new Date()
   // Serialize quota checks across all workspace claims in this organization.
   const registry = await prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`nova-sandbox:${input.organizationId}`}, 0))`
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`nova-sandbox:${input.organizationId}`}, 0))`
     const busy = await tx.novaSandboxSession.count({ where: { organizationId: input.organizationId, leaseRunId: { not: null } } })
     if (busy >= 2) throw new Error("Cloud workspace concurrency limit reached (2 per organization)")
     let row = await tx.novaSandboxSession.findUnique({ where: { sandboxName } })
@@ -145,11 +145,23 @@ export async function openSandboxWorkspace(input: WorkspaceInput) {
       tools: canonicalSandboxTools(),
       execute: createCanonicalSandboxExecutor(activeSandbox, input.signal),
       close,
-      async savePatch() {
+      async inspectChanges() {
+        await stopSandbox(activeSandbox)
+        if (activeSandbox instanceof E2BWorkspace) await activeSandbox.resume()
+        const patch = await exportPatch(activeSandbox, baseSha)
+        return {
+          digest: createHash("sha256").update(JSON.stringify([baseSha, patch ?? ""])).digest("hex"),
+          status: patch ? "Workspace differs from the original checkout" : "Workspace matches the original checkout",
+          diff: patch ?? "",
+        }
+      },
+      async savePatch(expectedDigest?: string) {
         // Stop background writers before resuming only the export command.
         await stopSandbox(activeSandbox)
         if (activeSandbox instanceof E2BWorkspace) await activeSandbox.resume()
         const patch = await exportPatch(activeSandbox, baseSha)
+        const digest = createHash("sha256").update(JSON.stringify([baseSha, patch ?? ""])).digest("hex")
+        if (expectedDigest && expectedDigest !== digest) throw new Error("Workspace changed after verification; validate the current diff before exporting")
         if (!patch) return "Cloud workspace: no changes against the original checkout. Your local files were not modified."
         const artifact = await prisma.novaArtifact.create({ data: {
           agentSessionId: input.sessionId, runId: input.runId, type: "sandbox_patch", name: "nova-changes.patch",

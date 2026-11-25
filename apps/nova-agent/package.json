@@ -11,6 +11,8 @@
     "test:runtime": "cd tests/fixtures/runtime && eve eval --strict",
     "test:codex": "cd tests/fixtures/codex && eve eval --strict",
     "test:compatible": "cd tests/fixtures/compatible && eve eval --strict",
+    "test:anthropic": "cd tests/fixtures/anthropic && eve eval --strict",
+    "test:repository": "cd tests/fixtures/repository && eve eval --strict",
     "test:security": "bun run build && node --test tests/workflow-security.test.mjs",
     "typecheck": "tsc --noEmit"
   },

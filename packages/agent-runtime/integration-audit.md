@@ -30,7 +30,7 @@ the experimental Eve service; this table includes the first step-4 adapter.
 | opencode | model | generic-text | missing |
 | kimi | model | generic-text | missing |
 | zai-coding | model | generic-text | missing |
-| anthropic | model | generic-text | missing |
+| anthropic | model | generic-text | anthropic-contract-tested |
 | openai | model | generic-text | openai-compatible-contract-tested |
 | xai | model | generic-text | openai-compatible-contract-tested |
 | google | model | generic-text | missing |

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 
-import { createEveClient, eveOrigin } from "./eve-client"
+import { createEveClient, eveOrigin, eveRepositoryInput } from "./eve-client"
 
 const origin = "https://nova.example"
 const path = "/api/desktop/nova/sessions/session-1/eve/run-1/events"
@@ -33,6 +33,39 @@ async function collect(source: AsyncIterable<unknown>) {
 }
 
 describe("Nova Eve opt-in client", () => {
+  test("command input requires explicit repository consent and 1-3 validation commands", () => {
+    expect(eveRepositoryInput()).toBeUndefined()
+    expect(eveRepositoryInput(false, [])).toBeUndefined()
+    expect(() => eveRepositoryInput(false, ["bun test"])).toThrow("explicit --repository")
+    for (const commands of [undefined, [], [""], ["  "], ["bun test\nrm -rf ."], ["a", "b", "c", "d"]]) {
+      expect(() => eveRepositoryInput(true, commands)).toThrow("1-3")
+    }
+    expect(eveRepositoryInput(true, ["bun test", "bun run typecheck"])).toEqual({ consent: true, validationCommands: ["bun test", "bun run typecheck"] })
+  })
+
+  test("repository admission sends only explicit consent and validation in agent mode", async () => {
+    const repository = eveRepositoryInput(true, ["bun test"])!
+    const { client, calls } = fixture([json(admission, 202)])
+    await client.admit("session-1", { ...input, repository })
+    expect(JSON.parse(calls[0]?.init?.body as string)).toEqual({ ...input, repository, mode: "agent" })
+    expect(calls).toHaveLength(1)
+  })
+
+  test("ordinary admission remains chat with no implicit repository consent", async () => {
+    const { client, calls } = fixture([json(admission, 202)])
+    await client.admit("session-1", input)
+    const body = JSON.parse(calls[0]?.init?.body as string)
+    expect(body.mode).toBe("chat")
+    expect(body).not.toHaveProperty("repository")
+  })
+
+  test("invalid repository admission fails before any HTTP call", async () => {
+    const { client, calls } = fixture([])
+    await expect(client.admit("session-1", { ...input, repository: { consent: false, validationCommands: ["bun test"] } as never })).rejects.toThrow("consent")
+    await expect(client.admit("session-1", { ...input, repository: { consent: true, validationCommands: [] } })).rejects.toThrow("1-3")
+    expect(calls).toHaveLength(0)
+  })
+
   test("accepts only explicit secure or exact loopback origins", () => {
     for (const value of ["https://nova.example", "http://localhost:3003", "http://127.0.0.1:3003", "http://[::1]:3003"]) expect(eveOrigin(value)).toBe(value)
     for (const value of ["http://nova.example", "http://127.0.0.2", "http://127.1", "http://localhost.evil", "https://user:pass@nova.example", "https://nova.example/path", "https://nova.example/?key=secret", "https://nova.example/#secret", "https://nova.example/?", "https://nova.example/#", "file:///etc/passwd"]) expect(() => eveOrigin(value)).toThrow()

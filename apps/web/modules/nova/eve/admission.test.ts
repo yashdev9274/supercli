@@ -8,7 +8,7 @@ type Row = Record<string, unknown>
 
 function fixture() {
   let state = {
-    session: { id: "session", organizationId: "org", initiatorMembershipId: "member", nextSequence: 5, activeRunId: null as string | null },
+    session: { id: "session", organizationId: "org", initiatorMembershipId: "member", localProjectId: "project", nextSequence: 5, activeRunId: null as string | null },
     runs: [] as Row[], messages: [] as Row[], invocations: [] as Row[], surfaces: [] as Row[],
   }
   let memberActive = true
@@ -25,6 +25,8 @@ function fixture() {
       update: async ({ data }: { data: { activeRunId: string } }) => { state.session.activeRunId = data.activeRunId; state.session.nextSequence++; return state.session },
     },
     user: { findUnique: async () => ({ organizationId }) },
+    webLocalProject: { findFirst: async () => ({ id: "project", repositoryFullName: "owner/repo" }) },
+    repository: { findFirst: async () => connected ? { id: "repository" } : null },
     organizationMembership: { findFirst: async ({ where }: { where: Row }) => {
       expect(where).toEqual({ id: state.session.initiatorMembershipId ?? "", userId: "user", organizationId: "org", status: "active" })
       return memberActive && state.session.initiatorMembershipId === "member" ? { id: "member" } : null
@@ -101,6 +103,24 @@ test("atomically admits a scoped read-only run, canonical message, and immutable
   expect(state.surfaces[0]).toMatchObject({ surfaceKey: "nova-eve:session:web", lastInboundAt: now })
   expect(state.session).toMatchObject({ nextSequence: 6, activeRunId: "run-1" })
   expect(await getEveAdmission("user", "session", result.runId, f.options)).toMatchObject({ run: { id: "run-1" }, scope: args.scope })
+})
+
+test("repository mode requires explicit compute consent, validation and a connected project", async () => {
+  const request: EveAdmissionInput = { ...input, mode: "agent", repository: { consent: true, validationCommands: ["bun test"] } }
+  const f = fixture()
+  await expect(admitEveTurn(request, f.options)).rejects.toMatchObject({ statusCode: 403 })
+  const enabled = { ...env, NOVA_EVE_REPOSITORY_ENABLED: "true", NOVA_EVE_REPOSITORY_USER_IDS: "user", NOVA_SANDBOX_ENABLED: "true", NOVA_SANDBOX_PROVIDER: "vercel" }
+  const result = await admitEveTurn(request, { ...f.options, env: enabled })
+  const args = f.state().invocations[0].arguments as EveAdmissionArguments
+  expect(args.scope.repositoryRunId).toBe(result.runId)
+  expect(args.repository).toEqual({ repositoryFullName: "owner/repo", projectId: "project", sandboxProvider: "vercel", validationCommands: ["bun test"] })
+  expect(f.state().runs[0]).toMatchObject({ policySnapshot: { readOnly: false, consent: true, publication: false, sandbox: true, mcp: false } })
+  await expect(admitEveTurn({ ...request, repository: { consent: true, validationCommands: ["another check"] } }, { ...f.options, env: enabled })).rejects.toMatchObject({ statusCode: 409 })
+  for (const invalid of [{ mode: "agent" }, { mode: "chat", repository: request.repository }, { mode: "agent", repository: { consent: false, validationCommands: ["bun test"] } }, { mode: "agent", repository: { consent: true, validationCommands: [] } }]) {
+    const clean = fixture()
+    await expect(admitEveTurn({ ...input, ...invalid } as EveAdmissionInput, { ...clean.options, env: enabled })).rejects.toMatchObject({ statusCode: 400 })
+    expect(clean.state().runs).toHaveLength(0)
+  }
 })
 
 test("concurrent duplicate admission replays and never creates a second message or run", async () => {
