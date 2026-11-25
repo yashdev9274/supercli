@@ -11,6 +11,10 @@ const runUpdates: Array<Record<string, unknown>> = []
 const db = {
   $executeRaw: async () => 1,
   $queryRaw: async () => [],
+  $executeRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => {
+    expect(strings.length).toBe(values.length + 1)
+    return 0
+  },
   agentSession: {
     findUnique: async () => ({ organizationId: "o", localProject: { repositoryFullName: "owner/repo", status: "active", userId: projectUser, organizationId: "o" } }),
     updateMany: async () => ({ count: 1 }),
@@ -97,6 +101,19 @@ test("busy and expired workspaces never reach provider acquisition", async () =>
   expect(get).not.toHaveBeenCalled()
 })
 
+test("sandbox reservation executes the transaction lock without deserializing its void result", async () => {
+  const query = spyOn(db, "$queryRaw").mockRejectedValue(new Error("Failed to deserialize column of type 'void'"))
+  const lock = spyOn(db, "$executeRaw")
+  spyOn(db.novaSandboxSession, "count").mockImplementation(async () => {
+    expect(lock).toHaveBeenCalledTimes(1)
+    return 2
+  })
+  await expect(openSandboxWorkspace(input())).rejects.toThrow("concurrency limit")
+  expect(query).not.toHaveBeenCalled()
+  expect(lock.mock.calls[0]?.[0].join("?")).toBe("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))")
+  expect(lock.mock.calls[0]?.slice(1)).toEqual(["nova-sandbox:o"])
+})
+
 test("stop is attempted even when removing the network policy fails", async () => {
   let stopped = false
   const sandbox = { update: async () => { throw new Error("provider failure") }, stop: async () => { stopped = true } } as unknown as Sandbox
@@ -142,6 +159,16 @@ test("exhausted credits block provider acquisition and release the workspace lea
   expect(get).not.toHaveBeenCalled()
   expect(create).not.toHaveBeenCalled()
   expect(updates.some((data) => data.leaseRunId === null)).toBe(true)
+})
+
+test("startup errors identify the failed stage without exposing provider credentials", async () => {
+  row = retained()
+  spyOn(Sandbox, "get").mockRejectedValue(new Error("request Authorization: Bearer fixture-secret"))
+  const error = await openSandboxWorkspace(input()).then(() => null, (error: Error) => error)
+  expect(error?.message).toContain("during workspace resume")
+  expect(error?.message).toContain("existing work was not reset")
+  expect(error?.message).not.toContain("fixture-secret")
+  expect(error?.message).not.toContain("Authorization")
 })
 
 test("confirmed missing provider releases abandoned lease and fails the run", async () => {

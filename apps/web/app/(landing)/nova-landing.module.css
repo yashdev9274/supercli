@@ -1,0 +1,469 @@
+.page {
+  --nova-bg: #10100f;
+  --nova-fg: #f4f2ed;
+  --nova-muted: #96958e;
+  --nova-line: #2b2b27;
+  --nova-accent: #e9b58b;
+  background: var(--nova-bg);
+  color: var(--nova-fg);
+  overflow: clip;
+}
+.page a,
+.page summary {
+  -webkit-tap-highlight-color: transparent;
+}
+.page a:focus-visible,
+.page summary:focus-visible {
+  outline: 2px solid var(--nova-accent);
+  outline-offset: 6px;
+}
+.page section[id] {
+  scroll-margin-top: 30px;
+}
+.hero {
+  position: relative;
+  min-height: max(760px, 100svh);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  isolation: isolate;
+  background: #030303;
+}
+.heroMedia,
+.heroShade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.heroMedia video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.heroShade {
+  background: linear-gradient(
+    180deg,
+    #03030350 0%,
+    #03030355 30%,
+    #03030385 75%,
+    #10100f 100%
+  );
+}
+.heroContent {
+  text-align: center;
+  padding: 170px 24px 130px;
+  width: 100%;
+}
+.announcement {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  color: #e2dfd6;
+  margin-bottom: 34px;
+}
+.announcement > span {
+  border: 1px solid #b6a18a66;
+  border-radius: 3px;
+  background: #211c16bb;
+  padding: 5px 7px;
+  color: var(--nova-accent);
+  font-size: 8px;
+  letter-spacing: 1px;
+}
+.hero h1 {
+  font-size: clamp(58px, 6.7vw, 100px);
+  line-height: 1.02;
+  font-weight: 450;
+  letter-spacing: -0.065em;
+  text-wrap: balance;
+  text-shadow: 0 2px 28px #0008;
+}
+.hero h1 span {
+  color: #f2e5d4;
+}
+.heroContent > p {
+  font-size: 16px;
+  line-height: 1.8;
+  color: #e2ded5;
+  margin: 26px auto 30px;
+  text-shadow: 0 2px 12px #000;
+}
+.heroActions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+.primaryButton,
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 15px 22px;
+  border-radius: 5px;
+  font-size: 13px;
+  transition:
+    background 0.2s,
+    transform 0.2s;
+}
+.primaryButton {
+  background: #f1e8d9;
+  color: #171510;
+}
+.primaryButton:hover {
+  background: #fff6e7;
+  transform: translateY(-2px);
+}
+.secondaryButton {
+  border: 1px solid #d6c3a95c;
+  background: #16140e99;
+  color: #f1e8d9;
+}
+.secondaryButton:hover {
+  background: #30281fcc;
+}
+.heroBottom {
+  position: absolute;
+  bottom: 32px;
+  left: 5%;
+  right: 5%;
+  display: flex;
+  justify-content: space-between;
+  color: #b2ada3;
+}
+.heroBottom a {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font:
+    9px var(--font-geist-mono),
+    monospace;
+  letter-spacing: 1px;
+}
+.workspace {
+  max-width: 1280px;
+  margin: auto;
+  padding: 100px 40px;
+}
+.eyebrow {
+  font:
+    9px var(--font-geist-mono),
+    monospace;
+  color: var(--nova-accent);
+  letter-spacing: 1.6px;
+}
+.sectionTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.liveLabel {
+  font-size: 10px;
+  color: var(--nova-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.liveLabel > span,
+.windowStatus > span {
+  width: 5px;
+  height: 5px;
+  background: #a0b89a;
+  border-radius: 50%;
+}
+.workspaceHeading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin: 28px 0 44px;
+}
+.page h2 {
+  font-size: clamp(35px, 4.2vw, 58px);
+  font-weight: 400;
+  line-height: 1.08;
+  letter-spacing: -0.05em;
+}
+.page h2 span {
+  color: var(--nova-muted);
+}
+.workspaceHeading > p {
+  color: var(--nova-muted);
+  font-size: 14px;
+  line-height: 1.8;
+  margin-bottom: 4px;
+}
+.dashboard {
+  border: 1px solid #3a3832;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 20px 70px #0005;
+}
+.windowBar {
+  height: 36px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #1b1b19;
+  padding: 0 14px;
+  font:
+    8px var(--font-geist-mono),
+    monospace;
+  color: #8c8c83;
+}
+.windowDots {
+  display: flex;
+  gap: 5px;
+}
+.windowDots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #53534b;
+}
+.windowStatus {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+}
+.dashboard > img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.workspaceNotes {
+  display: flex;
+  justify-content: center;
+  gap: 36px;
+  padding-top: 25px;
+  font-size: 11px;
+  color: var(--nova-muted);
+}
+.workspaceNotes > span {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.workspaceNotes svg {
+  color: var(--nova-accent);
+}
+.agents {
+  border-block: 1px solid var(--nova-line);
+  max-width: 1280px;
+  margin: auto;
+}
+.agentsHeading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 70px 40px 50px;
+  gap: 45px;
+}
+.agentsHeading h2 {
+  max-width: 830px;
+  font-size: clamp(34px, 3.8vw, 51px);
+  margin-top: 24px;
+}
+.agentsHeading > a {
+  white-space: nowrap;
+  font-size: 12px;
+  display: flex;
+  gap: 8px;
+  color: var(--nova-accent);
+}
+.agentGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.agentCard {
+  padding: 30px;
+  min-height: 205px;
+  border-top: 1px solid var(--nova-line);
+  border-right: 1px solid var(--nova-line);
+  position: relative;
+  transition: background 0.2s;
+}
+.agentCard:nth-child(4n) {
+  border-right: 0;
+}
+.agentCard:hover {
+  background: #1a1916;
+}
+.agentCard > img {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  margin-bottom: 35px;
+}
+.agentCard .monochrome {
+  filter: brightness(0) invert(1);
+}
+.agentCard h3 {
+  font-size: 19px;
+  font-weight: 400;
+  letter-spacing: -0.6px;
+}
+.agentCard p {
+  color: var(--nova-muted);
+  font-size: 12px;
+  margin-top: 6px;
+}
+.agentArrow {
+  position: absolute;
+  top: 30px;
+  right: 26px;
+  color: var(--nova-muted);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.agentCard:hover .agentArrow,
+.agentCard:focus-visible .agentArrow {
+  opacity: 1;
+}
+.agentNote {
+  border-top: 1px solid var(--nova-line);
+  padding: 24px 40px;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  font-size: 11px;
+}
+.agentNote p {
+  color: var(--nova-muted);
+}
+@media (max-width: 1000px) {
+  .agentsHeading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 25px;
+  }
+  .agentCard {
+    padding: 24px;
+  }
+  .agentCard h3 {
+    font-size: 17px;
+  }
+  .workspaceNotes {
+    gap: 20px;
+  }
+}
+@media (max-width: 700px) {
+  .hero {
+    min-height: max(720px, 100svh);
+  }
+  .heroShade {
+    background: linear-gradient(
+      180deg,
+      #03030365,
+      #03030375 25%,
+      #03030390 75%,
+      #10100f 100%
+    );
+  }
+  .heroContent {
+    padding: 160px 22px 110px;
+  }
+  .announcement {
+    font-size: 10px;
+    max-width: 310px;
+    margin-bottom: 30px;
+  }
+  .announcement > span {
+    flex-basis: 100%;
+    width: fit-content;
+    flex-grow: 0;
+  }
+  .hero h1 {
+    font-size: clamp(45px, 9.5vw, 66px);
+  }
+  .heroContent > p {
+    font-size: 13px;
+    margin-top: 24px;
+  }
+  .heroActions {
+    gap: 9px;
+  }
+  .primaryButton,
+  .secondaryButton {
+    padding: 13px 14px;
+    font-size: 11px;
+    gap: 10px;
+  }
+  .heroBottom {
+    left: 22px;
+    right: 22px;
+    bottom: 25px;
+  }
+  .heroBottom a {
+    font-size: 8px;
+  }
+  .workspace {
+    padding: 65px 22px;
+  }
+  .sectionTop .liveLabel {
+    display: none;
+  }
+  .workspaceHeading {
+    display: block;
+    margin-bottom: 30px;
+  }
+  .workspaceHeading > p {
+    margin-top: 20px;
+    font-size: 13px;
+  }
+  .windowBar {
+    font-size: 7px;
+    height: 28px;
+    padding-inline: 10px;
+  }
+  .windowStatus {
+    display: none;
+  }
+  .workspaceNotes {
+    flex-wrap: wrap;
+    gap: 12px 20px;
+    justify-content: flex-start;
+    font-size: 9px;
+  }
+  .agentsHeading {
+    padding: 50px 22px 35px;
+  }
+  .agentGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .agentCard {
+    min-height: 185px;
+    padding: 24px 22px;
+  }
+  .agentCard:nth-child(2n) {
+    border-right: 0;
+  }
+  .agentCard h3 {
+    font-size: 16px;
+  }
+  .agentCard p {
+    font-size: 11px;
+  }
+  .agentCard > img {
+    width: 35px;
+    height: 35px;
+    margin-bottom: 30px;
+  }
+  .agentNote {
+    padding: 22px;
+    flex-direction: column;
+    gap: 8px;
+    line-height: 1.7;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page *,
+  .page *::before,
+  .page *::after {
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

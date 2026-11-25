@@ -22,6 +22,8 @@ import { resumeHarnessInput } from "@/modules/nova/harness/durable-store"
 import { machineSizeSchema } from "@/modules/nova/sandbox/machine-sizes"
 import { validateMachineSelection } from "@/modules/nova/sandbox/machine-config"
 import { resolveNovaTurnMode } from "@/modules/nova-web/resolve-mode"
+import { assertWorktreeContext, worktreeContextSchema } from "@/modules/nova/local-projects/worktree-context"
+import { getLocalWorktreeBinding } from "@/modules/nova/local-projects/worktree-binding"
 
 const turnSchema = z.object({
   content: z.string().trim().min(1).max(20_000),
@@ -34,6 +36,7 @@ const turnSchema = z.object({
   mode: z.enum(["agent", "plan", "chat"]).optional(),
   references: referencesInputSchema,
   localAttachments: localAttachmentsSchema,
+  localWorktree: worktreeContextSchema.optional(),
 })
 
 export const runtime = "nodejs"
@@ -67,6 +70,12 @@ export async function POST(
       status: 400,
       headers: { "Content-Type": "application/json" },
     })
+  }
+
+  try {
+    assertWorktreeContext(await getLocalWorktreeBinding(session.user.id, sessionId), parsed.data.localWorktree)
+  } catch (cause) {
+    return Response.json({ error: cause instanceof Error ? cause.message : "Local workspace unavailable" }, { status: 409 })
   }
 
   const agentSelection = await prisma.agentSession.findFirst({
@@ -177,6 +186,7 @@ export async function POST(
           signal,
           references: parsed.data.references,
           localAttachments: parsed.data.localAttachments,
+          localWorktree: parsed.data.localWorktree,
         })) {
           write(event)
         }

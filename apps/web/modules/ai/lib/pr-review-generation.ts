@@ -126,9 +126,9 @@ export async function generateReviewText(
   const providerExhausted = new Set<GatewayProviderName>()
 
   for (const modelId of models) {
-    const providers = gatewayProviderChain(modelId).filter(
-      (p) => !providerExhausted.has(p) && providerSupportsModel(p, modelId),
-    )
+    const providers = gatewayProviderChain(modelId)
+      .sort((a, b) => Number(b === "merge") - Number(a === "merge"))
+      .filter((p) => !providerExhausted.has(p) && providerSupportsModel(p, modelId))
 
     for (const provider of providers) {
       options.abortSignal?.throwIfAborted()

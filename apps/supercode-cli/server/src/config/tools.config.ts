@@ -67,6 +67,14 @@ export const availableTools: ToolConfig[] = [
     enabled: false,
   },
   {
+    id: "keenable_search",
+    name: "Keenable Search",
+    description:
+      "Search the web using Keenable. Optional; off until KEENABLE_SEARCH=true or KEENABLE_API_KEY is set",
+    getTool: () => registryTools.keenable_search as unknown as Record<string, unknown>,
+    enabled: false,
+  },
+  {
     id: "exa_fetch",
     name: "Exa Fetch",
     description:

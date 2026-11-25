@@ -10,6 +10,7 @@ const createSessionSchema = z.object({
   mode: z.string().trim().min(1).max(64).optional(),
   surface: z.enum(["web", "desktop"]).optional(),
   localProjectId: z.string().trim().min(1).max(64).optional().nullable(),
+  githubBranch: z.string().min(1).max(255).optional(),
   parentSessionId: z.string().trim().min(1).max(64).optional(),
   agentId: z.string().trim().min(1).max(64).optional().nullable(),
 })
@@ -48,15 +49,15 @@ export async function POST(request: NextRequest) {
       mode: parsed.data.mode,
       surface: parsed.data.surface ?? "web",
       localProjectId: parsed.data.localProjectId,
+      githubBranch: parsed.data.githubBranch,
       parentSessionId: parsed.data.parentSessionId,
       agentId: parsed.data.agentId,
     })
     return NextResponse.json({ session }, { status: 201 })
   } catch (error) {
-    console.error("[api/nova/sessions]", error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to create Nova session" },
-      { status: 500 },
+      { error: "Could not create session. Check project, branch and GitHub access." },
+      { status: 400 },
     )
   }
 }

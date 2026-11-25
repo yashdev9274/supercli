@@ -64,6 +64,7 @@ export class ServerComposioService {
         name: toolkit.name,
         description: toolkit.meta?.description ?? "",
         logo: toolkit.meta?.logo ?? null,
+        categories: toolkit.meta?.categories ?? [],
         connected: connected.has(toolkit.slug),
         connectedAccountId: connected.get(toolkit.slug) ?? null,
       }))

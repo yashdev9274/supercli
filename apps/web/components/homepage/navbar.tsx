@@ -227,7 +227,9 @@ const Navbar = () => {
           className={`mx-auto border transition-[width,max-width,border-color,border-radius,background-color,box-shadow,backdrop-filter] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] ${
             isScrolled
               ? "w-[calc(100%-24px)] max-w-[1320px] rounded-2xl border-white/12 bg-background/80 shadow-[0_18px_60px_rgba(0,0,0,0.28)] backdrop-blur-xl"
-              : "w-full max-w-none rounded-none border-transparent bg-background/95 backdrop-blur-sm"
+              : onLandingPage
+                ? "w-full max-w-none rounded-none border-transparent bg-transparent"
+                : "w-full max-w-none rounded-none border-transparent bg-background/95 backdrop-blur-sm"
           }`}
         >
           <div className="relative h-[70px] flex items-center px-5 md:px-12 max-w-[1400px] mx-auto w-full">

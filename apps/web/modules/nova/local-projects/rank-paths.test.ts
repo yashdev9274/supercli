@@ -42,6 +42,26 @@ test("left sidebar task prefers sidebar.tsx", () => {
   expect(ranked.map((item) => item.path)).toContain("apps/web/modules/nova-web/components/sidebar.tsx")
 })
 
+test("misspelled dashboard path still packs dashboard sources", () => {
+  const paths = ["apps/web/app/dashboard/page.tsx", "apps/web/app/dashboard/settings/page.tsx", ...PATHS]
+  const ranked = rankProjectPaths(paths, "fix this issue in apps/web/app/dashbaord", 6)
+  expect(ranked.map((item) => item.path)).toContain("apps/web/app/dashboard/page.tsx")
+})
+
+test("nested misspelled dashboard path beats more than sixteen dashboard siblings", () => {
+  const siblings = Array.from({ length: 20 }, (_, index) => `apps/web/app/dashboard/other-${index}/page.tsx`)
+  const target = "apps/web/app/dashboard/settings/page.tsx"
+  const ranked = rankProjectPaths([...siblings, target], "fix apps/web/app/dashbaord/settings", 16)
+  expect(ranked.map((item) => item.path)).toContain(target)
+})
+
+test("unrelated dashboard routes do not outrank the requested feature", () => {
+  const dashboards = Array.from({ length: 20 }, (_, index) => `apps/web/app/dashboard/other-${index}/page.tsx`)
+  const feature = "apps/web/modules/checkout/route.ts"
+  const ranked = rankProjectPaths([...dashboards, feature], "fix checkout", 16)
+  expect(ranked.map((item) => item.path)).toContain(feature)
+})
+
 test("never selects node_modules paths when better options exist", () => {
   const ranked = rankProjectPaths(PATHS, "fix react import", 6)
   expect(ranked.every((item) => !item.path.includes("node_modules"))).toBe(true)

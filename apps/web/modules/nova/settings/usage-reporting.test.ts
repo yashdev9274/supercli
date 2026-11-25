@@ -38,7 +38,7 @@ function fixture(options: { rows?: Row[]; grandfathered?: boolean; fail?: string
         periodStart: start, resetAt: end,
       }]
     } else if (sql.includes("FROM subscription")) {
-      result = [{ tier: "spark", monthlyCredits: 1000, metadata: { grandfathered: options.grandfathered ?? false } }]
+      result = [{ tier: "free", monthlyCredits: 1000, metadata: { grandfathered: options.grandfathered ?? false } }]
     } else {
       expect(accountLocked).toBe(true)
       expect(values).toEqual(["terminal-user", start, end])

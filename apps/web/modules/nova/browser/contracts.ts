@@ -21,6 +21,8 @@ export class BrowserError extends Error {
   }
 }
 
+export class BrowserCreationRejectedError extends BrowserError {}
+
 export const BROWSER_TIMEOUT_MS = 15 * 60_000
 export const ACTION_TIMEOUT_MS = 15_000
 export const ACTION_LEASE_MS = 25_000

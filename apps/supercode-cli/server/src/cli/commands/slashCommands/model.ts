@@ -18,7 +18,7 @@ interface ModelEntry {
 }
 
 // ── Tier detection ──────────────────────────────────────────────
-export type UserTier = "spark" | "spark-premium" | "pro" | "ultra" | "none"
+export type UserTier = "free" | "spark" | "pro" | "ultra" | "none"
 
 async function getUserTier(): Promise<UserTier> {
   try {
@@ -263,13 +263,13 @@ export const PREMIUM_CLOUD_MODELS = new Set([
 
 // Tier-organized model lists
 export const TIER_MODELS: Record<UserTier, ModelEntry[]> = {
-  "spark": [
+  "free": [
     { value: SECTION_CLOUD, label: "Supercode Cloud", provider: "supercode", cost: "", desc: "" },
     ...CLOUD_MODELS,
     { value: SECTION_BYOK, label: "Bring Your Own Key", provider: "supercode", cost: "", desc: "" },
     ...BYOK_MODELS,
   ],
-  "spark-premium": [
+  "spark": [
     { value: SECTION_CLOUD, label: "Supercode Cloud", provider: "supercode", cost: "", desc: "" },
     ...CLOUD_MODELS,
     { value: SECTION_BYOK, label: "Bring Your Own Key", provider: "supercode", cost: "", desc: "" },

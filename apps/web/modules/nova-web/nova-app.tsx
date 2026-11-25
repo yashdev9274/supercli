@@ -15,6 +15,8 @@ import {
   listApprovals,
   listConnectors,
   listSessions,
+  listGithubProjectBranches,
+  readGithubSourceFile,
   streamTurn,
   syncSession,
   type FileProposalDto,
@@ -78,6 +80,9 @@ import {
   type LocalWorkspaceState,
 } from "@/modules/nova-web/local-workspace"
 import { packLocalProjectForTurn } from "@/modules/nova-web/project-pack"
+import { useGitWorkspace } from "@/modules/nova-web/use-git-workspace"
+import { workspacePublishIntent } from "@/modules/nova-web/git-workspace"
+import { GitWorkspaceControls } from "@/modules/nova-web/components/git-workspace-controls"
 import type { ProjectSelection } from "@/modules/nova-web/components/project-picker"
 import type { LocalAttachment } from "@/modules/nova/attachments/contracts"
 import type { NovaReference } from "@/modules/nova/references/contracts"
@@ -284,6 +289,8 @@ export function NovaApp({
   const [references, setReferences] = useState<NovaReference[]>([])
   const [localFiles, setLocalFiles] = useState<LocalAttachment[]>([])
   const [localProject, setLocalProject] = useState<LocalProjectDto | null>(null)
+  const gitWorkspace = useGitWorkspace(user.id, selectedId, localProject?.id ?? null, !embedded && !isAgentChat, session?.githubSource)
+  const { ensure: ensureGitWorkspace, client: gitClient, requestPublish } = gitWorkspace
   const [model, setModel] = useState(DEFAULT_NOVA_MODEL)
   const [provider, setProvider] = useState<HarnessProvider>(DEFAULT_NOVA_PROVIDER)
   const [effort, setEffort] = useState<NovaEffort>("high")
@@ -624,16 +631,24 @@ export function NovaApp({
   ) {
     startTransition(async () => {
       try {
-        const projectId = getActiveLocalProjectId() || localProject?.id || null
+        const projectId = localProject?.id || getActiveLocalProjectId() || null
+        const githubBranch = !embedded && !gitWorkspace.choice && localProject?.repositoryFullName
+          ? gitWorkspace.githubBranch ?? (await listGithubProjectBranches(localProject.id)).defaultBranch
+          : undefined
         const response = await createSession(objective, {
           localProjectId: projectId,
           mode: agentMode || DEFAULT_NOVA_AGENT_MODE,
           parentSessionId,
+          githubBranch,
         })
         setSessions((current) => [
           response.session,
           ...current.filter((item) => item.id !== response.session.id),
         ])
+        if (!embedded) {
+          try { await ensureGitWorkspace(response.session.id, true) }
+          catch (cause) { navigate(`/s/${response.session.id}`); throw cause }
+        }
         // Survive the home → /s/:id remount so the harness turn actually starts.
         const pending: PendingTurn = {
           sessionId: response.session.id,
@@ -675,6 +690,12 @@ export function NovaApp({
       resumeRunId?: string
     },
   ) => {
+    if (!embedded && workspacePublishIntent(content)) {
+      try {
+        const workspace = await ensureGitWorkspace(sessionId)
+        if (workspace) { requestPublish(workspacePublishIntent(content)); return }
+      } catch (cause) { setError(cause instanceof Error ? cause.message : "Reconnect the local workspace"); return }
+    }
     if (streamingRef.current) return
     streamingRef.current = true
     abortRef.current = false
@@ -716,6 +737,8 @@ export function NovaApp({
       })
       const packedAttachments = canary || isAgentChat
         ? []
+        : localProject?.repositoryFullName || session?.githubSource
+          ? opts?.localAttachments ?? []
         : embedded && getActiveLocalProjectId() !== activeProjectId
           ? opts?.localAttachments ?? []
           : await packLocalProjectForTurn(content, opts?.localAttachments ?? [])
@@ -769,6 +792,7 @@ export function NovaApp({
         mode: turnMode,
         references: opts?.references ?? [],
         localAttachments: packedAttachments,
+        localWorktree: localGitWorkspace ? { sourceRef: localGitWorkspace.sourceRef, baseSha: localGitWorkspace.baseSha, paths: (await gitClient.files(localGitWorkspace.id)).slice(0, 4_000) } : undefined,
         resumeRunId: opts?.resumeRunId,
         executionRuntime: canary ? "eve" : "legacy",
         observationSignal: eveObserverRef.current?.signal,
@@ -847,7 +871,7 @@ export function NovaApp({
           })
           // Browsers block write permission without a user gesture — don't auto-apply.
           // Probe quietly; if write is already granted, apply. Otherwise wait for the button.
-          if (!embedded && (opts?.mode ?? agentMode) === "agent") {
+          if (!embedded && !localGitWorkspace && !session?.githubSource && (opts?.mode ?? agentMode) === "agent") {
             void applyFileProposalsLocally(event.proposals, { interactive: false }).then((batch) => {
               if (batch.applied > 0) {
                 setApplyStatus(batch.message)
@@ -900,7 +924,7 @@ export function NovaApp({
       // Keep workingSteps + workingSince so ThreadView can show the completed process
       // until the next turn starts (which clears them above).
     }
-  }, [embedded, agentMode, effort, isAgentChat, loadSharedState, localProject?.id, machineSize, model, provider, pullSync, setSyncCursor])
+  }, [embedded, agentMode, effort, isAgentChat, loadSharedState, localProject?.id, localProject?.repositoryFullName, session?.githubSource, machineSize, model, provider, pullSync, setSyncCursor, ensureGitWorkspace, gitClient, requestPublish])
 
   // Keep "Thinking for Xs" labels live while reasoning is in flight.
   useEffect(() => {
@@ -1065,7 +1089,7 @@ export function NovaApp({
       ) : selectedId && session ? (
         <ThreadView
           session={session}
-          projectLocked={embedded || projectLocked || isAgentChat}
+          projectLocked={embedded || projectLocked || isAgentChat || Boolean(gitWorkspace.workspace) || Boolean(session.githubSource)}
           timeline={timeline}
           approvals={approvals}
           draft={draft}
@@ -1073,7 +1097,9 @@ export function NovaApp({
           onReferencesChange={setReferences}
           localFiles={localFiles}
           onLocalFilesChange={setLocalFiles}
-          localProject={localProject ?? session.localProject ?? null}
+          localProject={gitWorkspace.workspace ? { id: localProject?.id ?? gitWorkspace.workspace.projectId, displayName: gitWorkspace.workspace.path.split(/[\\/]/).pop() ?? "Worktree", rootName: "Worktree", fileCount: gitWorkspace.paths.length, truncated: false, repositoryFullName: localProject?.repositoryFullName ?? null, status: "active", lastUsedAt: null, updatedAt: session.updatedAt, paths: gitWorkspace.paths } : session.githubSource && session.localProject ? { ...session.localProject, paths: gitWorkspace.paths, fileCount: gitWorkspace.paths.length } : localProject ?? session.localProject ?? null}
+          readWorkspaceFile={gitWorkspace.workspace ? path => gitClient.read(gitWorkspace.workspace!.id, path) : session.githubSource ? async path => (await readGithubSourceFile(session.id, path)).text : undefined}
+          workspaceControls={!embedded ? <GitWorkspaceControls state={gitWorkspace} disabled={isPending || streaming} repositoryFullName={localProject?.repositoryFullName} localRootName={localProject?.rootName} onOpenWorkspace={id => navigate(`/s/${id}`)} workspaceLabels={Object.fromEntries(sessions.map(item => [item.id, item.objective]))}/> : undefined}
           onLocalProjectChange={(workspace) => void handleLocalProjectChange(workspace)}
           onProjectChange={(selection) => void applyProjectSelection(selection)}
           onManageProjects={() => openSettingsSection("projects")}
@@ -1096,9 +1122,14 @@ export function NovaApp({
               setApplyStatus("Open the parent thread’s project folder before applying these changes.")
               return
             }
+            if (session.githubSource) {
+              setApplyStatus("These changes belong to the selected GitHub source. Start a local worktree thread to apply them on this computer; Nova will not write them into an unbound folder.")
+              return
+            }
             setApplyStatus("Granting folder access and applying…")
             // interactive:true runs inside this click — browser allows write + picker.
-            const batch = await applyFileProposalsLocally(fileProposals, { interactive: true })
+            const managed = !embedded ? await ensureGitWorkspace(selectedId) : null
+            const batch = managed ? await gitClient.apply(managed, fileProposals) : await applyFileProposalsLocally(fileProposals, { interactive: true })
             setApplyStatus(batch.message)
             setWorkingSteps((steps) => {
               const next = reduceWorkingSteps(steps, { type: "status", message: batch.message })
@@ -1168,6 +1199,7 @@ export function NovaApp({
           onProjectChange={(selection) => void applyProjectSelection(selection)}
           onManageProjects={() => openSettingsSection("projects")}
           localProject={localProject}
+          workspaceControls={<GitWorkspaceControls state={gitWorkspace} disabled={isPending || streaming} repositoryFullName={localProject?.repositoryFullName} localRootName={localProject?.rootName} onOpenWorkspace={id => navigate(`/s/${id}`)} workspaceLabels={Object.fromEntries(sessions.map(item => [item.id, item.objective]))}/>}
         />
       )}
     </CodexCatalogContext.Provider>
