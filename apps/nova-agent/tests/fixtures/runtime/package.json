@@ -1,0 +1,6 @@
+{
+  "name": "nova-eve-runtime-smoke",
+  "private": true,
+  "type": "module",
+  "dependencies": { "eve": "1.3.0" }
+}

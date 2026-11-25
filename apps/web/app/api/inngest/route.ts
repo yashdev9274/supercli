@@ -1,4 +1,5 @@
 import { serve } from "inngest/next"
+import { processEveCanary, reconcileEveCanary } from "@/inngest/functions/eve"
 import { processNovaAgentRoutine, scheduleNovaAgentRoutines } from "@/inngest/functions/routines"
 import { reconcileNovaSandboxes } from "@/inngest/functions/sandbox"
 import { processNovaAutomation, scheduleNovaAutomations } from "@/inngest/functions/automations"
@@ -26,6 +27,8 @@ export const maxDuration = 300
 export const { GET, POST, PUT } = serve({
   client: inngest,
   functions: [
+    processEveCanary,
+    reconcileEveCanary,
     indexRepo,
     generateReview,
     reconcileNovaSandboxes,

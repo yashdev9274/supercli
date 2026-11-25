@@ -8,6 +8,8 @@ import { spawnCodex } from "../../nova/codex-rpc"
 import { resolveCodexProfile } from "../../nova/profile"
 import { LocalCodexRuntime } from "../../nova/runtime"
 import { localOrigin, startCompanion } from "../../nova/server"
+import { createEveClient, eveOrigin, eveRepositoryInput } from "../../nova/eve-client"
+import { getStoredToken } from "../../lib/token"
 
 export const novaCommand = new Command("nova").description("Local Nova integrations")
 novaCommand.command("connect")
@@ -59,4 +61,109 @@ novaCommand.command("connect")
     }
     process.once("SIGINT", stop)
     process.once("SIGTERM", stop)
+  })
+
+type EveOptions = {
+  origin: string
+  session: string
+  provider: string
+  model: string
+  message: string
+  effort?: string
+  clientMessageId?: string
+  repository?: boolean
+  validate?: string[]
+}
+
+async function eveClient(origin: string) {
+  eveOrigin(origin)
+  const token = await getStoredToken()
+  if (typeof token?.access_token !== "string") throw new Error("Sign in with supercode login first")
+  return createEveClient({ origin, token: token.access_token })
+}
+
+async function displayEveRun(client: ReturnType<typeof createEveClient>, sessionId: string, runId: string, signal: AbortSignal) {
+  for await (const { event } of client.follow(sessionId, runId, signal)) {
+    if (event.type === "text" && typeof event.content === "string") process.stdout.write(event.content)
+    if (event.type === "reasoning" && typeof event.content === "string") process.stderr.write(event.content)
+    if (event.type === "error") {
+      process.stderr.write("Nova Eve reported a run error; inspect the run in Nova\n")
+      process.exitCode = 1
+    }
+  }
+  process.stdout.write("\n")
+}
+
+novaCommand.command("eve")
+  .description("Start an Eve canary turn; read-only unless --repository is explicitly supplied")
+  .requiredOption("--origin <origin>", "Trusted Nova HTTPS origin or loopback HTTP origin")
+  .requiredOption("--session <id>", "Existing Nova session ID (not a legacy CLI conversation ID)")
+  .requiredOption("--provider <provider>", "Exact connected Nova provider")
+  .requiredOption("--model <model>", "Exact Nova model; no fallback")
+  .requiredOption("--message <message>", "Turn message")
+  .option("--repository", "Consent to isolated repository edits and metered compute using the session's bound GitHub project; no push or PR")
+  .option("--validate <command>", "Validation command (repeat 1-3 times with --repository)", (command: string, commands: string[]) => [...commands, command], [])
+  .option("--effort <effort>", "Explicit reasoning effort")
+  .option("--client-message-id <id>", "Admission deduplication ID; reuse to retry the same message")
+  .action(async (options: EveOptions) => {
+    const repository = eveRepositoryInput(options.repository, options.validate)
+    if (options.effort && !["none", "minimal", "low", "medium", "high", "xhigh"].includes(options.effort)) throw new Error("Invalid reasoning effort")
+    const client = await eveClient(options.origin)
+    const observer = new AbortController()
+    const stop = () => observer.abort()
+    process.once("SIGINT", stop)
+    process.once("SIGTERM", stop)
+    const clientMessageId = options.clientMessageId ?? crypto.randomUUID()
+    process.stderr.write(`${repository ? "Eve repository canary: isolated edits and metered compute authorized; no push or PR." : "Eve read-only canary."} Admission ID: ${clientMessageId}\n`)
+    try {
+      const admission = await client.admit(options.session, {
+        content: options.message,
+        clientMessageId,
+        provider: options.provider,
+        model: options.model,
+        ...(options.effort ? { effort: options.effort } : {}),
+        ...(repository ? { repository } : {}),
+      }, observer.signal)
+      process.stderr.write(`Eve run: ${admission.runId}\n`)
+      await displayEveRun(client, options.session, admission.runId, observer.signal)
+    } catch (error) {
+      if (!observer.signal.aborted) throw error
+      process.stderr.write("Observation stopped. The run continues if admitted; use nova eve-cancel to cancel explicitly.\n")
+    } finally {
+      process.removeListener("SIGINT", stop)
+      process.removeListener("SIGTERM", stop)
+    }
+  })
+
+novaCommand.command("eve-follow")
+  .description("Observe an existing Eve canary run without admitting a new turn")
+  .requiredOption("--origin <origin>", "Trusted Nova HTTPS origin or loopback HTTP origin")
+  .requiredOption("--session <id>", "Nova session ID")
+  .requiredOption("--run <id>", "Existing Eve run ID")
+  .action(async (options: { origin: string; session: string; run: string }) => {
+    const client = await eveClient(options.origin)
+    const observer = new AbortController()
+    const stop = () => observer.abort()
+    process.once("SIGINT", stop)
+    process.once("SIGTERM", stop)
+    try {
+      await displayEveRun(client, options.session, options.run, observer.signal)
+    } catch (error) {
+      if (!observer.signal.aborted) throw error
+      process.stderr.write("Observation stopped. The run continues; use nova eve-cancel to cancel explicitly.\n")
+    } finally {
+      process.removeListener("SIGINT", stop)
+      process.removeListener("SIGTERM", stop)
+    }
+  })
+
+novaCommand.command("eve-cancel")
+  .description("Explicitly cancel an Eve canary run")
+  .requiredOption("--origin <origin>", "Trusted Nova HTTPS origin or loopback HTTP origin")
+  .requiredOption("--session <id>", "Nova session ID")
+  .requiredOption("--run <id>", "Eve run ID to cancel")
+  .action(async (options: { origin: string; session: string; run: string }) => {
+    const client = await eveClient(options.origin)
+    await client.cancel(options.session, options.run)
+    process.stderr.write("Nova Eve cancellation requested.\n")
   })

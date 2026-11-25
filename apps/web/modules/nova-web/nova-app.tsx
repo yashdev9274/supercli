@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { Menu, MessageSquare, PanelLeft, X } from "lucide-react"
+import { eveCommand, resumeEveEvents, cancelEveTurn } from "./eve-client"
 
 import {
   bindSessionLocalProject,
@@ -316,13 +317,17 @@ export function NovaApp({
   const streamingRef = useRef(false)
   const turnStartedRef = useRef<string | null>(null)
   const activeRunIdRef = useRef<string | null>(null)
+  const eveRunRef = useRef(false)
+  const eveObserverRef = useRef<AbortController | null>(null)
   const workingSinceRef = useRef<number | null>(null)
   const workingStepsRef = useRef<WorkingStep[]>([])
 
   const selectedSessionRef = useRef(selectedId)
   useEffect(() => {
     selectedSessionRef.current = selectedId
+    if (eveRunRef.current && turnStartedRef.current !== selectedId) eveObserverRef.current?.abort()
   }, [selectedId])
+  useEffect(() => () => { eveObserverRef.current?.abort() }, [])
   const selectedPullId = route.pullId
   const view = route.view
   const codexCatalog = useAccountCodexCatalog(user.id)
@@ -704,13 +709,18 @@ export function NovaApp({
     setWorkingSince(since)
     workingSinceRef.current = since
     activeRunIdRef.current = null
+    eveObserverRef.current = null
     setDraft("")
     setReferences([])
     setLocalFiles([])
     try {
+      const canary = eveCommand(content)
+      eveRunRef.current = Boolean(canary)
+      if (canary) eveObserverRef.current = new AbortController()
+      if (canary && (opts?.references?.length || opts?.localAttachments?.length)) throw new Error("Eve canary is text-only; remove attachments and references")
       // Ensure the session is bound to the active project before the turn runs.
       const activeProjectId = isAgentChat ? null : embedded ? localProject?.id ?? null : getActiveLocalProjectId() || localProject?.id || null
-      if (!embedded && activeProjectId && !activeProjectId.startsWith("local-")) {
+      if (!canary && !embedded && activeProjectId && !activeProjectId.startsWith("local-")) {
         try {
           await bindSessionLocalProject(sessionId, activeProjectId)
         } catch {
@@ -719,16 +729,13 @@ export function NovaApp({
       }
 
       // Show packing progress immediately (Capy-style live log while work continues).
-      setStreamPhase("Packing project files…")
+      setStreamPhase(canary ? "Submitting read-only Eve turn…" : "Packing project files…")
       setWorkingSteps((steps) => {
-        const next = reduceWorkingSteps(steps, { type: "status", message: "Packing project files" })
+        const next = reduceWorkingSteps(steps, { type: "status", message: canary ? "Eve canary · no local files or writes" : "Packing project files" })
         workingStepsRef.current = next
         return next
       })
-      const localGitWorkspace = !embedded && !isAgentChat ? await ensureGitWorkspace(sessionId) : null
-      const packedAttachments = localGitWorkspace
-        ? await gitClient.pack(localGitWorkspace, content, opts?.localAttachments ?? [])
-        : isAgentChat
+      const packedAttachments = canary || isAgentChat
         ? []
         : localProject?.repositoryFullName || session?.githubSource
           ? opts?.localAttachments ?? []
@@ -757,7 +764,7 @@ export function NovaApp({
         hasAttachments: (opts?.localAttachments?.length ?? 0) > 0 || packedAttachments.length > 0,
         hasConnectedApps: !isAgentChat,
       })
-      const turnMode = resolved.mode
+      const turnMode = canary ? "chat" : resolved.mode
       if (resolved.auto && turnMode !== agentMode) {
         setAgentMode(turnMode)
       }
@@ -776,18 +783,21 @@ export function NovaApp({
         workingStepsRef.current = next
         return next
       })
-      for await (const event of streamTurn(sessionId, content, {
+      const events = canary?.resume ? resumeEveEvents(sessionId, canary.runId, eveObserverRef.current?.signal) : streamTurn(sessionId, canary?.content ?? content, {
         clientMessageId,
         model: opts?.model ?? model,
         provider: opts?.provider ?? provider,
-        effort: opts?.effort ?? effort,
+        effort: canary?.defaultEffort ? undefined : opts?.effort ?? effort,
         machineSize: opts?.machineSize ?? machineSize,
         mode: turnMode,
         references: opts?.references ?? [],
         localAttachments: packedAttachments,
         localWorktree: localGitWorkspace ? { sourceRef: localGitWorkspace.sourceRef, baseSha: localGitWorkspace.baseSha, paths: (await gitClient.files(localGitWorkspace.id)).slice(0, 4_000) } : undefined,
         resumeRunId: opts?.resumeRunId,
-      })) {
+        executionRuntime: canary ? "eve" : "legacy",
+        observationSignal: eveObserverRef.current?.signal,
+      })
+      for await (const event of events) {
         if (abortRef.current) break
         if (event.type === "status") {
           if (event.runId) activeRunIdRef.current = event.runId
@@ -904,8 +914,9 @@ export function NovaApp({
       }
       await Promise.all([loadSharedState(), pullSync(sessionId)])
     } catch (turnError) {
-      setError(turnError instanceof Error ? turnError.message : "Turn failed")
+      if (!eveObserverRef.current?.signal.aborted) setError(turnError instanceof Error ? turnError.message : "Turn failed")
     } finally {
+      eveRunRef.current = false
       streamingRef.current = false
       setStreaming(false)
       setStreamingText("")
@@ -1096,6 +1107,11 @@ export function NovaApp({
           streamPhase={streamPhase}
           workingSteps={workingSteps}
           streaming={streaming}
+          onStop={eveRunRef.current ? () => {
+            const runId = activeRunIdRef.current
+            if (!runId || !selectedId) { setError("Wait for the Eve admission ID before cancelling"); return }
+            void cancelEveTurn(selectedId, runId).then(() => setStreamPhase("Eve cancellation requested"), () => setError("Cancellation request failed; Eve may still be running"))
+          } : undefined}
           workingSince={workingSince}
           completedWorkByRunId={completedWorkByRunId}
           fileProposals={fileProposals}

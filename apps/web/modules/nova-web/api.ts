@@ -12,7 +12,7 @@ import type { LocalAttachment } from "@/modules/nova/attachments/contracts"
 import type { NovaReference } from "@/modules/nova/references/contracts"
 import type { NovaEffort } from "@/modules/nova-web/models"
 import type { MachineSize } from "@/modules/nova/sandbox/machine-sizes"
-import type { WorktreeContext } from "@/modules/nova/local-projects/worktree-context"
+import { submitEveTurn } from "./eve-client"
 
 export async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init)
@@ -297,9 +297,14 @@ export async function* streamTurn(
     references?: NovaReference[]
     localAttachments?: LocalAttachment[]
     resumeRunId?: string
-    localWorktree?: WorktreeContext
+    executionRuntime?: "legacy" | "eve"
+    observationSignal?: AbortSignal
   },
 ): AsyncGenerator<TurnEvent> {
+  if (options?.executionRuntime === "eve") {
+    yield* submitEveTurn(sessionId, { content, ...options })
+    return
+  }
   const response = await fetch(`/api/nova/sessions/${sessionId}/turn`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
