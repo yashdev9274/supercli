@@ -23,6 +23,10 @@ export function projectEveEvent(event: SessionStreamEvent, state: EveProjectionS
   usage?: { inputTokens: number; outputTokens: number; cacheReadTokens: number }
   terminal?: "completed" | "failed" | "cancelled"
 } {
+  if (event.type === "model.started") {
+    state.replyParts = {}
+    return { event: { type: "status", phase: "executing", message: repository ? "Eve is working in an isolated repository" : "Eve is responding · read-only canary" } }
+  }
   if (event.type === "content.delta") {
     const key = `part:${event.data.partId}`
     if (key.length > 300 || event.data.delta.length > 64_000) throw new Error("Eve output exceeds canary limits")
@@ -40,7 +44,6 @@ export function projectEveEvent(event: SessionStreamEvent, state: EveProjectionS
     if (JSON.stringify(state.replyParts).length > 128_000) throw new Error("Eve reply exceeds canary limits")
     if (!state.partialParts?.[key]) return { event: { type: "text", content: event.data.value } }
   }
-  if (event.type === "model.started") return { event: { type: "status", phase: "executing", message: repository ? "Eve is working in an isolated repository" : "Eve is responding · read-only canary" } }
   if (event.type === "call.requested") {
     if (repository && event.data.capability.kind === "agent" && isSpecialistRole(event.data.capability.name)) return { event: { type: "status", phase: "specialist", message: `${event.data.capability.name} specialist started · read-only` } }
     const allowed = repository ? ["runtime_info", "consult_specialist", "read_file", "search_files", "read_instructions", "write_file", "edit_file", "run_command", "repository_verify", "repository_finish"] : ["runtime_info"]

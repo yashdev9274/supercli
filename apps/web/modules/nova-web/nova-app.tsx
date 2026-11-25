@@ -718,6 +718,9 @@ export function NovaApp({
       eveRunRef.current = Boolean(canary)
       if (canary) eveObserverRef.current = new AbortController()
       if (canary && (opts?.references?.length || opts?.localAttachments?.length)) throw new Error("Eve canary is text-only; remove attachments and references")
+      const localGitWorkspace = !canary && !embedded && !isAgentChat && !session?.githubSource
+        ? await ensureGitWorkspace(sessionId)
+        : null
       // Ensure the session is bound to the active project before the turn runs.
       const activeProjectId = isAgentChat ? null : embedded ? localProject?.id ?? null : getActiveLocalProjectId() || localProject?.id || null
       if (!canary && !embedded && activeProjectId && !activeProjectId.startsWith("local-")) {
@@ -737,6 +740,8 @@ export function NovaApp({
       })
       const packedAttachments = canary || isAgentChat
         ? []
+        : localGitWorkspace
+          ? await gitClient.pack(localGitWorkspace, content, opts?.localAttachments ?? [])
         : localProject?.repositoryFullName || session?.githubSource
           ? opts?.localAttachments ?? []
         : embedded && getActiveLocalProjectId() !== activeProjectId

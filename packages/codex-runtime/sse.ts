@@ -10,6 +10,7 @@ const MAX_STREAM_BYTES = 16_777_216
 export async function* readResponsesSSE(
   stream: ReadableStream<Uint8Array>,
   signal: AbortSignal,
+  onActivity?: () => void,
 ): AsyncGenerator<HarnessStreamEvent, CompletedResponse> {
   signal.throwIfAborted()
   const reader = stream.getReader()
@@ -25,6 +26,7 @@ export async function* readResponsesSSE(
     while (true) {
       if (signal.aborted) throw new Error("cancelled")
       const chunk = await reader.read()
+      if (chunk.value?.byteLength) onActivity?.()
       if (signal.aborted) throw new Error("cancelled")
       bytes += chunk.value?.byteLength ?? 0
       if (bytes > MAX_STREAM_BYTES) throw new Error("size")
@@ -64,7 +66,7 @@ export async function* readResponsesSSE(
       }
     }
   } catch {
-    if (signal.aborted) throw new DOMException("ChatGPT stream cancelled", "AbortError")
+    if (signal.aborted) throw signal.reason ?? new DOMException("ChatGPT stream cancelled", "AbortError")
     throw new Error("ChatGPT stream did not complete successfully")
   } finally {
     signal.removeEventListener("abort", abort)

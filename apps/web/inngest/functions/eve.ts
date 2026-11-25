@@ -23,6 +23,6 @@ export const processEveCanary = inngest.createFunction({
 })
 
 export const reconcileEveCanary = inngest.createFunction({ id: "nova-eve-reconcile", retries: 1 }, { cron: "* * * * *" }, async ({ step }) => {
-  if (!novaMaintenanceCronsEnabled() || process.env.NOVA_EVE_CANARY_ENABLED !== "true") return skipMaintenanceCron()
+  if (!novaMaintenanceCronsEnabled()) return skipMaintenanceCron()
   return step.run("publish-pending-eve-runs", () => reconcileEveRuns())
 })

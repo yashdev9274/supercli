@@ -12,8 +12,14 @@ let controls: string[]
 let rejectControl = false
 let rejectAck = false
 let repositoryProof: any = null
+let readFailure = false
+let cancelDuringRead = false
+let abandoned: any[] = []
+let pending: any[] = []
+let sends: any[] = []
 
 const invocation = {
+  findMany: async ({ where }: any) => where.capability === "nova-eve:repository" ? abandoned : pending,
   count: async ({ where }: any) => [...events.values()].filter((row) => row.runId === where.runId && row.capability === where.capability).length,
   findFirst: async () => repositoryProof,
   findFirstOrThrow: async () => ({ ...primary, run }),
@@ -42,13 +48,18 @@ const db: any = {
   $transaction: async (fn: any) => fn(db),
 }
 mock.module("@super/db", () => ({ default: db }))
+mock.module("@/inngest/client", () => ({ inngest: { send: async (event: unknown) => { sends.push(event); return {} } } }))
 mock.module("@super/nova-runtime/remote", () => ({
   remoteConfig: () => ({ origin: "https://eve.example.test", secret: "synthetic-only" }),
   submitRemoteTurn: async (_config: any, _scope: any, _content: any, operation: string) => { submissions.push(operation); return "remote" },
-  readRemoteBatch: async () => batches.shift() ?? { events: [], nextLine: 0, nextIndex: -1 },
+  readRemoteBatch: async () => {
+    if (readFailure) throw new Error("observer connection lost")
+    if (cancelDuringRead) run.cancellationAt = new Date()
+    return batches.shift() ?? { events: [], nextLine: 0, nextIndex: -1 }
+  },
   controlRemoteTurn: async (_config: any, _scope: any, _id: any, action: string) => { controls.push(action); if (rejectControl) throw new Error("unreachable") },
 }))
-const { dispatchEveRun, observeEveRun, failEveRun } = await import("./worker")
+const { dispatchEveRun, observeEveRun, failEveRun, reconcileEveRuns } = await import("./worker")
 const oldFlag = process.env.NOVA_EVE_CANARY_ENABLED
 const oldUsers = process.env.NOVA_EVE_CANARY_USER_IDS
 const oldSpecialists = process.env.NOVA_EVE_SPECIALISTS_ENABLED
@@ -63,6 +74,8 @@ beforeEach(() => {
   events = new Map(); usage = new Map(); messages = []; batches = []; submissions = []; controls = []
   rejectAck = false; rejectControl = false
   repositoryProof = null
+  readFailure = false; cancelDuringRead = false
+  abandoned = []; pending = []; sends = []
 })
 afterAll(() => {
   if (oldFlag === undefined) delete process.env.NOVA_EVE_CANARY_ENABLED; else process.env.NOVA_EVE_CANARY_ENABLED = oldFlag
@@ -170,4 +183,68 @@ test("foreign or remote children never receive repository read grants", async ()
   batches.push({ events: [event(0, "child.opened", { sessionId: "child", name: "explorer", owner: { callId: "consult" }, stream: "https://other.example/stream" })], nextLine: 0, nextIndex: 0 })
   await expect(observeEveRun("run")).rejects.toThrow("Unrecognized")
   expect([...events.values()].filter((row) => row.capability === "nova-eve:specialist")).toHaveLength(0)
+})
+
+test("failure callbacks after completion cannot cancel an already successful remote session", async () => {
+  await dispatchEveRun("run")
+  run.status = "completed"
+  await failEveRun("run")
+  expect(controls).toEqual([])
+  expect(messages).toHaveLength(0)
+})
+
+test("a recorded execution can be recovered even when new admissions are disabled or expired", async () => {
+  await dispatchEveRun("run")
+  process.env.NOVA_EVE_CANARY_ENABLED = "false"
+  primary.arguments.expiresAt = new Date(0).toISOString()
+  await dispatchEveRun("run")
+  expect(submissions).toHaveLength(1)
+  await observeEveRun("run")
+  expect(controls).toContain("cancel")
+  expect(run.status).toBe("failed")
+})
+
+test("lost observation preserves the persisted cursor and replay recovers one reply without another admission", async () => {
+  await dispatchEveRun("run")
+  batches.push({ events: [event(0, "content.delta", { partId: "reply", kind: "text", delta: "hello" })], nextLine: 0, nextIndex: 0 })
+  await observeEveRun("run")
+  const snapshot = JSON.parse(JSON.stringify(primary.result))
+  readFailure = true
+  await expect(observeEveRun("run")).rejects.toThrow("connection lost")
+  expect(primary.result).toEqual(snapshot)
+  primary.result = JSON.parse(JSON.stringify(snapshot))
+  readFailure = false
+  batches.push({ events: [event(0, "content.delta", { partId: "reply", kind: "text", delta: "hello" }), event(1, "content.completed", { partId: "reply", kind: "text", phase: "reply", value: "hello" }), event(2, "turn.settled", { outcome: "completed" })], nextLine: 1, nextIndex: -1 })
+  await dispatchEveRun("run")
+  await observeEveRun("run")
+  expect(messages.map((message) => message.content)).toEqual(["hello"])
+  expect(submissions).toHaveLength(1)
+})
+
+test("completion concurrent with user cancellation is not reported as success or confirmed cancellation", async () => {
+  await dispatchEveRun("run")
+  cancelDuringRead = true
+  batches.push({ events: [event(0, "content.completed", { partId: "reply", kind: "text", phase: "reply", value: "late result" }), event(1, "turn.settled", { outcome: "completed" })], nextLine: 1, nextIndex: -1 })
+  await observeEveRun("run")
+  expect(run.status).toBe("failed")
+  expect(messages).toHaveLength(0)
+  expect([...events.values()].some((row) => row.result?.message?.includes("raced"))).toBe(true)
+})
+
+test("reconciliation fails abandoned repository work without reexecuting a mutation", async () => {
+  await dispatchEveRun("run")
+  abandoned = [{ id: "uncertain_tool", runId: "run" }]
+  await reconcileEveRuns()
+  expect(run.status).toBe("failed")
+  expect(controls).toContain("cancel")
+  expect(submissions).toHaveLength(1)
+  expect(sends).toEqual([])
+})
+
+test("reconciliation can recover persisted pending deliveries without enabling new admissions", async () => {
+  process.env.NOVA_EVE_CANARY_ENABLED = "false"
+  pending = [{ runId: "run" }]
+  expect(await reconcileEveRuns()).toBe(1)
+  expect(sends[0]).toMatchObject({ name: "nova/eve.dispatch.requested", data: { runId: "run" } })
+  expect(submissions).toHaveLength(0)
 })

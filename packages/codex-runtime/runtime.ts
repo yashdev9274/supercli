@@ -4,6 +4,7 @@ import type { ChatTransport } from "./contracts"
 import { codexAccountId, createCodexCredentials, type CodexCredentialContext } from "./credentials"
 import { parseCodexModels, validateCodexSelection } from "./models"
 import { boundedJson, CodexError, refreshCodexTokens } from "./provider"
+import { inferenceDeadline } from "./deadline"
 
 const BASE = "https://chatgpt.com/backend-api/codex"
 // The upstream catalog is client-version scoped. Keep this aligned with the
@@ -76,7 +77,9 @@ export function createCodexRuntime(context: CodexCredentialContext, fetcher: typ
     }
     const selectedEffort = effort ?? entry.defaultEffort
     return async function* (input) {
-      const deadline = AbortSignal.any([...(input.signal ? [input.signal] : []), AbortSignal.timeout(180_000)])
+      const budget = inferenceDeadline(input.signal)
+      const deadline = budget.signal
+      try {
       const tools = input.tools?.map(({ function: tool }) => ({ type: "function", ...tool, strict: false })) ?? []
       if (tools.some((tool) => !/^[A-Za-z0-9_-]{1,64}$/.test(tool.name))) throw new CodexError("Invalid Codex tool name")
       const body = {
@@ -87,6 +90,7 @@ export function createCodexRuntime(context: CodexCredentialContext, fetcher: typ
         ...(selectedEffort ? { reasoning: { effort: selectedEffort, summary: "auto" } } : {}),
       }
       const response = await request("/responses", body, deadline)
+      budget.activity()
       if (!response.body) throw new CodexError("Codex returned an empty response. Please retry.")
       const mediaType = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase()
       let completed: CompletedResponse
@@ -113,7 +117,8 @@ export function createCodexRuntime(context: CodexCredentialContext, fetcher: typ
         for (const event of events) yield event
         return completed
       }
-      return yield* readResponsesSSE(response.body, deadline)
+      return yield* readResponsesSSE(response.body, deadline, budget.activity)
+      } finally { budget.dispose() }
     }
   }
   async function prepare(model: string | undefined, effort?: string, signal?: AbortSignal): Promise<ChatTransport> {
@@ -124,7 +129,6 @@ export function createCodexRuntime(context: CodexCredentialContext, fetcher: typ
     let consumed = 0
     let round = 0
     const transport: ChatTransport = async function* (input) {
-      const deadline = AbortSignal.any([...(input.signal ? [input.signal] : []), AbortSignal.timeout(180_000)])
       if (!completed) {
         items = input.messages.filter((message) => message.role !== "system").map((message) => {
           if (message.role === "tool" || message.tool_calls || typeof message.content !== "string") throw new CodexError("Invalid Codex conversation")
@@ -144,14 +148,16 @@ export function createCodexRuntime(context: CodexCredentialContext, fetcher: typ
         items,
         instructions: input.messages.filter((message) => message.role === "system").map((message) => message.content).join("\n\n"),
         tools: input.tools,
-        signal: deadline,
+        signal: input.signal,
       })
+      try {
       while (true) {
         const next = await stream.next()
         if (next.done) { completed = next.value; break }
         yield next.value
       }
       round++
+      } finally { await stream.return({ output: [], calls: [] }) }
     }
     transport.checkpoint = () => ({ items, completed, consumed, round })
     transport.restore = (state) => {

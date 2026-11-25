@@ -252,3 +252,62 @@ test("journal receipts stay ordered, replay, and stop at approval", async () => 
   expect(order).toEqual(["read", "read", "approval", "read", "read", "approval"])
   expect([...rows.keys()]).toEqual(["primary:0", "primary:1", "primary:2"])
 })
+
+test("normal durable inference exposes live reasoning and CLI heartbeats before completion without duplicate reasoning", async () => {
+  await fixture(async ({ input, send, close, replies }) => {
+    const release = gate()
+    input.journal = createDurableJournal({
+      reserve: async (_key, hash) => ({ id: "inference", hash, status: "pending", result: null }),
+      claim: async () => true, finish: async () => {}, wait: async () => {},
+    })
+    input.chatTransport = async function* () {
+      yield { type: "reasoning", content: "Investigating the source" }
+      await release.promise
+      yield { type: "text", content: "Actual completed answer" }
+      yield { type: "finish", reason: "stop" }
+    }
+    const iterator = streamOriginalHarness(input)
+    const first = iterator.next()
+    send({ ...handoff("inference", "", "inference"), payload: { messages: [], tools: [] } })
+    expect((await first).value).toMatchObject({ type: "status", phase: "inference" })
+    expect((await iterator.next()).value).toEqual({ type: "reasoning", content: "Investigating the source" })
+    expect(replies).toHaveLength(0)
+    send({ type: "status", message: "CLI heartbeat while model works" })
+    expect((await iterator.next()).value).toEqual({ type: "status", message: "CLI heartbeat while model works" })
+    release.resolve()
+    send({ type: "reasoning", content: "Investigating " })
+    send({ type: "reasoning", content: "the source" })
+    send({ type: "text", content: "Actual completed answer" })
+    send({ type: "finish", reason: "stop" })
+    close()
+    const remaining = []
+    for await (const event of iterator) remaining.push(event)
+    expect(remaining).toEqual([{ type: "text", content: "Actual completed answer" }, { type: "finish", reason: "stop" }])
+    expect(replies).toHaveLength(1)
+    expect(replies[0].value).toContainEqual({ type: "text", content: "Actual completed answer" })
+  })
+})
+
+test("a write handoff remains an exclusive barrier while status messages continue streaming", async () => {
+  await fixture(async ({ input, send, close }) => {
+    const release = gate()
+    const order: string[] = []
+    input.execute = async (name) => {
+      order.push(name)
+      if (name === "write") await release.promise
+      return true
+    }
+    const iterator = streamOriginalHarness(input)
+    const next = iterator.next()
+    send(handoff("write", "write"))
+    send({ type: "status", message: "write is still running" })
+    expect((await next).value).toEqual({ type: "status", message: "write is still running" })
+    send(handoff("read", "read"))
+    expect(order).toEqual(["write"])
+    release.resolve()
+    send({ type: "finish" })
+    close()
+    for await (const _event of iterator) {}
+    expect(order).toEqual(["write", "read"])
+  })
+})

@@ -1,7 +1,7 @@
 import type { NetworkPolicy, NetworkPolicyRule } from "@vercel/sandbox"
 
 export const WORKSPACE = "/vercel/sandbox/repo"
-export const WORK_MS = 450_000
+export const WORK_MS = 540_000
 export const VM_MS = 540_000
 export const RETENTION_MS = 7 * 24 * 60 * 60 * 1000
 export const MAX_PATCH_BYTES = 1_000_000

@@ -9,7 +9,6 @@ let connected = true
 const updates: Array<Record<string, unknown>> = []
 const runUpdates: Array<Record<string, unknown>> = []
 const db = {
-  $executeRaw: async () => 1,
   $queryRaw: async () => [],
   $executeRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => {
     expect(strings.length).toBe(values.length + 1)
