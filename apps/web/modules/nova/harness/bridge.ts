@@ -1,6 +1,7 @@
 import { validateArguments } from "@super/agent-runtime"
 import { InteractionPending, type createDurableJournal } from "./durable"
 import { terminalHarnessUrl, streamHarnessChat, type HarnessChatMessage, type HarnessChatTool, type HarnessStreamEvent } from "./client"
+import { multiplexEvents } from "./event-stream"
 
 const VERSION = "nova-cli-harness/1"
 export type BridgeEvent = HarnessStreamEvent | { type: "tool-result"; toolName: string; toolCallId: string; args: Record<string, unknown>; content: string; status: "completed" | "failed" | "denied"; message: string }
@@ -22,6 +23,10 @@ export type BridgeInput = {
 
 /** No agent loop here: handoffs are initiated solely by the original CLI harness. */
 export async function* streamOriginalHarness(input: BridgeInput): AsyncGenerator<BridgeEvent> {
+  yield* multiplexEvents<BridgeEvent>((emit, signal) => streamBridge({ ...input, signal }, emit), input.signal)
+}
+
+async function* streamBridge(input: BridgeInput, emit: (event: BridgeEvent) => Promise<void>): AsyncGenerator<BridgeEvent> {
   const cancellation = new AbortController()
   input = { ...input, signal: AbortSignal.any([cancellation.signal, ...(input.signal ? [input.signal] : []), AbortSignal.timeout(540_000)]) }
   input.signal?.throwIfAborted()
@@ -45,6 +50,8 @@ export async function* streamOriginalHarness(input: BridgeInput): AsyncGenerator
   const pending = new Set<Promise<void>>()
   let handoffFailure: unknown
   let handoffFailed = false
+  let previewReasoning = ""
+  let exclusive = false
   const drain = async () => {
     await Promise.all(pending)
     if (handoffFailed) throw handoffFailure
@@ -56,6 +63,8 @@ export async function* streamOriginalHarness(input: BridgeInput): AsyncGenerator
     let error: string | undefined
     try {
       if (event.kind === "inference") {
+        previewReasoning = ""
+        await emit({ type: "status", phase: "inference", message: `Waiting for ${input.provider} model response` })
         if (!Array.isArray(payload.messages) || !Array.isArray(payload.tools)) throw new Error("Invalid inference handoff")
         for (const offered of payload.tools as HarnessChatTool[]) {
           const registered = tools.get(offered.function?.name)
@@ -71,6 +80,10 @@ export async function* streamOriginalHarness(input: BridgeInput): AsyncGenerator
           bytes += JSON.stringify(part).length
           if (bytes > 4_000_000 || events.length >= 10_000) throw new Error("Inference response exceeded bridge limits")
           events.push(part)
+          if (part.type === "reasoning") {
+            previewReasoning += part.content
+            await emit(part)
+          } else if (part.type === "status") await emit(part)
         }
         return { events, state: input.chatTransport?.checkpoint?.() }
         }
@@ -117,26 +130,34 @@ export async function* streamOriginalHarness(input: BridgeInput): AsyncGenerator
           if (terminal) throw new Error("Handoff after terminal outcome")
           if (!runId || typeof event.id !== "string" || consumed.has(event.id) || typeof event.hash !== "string") throw new Error("Invalid or replayed CLI handoff")
           consumed.add(event.id)
+          if (exclusive) { await drain(); exclusive = false }
           const payload = event.payload as Record<string, unknown> | undefined
           const name = typeof payload?.toolName === "string" ? payload.toolName : ""
           const concurrent = !input.journal && event.kind === "tool" && tools.get(name)?.access === "read"
             && name !== "question" && !input.approvalTools?.includes(name)
           if (!concurrent) {
             await drain()
-            await reply(event)
+            exclusive = true
           } else {
             if (pending.size >= 4) await Promise.race(pending)
             if (handoffFailed) throw handoffFailure
             input.signal?.throwIfAborted()
-            const task = reply(event).catch((failure) => {
-              if (!handoffFailed) {
-                handoffFailed = true
-                handoffFailure = failure
-              }
-              cancellation.abort()
-            }).finally(() => pending.delete(task))
-            pending.add(task)
           }
+          const task = reply(event).catch((failure) => {
+            if (!handoffFailed) {
+              handoffFailed = true
+              handoffFailure = failure
+            }
+            cancellation.abort()
+          }).finally(() => pending.delete(task))
+          pending.add(task)
+        }
+        else if (event.type === "reasoning" && typeof event.content === "string" && previewReasoning) {
+          const content = event.content
+          let matched = 0
+          while (matched < content.length && matched < previewReasoning.length && content[matched] === previewReasoning[matched]) matched++
+          previewReasoning = previewReasoning.slice(matched)
+          if (matched < content.length) yield { type: "reasoning", content: content.slice(matched) }
         }
         else if (event.type === "error") throw new Error(String(event.message ?? "CLI harness failed"))
         else if (event.type === "finish") {

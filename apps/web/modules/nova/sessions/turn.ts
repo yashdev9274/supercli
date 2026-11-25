@@ -513,7 +513,8 @@ export async function* runWebTurn(input: {
   }
   let workspace: Awaited<ReturnType<typeof openSandboxWorkspace>> | undefined
   let patchSaved = false
-  const turnSignal = AbortSignal.any([...(input.signal ? [input.signal] : []), AbortSignal.timeout(WORK_MS)])
+  const turnDeadline = AbortSignal.timeout(WORK_MS)
+  const turnSignal = AbortSignal.any([...(input.signal ? [input.signal] : []), turnDeadline])
 
   try {
     yield {
@@ -1036,7 +1037,10 @@ export async function* runWebTurn(input: {
     if (workspace && !patchSaved) {
       recovery = await workspace.savePatch().catch(() => "Cloud edits remain in the workspace, but patch export was unavailable.")
     }
-    const message = (error instanceof Error ? error.message : "Harness turn failed") + (recovery ? `\n\n${recovery}` : "")
+    const failure = turnDeadline.aborted && turnSignal.reason === turnDeadline.reason
+      ? "Nova reached the 9-minute request execution limit. The task did not complete. Split the request or use the background Eve path when it is enabled."
+      : error instanceof Error ? error.message : "Harness turn failed"
+    const message = failure + (recovery ? `\n\n${recovery}` : "")
     console.error("[nova/turn/harness]", message)
     try {
       const failed = await completeRun({
