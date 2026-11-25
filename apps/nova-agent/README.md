@@ -119,6 +119,7 @@ bun run test:codex
 bun run test:compatible
 bun run test:anthropic
 bun run test:repository
+bun run test:specialists
 bun run test:security
 ```
 
@@ -338,3 +339,47 @@ service. These do not provision a paid cloud VM or validate real provider keys.
 Production billing, checkout, recovery and patch download must be exercised in an
 authorized canary before enabling this feature for users. Step 4 is implemented
 as a gated code path, not deployed or live-account certified.
+
+## Specialist agents (step 5, read-only first version)
+
+`NOVA_EVE_SPECIALISTS_ENABLED=true` must be set separately on Eve and Nova to
+enable specialist delegation for authorized repository turns. Ordinary chat,
+operator-only sessions and nested child contexts do not receive
+`consult_specialist`. It waits durably for a single bounded assignment and returns
+the report for parent review; cancellation is passed to the child session.
+
+Three declared specialists have independent instructions and conversation state:
+
+- Explorer investigates files, versions, conventions and risks.
+- Implementer proposes exact version-bound edits. It cannot apply its proposal.
+- Verifier independently reviews code and suggests missing checks. It cannot run
+  commands or declare validation successful.
+
+All three expose only `read_file`, `search_files` and `read_instructions` through
+Nova's authorized sandbox bridge. Default tools, root-copy delegation, child
+delegation, shell commands, writes, verification and export are disabled. A
+specialist's default virtual sandbox provides no host or repository access; only
+the metered read bridge can reach the selected retained repository. Permission
+checks are enforced on the Nova server as well as in the Eve tool catalog.
+
+The Nova observer records local `child.opened` events before granting child reads,
+binding the actual child ID and role to the recorded parent execution. Remote
+children and unknown roles are rejected. Child tool receipts include both session
+and call identity, so child-local call IDs cannot collide. Delegation is bounded
+to six recorded children per parent and 30,000 tokens per specialist usage window;
+the existing parent deadline, operation budget and prepaid read costs still apply.
+Specialist status appears in the existing activity timeline; no new child detail
+UI is added here.
+
+The parent must inspect the returned evidence before applying any proposal, then
+perform its own validation and final patch-digest check. Child reports never
+authorize a write or count as passing tests. This version intentionally does not
+add concurrent writing agents: isolated writer workspaces and patch integration
+remain a later extension, not a feature implied by these specialist roles.
+
+The real Eve fixture exercises all three child conversations and signed read
+callbacks, checks unique recorded child lineage and no parent-private context
+leakage, and verifies zero child writes, commands or exports. Sandbox/database
+authorization tests additionally reject role forgery, root impersonation and
+mutation attempts. These are offline contracts, not live provider/sandbox or
+restart-recovery certification. The feature remains disabled and undeployed.

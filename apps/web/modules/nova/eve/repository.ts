@@ -7,8 +7,9 @@ import { openSandboxWorkspace, sandboxEligibility } from "../sandbox/service"
 import { sandboxProvider } from "../sandbox/policy"
 import { executeRepositoryOperation, type RepositoryVerification } from "./repository-engine"
 import { stableHash } from "../harness/durable"
+import { SPECIALIST_ROLES, specialistCanUseTool } from "@super/nova-runtime/specialists"
 
-const schema = z.object({ callId: z.string().min(1).max(200), runtimeSessionId: z.string().regex(/^[A-Za-z0-9_-]{1,256}$/), name: z.enum(["read_file", "search_files", "read_instructions", "write_file", "edit_file", "run_command", "repository_verify", "repository_finish"]), args: z.record(z.string(), z.unknown()) }).strict()
+const schema = z.object({ callId: z.string().min(1).max(200), runtimeSessionId: z.string().regex(/^[A-Za-z0-9_-]{1,256}$/), specialistRole: z.enum(SPECIALIST_ROLES).optional(), name: z.enum(["read_file", "search_files", "read_instructions", "write_file", "edit_file", "run_command", "repository_verify", "repository_finish"]), args: z.record(z.string(), z.unknown()) }).strict()
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue
 const hash = stableHash
 
@@ -51,9 +52,18 @@ async function executeScopedRepositoryTool(scope: NovaScope, operation: z.infer<
     admitted = await getEveAdmission(scope.userId, scope.novaSessionId, runId)
     mapping = admitted.result as unknown as { runtimeSessionId?: string }
   }
-  if (mapping.runtimeSessionId !== operation.runtimeSessionId) throw new EveAdmissionError("Repository tools require the recorded Eve execution identity", 409)
+  if (operation.specialistRole) {
+    if (process.env.NOVA_EVE_SPECIALISTS_ENABLED !== "true" || !specialistCanUseTool(operation.specialistRole, operation.name)) throw new EveAdmissionError("Specialists have read-only repository permissions", 403)
+    let child = null
+    for (let attempt = 0; !child && attempt < 20; attempt++) {
+      child = await prisma.toolInvocation.findFirst({ where: { runId, capability: "nova-eve:specialist", idempotencyKey: `nova-eve:specialist:${runId}:${operation.runtimeSessionId}` } })
+      if (!child) await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+    const identity = child?.arguments as { role?: string; parentRuntimeSessionId?: string } | undefined
+    if (!identity || identity.role !== operation.specialistRole || identity.parentRuntimeSessionId !== mapping.runtimeSessionId) throw new EveAdmissionError("Specialist is not a recorded child of this Eve execution", 403)
+  } else if (mapping.runtimeSessionId !== operation.runtimeSessionId) throw new EveAdmissionError("Repository tools require the recorded Eve execution identity", 409)
   const inputHash = hash([operation.name, operation.args])
-  const key = `nova-eve:repository:${runId}:${hash(operation.callId)}`
+  const key = `nova-eve:repository:${runId}:${hash([operation.runtimeSessionId, operation.callId])}`
   const claimed = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM agent_session WHERE id = ${scope.novaSessionId} FOR UPDATE`
     const run = await tx.agentRun.findUniqueOrThrow({ where: { id: runId } })

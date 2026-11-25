@@ -14,6 +14,7 @@ let rejectAck = false
 let repositoryProof: any = null
 
 const invocation = {
+  count: async ({ where }: any) => [...events.values()].filter((row) => row.runId === where.runId && row.capability === where.capability).length,
   findFirst: async () => repositoryProof,
   findFirstOrThrow: async () => ({ ...primary, run }),
   findUniqueOrThrow: async () => ({ ...primary, run }),
@@ -50,10 +51,12 @@ mock.module("@super/nova-runtime/remote", () => ({
 const { dispatchEveRun, observeEveRun, failEveRun } = await import("./worker")
 const oldFlag = process.env.NOVA_EVE_CANARY_ENABLED
 const oldUsers = process.env.NOVA_EVE_CANARY_USER_IDS
+const oldSpecialists = process.env.NOVA_EVE_SPECIALISTS_ENABLED
 
 beforeEach(() => {
   process.env.NOVA_EVE_CANARY_ENABLED = "true"
   process.env.NOVA_EVE_CANARY_USER_IDS = "user"
+  process.env.NOVA_EVE_SPECIALISTS_ENABLED = "true"
   run = { id: "run", agentSessionId: "session", status: "queued", cancellationAt: null }
   session = { activeRunId: "run", nextSequence: 5 }
   primary = { id: "invocation", runId: "run", startedAt: null, status: "pending", result: { runtimeSessionId: null, nextLine: 0, replyParts: {} }, arguments: { scope: { userId: "user", organizationId: "org", membershipId: "member", novaSessionId: "session", provider: "codex", model: "fixture", connectionId: "connection" }, content: "question", history: [], surfaceId: "surface", expiresAt: new Date(Date.now() + 60_000).toISOString() } }
@@ -64,6 +67,7 @@ beforeEach(() => {
 afterAll(() => {
   if (oldFlag === undefined) delete process.env.NOVA_EVE_CANARY_ENABLED; else process.env.NOVA_EVE_CANARY_ENABLED = oldFlag
   if (oldUsers === undefined) delete process.env.NOVA_EVE_CANARY_USER_IDS; else process.env.NOVA_EVE_CANARY_USER_IDS = oldUsers
+  if (oldSpecialists === undefined) delete process.env.NOVA_EVE_SPECIALISTS_ENABLED; else process.env.NOVA_EVE_SPECIALISTS_ENABLED = oldSpecialists
 })
 const event = (index: number, type: string, data: any) => ({ type, data, meta: { position: { line: 0, index }, at: new Date().toISOString() } })
 
@@ -146,4 +150,24 @@ test("successful repository completion attaches control-plane verification and p
   expect(messages[0].content).toContain("Verified patch link")
   expect(messages[0].content).toContain("a".repeat(64))
   expect(messages[0].content).not.toContain("not copied")
+})
+
+test("only recorded local specialist lineage creates child read grants and duplicates do not duplicate them", async () => {
+  primary.arguments.repository = { repositoryFullName: "owner/repo", validationCommands: ["bun test"] }
+  await dispatchEveRun("run")
+  const child = event(0, "child.opened", { sessionId: "child", name: "explorer", owner: { callId: "consult" }, stream: "/eve/v1/session/child/stream" })
+  batches.push({ events: [child], nextLine: 0, nextIndex: 0 }, { events: [child], nextLine: 0, nextIndex: 0 })
+  await observeEveRun("run")
+  await observeEveRun("run")
+  const children = [...events.values()].filter((row) => row.capability === "nova-eve:specialist")
+  expect(children).toHaveLength(1)
+  expect(children[0].arguments).toMatchObject({ role: "explorer", parentRuntimeSessionId: "remote", childRuntimeSessionId: "child" })
+})
+
+test("foreign or remote children never receive repository read grants", async () => {
+  primary.arguments.repository = { repositoryFullName: "owner/repo", validationCommands: ["bun test"] }
+  await dispatchEveRun("run")
+  batches.push({ events: [event(0, "child.opened", { sessionId: "child", name: "explorer", owner: { callId: "consult" }, stream: "https://other.example/stream" })], nextLine: 0, nextIndex: 0 })
+  await expect(observeEveRun("run")).rejects.toThrow("Unrecognized")
+  expect([...events.values()].filter((row) => row.capability === "nova-eve:specialist")).toHaveLength(0)
 })

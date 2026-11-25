@@ -5,6 +5,7 @@ import type { NovaScope } from "@super/nova-runtime/scope"
 import { inngest } from "@/inngest/client"
 import { projectEveEvent, eventCursor, type EveProjectionState } from "./projection"
 import type { EveAdmissionPayload } from "./admission"
+import { isSpecialistRole } from "@super/nova-runtime/specialists"
 
 const CAPABILITY = "nova-eve:admission"
 const terminal = (status: string) => ["completed", "failed", "cancelled"].includes(status)
@@ -117,6 +118,16 @@ export async function observeEveRun(runId: string): Promise<{ terminal: boolean 
     for (const event of batch.events) {
       const cursor = eventCursor(runId, event.meta.position.line, event.meta.position.index)
       if (await tx.toolInvocation.findUnique({ where: { idempotencyKey: cursor }, select: { id: true } })) continue
+      if (event.type === "child.opened") {
+        if (!payload.repository || process.env.NOVA_EVE_SPECIALISTS_ENABLED !== "true" || !isSpecialistRole(event.data.name) || !/^[A-Za-z0-9_-]{1,256}$/.test(event.data.sessionId) || event.data.stream !== `/eve/v1/session/${event.data.sessionId}/stream`) throw new Error("Unrecognized or remote specialist session")
+        const count = await tx.toolInvocation.count({ where: { runId, capability: "nova-eve:specialist" } })
+        if (count >= 6) throw new Error("Specialist delegation budget exhausted")
+        await tx.toolInvocation.upsert({ where: { idempotencyKey: `nova-eve:specialist:${runId}:${event.data.sessionId}` }, update: {}, create: {
+          runId, idempotencyKey: `nova-eve:specialist:${runId}:${event.data.sessionId}`, toolName: event.data.name,
+          capability: "nova-eve:specialist", riskClass: "read", normalizedArgsHash: "v1", status: "completed",
+          arguments: json({ role: event.data.name, parentRuntimeSessionId: state.runtimeSessionId, childRuntimeSessionId: event.data.sessionId }),
+        } })
+      }
       const projected = projectEveEvent(event, saved, Boolean(payload.repository))
       await tx.toolInvocation.create({ data: { runId, idempotencyKey: cursor, toolName: "eve_event", capability: "nova-eve:event", riskClass: "read", normalizedArgsHash: "v1", arguments: json({ sourceType: event.type }), status: "completed", result: projected.event ? json({ ...projected.event, runId }) : { type: "heartbeat" } } })
       if (projected.usage) await tx.novaUsageLedger.upsert({ where: { reservationKey: `${cursor}:usage` }, update: {}, create: { organizationId: payload.scope.organizationId, agentSessionId: row.run.agentSessionId, runId, kind: "inference", quantity: 0, unit: "credits", reservationKey: `${cursor}:usage`, metadata: json({ billing: "personal_account", provider: payload.scope.provider, model: payload.scope.model, ...projected.usage }) } })

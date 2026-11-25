@@ -1,4 +1,5 @@
 import type { SessionStreamEvent } from "eve/client"
+import { isSpecialistRole } from "@super/nova-runtime/specialists"
 
 type ProjectedEvent = { type: "text" | "reasoning"; content: string } | { type: "status"; phase: string; message: string }
 
@@ -41,10 +42,12 @@ export function projectEveEvent(event: SessionStreamEvent, state: EveProjectionS
   }
   if (event.type === "model.started") return { event: { type: "status", phase: "executing", message: repository ? "Eve is working in an isolated repository" : "Eve is responding · read-only canary" } }
   if (event.type === "call.requested") {
-    const allowed = repository ? ["runtime_info", "read_file", "search_files", "read_instructions", "write_file", "edit_file", "run_command", "repository_verify", "repository_finish"] : ["runtime_info"]
+    if (repository && event.data.capability.kind === "agent" && isSpecialistRole(event.data.capability.name)) return { event: { type: "status", phase: "specialist", message: `${event.data.capability.name} specialist started · read-only` } }
+    const allowed = repository ? ["runtime_info", "consult_specialist", "read_file", "search_files", "read_instructions", "write_file", "edit_file", "run_command", "repository_verify", "repository_finish"] : ["runtime_info"]
     if (event.data.capability.kind !== "tool" || !allowed.includes(event.data.capability.name)) throw new Error("Unexpected capability in the read-only canary")
     return { event: { type: "status", phase: "tool", message: repository ? `Repository tool · ${event.data.capability.name}` : "Checking runtime capabilities" } }
   }
+  if (event.type === "child.opened" && repository && isSpecialistRole(event.data.name)) return { event: { type: "status", phase: "specialist", message: `${event.data.name} has an independent conversation · parent reviews the result` } }
   if (event.type === "call.settled") return { event: { type: "status", phase: "tool", message: `Read-only tool ${event.data.outcome}` } }
   if (event.type === "usage.recorded") {
     const usage = event.data.usage

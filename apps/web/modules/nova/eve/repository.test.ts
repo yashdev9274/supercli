@@ -119,7 +119,7 @@ mock.module("../sandbox/service", () => ({
   },
 }))
 const { repositoryToolRequest } = await import("./repository")
-const originalEnv = Object.fromEntries(["NOVA_EVE_REPOSITORY_ENABLED", "NOVA_EVE_REPOSITORY_USER_IDS", "NOVA_EVE_ENABLED", "NOVA_SANDBOX_ENABLED", "NOVA_EVE_SCOPE_SECRET"].map((key) => [key, process.env[key]]))
+const originalEnv = Object.fromEntries(["NOVA_EVE_REPOSITORY_ENABLED", "NOVA_EVE_REPOSITORY_USER_IDS", "NOVA_EVE_ENABLED", "NOVA_EVE_SPECIALISTS_ENABLED", "NOVA_SANDBOX_ENABLED", "NOVA_EVE_SCOPE_SECRET"].map((key) => [key, process.env[key]]))
 beforeEach(() => {
   receipts = []; children = []; events = []; opens = 0; closes = 0; closeFails = false
   memberActive = true; digest = "a".repeat(64); artifactCount = 0
@@ -129,6 +129,7 @@ beforeEach(() => {
   process.env.NOVA_EVE_ENABLED = "true"
   process.env.NOVA_SANDBOX_ENABLED = "true"
   process.env.NOVA_EVE_SCOPE_SECRET = secret
+  process.env.NOVA_EVE_SPECIALISTS_ENABLED = "true"
 })
 afterEach(() => {
   for (const [key, value] of Object.entries(originalEnv)) {
@@ -136,10 +137,10 @@ afterEach(() => {
     else process.env[key] = value
   }
 })
-function request(callId = "call_1", name = "read_file", args: Row = { path: "file.ts" }, selected: NovaScope = scope, runtime = "eve_session") {
+function request(callId = "call_1", name = "read_file", args: Row = { path: "file.ts" }, selected: NovaScope = scope, runtime = "eve_session", specialistRole?: string) {
   return repositoryToolRequest(new Request("http://localhost/api/repository", {
     method: "POST", headers: { authorization: `Bearer ${signNovaScope(selected, { secret })}` },
-    body: JSON.stringify({ callId, runtimeSessionId: runtime, name, args }),
+    body: JSON.stringify({ callId, runtimeSessionId: runtime, name, args, specialistRole }),
   }))
 }
 
@@ -149,6 +150,23 @@ test("read-only scope and disabled feature are rejected before acquisition", asy
   process.env.NOVA_EVE_REPOSITORY_ENABLED = "false"
   await expect(request()).rejects.toMatchObject({ statusCode: 403 })
   expect(opens).toBe(0)
+})
+
+test("recorded specialists can read but cannot mutate, execute, verify or finalize", async () => {
+  receipts.push({ id: "specialist", runId: "parent", capability: "nova-eve:specialist", idempotencyKey: "nova-eve:specialist:parent:child_eve", arguments: { role: "explorer", parentRuntimeSessionId: "eve_session" } })
+  expect(await request("read", "read_file", { path: "file.ts" }, scope, "child_eve", "explorer")).toMatchObject({ success: true })
+  for (const name of ["write_file", "edit_file", "run_command", "repository_verify", "repository_finish"]) await expect(request("forbidden", name, {}, scope, "child_eve", "explorer")).rejects.toMatchObject({ statusCode: 403 })
+  await expect(request("role_forgery", "read_file", { path: "file.ts" }, scope, "child_eve", "verifier")).rejects.toMatchObject({ statusCode: 403 })
+  await expect(request("root_forgery", "read_file", { path: "file.ts" }, scope, "child_eve")).rejects.toMatchObject({ statusCode: 409 })
+  expect(opens).toBe(1)
+})
+
+test("same child-local call ID has independent receipts across specialist sessions", async () => {
+  for (const id of ["child_one", "child_two"]) {
+    receipts.push({ id, runId: "parent", capability: "nova-eve:specialist", idempotencyKey: `nova-eve:specialist:parent:${id}`, arguments: { role: "explorer", parentRuntimeSessionId: "eve_session" } })
+    expect(await request("same_call", "read_file", { path: "file.ts" }, scope, id, "explorer")).toMatchObject({ success: true })
+  }
+  expect(opens).toBe(2)
 })
 
 test("revoked membership, changed signed grant and wrong Eve identity are denied", async () => {

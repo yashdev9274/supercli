@@ -5,6 +5,7 @@
   "exports": {
     "./scope": "./scope.ts",
     "./store": "./store.ts",
+    "./specialists": "./specialists.ts",
     "./remote": "./remote.ts"
   },
   "scripts": { "typecheck": "tsc --noEmit" },
