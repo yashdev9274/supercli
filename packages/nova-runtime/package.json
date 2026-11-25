@@ -1,0 +1,13 @@
+{
+  "name": "@super/nova-runtime",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./scope": "./scope.ts",
+    "./store": "./store.ts",
+    "./remote": "./remote.ts"
+  },
+  "scripts": { "typecheck": "tsc --noEmit" },
+  "dependencies": { "@super/agent-runtime": "workspace:*", "@super/db": "workspace:*", "eve": "1.3.0" },
+  "devDependencies": { "@types/bun": "^1.3.14", "typescript": "^5.7.0" }
+}

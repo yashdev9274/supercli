@@ -1,0 +1,23 @@
+{
+  "name": "@super/provider-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./config": "./config.ts",
+    "./vault": "./vault.ts",
+    "./store": "./store.ts"
+  },
+  "scripts": {
+    "test": "bun test store.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@super/db": "workspace:*",
+    "@super/agent-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "typescript": "^5"
+  }
+}

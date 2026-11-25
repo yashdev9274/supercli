@@ -6,18 +6,11 @@ import prisma from "@super/db"
 import { API_KEY_PROVIDER_IDS } from "@/modules/nova-web/provider-integrations"
 
 import { configuredProviderVault, ProviderCredentialError } from "./vault"
+import type { StoredProviderConfig } from "@super/provider-runtime/config"
+export type { StoredProviderConfig } from "@super/provider-runtime/config"
 
 export const SUPPORTED_PROVIDER_CREDENTIALS = ["cursor", "opencode", ...API_KEY_PROVIDER_IDS] as const
 export type ProviderCredentialProvider = typeof SUPPORTED_PROVIDER_CREDENTIALS[number]
-
-export type StoredProviderConfig = {
-  apiKey?: string
-  name?: string
-  baseUrl?: string
-  apiFamily?: "openai" | "anthropic" | "google"
-  headers?: Record<string, string>
-  models?: Array<{ id: string; label: string; description?: string }>
-}
 
 export function isProviderCredentialProvider(value: string): value is ProviderCredentialProvider {
   return (SUPPORTED_PROVIDER_CREDENTIALS as readonly string[]).includes(value)
