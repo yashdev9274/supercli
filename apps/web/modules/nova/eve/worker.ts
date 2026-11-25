@@ -24,6 +24,7 @@ export async function dispatchEveRun(runId: string): Promise<void> {
   if (terminal(row.run.status)) return
   const payload = row.arguments as unknown as EveAdmissionPayload
   const state = row.result as unknown as EveProjectionState
+  if (state.runtimeSessionId) return
   if (row.run.cancellationAt && !state.runtimeSessionId) {
     if (row.startedAt) throw new Error("Remote admission outcome is uncertain; automatic resubmission after cancellation is unsafe")
     await failEveRun(runId, "cancelled")
@@ -33,7 +34,6 @@ export async function dispatchEveRun(runId: string): Promise<void> {
   if (process.env.NOVA_EVE_CANARY_ENABLED !== "true" || !users.includes(payload.scope.userId)) throw new Error("Eve canary admission is disabled")
   if (Date.parse(payload.expiresAt) <= Date.now()) throw new Error("Eve canary run expired")
   if (!isIntegrationId(payload.scope.provider)) throw new Error("Unsupported Eve provider")
-  if (state.runtimeSessionId) return
   await prisma.toolInvocation.update({ where: { id: row.id }, data: { status: "executing", startedAt: row.startedAt ?? new Date() } })
   const config = remoteConfig()
   const history = payload.history.map((message) => `${message.role}: ${message.text}`).join("\n\n")
@@ -78,6 +78,7 @@ async function finish(tx: Prisma.TransactionClient, runId: string, payload: EveA
 
 export async function failEveRun(runId: string, outcome: "failed" | "cancelled" = "failed"): Promise<void> {
   const row = await load(runId)
+  if (terminal(row.run.status)) return
   const payload = row.arguments as unknown as EveAdmissionPayload
   const state = row.result as unknown as EveProjectionState
   if (outcome === "failed" && !state.runtimeSessionId && row.startedAt) {
@@ -135,7 +136,13 @@ export async function observeEveRun(runId: string): Promise<{ terminal: boolean 
         const sequence = await tx.agentSession.update({ where: { id: row.run.agentSessionId }, data: { nextSequence: { increment: 1 } }, select: { nextSequence: true } })
         await tx.agentActivity.create({ data: { agentSessionId: row.run.agentSessionId, surfaceId: payload.surfaceId, runId, sequence: sequence.nextSequence - 1, type: "progress", status: "working", title: "Eve · read-only", body: projected.event.message } })
       }
-      if (projected.terminal) { await finish(tx, runId, payload, projected.terminal, saved); ended = true; break }
+      if (projected.terminal) {
+        const outcome = current.run.cancellationAt && projected.terminal === "completed" ? "failed" : projected.terminal
+        if (outcome === "failed" && current.run.cancellationAt) saved.terminalError = "Completion raced with cancellation. The result was not accepted as successful; inspect retained workspace changes before retrying."
+        await finish(tx, runId, payload, outcome, saved)
+        ended = true
+        break
+      }
     }
     const advanced = batch.nextLine > saved.nextLine || batch.nextLine === saved.nextLine && batch.nextIndex > (saved.nextIndex ?? -1)
     await tx.toolInvocation.update({ where: { id: row.id }, data: { result: json({ ...saved, ...(advanced ? { nextLine: batch.nextLine, nextIndex: batch.nextIndex } : {}) }) } })
@@ -145,6 +152,14 @@ export async function observeEveRun(runId: string): Promise<{ terminal: boolean 
 }
 
 export async function reconcileEveRuns(): Promise<number> {
+  const abandoned = await prisma.toolInvocation.findMany({
+    where: { capability: "nova-eve:repository", status: "executing", startedAt: { lt: new Date(Date.now() - 7 * 60_000) }, run: { status: { notIn: ["completed", "failed", "cancelled"] } } },
+    select: { id: true, runId: true }, take: 50,
+  })
+  for (const receipt of abandoned) {
+    await prisma.toolInvocation.updateMany({ where: { id: receipt.id, status: "executing" }, data: { error: "Repository execution was interrupted. Its outcome is uncertain and it will not be replayed." } })
+    await failEveRun(receipt.runId)
+  }
   const rows = await prisma.toolInvocation.findMany({ where: { capability: CAPABILITY, status: { in: ["pending", "executing"] }, updatedAt: { lt: new Date(Date.now() - 60_000) }, run: { status: { notIn: ["completed", "failed", "cancelled"] } } }, select: { runId: true }, take: 50 })
   for (const row of rows) await inngest.send({ name: "nova/eve.dispatch.requested", id: `nova-eve:reconcile:${row.runId}:${Math.floor(Date.now() / 60_000)}`, data: { runId: row.runId } })
   return rows.length

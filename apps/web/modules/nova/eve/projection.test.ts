@@ -34,3 +34,12 @@ test("only runtime_info can appear as a canary capability and provider errors ar
   expect(projectEveEvent(event("model.settled", { error: { message: "private-credential" } }), saved)).toEqual({})
   expect(JSON.stringify(projectEveEvent(event("session.ended", { error: { message: "private-credential" } }), saved))).not.toContain("private-credential")
 })
+
+test("a retry cannot complete using an earlier model round's stale reply", () => {
+  const saved = state()
+  projectEveEvent(event("content.completed", { partId: "old", kind: "text", phase: "reply", value: "obsolete answer" }), saved)
+  projectEveEvent(event("model.started", {}), saved)
+  expect(saved.replyParts).toEqual({})
+  projectEveEvent(event("content.completed", { partId: "new", kind: "text", phase: "reply", value: "current answer" }), saved)
+  expect(Object.values(saved.replyParts)).toEqual(["current answer"])
+})

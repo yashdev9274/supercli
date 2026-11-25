@@ -14,6 +14,8 @@
     "test:anthropic": "cd tests/fixtures/anthropic && eve eval --strict",
     "test:repository": "cd tests/fixtures/repository && eve eval --strict",
     "test:specialists": "cd tests/fixtures/specialists && eve eval --strict",
+    "test:recovery": "cd tests/fixtures/codex && eve build && cd ../../.. && node --test tests/restart-recovery.test.mjs",
+    "benchmark": "bun tests/benchmark-runner.ts",
     "test:security": "bun run build && node --test tests/workflow-security.test.mjs",
     "typecheck": "tsc --noEmit"
   },
