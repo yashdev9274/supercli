@@ -1,33 +1,6 @@
-/** Model catalog mirrored by supercode-cli slashCommands/model.ts. */
+import type { HarnessIntegrationId } from "@super/agent-runtime/integrations"
 
-export type HarnessProvider =
-  | "codex"
-  | "supercode"
-  | "concentrateai"
-  | "mergedev"
-  | "google"
-  | "minimax"
-  | "nvidia"
-  | "openrouter"
-  | "orcarouter"
-  | "neon"
-  | "cursor"
-  | "opencode"
-  | "vercel"
-  | "cloudflare"
-  | "ollama"
-  | "bedrock"
-  | "baseten"
-  | "fireworks"
-  | "together"
-  | "deepinfra"
-  | "kimi"
-  | "zai-coding"
-  | "anthropic"
-  | "openai"
-  | "xai"
-  | "meta"
-  | "custom"
+export type HarnessProvider = HarnessIntegrationId
 
 export type NovaModelEntry = {
   id: string

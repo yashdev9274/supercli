@@ -1,8 +1,10 @@
+import { integrationFor, type IntegrationId } from "@super/agent-runtime/integrations"
+
 import type { BrandLogo } from "./model-logos"
 
 export type ProviderIntegrationCategory = "subscription" | "gateway" | "api-key" | "custom"
 export type ProviderIntegration = {
-  id: string
+  id: IntegrationId
   label: string
   subtitle: string
   category: ProviderIntegrationCategory
@@ -45,5 +47,5 @@ export const PROVIDER_INTEGRATIONS: ProviderIntegration[] = [
 ]
 
 export const PROVIDER_INTEGRATION_BY_ID = Object.fromEntries(PROVIDER_INTEGRATIONS.map((item) => [item.id, item])) as Record<string, ProviderIntegration>
-export const API_KEY_PROVIDER_IDS = PROVIDER_INTEGRATIONS.filter((item) => item.category !== "subscription").map((item) => item.id)
+export const API_KEY_PROVIDER_IDS: string[] = PROVIDER_INTEGRATIONS.filter((item) => integrationFor(item.id).credential === "provider-key").map((item) => item.id)
 export const SUBSCRIPTION_PROVIDER_IDS = PROVIDER_INTEGRATIONS.filter((item) => item.category === "subscription").map((item) => item.id)

@@ -1,0 +1,20 @@
+{
+  "name": "@super/codex-runtime",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./runtime": "./runtime.ts",
+    "./store": "./store.ts",
+    "./provider": "./provider.ts",
+    "./credentials": "./credentials.ts",
+    "./service": "./service.ts",
+    "./vault": "./vault.ts",
+    "./models": "./models.ts",
+    "./responses": "./responses.ts",
+    "./sse": "./sse.ts",
+    "./contracts": "./contracts.ts"
+  },
+  "scripts": { "typecheck": "tsc --noEmit" },
+  "dependencies": { "@super/db": "workspace:*", "zod": "^4.3.5" },
+  "devDependencies": { "@types/bun": "^1.3.14", "typescript": "^5.7.0" }
+}

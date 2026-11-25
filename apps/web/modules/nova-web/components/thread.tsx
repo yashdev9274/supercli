@@ -87,6 +87,7 @@ export function ThreadView({
   onEffortChange,
   onModeChange,
   onSubmit,
+  onStop,
   onRefresh,
   onToggleDetails,
   onDecision,
@@ -131,6 +132,7 @@ export function ThreadView({
   onEffortChange: (effort: NovaEffort) => void
   onModeChange: (mode: NovaAgentMode) => void
   onSubmit: () => void
+  onStop?: () => void
   onRefresh: () => void
   onToggleDetails: () => void
   onDecision: (approval: ApprovalRequest, decision: "approved" | "denied") => void
@@ -395,6 +397,7 @@ export function ThreadView({
             projectLocked={projectLocked || chatOnly}
              modelLocked={chatOnly}
             onSubmit={onSubmit}
+            onStop={onStop}
             streaming={streaming}
             disabled={loading}
             model={model}
