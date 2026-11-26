@@ -858,7 +858,7 @@ function heatColor(level: 0 | 1 | 2 | 3 | 4) {
     case 1: return "bg-[#0f3f3a]"
     case 2: return "bg-[#176f64]"
     case 3: return "bg-[#1f9b8a]"
-    case 4: return "bg-[#666670]"
+    case 4: return "bg-[#2dd4bf]"
     default: return "bg-white/[0.04]"
   }
 }

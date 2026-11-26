@@ -155,7 +155,7 @@ export function AgentRoutinesCard({ agentId, onClose }: { agentId: string; onClo
                   <span className="block truncate text-xs">{routine.name}</span>
                   <span className="mt-1 block text-[10px] text-[#92929b]">{routine.status} · {routine.scheduleType}</span>
                 </button>
-              )) : <p className="p-3 text-xs text-[#777780]">No routines yet.</p>}
+              )) : <p className="p-3 text-xs text-[#92929b]">No routines yet.</p>}
             </aside>
             <main className="min-h-0 overflow-y-auto p-4 sm:p-6">
               <div className="flex items-center justify-between">

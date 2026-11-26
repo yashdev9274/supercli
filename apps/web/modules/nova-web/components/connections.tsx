@@ -223,11 +223,11 @@ export function ConnectionsView({
 
     for (const app of apps) {
       if (status === "connected" && !app.connected) continue
-      if (![app.name, app.slug, app.description, PROVIDER_BLURB[app.slug] ?? "", ...app.categories.flatMap((category) => [category.name, category.slug])]
-        .join(" ").toLowerCase().includes(searchTerm)) continue
       const categories = app.categories.length > 0
         ? app.categories
         : [{ slug: "other", name: "Other" }]
+      if (![app.name, app.slug, app.description, PROVIDER_BLURB[app.slug] ?? "", ...categories.flatMap((category) => [category.name, category.slug])]
+        .join(" ").toLowerCase().includes(searchTerm)) continue
       const category = [...categories].sort((a, b) => categoryRank(a.slug) - categoryRank(b.slug))[0]
         ?? { slug: "other", name: "Other" }
       const group = groups.get(category.slug)
