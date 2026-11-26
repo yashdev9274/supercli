@@ -409,6 +409,12 @@ registerComposioRoutes(app, getUserFromBearer)
 registerNovaHarnessRoutes(app, getUserFromBearer)
 registerIslandLinkRoutes(app, getUserFromBearer)
 
+app.get("/api/voice/identity", async (req, res) => {
+  const user = await getUserFromBearer(req)
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return }
+  res.json({ id: user.id, email: user.email, name: user.name, image: user.image })
+})
+
 async function proxyDesktopReview(req: express.Request, res: express.Response) {
   const user = await getUserFromBearer(req)
   if (!user) {

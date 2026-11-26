@@ -331,6 +331,9 @@ class VoiceAgentManager: ObservableObject {
             reset()
         } catch {
             print("[VoiceAgent] Nova turn failed: \(error)")
+            if case NovaVoiceService.NovaError.turnFailed(_, let sessionId) = error, let sessionId {
+                novaSessionId = sessionId
+            }
             response = (error as? LocalizedError)?.errorDescription ?? "Nova could not run that."
             await ttsService.speak(response, apiKey: ttsAPIKey)
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.reset() }
@@ -442,6 +445,7 @@ class VoiceAgentManager: ObservableObject {
             "to", "now", "quickly",
         ]
         for verb in openVerbs {
+            guard lower.hasPrefix("\(verb) ") else { continue }
             let remainder = lower
                 .replacingOccurrences(of: "\(verb) ", with: "", options: [.anchored])
                 .trimmingCharacters(in: .whitespaces)

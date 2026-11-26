@@ -11,7 +11,7 @@ export function spokenSummary(answer: string): string {
     .trim()
     .replace(/\s+([.!?])/g, "$1")
   if (!clean) return "Done. I left the full result in your Nova thread."
-  const sentences = clean.match(/[^.!?]+[.!?]+/g) ?? [clean]
+  const sentences = clean.match(/.+?(?:[.!?](?=\s|$)|$)/g) ?? [clean]
   const summary = sentences.slice(0, 2).join(" ").replace(/\s+/g, " ").trim()
-  return summary.length > 320 ? `${summary.slice(0, 317).trimEnd()}...` : summary
+  return summary.length > 320 ? `${summary.slice(0, 317).replace(/\s+\S*$/, "").trimEnd()}...` : summary
 }

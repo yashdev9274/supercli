@@ -237,7 +237,7 @@ export function looksLikeProcessScratch(text: string): boolean {
   const sentences = t.split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim()).filter(Boolean)
   if (sentences.length > 0 && sentences.length <= 12) {
     const planish = sentences.filter((s) =>
-      /\b(need|must|use|call|invoke|tool|search|query|parameter|block|wants)\b/i.test(s),
+      /^(?:we\s+need\b|need\s+(?:to\s+)?(?:provide|supply|call|use|run|search)\b|must\s+(?:supply|provide|call|invoke)\b|use\s+(?:the\s+)?\w*tool\b|user\s+wants\b|I(?:'ll| will)\s+(?:run|call|use|search|try|invoke)\b)/i.test(s),
     ).length
     if (planish / sentences.length >= 0.6 && answerHits === 0 && t.length < 900) return true
   }

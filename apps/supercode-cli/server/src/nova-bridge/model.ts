@@ -1,4 +1,5 @@
 import type { LanguageModel } from "ai"
+import { finalizeAnswerVsProcess } from "../runtime/stream/split-think-content"
 
 type Model = Extract<LanguageModel, { specificationVersion: "v3" }>
 type Prompt = Parameters<Model["doStream"]>[0]["prompt"]
@@ -27,11 +28,25 @@ export function createBridgeModel(rpc: Rpc): Model {
     doStream: async (options) => {
       options.abortSignal?.throwIfAborted()
       const current = round++
-      const raw = await rpc("inference", {
+      const payload = {
         messages: bridgeMessages(options.prompt),
         tools: options.tools?.flatMap((tool) => tool.type === "function" ? [{ type: "function", function: { name: tool.name, description: tool.description ?? "", parameters: tool.inputSchema } }] : []) ?? [],
-      })
+      }
+      let raw = await rpc("inference", payload)
       if (!Array.isArray(raw) || raw.length > 10_000) throw new Error("Invalid inference reply")
+      const events = raw as Record<string, unknown>[]
+      const failed = events.some((event) => event.type === "error" || (event.type === "finish" && event.reason === "error"))
+      const hasCalls = events.some((event) => event.type === "tool-call")
+      const content = events.filter((event) => event.type === "text").map((event) => String(event.content ?? "")).join("")
+      const priorReasoning = events.filter((event) => event.type === "reasoning").map((event) => String(event.content ?? "")).join("")
+      if (!failed && !hasCalls && !finalizeAnswerVsProcess(content, priorReasoning).text.trim()) {
+        raw = await rpc("inference", {
+          messages: [...payload.messages, { role: "system", content: "The last attempt produced no user-facing answer. Give a brief final answer to the user's request using the information already available. If information is missing, say so or ask one clarification. Do not describe your reasoning or claim any new actions were performed." }],
+          tools: [],
+        })
+        if (!Array.isArray(raw) || raw.length > 10_000) throw new Error("Invalid inference reply")
+        if ((raw as Record<string, unknown>[]).some((event) => event.type === "tool-call")) throw new Error("Unexpected tool call during answer recovery")
+      }
       type Part = Awaited<ReturnType<Model["doStream"]>>["stream"] extends ReadableStream<infer P> ? P : never
       const parts: Part[] = [{ type: "stream-start", warnings: [] }]
       let reason = "stop"

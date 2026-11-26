@@ -108,6 +108,27 @@ test("fetches connected Linear data with the CLI token and feeds it back to the 
   expect(events.filter((event) => event.type === "finish")).toHaveLength(1)
 })
 
+test("voice chat keeps connected reads without offering delegation or mutation tools", async () => {
+  responses = [
+    [call("find_connected_read_tools", "find", { query: "Linear workspace" }), { type: "finish", reason: "tool_calls" }],
+    [call("read_connected_app", "read", { toolName: "LINEAR_GET_WORKSPACE", arguments: {} }), { type: "finish", reason: "tool_calls" }],
+    [{ type: "text", content: "Your workspace is Connected Linear workspace." }, { type: "finish", reason: "stop" }],
+  ]
+  const events: HarnessAgentEvent[] = []
+  for await (const event of streamHarnessAgent({
+    token: "authenticated-cli-account",
+    provider: "supercode",
+    model: "test-model",
+    mode: "chat",
+    responseStyle: "voice",
+    messages: [{ role: "user", content: "What is my workspace?" }],
+  })) events.push(event)
+  expect(chats).toHaveLength(3)
+  expect(chats[0]?.tools?.map((tool) => tool.function.name)).toEqual(["find_connected_read_tools", "read_connected_app"])
+  expect(executions).toEqual([{ toolName: "LINEAR_GET_WORKSPACE", arguments: {} }])
+  expect(events.filter((event) => event.type === "text").map((event) => event.content).join("")).toContain("Connected Linear workspace")
+})
+
 test("keeps multiple calls and their results paired across model rounds", async () => {
   responses = [
     [call("LINEAR_GET_WORKSPACE", "workspace"), call("LINEAR_LIST_TEAMS", "teams"), { type: "finish", reason: "tool_calls" }],

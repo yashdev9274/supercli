@@ -14,11 +14,13 @@ struct NovaVoiceService {
     enum NovaError: LocalizedError {
         case notSignedIn
         case unavailable(String)
+        case turnFailed(String, String?)
 
         var errorDescription: String? {
             switch self {
             case .notSignedIn: return "Sign in to Nova from Settings first."
             case .unavailable(let message): return message
+            case .turnFailed(let message, _): return message
             }
         }
     }
@@ -43,7 +45,7 @@ struct NovaVoiceService {
         let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             let message = json?["error"] as? String ?? "Nova could not run that."
-            throw NovaError.unavailable(message)
+            throw NovaError.turnFailed(message, json?["sessionId"] as? String)
         }
         guard let summary = json?["summary"] as? String, let id = json?["sessionId"] as? String else {
             throw NovaError.unavailable("Nova sent back an empty answer.")
