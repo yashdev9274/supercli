@@ -458,8 +458,8 @@ export async function* runWebTurn(input: {
     return
   }
   const content = input.content.trim()
-  const selection = input.provider === CODEX_PROVIDER
-    ? { provider: CODEX_PROVIDER, model: input.model! }
+  const selection = input.chatTransport && input.provider && input.model
+    ? { provider: input.provider, model: input.model }
     : resolveHarnessSelection(input.model, input.provider)
   const mode = (input.mode ?? resolveNovaTurnMode({ message: content }).mode).toLowerCase()
 

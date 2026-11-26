@@ -20,21 +20,34 @@ export async function providerCredentialContext(request: Request, provider: stri
   if (!isProviderCredentialProvider(provider)) throw new ProviderCredentialError("Unsupported provider", 400)
   const session = await auth.api.getSession({ headers: request.headers })
   if (!session?.user?.id || !session.session.id) throw new ProviderCredentialError("Sign in to Nova to connect this provider", 401)
-  const user = await prisma.user.findUnique({ where: { id: session.user.id }, select: { organizationId: true } })
+  return providerCredentialContextForUser(session.user.id, provider)
+}
+
+async function providerCredentialContextForUser(userId: string, provider: string) {
+  if (!isProviderCredentialProvider(provider)) throw new ProviderCredentialError("Unsupported provider", 400)
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { organizationId: true } })
   if (!user?.organizationId) throw new ProviderCredentialError("Set up your Nova organization before connecting a provider", 403)
   const membership = await prisma.organizationMembership.findUnique({
-    where: { organizationId_userId: { organizationId: user.organizationId, userId: session.user.id } },
+    where: { organizationId_userId: { organizationId: user.organizationId, userId } },
     select: { id: true, status: true },
   })
   if (!membership || membership.status !== "active") throw new ProviderCredentialError("Active organization membership required", 403)
   if (!prisma.novaProviderCredential) throw new ProviderCredentialError("Nova database client is out of date. Run db:generate and restart the web server.")
-  const binding = JSON.stringify([user.organizationId, session.user.id, membership.id, provider])
+  const binding = JSON.stringify([user.organizationId, userId, membership.id, provider])
   const vault = configuredProviderVault()
-  return { userId: session.user.id, organizationId: user.organizationId, membershipId: membership.id, provider: provider as ProviderCredentialProvider, binding, vault }
+  return { userId, organizationId: user.organizationId, membershipId: membership.id, provider: provider as ProviderCredentialProvider, binding, vault }
 }
 
 export async function readProviderConfig(request: Request, provider: string) {
   const context = await providerCredentialContext(request, provider)
+  return readConfig(context)
+}
+
+export async function readProviderConfigForUser(userId: string, provider: string) {
+  return readConfig(await providerCredentialContextForUser(userId, provider))
+}
+
+async function readConfig(context: Awaited<ReturnType<typeof providerCredentialContextForUser>>) {
   const row = await prisma.novaProviderCredential.findUnique({ where: { membershipId_provider: { membershipId: context.membershipId, provider: context.provider } } })
   if (!row || row.status !== "connected" || !row.enabled) return { ...context, config: null as StoredProviderConfig | null }
   const decrypted = context.vault.open(row.encryptedApiKey, context.binding)
