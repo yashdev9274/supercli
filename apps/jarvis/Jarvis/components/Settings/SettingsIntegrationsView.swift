@@ -52,27 +52,29 @@ struct SettingsIntegrationsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            header
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                header
 
-            voiceProviderSection
+                voiceProviderSection
 
-            novaLinkSection
+                novaLinkSection
 
-            IntegrationSearchBar(searchText: $searchText, filter: $filter)
+                IntegrationSearchBar(searchText: $searchText, filter: $filter)
 
-            Group {
-                if manager.isLoadingToolkits && manager.toolkits.isEmpty {
-                    loadingState
-                } else if manager.toolkits.isEmpty {
-                    errorState
-                } else if filteredToolkits.isEmpty {
-                    emptySearchState
-                } else {
-                    integrationList
+                Group {
+                    if manager.isLoadingToolkits && manager.toolkits.isEmpty {
+                        loadingState
+                    } else if manager.toolkits.isEmpty {
+                        errorState
+                    } else if filteredToolkits.isEmpty {
+                        emptySearchState
+                    } else {
+                        integrationList
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .onAppear {
             Task { await manager.loadIfNeeded() }
@@ -155,6 +157,8 @@ struct SettingsIntegrationsView: View {
             Text("Nova")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.white)
+
+            NovaInferenceSettingsView()
 
             HStack {
                 Button(action: { novaSignIn.signingIn ? novaSignIn.cancel() : novaSignIn.start() }) {

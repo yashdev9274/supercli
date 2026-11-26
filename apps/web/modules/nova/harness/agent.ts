@@ -10,6 +10,7 @@ import { requestHarnessComposio, type ComposioTool } from "./composio-client"
 import { toolsAllowedForMode } from "./tool-policy"
 import { multiplexEvents } from "./event-stream"
 import type { SubagentEvent } from "./subagent-events"
+import { createVoiceReadTools } from "./voice-tools"
 
 /** Cap tools sent to the model to avoid overflowing context / provider limits. */
 const MAX_TOOLS_TO_MODEL = 64
@@ -73,6 +74,7 @@ function preferTools(tools: ComposioTool[], mode: string): ComposioTool[] {
 export type ChatTransport = import("./client").DurableChatTransport
 
 export async function* streamHarnessAgent(input: {
+  responseStyle?: "voice"
   chatTransport?: ChatTransport
   journal?: BridgeInput["journal"]
   checkpoint?: (input: Pick<BridgeInput, "messages" | "tools" | "provider" | "model" | "mode">) => Promise<Pick<BridgeInput, "messages" | "tools" | "provider" | "model" | "mode">>
@@ -100,7 +102,8 @@ export async function* streamHarnessAgent(input: {
 }): AsyncGenerator<HarnessAgentEvent> {
   input.signal?.throwIfAborted()
   const mode = (input.mode ?? "agent").toLowerCase()
-  const catalog = input.isolatedTools || input.skipConnectedTools ? { tools: [] as ComposioTool[] } : await requestHarnessComposio<{ tools: ComposioTool[] }>("tools", input.token, {}, input.signal)
+  const voiceReads = input.responseStyle === "voice" && mode === "chat" && !input.isolatedTools && !input.skipConnectedTools ? createVoiceReadTools(input.token, input.signal) : null
+  const catalog = input.isolatedTools || input.skipConnectedTools || voiceReads ? { tools: [] as ComposioTool[] } : await requestHarnessComposio<{ tools: ComposioTool[] }>("tools", input.token, {}, input.signal)
   const available = new Map(catalog.tools.map((tool) => [tool.name, tool]))
   const ranked = preferTools(catalog.tools, mode).slice(0, MAX_TOOLS_TO_MODEL)
   const composioTools: HarnessChatTool[] = ranked.map((tool) => ({
@@ -108,7 +111,7 @@ export async function* streamHarnessAgent(input: {
     function: { name: tool.name, description: tool.description, parameters: tool.parameters },
   }))
   const extraTools = input.extraTools ?? []
-  const tools: HarnessChatTool[] = [...extraTools, ...composioTools]
+  const tools: HarnessChatTool[] = [...extraTools, ...composioTools, ...(voiceReads?.tools ?? [])]
   const toolkits = [...new Set(ranked.map((tool) => tool.toolkit).filter(Boolean))]
 
   const messages: HarnessChatMessage[] = [
@@ -136,11 +139,12 @@ Connected GitHub and native GitHub may authorize different repositories. Discove
     mode: mode === "chat" || mode === "plan" ? mode : "agent",
     tools: tools.map((schema) => ({
       ...schema,
-      access: extraTools.some((tool) => tool.function.name === schema.function.name)
+      access: voiceReads?.tools.some((tool) => tool.function.name === schema.function.name) ? "read" as const : extraTools.some((tool) => tool.function.name === schema.function.name)
         ? canonicalAccess(schema.function.name)
         : classifyComposioTool(schema.function.name, available.get(schema.function.name)?.requiresApproval) === "read" ? "read" as const : "write" as const,
     })),
     execute: async (name, args, signal) => {
+      if (voiceReads?.tools.some((tool) => tool.function.name === name)) return voiceReads.execute(name, args)
       if (extraTools.some((tool) => tool.function.name === name)) {
         if (!input.executeExtraTool) throw new Error("Missing native capability adapter")
         return input.executeExtraTool(name, args, signal)
@@ -151,6 +155,12 @@ Connected GitHub and native GitHub may authorize different repositories. Discove
   }
   if (new Set(bridge.tools.map((tool) => tool.function.name)).size !== bridge.tools.length) throw new Error("Duplicate capability names")
   bridge.approvalTools = bridge.tools.filter((tool) => ["write", "execute"].includes(tool.access) && available.has(tool.function.name)).map((tool) => tool.function.name)
+  if (input.responseStyle === "voice" && mode === "chat") {
+    const frozen = await input.checkpoint?.({ messages: bridge.messages, tools: bridge.tools, provider: bridge.provider, model: bridge.model, mode: bridge.mode })
+    if (frozen && frozen.tools.some((tool) => !bridge.tools.some((current) => current.function.name === tool.function.name && current.access === tool.access))) throw new Error("Checkpoint capabilities are no longer available")
+    yield* streamOriginalHarness({ ...bridge, ...frozen })
+    return
+  }
   yield* multiplexEvents<HarnessAgentEvent>(async function* (emit, signal) {
     const session = createNovaSessionTools({ ...bridge, signal }, { ...input, onSubagentEvent: emit })
     const execute = bridge.execute

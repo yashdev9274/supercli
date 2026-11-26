@@ -47,6 +47,17 @@ describe("splitThinkContent", () => {
 })
 
 describe("finalizeAnswerVsProcess", () => {
+  test("keeps short factual answers containing ordinary action words", () => {
+    for (const answer of [
+      "Vercel is a cloud platform you can use to deploy web apps.",
+      "A search query is the text you enter in a search engine.",
+      "You need a Vercel account to deploy this project.",
+    ]) {
+      expect(finalizeAnswerVsProcess(answer).text).toBe(answer)
+      expect(looksLikeProcessScratch(answer)).toBe(false)
+    }
+  })
+
   test("moves untagged deepseek tool-planning monologue out of Result", () => {
     const raw =
       "User wants web search about GPT-6 Astra. Need provide query. Two searches: " +

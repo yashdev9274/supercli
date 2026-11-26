@@ -53,6 +53,24 @@ struct VoiceConfig {
         defaults.string(forKey: "auth_token") ?? ""
     }
 
+    static var inferenceProvider: String {
+        defaults.string(forKey: "nova_inference_provider") ?? "supercode"
+    }
+
+    static var inferenceModel: String {
+        defaults.string(forKey: "nova_inference_model") ?? ""
+    }
+
+    static var inferenceEffort: String {
+        defaults.string(forKey: "nova_inference_effort") ?? ""
+    }
+
+    static func configureInference(provider: String, model: String, effort: String) {
+        defaults.set(provider, forKey: "nova_inference_provider")
+        defaults.set(model, forKey: "nova_inference_model")
+        defaults.set(effort, forKey: "nova_inference_effort")
+    }
+
     static var serverURL: String {
         defaults.string(forKey: "voice_server_url") ?? "http://localhost:3004"
     }
