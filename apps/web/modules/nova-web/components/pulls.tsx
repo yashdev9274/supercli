@@ -57,7 +57,7 @@ function StatusBadge({ status }: { status: string }) {
   }
   if (status === "skipped" || status === "trial_ended") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-[11px] text-[#6b6b6b]">
+      <span className="inline-flex items-center gap-1.5 text-[11px] text-[#85858e]">
         <SkipForward className="size-3.5" />
         Skipped
       </span>
@@ -130,13 +130,13 @@ export function PullsView({
   }, [reviews])
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#0f0f0f]">
-      <div className="border-b border-white/[0.05] px-6 py-5">
+    <div className="flex h-full min-h-0 flex-col bg-[#0e0e10]">
+      <div className="mx-auto w-full max-w-[1040px] shrink-0 px-5 pb-5 pt-10 sm:px-10 sm:pt-14">
         <div className="flex items-start gap-3">
           <NovaMark />
           <div className="min-w-0 flex-1">
-            <h1 className="text-[16px] font-medium text-[#e8e8e8]">Pull requests</h1>
-            <p className="mt-0.5 text-[12px] text-[#6b6b6b]">
+            <h1 className="text-[22px] font-medium tracking-[-0.025em] text-[#e8e8e8]">Pull requests</h1>
+            <p className="mt-0.5 text-[12px] text-[#85858e]">
               Supercode Review across connected repositories
               {isFetching && !isLoading ? " · refreshing" : ""}
             </p>
@@ -144,18 +144,18 @@ export function PullsView({
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <div className="flex h-9 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-white/[0.08] bg-[#161616] px-3">
-            <Search className="size-3.5 text-[#5c5c5c]" />
+          <div className="flex h-9 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-white/[0.08] bg-[#151517] px-3">
+            <Search className="size-3.5 text-[#7c7c85]" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search PRs, repos, summaries"
-              className="min-w-0 flex-1 bg-transparent text-[13px] text-[#e8e8e8] outline-none placeholder:text-[#4a4a4a]"
+              className="min-w-0 flex-1 bg-transparent text-[13px] text-[#e8e8e8] outline-none placeholder:text-[#71717a]"
             />
           </div>
 
           <label className="relative">
-            <span className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-[#161616] px-3 text-[12px] text-[#a0a0a0]">
+            <span className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-[#151517] px-3 text-[12px] text-[#a0a0a0]">
               <FolderGit2 className="size-3.5" />
               {repoFilter === "all" ? "All repos" : repoFilter}
               <ChevronDown className="size-3 opacity-60" />
@@ -194,7 +194,7 @@ export function PullsView({
                 "rounded-full px-2.5 py-1 text-[11px] transition",
                 statusFilter === id
                   ? "bg-white/[0.08] text-white"
-                  : "text-[#6b6b6b] hover:bg-white/[0.04] hover:text-[#a0a0a0]",
+                  : "text-[#85858e] hover:bg-white/[0.04] hover:text-[#a0a0a0]",
               )}
             >
               {label}
@@ -204,9 +204,9 @@ export function PullsView({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto min-h-0 w-full max-w-[1040px] flex-1 overflow-y-auto">
         {isLoading ? (
-          <div className="flex h-40 items-center justify-center gap-2 text-[12px] text-[#6b6b6b]">
+          <div className="flex h-40 items-center justify-center gap-2 text-[12px] text-[#85858e]">
             <Loader2 className="size-3.5 animate-spin" />
             Loading pull requests…
           </div>
@@ -214,30 +214,30 @@ export function PullsView({
           <div className="mx-auto max-w-lg px-6 py-16 text-center">
             <AlertTriangle className="mx-auto size-5 text-amber-400" />
             <p className="mt-3 text-[13px] text-[#c8c8c8]">Could not load reviews</p>
-            <p className="mt-1 text-[12px] text-[#6b6b6b]">
+            <p className="mt-1 text-[12px] text-[#85858e]">
               {error instanceof Error ? error.message : "Connect GitHub in Connections and try again."}
             </p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="mx-auto max-w-lg px-6 py-16 text-center">
-            <GitPullRequest className="mx-auto size-5 text-[#3d3d3d]" />
+            <GitPullRequest className="mx-auto size-5 text-[#71717a]" />
             <p className="mt-3 text-[13px] text-[#c8c8c8]">
               {reviews.length === 0 ? "No pull requests yet" : "No matches"}
             </p>
-            <p className="mt-1 text-[12px] text-[#6b6b6b]">
+            <p className="mt-1 text-[12px] text-[#85858e]">
               {reviews.length === 0
                 ? "Connect a GitHub repo under Connections, then open PRs will appear here for Supercode Review."
                 : "Try a different search or filter."}
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-white/[0.04]">
+          <div className="mx-5 mb-10 overflow-hidden rounded-xl border border-white/[0.08] bg-[#151517] divide-y divide-white/[0.06] sm:mx-10">
             {filtered.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => onOpenPull(item.id)}
-                className="flex w-full items-start gap-3 px-5 py-3.5 text-left transition hover:bg-white/[0.025]"
+                className="flex w-full items-start gap-3 px-5 py-3.5 text-left transition hover:bg-[#151517]"
               >
                 <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.04] text-[#8a8a8a]">
                   <GitPullRequest className="size-3.5" />
@@ -249,7 +249,7 @@ export function PullsView({
                     </p>
                     <StatusBadge status={item.status} />
                   </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[#6b6b6b]">
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[#85858e]">
                     <span className="font-mono">{item.repository.fullName}</span>
                     <span>#{item.prNumber}</span>
                     {item.prState ? (
@@ -269,7 +269,7 @@ export function PullsView({
                   target="_blank"
                   rel="noreferrer"
                   onClick={(event) => event.stopPropagation()}
-                  className="mt-1 text-[#5c5c5c] transition hover:text-[#2dd4bf]"
+                  className="mt-1 text-[#7c7c85] transition hover:text-[#2dd4bf]"
                   aria-label="Open on GitHub"
                 >
                   <ExternalLink className="size-3.5" />

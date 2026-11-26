@@ -41,6 +41,7 @@ import {
   type SettingsSectionId,
 } from "@/modules/nova-web/settings-sections"
 import { NovaSidebar } from "@/modules/nova-web/components/sidebar"
+import { NavigationRail } from "@/modules/nova-web/components/navigation-rail"
 import { NovaMark } from "@/modules/nova-web/components/timeline"
 import { ThreadView } from "@/modules/nova-web/components/thread"
 import { SideThreadGroup } from "@/modules/nova-web/components/side-thread-group"
@@ -83,6 +84,7 @@ import { packLocalProjectForTurn } from "@/modules/nova-web/project-pack"
 import { useGitWorkspace } from "@/modules/nova-web/use-git-workspace"
 import { workspacePublishIntent } from "@/modules/nova-web/git-workspace"
 import { GitWorkspaceControls } from "@/modules/nova-web/components/git-workspace-controls"
+import { AgentUsage } from "@/modules/nova-web/components/agent-usage"
 import type { ProjectSelection } from "@/modules/nova-web/components/project-picker"
 import type { LocalAttachment } from "@/modules/nova/attachments/contracts"
 import type { NovaReference } from "@/modules/nova/references/contracts"
@@ -1104,7 +1106,7 @@ export function NovaApp({
           onLocalFilesChange={setLocalFiles}
           localProject={gitWorkspace.workspace ? { id: localProject?.id ?? gitWorkspace.workspace.projectId, displayName: gitWorkspace.workspace.path.split(/[\\/]/).pop() ?? "Worktree", rootName: "Worktree", fileCount: gitWorkspace.paths.length, truncated: false, repositoryFullName: localProject?.repositoryFullName ?? null, status: "active", lastUsedAt: null, updatedAt: session.updatedAt, paths: gitWorkspace.paths } : session.githubSource && session.localProject ? { ...session.localProject, paths: gitWorkspace.paths, fileCount: gitWorkspace.paths.length } : localProject ?? session.localProject ?? null}
           readWorkspaceFile={gitWorkspace.workspace ? path => gitClient.read(gitWorkspace.workspace!.id, path) : session.githubSource ? async path => (await readGithubSourceFile(session.id, path)).text : undefined}
-          workspaceControls={!embedded ? <GitWorkspaceControls state={gitWorkspace} disabled={isPending || streaming} repositoryFullName={localProject?.repositoryFullName} localRootName={localProject?.rootName} onOpenWorkspace={id => navigate(`/s/${id}`)} workspaceLabels={Object.fromEntries(sessions.map(item => [item.id, item.objective]))}/> : undefined}
+          workspaceControls={!embedded ? <GitWorkspaceControls state={gitWorkspace} disabled={isPending || streaming} repositoryFullName={localProject?.repositoryFullName} localRootName={localProject?.rootName} onOpenWorkspace={id => navigate(`/s/${id}`)} workspaceLabels={Object.fromEntries(sessions.map(item => [item.id, item.objective]))} agentUsage={<AgentUsage userId={user.id} provider={provider} />}/> : undefined}
           onLocalProjectChange={(workspace) => void handleLocalProjectChange(workspace)}
           onProjectChange={(selection) => void applyProjectSelection(selection)}
           onManageProjects={() => openSettingsSection("projects")}
@@ -1204,7 +1206,7 @@ export function NovaApp({
           onProjectChange={(selection) => void applyProjectSelection(selection)}
           onManageProjects={() => openSettingsSection("projects")}
           localProject={localProject}
-          workspaceControls={<GitWorkspaceControls state={gitWorkspace} disabled={isPending || streaming} repositoryFullName={localProject?.repositoryFullName} localRootName={localProject?.rootName} onOpenWorkspace={id => navigate(`/s/${id}`)} workspaceLabels={Object.fromEntries(sessions.map(item => [item.id, item.objective]))}/>}
+          workspaceControls={<GitWorkspaceControls state={gitWorkspace} disabled={isPending || streaming} repositoryFullName={localProject?.repositoryFullName} localRootName={localProject?.rootName} onOpenWorkspace={id => navigate(`/s/${id}`)} workspaceLabels={Object.fromEntries(sessions.map(item => [item.id, item.objective]))} agentUsage={<AgentUsage userId={user.id} provider={provider} />}/>}
         />
       )}
     </CodexCatalogContext.Provider>
@@ -1220,7 +1222,8 @@ export function NovaApp({
 
   if (view === "settings") {
     return (
-      <main className="dark flex h-dvh min-h-[560px] overflow-hidden bg-[#0a0a0a] text-[#e8e8e8]">
+      <main className="nova-workspace dark flex h-dvh min-h-[400px] overflow-hidden bg-[#0c0c0d] text-[#e8e8e8]">
+        <NavigationRail view={view} onNavigate={navigate} />
         <div className="min-h-0 min-w-0 flex-1">{content}</div>
         {error ? (
           <button
@@ -1237,7 +1240,8 @@ export function NovaApp({
   }
 
   return (
-    <main className="dark flex h-dvh min-h-[560px] overflow-hidden bg-[#0a0a0a] text-[#e8e8e8]">
+    <main className="nova-workspace dark flex h-dvh min-h-[400px] overflow-hidden bg-[#0c0c0d] text-[#e8e8e8]">
+      <NavigationRail view={view} onNavigate={navigate} />
       {/* Desktop sidebar — flush left like Capy */}
       {desktopSidebarOpen ? <div className="hidden md:flex">{sidebar}</div> : (
         <div className="hidden w-11 shrink-0 flex-col items-center pt-2 md:flex">
@@ -1267,8 +1271,8 @@ export function NovaApp({
       ) : null}
 
       {/* Main stage: inset rounded panel */}
-      <div className="relative flex min-w-0 flex-1 flex-col p-0 md:p-2 md:pl-0">
-        <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden border-0 bg-[#0f0f0f] md:rounded-xl md:border md:border-white/[0.06]">
+      <div className="relative flex min-w-0 flex-1 flex-col pb-0 pr-0 pt-0 md:py-2 md:pr-2">
+        <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden border-0 bg-[#0e0e10] md:rounded-xl md:border md:border-white/[0.08]">
           {/* Mobile top bar */}
           <div className="flex h-11 shrink-0 items-center border-b border-white/[0.05] px-3 md:hidden">
             <button

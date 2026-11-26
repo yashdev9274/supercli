@@ -20,7 +20,7 @@ type BrowserState = {
   }
 }
 
-const buttonClass = "inline-flex items-center justify-center gap-1.5 rounded-md border border-white/10 px-2.5 py-1.5 text-[11px] text-[#c0c0c0] hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-40"
+const buttonClass = "inline-flex items-center justify-center gap-1.5 rounded-md border border-white/[0.08] px-2.5 py-1.5 text-[11px] text-[#c0c0c0] hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-40"
 
 export function BrowserPane({ sessionId }: { sessionId: string }) {
   const [state, setState] = useState<BrowserState | null>(null)
@@ -91,10 +91,10 @@ export function BrowserPane({ sessionId }: { sessionId: string }) {
   }, [liveUrl])
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] px-3 py-2">
+    <div className="flex h-full min-h-0 flex-col bg-[#151517]">
+      <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.08] px-3 py-2">
         <span className={`size-1.5 rounded-full ${active ? "bg-emerald-400" : "bg-[#555]"}`} />
-        <span className="min-w-0 flex-1 text-[11px] text-[#999]">{active ? browser.busy ? "Finishing browser action…" : browser.control === "agent" ? "Nova has control" : "You have control" : "Browserbase"}</span>
+        <span className="min-w-0 flex-1 text-[11px] text-[#a1a1aa]">{active ? browser.busy ? "Finishing browser action…" : browser.control === "agent" ? "Nova has control" : "You have control" : "Browserbase"}</span>
         <button type="button" aria-label="Reconnect browser view" disabled={pending} onClick={() => void request("GET", undefined, true)} className={buttonClass}><RefreshCw className="size-3" /></button>
         {active ? (
           <>
@@ -108,17 +108,17 @@ export function BrowserPane({ sessionId }: { sessionId: string }) {
       {error || browser?.connectionError ? <div role="alert" className="border-b border-amber-400/10 bg-amber-400/[0.04] px-3 py-2 text-xs leading-5 text-amber-200">{error || browser?.connectionError}</div> : null}
       <div className="relative min-h-0 flex-1">
         {liveUrl ? (
-          <iframe ref={frame} title="Shared Nova browser" src={liveUrl} sandbox="allow-same-origin allow-scripts" allow="clipboard-read; clipboard-write" referrerPolicy="no-referrer" className="h-full w-full border-0 bg-[#151515]" />
+          <iframe ref={frame} title="Shared Nova browser" src={liveUrl} sandbox="allow-same-origin allow-scripts" allow="clipboard-read; clipboard-write" referrerPolicy="no-referrer" className="h-full w-full border-0 bg-[#151517]" />
         ) : (
           <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-            <div className="mb-5 flex size-14 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.025]"><Globe className="size-6 text-[#999]" strokeWidth={1.25} /></div>
-            <h2 className="text-sm font-medium text-[#ddd]">{pending ? "Connecting…" : active ? browser.control === "agent" ? "Nova’s browser workspace" : "Browser is connecting" : "Browse together"}</h2>
-            <p className="mt-2 max-w-64 text-xs leading-5 text-[#999]">
+            <div className="mb-5 flex size-14 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.025]"><Globe className="size-6 text-[#a1a1aa]" strokeWidth={1.25} /></div>
+            <h2 className="text-[13px] font-medium text-[#ddd]">{pending ? "Connecting…" : active ? browser.control === "agent" ? "Nova’s browser workspace" : "Browser is connecting" : "Browse together"}</h2>
+            <p className="mt-2 max-w-64 text-xs leading-5 text-[#a1a1aa]">
 {!state ? error ? "Use reconnect to retry the browser service." : "Checking browser configuration…" : !state.configured ? "Configure NOVA_AGENT_BROWSER_BROWSERBASE_API_KEY and NOVA_AGENT_BROWSER_BROWSERBASE_PROJECT_ID on the server to enable the shared browser." : active ? browser.control === "agent" ? "Nova can inspect and navigate this session. Take control to interact, sign in, or complete sensitive actions." : disconnected ? "The live view disconnected. Reconnect or stop this session." : "Waiting for a safe connection. Use reconnect to refresh the view." : "Open an isolated cloud browser, then hand it to Nova when you’re ready. Sessions run for up to 15 minutes."}
             </p>
             {!active && state?.configured ? <button type="button" disabled={pending} onClick={() => void request("POST")} className={`${buttonClass} mt-5 bg-white/[0.06]`}>{pending ? <Loader2 className="size-3 animate-spin" /> : <Play className="size-3" />}Start browser</button> : null}
-            {pending || (!state && !error) ? <Loader2 className="mt-4 size-4 animate-spin text-[#777]" /> : null}
-            <p className="mt-5 max-w-64 text-[10px] leading-4 text-[#777]">No shared saved logins. Cloud browsers cannot reach your laptop’s localhost. Browserbase keep-alive requires a paid plan.</p>
+            {pending || (!state && !error) ? <Loader2 className="mt-4 size-4 animate-spin text-[#92929b]" /> : null}
+            <p className="mt-5 max-w-64 text-[10px] leading-4 text-[#92929b]">No shared saved logins. Cloud browsers cannot reach your laptop’s localhost. Browserbase keep-alive requires a paid plan.</p>
           </div>
         )}
       </div>

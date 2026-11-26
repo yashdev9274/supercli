@@ -224,7 +224,7 @@ function TreeView({
   activePath?: string | null
 }) {
   return (
-    <ul className={cn(depth === 0 ? "space-y-0.5" : "ml-3 space-y-0.5 border-l border-white/[0.05] pl-2")}>
+    <ul className={cn(depth === 0 ? "space-y-0.5" : "ml-3 space-y-0.5 border-l border-white/[0.08] pl-2")}>
       {nodes.map((node) => (
         <TreeRow key={node.path} node={node} depth={depth} onOpen={onOpen} activePath={activePath} />
       ))}
@@ -250,10 +250,10 @@ function TreeRow({
         <button
           type="button"
           onClick={() => setOpen((value) => !value)}
-          className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[12.5px] text-[#a8a8a8] transition hover:bg-white/[0.04] hover:text-[#e8e8e8]"
+          className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[12.5px] text-[#a8a8a8] transition hover:bg-white/[0.04] hover:text-[#ededf0]"
         >
           {open ? <ChevronDown className="size-3 opacity-70" /> : <ChevronRight className="size-3 opacity-70" />}
-          {open ? <FolderOpen className="size-3.5 text-[#8a8a8a]" /> : <Folder className="size-3.5 text-[#8a8a8a]" />}
+          {open ? <FolderOpen className="size-3.5 text-[#a1a1aa]" /> : <Folder className="size-3.5 text-[#a1a1aa]" />}
           <span className="truncate">{node.name}</span>
         </button>
         {open && node.children?.length ? (
@@ -270,12 +270,12 @@ function TreeRow({
         className={cn(
           "flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[12.5px] transition",
           activePath === node.path
-            ? "bg-white/[0.06] text-[#e8e8e8]"
+            ? "bg-white/[0.06] text-[#ededf0]"
             : "text-[#9a9a9a] hover:bg-white/[0.04] hover:text-[#e0e0e0]",
         )}
       >
         <span className="w-3" />
-        <FileCode2 className="size-3.5 shrink-0 text-[#6b6b6b]" />
+        <FileCode2 className="size-3.5 shrink-0 text-[#92929b]" />
         <FileBadge path={node.path} />
       </button>
     </li>
@@ -316,15 +316,15 @@ function OverviewPane({
     <div className="mx-auto max-w-2xl space-y-5 px-5 pb-8 pt-7">
       <SubagentOverview onOpen={onOpenSubagent}>{subagents}</SubagentOverview>
       <div className="flex flex-col items-center px-5 py-8 text-center">
-        <div className="relative mb-5 flex h-16 w-20 -rotate-6 items-center justify-center rounded-xl border border-white/[0.1] bg-white/[0.025] shadow-[8px_8px_0_0_#ffffff04]">
-          <FolderOpen strokeWidth={1} className="size-8 text-[#777]" />
-          <span className="absolute -bottom-1 -right-1 flex size-6 items-center justify-center rounded-full border border-[#292929] bg-[#171717]">
-            {streaming ? <Loader2 className="size-3 animate-spin text-emerald-300" /> : <Check className="size-3 text-[#999]" />}
+        <div className="relative mb-5 flex h-16 w-20 -rotate-6 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.025] shadow-[8px_8px_0_0_#ffffff04]">
+          <FolderOpen strokeWidth={1} className="size-8 text-[#92929b]" />
+          <span className="absolute -bottom-1 -right-1 flex size-6 items-center justify-center rounded-full border border-[#292929] bg-[#151517]">
+            {streaming ? <Loader2 className="size-3 animate-spin text-emerald-300" /> : <Check className="size-3 text-[#a1a1aa]" />}
           </span>
         </div>
-        <h2 className="text-sm font-medium text-[#d7d7d7]">{streaming ? "Your workspace is in motion" : "Everything in one place"}</h2>
+        <h2 className="text-[13px] font-medium text-[#d7d7d7]">{streaming ? "Your workspace is in motion" : "Everything in one place"}</h2>
         <p className="mt-2 max-w-64 text-xs leading-5 text-[#858585]">Files, changes, and your shared browser stay here as you work with Nova.</p>
-        <span className="mt-3 text-[10px] uppercase tracking-widest text-[#777]">{streaming ? "Working" : sessionUiLabel(session.activeRunId ? "working" : session.status)}</span>
+        <span className="mt-3 text-[10px] uppercase tracking-widest text-[#92929b]">{streaming ? "Working" : sessionUiLabel(session.activeRunId ? "working" : session.status)}</span>
       </div>
       <div className="space-y-2">
         {([
@@ -332,8 +332,8 @@ function OverviewPane({
           { kind: "files", icon: FolderOpen, title: "Files", detail: localProject ? `${localProject.displayName} · ${localProject.fileCount} files` : "Link a project to explore files" },
           { kind: "browser", icon: Globe, title: "Browser", detail: "A shared browser for you and Nova" },
         ] as const).map(({ kind, icon: Icon, title, detail }) => (
-          <button key={kind} type="button" onClick={() => onOpenPanel(kind)} className="group flex w-full items-center gap-3 rounded-lg border border-white/[0.07] bg-white/[0.015] px-3.5 py-3 text-left transition hover:border-white/[0.14] hover:bg-white/[0.035] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/40">
-            <Icon className="size-4 shrink-0 text-[#999]" strokeWidth={1.5} />
+          <button key={kind} type="button" onClick={() => onOpenPanel(kind)} className="group flex w-full items-center gap-3 rounded-lg border border-white/[0.08] bg-white/[0.015] px-3.5 py-3 text-left transition hover:border-white/[0.14] hover:bg-white/[0.035] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/40">
+            <Icon className="size-4 shrink-0 text-[#a1a1aa]" strokeWidth={1.5} />
             <span className="min-w-0 flex-1"><span className="block text-xs font-medium text-[#d0d0d0]">{title}</span><span className="mt-1 block truncate text-[11px] text-[#858585]">{detail}</span></span>
             <ChevronRight className="size-3.5 text-[#666] group-hover:text-[#bbb]" />
           </button>
@@ -347,16 +347,16 @@ function OverviewPane({
           className="flex w-full items-center gap-1.5 text-left text-[12.5px] font-medium text-[#c8c8c8]"
         >
           {todosOpen ? <ChevronDown className="size-3.5 opacity-70" /> : <ChevronRight className="size-3.5 opacity-70" />}
-          <ListTodo className="size-3.5 text-[#8a8a8a]" />
+          <ListTodo className="size-3.5 text-[#a1a1aa]" />
           Todos
-          <span className="ml-auto text-[11px] font-normal text-[#5c5c5c]">
+          <span className="ml-auto text-[11px] font-normal text-[#85858e]">
             {total > 0 ? `${done}/${total}` : "—"}
           </span>
         </button>
         {todosOpen ? (
           <ul className="mt-2 space-y-1">
             {todos.length === 0 ? (
-              <li className="px-1 py-2 text-[12px] text-[#4a4a4a]">No todos yet for this turn.</li>
+              <li className="px-1 py-2 text-[12px] text-[#777780]">No todos yet for this turn.</li>
             ) : (
               todos.map((todo) => (
                 <li
@@ -368,9 +368,9 @@ function OverviewPane({
                   ) : todo.status === "in_progress" ? (
                     <Loader2 className="mt-0.5 size-3.5 shrink-0 animate-spin text-[#2dd4bf]" />
                   ) : (
-                    <Circle className="mt-0.5 size-3.5 shrink-0 text-[#3d3d3d]" />
+                    <Circle className="mt-0.5 size-3.5 shrink-0 text-[#66666e]" />
                   )}
-                  <span className={cn(todo.status === "completed" && "text-[#6b6b6b] line-through decoration-[#3d3d3d]")}>
+                  <span className={cn(todo.status === "completed" && "text-[#92929b] line-through decoration-[#3d3d3d]")}>
                     {todo.content}
                   </span>
                 </li>
@@ -388,12 +388,12 @@ function OverviewPane({
         >
           {tasksOpen ? <ChevronDown className="size-3.5 opacity-70" /> : <ChevronRight className="size-3.5 opacity-70" />}
           Tasks
-          <span className="ml-auto text-[11px] font-normal text-[#5c5c5c]">{tasks.length || "—"}</span>
+          <span className="ml-auto text-[11px] font-normal text-[#85858e]">{tasks.length || "—"}</span>
         </button>
         {tasksOpen ? (
           <ul className="mt-2 space-y-1">
             {tasks.length === 0 ? (
-              <li className="px-1 py-2 text-[12px] text-[#4a4a4a]">No tasks yet.</li>
+              <li className="px-1 py-2 text-[12px] text-[#777780]">No tasks yet.</li>
             ) : (
               tasks.map((task) => (
                 <li key={task.id} className="rounded-md px-1.5 py-1.5 hover:bg-white/[0.03]">
@@ -404,11 +404,11 @@ function OverviewPane({
                         task.status === "working" && "bg-emerald-400",
                         task.status === "done" && "bg-[#3d3d3d]",
                         task.status === "failed" && "bg-red-400",
-                        task.status === "idle" && "bg-[#2a2a2a]",
+                        task.status === "idle" && "bg-[#202023]",
                       )}
                     />
                     <span className="min-w-0 flex-1 truncate">{task.title}</span>
-                    <span className="text-[10px] uppercase tracking-[0.06em] text-[#4a4a4a]">{task.status}</span>
+                    <span className="text-[10px] uppercase tracking-[0.06em] text-[#777780]">{task.status}</span>
                   </div>
                   {task.detail ? (
                     <button
@@ -418,7 +418,7 @@ function OverviewPane({
                           onOpenPath(task.detail)
                         }
                       }}
-                      className="mt-0.5 block max-w-full truncate pl-3.5 text-left font-mono text-[11px] text-[#5c5c5c] hover:text-[#2dd4bf]"
+                      className="mt-0.5 block max-w-full truncate pl-3.5 text-left font-mono text-[11px] text-[#85858e] hover:text-[#2dd4bf]"
                     >
                       {task.detail}
                     </button>
@@ -432,11 +432,11 @@ function OverviewPane({
 
       <section>
         <p className="mb-2 flex items-center gap-1.5 text-[12.5px] font-medium text-[#c8c8c8]">
-          <FileIcon className="size-3.5 text-[#8a8a8a]" />
+          <FileIcon className="size-3.5 text-[#a1a1aa]" />
           Files in play
         </p>
         {touchedPaths.length === 0 ? (
-          <p className="px-1 text-[12px] text-[#4a4a4a]">No files touched this turn yet.</p>
+          <p className="px-1 text-[12px] text-[#777780]">No files touched this turn yet.</p>
         ) : (
           <ul className="space-y-0.5">
             {touchedPaths.map((path) => (
@@ -444,7 +444,7 @@ function OverviewPane({
                 <button
                   type="button"
                   onClick={() => onOpenPath(path)}
-                  className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-[12.5px] text-[#a8a8a8] transition hover:bg-white/[0.04] hover:text-[#e8e8e8]"
+                  className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-[12.5px] text-[#a8a8a8] transition hover:bg-white/[0.04] hover:text-[#ededf0]"
                 >
                   <FileBadge path={path} />
                 </button>
@@ -478,9 +478,9 @@ function FilesPane({
   if (!localProject) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-        <FolderOpen className="size-8 text-[#3d3d3d]" />
-        <p className="text-[13px] text-[#8a8a8a]">No local project linked</p>
-        <p className="text-[12px] leading-5 text-[#4a4a4a]">
+        <FolderOpen className="size-8 text-[#66666e]" />
+        <p className="text-[13px] text-[#a1a1aa]">No local project linked</p>
+        <p className="text-[12px] leading-5 text-[#777780]">
           Open a folder from @ Files to browse and open project files here.
         </p>
       </div>
@@ -489,21 +489,21 @@ function FilesPane({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b border-white/[0.05] px-3 py-2">
+      <div className="border-b border-white/[0.08] px-3 py-2">
         <p className="truncate text-[12px] font-medium text-[#c8c8c8]">{localProject.displayName}</p>
-        <p className="text-[11px] text-[#5c5c5c]">
+        <p className="text-[11px] text-[#85858e]">
           {localProject.fileCount} files{localProject.truncated ? " · partial" : ""}
         </p>
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search files"
-          className="mt-2 w-full rounded-md border border-white/[0.08] bg-[#141414] px-2.5 py-1.5 text-[12.5px] text-[#e8e8e8] outline-none placeholder:text-[#4a4a4a] focus:border-[#2dd4bf]/40"
+          className="mt-2 w-full rounded-md border border-white/[0.08] bg-[#0e0e10] px-2.5 py-1.5 text-[12.5px] text-[#ededf0] outline-none placeholder:text-[#777780] focus:border-[#2dd4bf]/40"
         />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
         {tree.length === 0 ? (
-          <p className="px-2 py-6 text-center text-[12px] text-[#4a4a4a]">No files match.</p>
+          <p className="px-2 py-6 text-center text-[12px] text-[#777780]">No files match.</p>
         ) : (
           <TreeView nodes={tree} onOpen={onOpenPath} activePath={activePath} />
         )}
@@ -525,24 +525,24 @@ function FileViewerPane({
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-2 border-b border-white/[0.05] px-3 py-2">
+      <div className="flex items-center gap-2 border-b border-white/[0.08] px-3 py-2">
         <FileBadge path={path} />
-        <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-[#5c5c5c]">{path}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-[#85858e]">{path}</span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
         {loading ? (
-          <p className="flex items-center gap-2 px-4 py-6 text-[12.5px] text-[#6b6b6b]">
+          <p className="flex items-center gap-2 px-4 py-6 text-[12.5px] text-[#92929b]">
             <Loader2 className="size-3.5 animate-spin" /> Reading…
           </p>
         ) : error ? (
           <p className="px-4 py-6 text-[12.5px] leading-5 text-amber-200/90">{error}</p>
         ) : content == null ? (
-          <p className="px-4 py-6 text-[12.5px] text-[#4a4a4a]">No content</p>
+          <p className="px-4 py-6 text-[12.5px] text-[#777780]">No content</p>
         ) : (
           <pre className="whitespace-pre p-3 font-mono text-[11.5px] leading-5 text-[#c8c8c8]">
             {content.split("\n").map((line, index) => (
               <div key={index} className="flex gap-3">
-                <span className="w-8 shrink-0 select-none text-right text-[#3d3d3d]">{index + 1}</span>
+                <span className="w-8 shrink-0 select-none text-right text-[#66666e]">{index + 1}</span>
                 <span className="min-w-0 flex-1">{line || " "}</span>
               </div>
             ))}
@@ -563,7 +563,7 @@ function PlaceholderPane({
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
       <p className="text-[13px] font-medium text-[#a0a0a0]">{title}</p>
-      <p className="max-w-[240px] text-[12px] leading-5 text-[#4a4a4a]">{body}</p>
+      <p className="max-w-[240px] text-[12px] leading-5 text-[#777780]">{body}</p>
     </div>
   )
 }
@@ -750,9 +750,9 @@ export function WorkspacePanel({
   ]
 
   return (
-    <aside aria-label="Workspace panel" className={cn("flex h-full min-h-0 w-full min-w-0 flex-col bg-[#101010] text-[#d0d0d0] [&_button]:focus-visible:outline [&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-white/40", className)}>
+    <aside aria-label="Workspace panel" className={cn("flex h-full min-h-0 w-full min-w-0 flex-col bg-[#151517] text-[#d0d0d0] [&_button]:focus-visible:outline [&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-white/40", className)}>
       {/* Tab strip */}
-      <div className="flex h-10 shrink-0 items-center gap-0.5 border-b border-white/[0.05] px-1.5">
+      <div className="flex h-10 shrink-0 items-center gap-0.5 border-b border-white/[0.08] px-1.5">
         <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
           {tabs.map((tab) => {
             const active = tab.id === activeId
@@ -761,7 +761,7 @@ export function WorkspacePanel({
                 key={tab.id}
                 className={cn(
                   "group flex max-w-[140px] shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[12px] transition",
-                  active ? "bg-white/[0.07] text-[#e8e8e8]" : "text-[#7a7a7a] hover:bg-white/[0.04] hover:text-[#c8c8c8]",
+                  active ? "bg-white/[0.07] text-[#ededf0]" : "text-[#92929b] hover:bg-white/[0.04] hover:text-[#c8c8c8]",
                 )}
               >
                 <button
@@ -802,8 +802,8 @@ export function WorkspacePanel({
             aria-label="Add panel"
             onClick={() => setMenuOpen((open) => !open)}
             className={cn(
-              "flex size-7 items-center justify-center rounded-md text-[#7a7a7a] transition hover:bg-white/[0.05] hover:text-[#e8e8e8]",
-              menuOpen && "bg-white/[0.06] text-[#e8e8e8]",
+              "flex size-7 items-center justify-center rounded-md text-[#92929b] transition hover:bg-white/[0.05] hover:text-[#ededf0]",
+              menuOpen && "bg-white/[0.06] text-[#ededf0]",
             )}
           >
             <Plus className="size-3.5" />
@@ -811,7 +811,7 @@ export function WorkspacePanel({
           {menuOpen ? (
             <>
               <button type="button" className="fixed inset-0 z-20 cursor-default" aria-label="Close menu" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-0 top-[calc(100%+4px)] z-30 min-w-[220px] overflow-hidden rounded-xl border border-white/[0.1] bg-[#1a1a1a] p-1 shadow-2xl">
+              <div className="absolute right-0 top-[calc(100%+4px)] z-30 min-w-[220px] overflow-hidden rounded-xl border border-white/[0.08] bg-[#151517] p-1 shadow-2xl">
                 {menuItems.map((item) => {
                   const Icon = item.icon
                   return (
@@ -827,17 +827,17 @@ export function WorkspacePanel({
                       }}
                       className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-white/[0.05]"
                     >
-                      <Icon className="mt-0.5 size-3.5 shrink-0 text-[#8a8a8a]" />
+                      <Icon className="mt-0.5 size-3.5 shrink-0 text-[#a1a1aa]" />
                       <span className="min-w-0">
                         <span className="block text-[12.5px] text-[#e0e0e0]">{item.label}</span>
-                        <span className="block text-[11px] text-[#6b6b6b]">{item.description}</span>
+                        <span className="block text-[11px] text-[#92929b]">{item.description}</span>
                       </span>
                     </button>
                   )
                 })}
                 {touchedPaths.length > 0 ? (
-                  <div className="mt-1 border-t border-white/[0.07] pt-1">
-                    <p className="px-2.5 py-1 text-[10px] uppercase tracking-[0.08em] text-[#4a4a4a]">Open file</p>
+                  <div className="mt-1 border-t border-white/[0.08] pt-1">
+                    <p className="px-2.5 py-1 text-[10px] uppercase tracking-[0.08em] text-[#777780]">Open file</p>
                     {touchedPaths.slice(0, 6).map((path) => (
                       <button
                         key={path}
@@ -854,10 +854,10 @@ export function WorkspacePanel({
             </>
           ) : null}
         </div>
-        <button type="button" aria-label={expanded ? "Restore workspace size" : "Expand workspace"} onClick={onToggleExpanded} className="hidden size-7 shrink-0 items-center justify-center rounded-md text-[#888] hover:bg-white/[0.05] hover:text-white lg:flex">
+        <button type="button" aria-label={expanded ? "Restore workspace size" : "Expand workspace"} onClick={onToggleExpanded} className="hidden size-7 shrink-0 items-center justify-center rounded-md text-[#92929b] hover:bg-white/[0.05] hover:text-white lg:flex">
           {expanded ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
         </button>
-        <button type="button" aria-label="Close workspace" onClick={onClose} className="flex size-7 shrink-0 items-center justify-center rounded-md text-[#888] hover:bg-white/[0.05] hover:text-white">
+        <button type="button" aria-label="Close workspace" onClick={onClose} className="flex size-7 shrink-0 items-center justify-center rounded-md text-[#92929b] hover:bg-white/[0.05] hover:text-white">
           <PanelRightClose className="size-3.5" />
         </button>
       </div>
@@ -904,12 +904,12 @@ export function WorkspacePanel({
         {activeTab.kind === "diffs" ? (
           <div className="h-full overflow-y-auto p-4">
             <h2 className="mb-1 text-xs font-medium">Proposed changes</h2>
-            <p className="mb-4 text-[11px] leading-5 text-[#888]">Proposed file bodies, not a baseline diff. Apply changes from the conversation.</p>
+            <p className="mb-4 text-[11px] leading-5 text-[#92929b]">Proposed file bodies, not a baseline diff. Apply changes from the conversation.</p>
             {fileProposals.length ? fileProposals.map((file) => (
-              <button key={file.path} type="button" onClick={() => openFileTab(file.path)} className="mb-2 flex w-full items-center gap-2 rounded-lg border border-white/[0.07] px-3 py-2 text-left text-xs hover:bg-white/[0.04]">
+              <button key={file.path} type="button" onClick={() => openFileTab(file.path)} className="mb-2 flex w-full items-center gap-2 rounded-lg border border-white/[0.08] px-3 py-2 text-left text-xs hover:bg-white/[0.04]">
                 <FileBadge path={file.path} /><ChevronRight className="ml-auto size-3" />
               </button>
-            )) : <p className="py-12 text-center text-xs text-[#888]">No changes yet</p>}
+            )) : <p className="py-12 text-center text-xs text-[#92929b]">No changes yet</p>}
           </div>
         ) : null}
         {activeTab.kind === "setup" ? (

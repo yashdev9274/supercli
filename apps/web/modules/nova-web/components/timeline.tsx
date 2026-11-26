@@ -33,7 +33,7 @@ export function NovaMark({ size = "md" }: { size?: "sm" | "md" }) {
 function MarkdownBody({ content }: { content: string }) {
   const cleaned = stripProposalTrailer(content)
   return (
-    <div className="nova-md text-[14.5px] leading-7 text-[#d6d6d6]">
+    <div className="nova-md text-[13px] leading-6 text-[#d6d6dc]">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -54,7 +54,7 @@ function MarkdownBody({ content }: { content: string }) {
             const isBlock = Boolean(className)
             if (!isBlock) {
               return (
-                <code className="rounded bg-white/[0.06] px-1 py-0.5 font-mono text-[12.5px] text-[#e8e8e8]">
+                <code className="rounded bg-white/[0.06] px-1 py-0.5 font-mono text-[12.5px] text-[#ededf0]">
                   {children}
                 </code>
               )
@@ -66,7 +66,7 @@ function MarkdownBody({ content }: { content: string }) {
             )
           },
           pre: ({ children }) => (
-            <pre className="mb-3 overflow-x-auto rounded-xl border border-white/[0.06] bg-[#121212] p-3.5">
+            <pre className="mb-3 overflow-x-auto rounded-xl border border-white/[0.08] bg-[#151517] p-3.5">
               {children}
             </pre>
           ),
@@ -77,10 +77,10 @@ function MarkdownBody({ content }: { content: string }) {
           ),
           thead: ({ children }) => <thead className="bg-white/[0.04] text-[#c8c8c8]">{children}</thead>,
           th: ({ children }) => (
-            <th className="border-b border-white/[0.06] px-3 py-2 font-medium">{children}</th>
+            <th className="border-b border-white/[0.08] px-3 py-2 font-medium">{children}</th>
           ),
           td: ({ children }) => (
-            <td className="border-b border-white/[0.04] px-3 py-2 text-[#b8b8b8]">{children}</td>
+            <td className="border-b border-white/[0.08] px-3 py-2 text-[#b8b8b8]">{children}</td>
           ),
           blockquote: ({ children }) => (
             <blockquote className="mb-3 border-l-2 border-white/[0.12] pl-3 text-[#a0a0a0]">
@@ -105,7 +105,7 @@ export function WorkedFor({ seconds, ms }: { seconds?: number; ms?: number }) {
       ? `${totalSeconds}s`
       : `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`
   return (
-    <p className="mb-1 mt-4 text-[12.5px] leading-5 text-[#5c5c5c]">Worked for {label}</p>
+    <p className="mb-1 mt-4 text-[12.5px] leading-5 text-[#85858e]">Worked for {label}</p>
   )
 }
 
@@ -126,14 +126,14 @@ export function HarnessQuestionCard({
   const answer = (index: number) => (selected[index] ?? []).join(", ")
   const complete = questions.every((question, index) => question.options?.length ? Boolean(answer(index)) : true)
   return (
-    <article className="my-3 max-w-[620px] rounded-2xl border border-white/[0.08] bg-[#1f1f1f] p-4 shadow-lg">
+    <article className="my-3 max-w-[620px] rounded-xl border border-white/[0.08] bg-[#151517] p-4">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <p className="text-[13px] font-medium text-white">Nova has a question</p>
           {questions.map((question, index) => (
             <div key={`${question.question}-${index}`} className={cn(index ? "mt-4" : "mt-2")}>
-              {question.header ? <p className="mb-1 text-[11px] uppercase tracking-[0.08em] text-[#6f6f6f]">{question.header}</p> : null}
-              <p className="text-[14px] leading-6 text-[#e3e3e3]">{question.question}</p>
+              {question.header ? <p className="mb-1 text-[11px] uppercase tracking-[0.08em] text-[#92929b]">{question.header}</p> : null}
+              <p className="text-[13px] leading-6 text-[#e3e3e3]">{question.question}</p>
               {question.options?.length ? (
                 <div className="mt-3 space-y-2">
                   {question.options.map((option, optionIndex) => {
@@ -162,7 +162,7 @@ export function HarnessQuestionCard({
             </div>
           ))}
         </div>
-        <span className="text-[#6b6b6b]">×</span>
+        <span className="text-[#92929b]">×</span>
       </div>
       <div className="flex items-center justify-end gap-2">
         <button type="button" disabled={deciding} onClick={() => onSubmit(activity, questions.map((_, index) => answer(index) || "Skipped"))} className="rounded-lg px-3 py-1.5 text-[12px] text-[#9a9a9a] hover:bg-white/[0.05]">Skip</button>
@@ -178,7 +178,7 @@ export function TimelineItem({ entry, onInteractionAnswer, decidingInteractionId
     if (fromUser) {
       return (
         <article className="flex justify-end py-3">
-          <div className="max-w-[min(560px,85%)] rounded-2xl bg-[#2a2a2a] px-4 py-2.5 text-[14.5px] leading-6 text-[#ececec]">
+          <div className="max-w-[min(560px,85%)] rounded-xl border border-white/[0.08] bg-[#202023] px-4 py-2.5 text-[13px] leading-6 text-[#ececf0]">
             <div className="whitespace-pre-wrap">{entry.content}</div>
             {entry.references?.length ? (
               <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Attached references">
@@ -228,9 +228,9 @@ export function TimelineItem({ entry, onInteractionAnswer, decidingInteractionId
     const body = entry.body?.trim()
     return (
       <article className="py-0.5">
-        <p className="text-[12.5px] leading-5 text-[#6b6b6b]">
-          {title ? <span className="text-[#8a8a8a]">{title}</span> : null}
-          {title && body ? <span className="text-[#4a4a4a]"> · </span> : null}
+        <p className="text-[12.5px] leading-5 text-[#92929b]">
+          {title ? <span className="text-[#a1a1aa]">{title}</span> : null}
+          {title && body ? <span className="text-[#777780]"> · </span> : null}
           {body ? <span>{body}</span> : null}
           {!title && !body ? (
             <span className="capitalize">{entry.type.replaceAll("_", " ")}</span>
@@ -248,11 +248,11 @@ export function TimelineItem({ entry, onInteractionAnswer, decidingInteractionId
           ? "border-red-500/20 bg-red-500/[0.04]"
           : isApproval
             ? "border-orange-400/20 bg-orange-400/[0.04]"
-            : "border-white/[0.05] bg-white/[0.015]",
+            : "border-white/[0.08] bg-white/[0.015]",
       )}
     >
       <div className="flex items-start gap-2.5">
-        <div className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md bg-white/[0.04] text-[#5c5c5c]">
+        <div className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md bg-white/[0.04] text-[#85858e]">
           {isError ? (
             <X className="size-3 text-red-400" />
           ) : isApproval ? (
@@ -266,9 +266,9 @@ export function TimelineItem({ entry, onInteractionAnswer, decidingInteractionId
             {entry.title ?? entry.type.replaceAll("_", " ")}
           </p>
           {entry.body ? (
-            <p className="mt-1 whitespace-pre-wrap text-[12px] leading-5 text-[#6b6b6b]">{entry.body}</p>
+            <p className="mt-1 whitespace-pre-wrap text-[12px] leading-5 text-[#92929b]">{entry.body}</p>
           ) : null}
-          <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-[#3d3d3d]">
+          <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-[#66666e]">
             <CircleDot className="size-2.5" />
             {entry.status}
           </div>
@@ -314,7 +314,7 @@ export function ApprovalCard({
           </p>
           {approval.mutation ? (
             <>
-              <p className="mt-1 truncate font-mono text-[10px] text-[#5c5c5c]">
+              <p className="mt-1 truncate font-mono text-[10px] text-[#85858e]">
                 {approval.mutation.tool} · {JSON.stringify(approval.mutation.target)}
               </p>
               <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-[12px] leading-5 text-[#a0a0a0]">

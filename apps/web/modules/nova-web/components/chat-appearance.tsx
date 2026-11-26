@@ -4,17 +4,10 @@ import { useMemo, useSyncExternalStore } from "react"
 import { Palette, RotateCcw } from "lucide-react"
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { contrastingText, DEFAULT_CHAT_APPEARANCE, parseChatAppearance, type ChatAppearance } from "@/modules/nova-web/chat-appearance"
+import { CHAT_APPEARANCE_PRESETS, contrastingText, DEFAULT_CHAT_APPEARANCE, parseChatAppearance, type ChatAppearance } from "@/modules/nova-web/chat-appearance"
 
 const STORAGE_KEY = "nova:chat-appearance:v1"
 const CHANGE_EVENT = "nova:chat-appearance-change"
-const PRESETS = [
-  { name: "Graphite", background: "#101010", ascii: "#a3aaa7" },
-  { name: "Midnight", background: "#0b172b", ascii: "#60a5fa" },
-  { name: "Forest", background: "#0c211b", ascii: "#6ee7b7" },
-  { name: "Ember", background: "#25140e", ascii: "#fb923c" },
-  { name: "Paper", background: "#f1eee7", ascii: "#786c58" },
-]
 
 function subscribe(onChange: () => void) {
   window.addEventListener("storage", onChange)
@@ -75,7 +68,7 @@ export function ChatAppearancePicker({ appearance, onChange }: {
           </button>
         </div>
         <div className="mb-4 flex gap-2">
-          {PRESETS.map((preset) => (
+          {CHAT_APPEARANCE_PRESETS.map((preset) => (
             <button key={preset.name} type="button" title={preset.name} aria-label={`${preset.name} color preset`} aria-pressed={appearance.background === preset.background && appearance.ascii === preset.ascii} onClick={() => onChange({ background: preset.background, ascii: preset.ascii, text: null })} style={{ backgroundColor: preset.background, color: preset.ascii }} className="flex size-9 items-center justify-center rounded-full border border-current/30 font-mono text-sm transition hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 aria-pressed:ring-2 aria-pressed:ring-ring aria-pressed:ring-offset-2 aria-pressed:ring-offset-popover">
               #
             </button>

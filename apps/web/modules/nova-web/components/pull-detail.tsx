@@ -118,7 +118,7 @@ export function PullDetailView({
 
   if (!isLoading && !review) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 bg-[#0f0f0f] text-[13px] text-[#6b6b6b]">
+      <div className="flex h-full flex-col items-center justify-center gap-3 bg-[#0e0e10] text-[13px] text-[#85858e]">
         <p>Pull request not found.</p>
         <button
           type="button"
@@ -132,8 +132,8 @@ export function PullDetailView({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#0f0f0f]">
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-white/[0.05] px-3">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#0e0e10]">
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-white/[0.08] px-4 sm:px-6">
         <button
           type="button"
           onClick={onBack}
@@ -143,7 +143,7 @@ export function PullDetailView({
           Pulls
         </button>
         {isLoading ? (
-          <span className="flex items-center gap-1.5 text-[12px] text-[#6b6b6b]">
+          <span className="flex items-center gap-1.5 text-[12px] text-[#85858e]">
             <Loader2 className="size-3.5 animate-spin" />
             Loading review…
           </span>

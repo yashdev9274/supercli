@@ -13,6 +13,7 @@ import {
   Github,
   Loader2,
   MoreHorizontal,
+  Palette,
   Plus,
   Search,
   Settings2,
@@ -31,6 +32,7 @@ import { AccountMenu } from "@/modules/nova-web/components/account-menu"
 import { BillingSection } from "@/modules/nova-web/components/settings-billing"
 import { UsageSection } from "@/modules/nova-web/components/settings-usage"
 import { ModelsSection } from "@/modules/nova-web/components/settings-models"
+import { AppearanceSection } from "@/modules/nova-web/components/settings-appearance"
 import type { HarnessProvider } from "@/modules/nova-web/models"
 import { getConnectedRepos } from "@/modules/dashboard/actions/analytics"
 import type { SettingsActivity, SettingsUsage } from "@/modules/nova/settings/service"
@@ -50,6 +52,7 @@ const SECTION_META: Array<{
   icon: React.ComponentType<{ className?: string }>
 }> = [
   { id: "general", label: "General", icon: Settings2 },
+  { id: "appearance", label: "Appearance", icon: Palette },
   { id: "profile", label: "Profile", icon: UserRound },
   { id: "projects", label: "Projects", icon: FolderGit2 },
   { id: "models", label: "Models", icon: Cpu },
@@ -205,8 +208,8 @@ export function SettingsView({
   }
 
   return (
-    <div className="flex h-full min-h-0 bg-[#0a0a0a] text-[#e8e8e8]">
-      <aside className="flex w-[240px] shrink-0 flex-col border-r border-white/[0.06] bg-[#0c0c0c]">
+    <div className="flex h-full min-h-0 flex-col bg-[#0e0e10] text-[13px] text-[#e8e8e8] sm:flex-row">
+      <aside className="flex w-full shrink-0 flex-col border-b border-white/[0.08] bg-[#0e0e10] sm:w-[208px] sm:border-b-0 sm:border-r">
         <div className="flex h-11 items-center gap-2 border-b border-white/[0.05] px-3">
           <button
             type="button"
@@ -218,17 +221,17 @@ export function SettingsView({
           </button>
         </div>
         <div className="px-2 py-2">
-          <div className="flex h-8 items-center gap-2 rounded-lg border border-white/[0.06] bg-[#141414] px-2.5">
-            <Search className="size-3.5 text-[#4a4a4a]" />
+          <div className="flex h-8 items-center gap-2 rounded-lg border border-white/[0.06] bg-[#151517] px-2.5">
+            <Search className="size-3.5 text-[#71717a]" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search settings"
-              className="min-w-0 flex-1 bg-transparent text-[12px] text-[#e8e8e8] outline-none placeholder:text-[#4a4a4a]"
+              className="min-w-0 flex-1 bg-transparent text-[12px] text-[#e8e8e8] outline-none placeholder:text-[#71717a]"
             />
           </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-3">
+        <div className="flex min-h-0 gap-1 overflow-x-auto px-2 pb-2 sm:block sm:flex-1 sm:overflow-y-auto sm:px-2 sm:pb-3">
           {filtered.map((item) => {
             const Icon = item.icon
             return (
@@ -237,7 +240,7 @@ export function SettingsView({
                 type="button"
                 onClick={() => onSectionChange(item.id)}
                 className={cn(
-                  "flex h-8 w-full items-center gap-2 rounded-lg px-2.5 text-left text-[13px] transition",
+                  "flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-2.5 text-left text-[13px] transition sm:w-full",
                   section === item.id
                     ? "bg-white/[0.08] text-white"
                     : "text-[#a0a0a0] hover:bg-white/[0.04] hover:text-[#e8e8e8]",
@@ -254,11 +257,12 @@ export function SettingsView({
         </div>
       </aside>
 
-      <section className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-[#0f0f0f]">
-        <div className={cn("mx-auto px-4 py-10 sm:px-8", section === "models" || section === "usage" ? "max-w-[1040px]" : "max-w-[760px]")}>
+      <section className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-[#0e0e10]">
+        <div className={cn("mx-auto px-5 py-9 sm:px-10 sm:py-14", section === "models" || section === "usage" ? "max-w-[1040px]" : "max-w-[840px]")}>
           {section === "general" ? (
             <GeneralSection prefs={prefs} onChange={updatePrefs} />
           ) : null}
+          {section === "appearance" ? <AppearanceSection /> : null}
           {section === "profile" ? (
             <ProfileSection user={user} copied={copied} onCopy={copyText} />
           ) : null}
@@ -378,7 +382,7 @@ function ProjectsSection({ onNavigate }: { onNavigate: (href: string) => void })
     <>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-[28px] font-medium tracking-tight">Projects & setup</h1>
+          <h1 className="text-[22px] font-medium tracking-[-0.025em]">Projects & setup</h1>
           <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[#8a8a8a]">
             Manage projects, setup, and create new ones from repositories or folders on this Mac.
           </p>
@@ -388,7 +392,7 @@ function ProjectsSection({ onNavigate }: { onNavigate: (href: string) => void })
             type="button"
             disabled={busy}
             onClick={() => setNewOpen((v) => !v)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 text-[12.5px] text-[#e8e8e8] transition hover:bg-white/[0.07] disabled:opacity-50"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 text-[12.5px] text-[#e8e8e8] transition hover:bg-white/[0.07] disabled:opacity-50"
           >
             {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
             New project
@@ -396,8 +400,8 @@ function ProjectsSection({ onNavigate }: { onNavigate: (href: string) => void })
           {newOpen ? (
             <>
               <button type="button" className="fixed inset-0 z-20" aria-label="Close" onClick={() => setNewOpen(false)} />
-              <div className="absolute right-0 top-[calc(100%+6px)] z-30 w-[300px] overflow-hidden rounded-xl border border-white/[0.1] bg-[#1a1a1a] p-1 shadow-2xl">
-                <p className="px-2.5 py-1.5 text-[10px] font-medium uppercase tracking-[0.08em] text-[#5c5c5c]">
+              <div className="absolute right-0 top-[calc(100%+6px)] z-30 w-[300px] overflow-hidden rounded-xl border border-white/[0.08] bg-[#151517] p-1 shadow-2xl">
+                <p className="px-2.5 py-1.5 text-[10px] font-medium uppercase tracking-[0.08em] text-[#7c7c85]">
                   Sources
                 </p>
                 <button
@@ -412,7 +416,7 @@ function ProjectsSection({ onNavigate }: { onNavigate: (href: string) => void })
                   <Github className="size-3.5 text-[#8a8a8a]" />
                   <span className="min-w-0 flex-1">
                     <span className="block text-[12.5px] text-[#e8e8e8]">GitHub repository</span>
-                    <span className="block text-[11px] text-[#6b6b6b]">
+                    <span className="block text-[11px] text-[#85858e]">
                       {repos.length ? `${repos[0]?.owner ?? "account"} · ${repos.length} repos` : "No connected repos"}
                     </span>
                   </span>
@@ -427,7 +431,7 @@ function ProjectsSection({ onNavigate }: { onNavigate: (href: string) => void })
                         onClick={() => void addFromGithub(repo.fullName)}
                         className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12px] text-[#c8c8c8] transition hover:bg-white/[0.05]"
                       >
-                        <FolderGit2 className="size-3.5 text-[#6b6b6b]" />
+                        <FolderGit2 className="size-3.5 text-[#85858e]" />
                         <span className="truncate">{repo.fullName}</span>
                       </button>
                     ))}
@@ -442,7 +446,7 @@ function ProjectsSection({ onNavigate }: { onNavigate: (href: string) => void })
                   <FolderOpen className="size-3.5 text-[#8a8a8a]" />
                   <span className="min-w-0 flex-1">
                     <span className="block text-[12.5px] text-[#e8e8e8]">Open a folder</span>
-                    <span className="block text-[11px] text-[#6b6b6b]">Browse this Mac</span>
+                    <span className="block text-[11px] text-[#85858e]">Browse this Mac</span>
                   </span>
                 </button>
               </div>
@@ -452,13 +456,13 @@ function ProjectsSection({ onNavigate }: { onNavigate: (href: string) => void })
       </div>
 
       <div className="mt-6 flex items-center gap-3">
-        <div className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border border-white/[0.08] bg-[#141414] px-3">
-          <Search className="size-3.5 shrink-0 text-[#5c5c5c]" />
+        <div className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border border-white/[0.08] bg-[#151517] px-3">
+          <Search className="size-3.5 shrink-0 text-[#7c7c85]" />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search projects"
-            className="min-w-0 flex-1 bg-transparent text-[13px] text-[#e8e8e8] outline-none placeholder:text-[#5c5c5c]"
+            className="min-w-0 flex-1 bg-transparent text-[13px] text-[#e8e8e8] outline-none placeholder:text-[#7c7c85]"
           />
         </div>
       </div>
@@ -469,8 +473,8 @@ function ProjectsSection({ onNavigate }: { onNavigate: (href: string) => void })
         </p>
       ) : null}
 
-      <div className="mt-5 overflow-hidden rounded-xl border border-white/[0.08] bg-[#141414]">
-        <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_0.7fr_0.6fr_0.7fr_36px] gap-2 border-b border-white/[0.06] px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.06em] text-[#5c5c5c]">
+      <div className="mt-5 overflow-hidden rounded-xl border border-white/[0.08] bg-[#151517]">
+        <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_0.7fr_0.6fr_0.7fr_36px] gap-2 border-b border-white/[0.06] px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.06em] text-[#7c7c85]">
           <span>Project</span>
           <span>Repositories</span>
           <span>Setup</span>
@@ -479,16 +483,16 @@ function ProjectsSection({ onNavigate }: { onNavigate: (href: string) => void })
           <span />
         </div>
 
-        <div className="border-b border-white/[0.05] bg-white/[0.02] px-4 py-1.5 text-[11px] text-[#6b6b6b]">
+        <div className="border-b border-white/[0.05] bg-[#151517] px-4 py-1.5 text-[11px] text-[#85858e]">
           Active {filtered.length}
         </div>
 
         {loading ? (
-          <p className="flex items-center gap-2 px-4 py-8 text-[13px] text-[#6b6b6b]">
+          <p className="flex items-center gap-2 px-4 py-8 text-[13px] text-[#85858e]">
             <Loader2 className="size-3.5 animate-spin" /> Loading projects…
           </p>
         ) : filtered.length === 0 ? (
-          <p className="px-4 py-10 text-center text-[13px] text-[#5c5c5c]">
+          <p className="px-4 py-10 text-center text-[13px] text-[#7c7c85]">
             No projects yet. Create one from GitHub or open a folder on this Mac.
           </p>
         ) : (
@@ -505,7 +509,7 @@ function ProjectsSection({ onNavigate }: { onNavigate: (href: string) => void })
                 )}
                 <div className="min-w-0">
                   <p className="truncate text-[13px] text-[#e8e8e8]">{project.displayName}</p>
-                  <p className="truncate text-[11px] text-[#5c5c5c]">
+                  <p className="truncate text-[11px] text-[#7c7c85]">
                     {project.fileCount} files{project.truncated ? " · partial" : ""}
                   </p>
                 </div>
@@ -514,16 +518,16 @@ function ProjectsSection({ onNavigate }: { onNavigate: (href: string) => void })
                 {project.repositoryFullName || "No repositories"}
               </p>
               <p className="text-[12.5px] text-[#8a8a8a]">Default</p>
-              <p className="flex items-center gap-1.5 text-[12.5px] text-[#6b6b6b]">
+              <p className="flex items-center gap-1.5 text-[12.5px] text-[#85858e]">
                 <span className="size-1.5 rounded-full bg-[#3d3d3d]" />
                 Off
               </p>
-              <p className="text-right text-[12px] text-[#6b6b6b]">
+              <p className="text-right text-[12px] text-[#85858e]">
                 {relativeUpdated(project.lastUsedAt || project.updatedAt)}
               </p>
               <button
                 type="button"
-                className="flex size-7 items-center justify-center rounded-md text-[#5c5c5c] hover:bg-white/[0.05] hover:text-[#c8c8c8]"
+                className="flex size-7 items-center justify-center rounded-md text-[#7c7c85] hover:bg-white/[0.05] hover:text-[#c8c8c8]"
                 aria-label="Project actions"
               >
                 <MoreHorizontal className="size-3.5" />
@@ -536,7 +540,7 @@ function ProjectsSection({ onNavigate }: { onNavigate: (href: string) => void })
       <button
         type="button"
         onClick={() => onNavigate("/settings?section=profile")}
-        className="mt-4 flex w-full items-center gap-2 rounded-xl border border-white/[0.08] bg-[#141414] px-4 py-3 text-left text-[12.5px] text-[#8a8a8a] transition hover:bg-white/[0.03] hover:text-[#c8c8c8]"
+        className="mt-4 flex w-full items-center gap-2 rounded-xl border border-white/[0.08] bg-[#151517] px-4 py-3 text-left text-[12.5px] text-[#8a8a8a] transition hover:bg-white/[0.03] hover:text-[#c8c8c8]"
       >
         <Github className="size-3.5" />
         Don’t see a repository? Manage the GitHub installation
@@ -555,10 +559,10 @@ function GeneralSection({
 }) {
   return (
     <>
-      <h1 className="text-[28px] font-medium tracking-tight">General</h1>
+      <h1 className="text-[22px] font-medium tracking-[-0.025em]">General</h1>
 
       <h2 className="mt-10 text-[13px] font-medium text-[#a0a0a0]">Interface</h2>
-      <div className="mt-3 overflow-hidden rounded-xl border border-white/[0.08] bg-[#141414]">
+      <div className="mt-3 overflow-hidden rounded-xl border border-white/[0.08] bg-[#151517]">
         <Row
           title="Sidebar"
           description="Choose which items appear in the sidebar and their order"
@@ -579,7 +583,7 @@ function GeneralSection({
       </div>
 
       <h2 className="mt-10 text-[13px] font-medium text-[#a0a0a0]">Input</h2>
-      <div className="mt-3 overflow-hidden rounded-xl border border-white/[0.08] bg-[#141414]">
+      <div className="mt-3 overflow-hidden rounded-xl border border-white/[0.08] bg-[#151517]">
         <Row
           title="Enter behavior"
           description="What pressing Enter does mid-run; Newline keeps ⌘/Ctrl+Enter and ⌥/Alt+Enter sends"
@@ -641,8 +645,8 @@ function ProfileSection({
 }) {
   return (
     <>
-      <h1 className="text-[28px] font-medium tracking-tight">Profile</h1>
-      <div className="mt-8 overflow-hidden rounded-xl border border-white/[0.08] bg-[#141414]">
+      <h1 className="text-[22px] font-medium tracking-[-0.025em]">Profile</h1>
+      <div className="mt-8 overflow-hidden rounded-xl border border-white/[0.08] bg-[#151517]">
         <Row
           title="Profile picture"
           description="Shown across your account"
@@ -661,7 +665,7 @@ function ProfileSection({
           title="Name"
           description="Shown to teammates"
           action={
-            <span className="rounded-lg border border-white/[0.08] bg-[#1a1a1a] px-3 py-1.5 text-[13px] text-[#e4e4e4]">
+            <span className="rounded-lg border border-white/[0.08] bg-[#151517] px-3 py-1.5 text-[13px] text-[#e4e4e4]">
               {user.name}
             </span>
           }
@@ -698,7 +702,7 @@ function ProfileSection({
       </div>
 
       <h2 className="mt-10 text-[13px] font-medium text-[#a0a0a0]">Danger zone</h2>
-      <div className="mt-3 overflow-hidden rounded-xl border border-white/[0.08] bg-[#141414]">
+      <div className="mt-3 overflow-hidden rounded-xl border border-white/[0.08] bg-[#151517]">
         <Row
           title="Delete account"
           description="Permanently revoke your access to Nova"
@@ -730,10 +734,10 @@ function ActivitySection({
     <>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[28px] font-medium tracking-tight">Activity</h1>
-          <p className="mt-1 text-[13px] text-[#6b6b6b]">What Nova got done in your workspace</p>
+          <h1 className="text-[22px] font-medium tracking-[-0.025em]">Activity</h1>
+          <p className="mt-1 text-[13px] text-[#85858e]">What Nova got done in your workspace</p>
         </div>
-        <div className="flex items-center gap-1 rounded-lg border border-white/[0.08] bg-[#141414] p-1">
+        <div className="flex items-center gap-1 rounded-lg border border-white/[0.08] bg-[#151517] p-1">
           {([7, 30, 90] as const).map((value) => (
             <button
               key={value}
@@ -782,9 +786,9 @@ function ActivitySection({
       </div>
 
       <h2 className="mt-10 text-[13px] font-medium text-[#a0a0a0]">Contribution</h2>
-      <div className="mt-3 overflow-hidden rounded-xl border border-white/[0.08] bg-[#141414] p-4">
+      <div className="mt-3 overflow-hidden rounded-xl border border-white/[0.08] bg-[#151517] p-4">
         <Heatmap days={data?.heatmap ?? []} />
-        <div className="mt-3 flex items-center justify-between text-[11px] text-[#5c5c5c]">
+        <div className="mt-3 flex items-center justify-between text-[11px] text-[#7c7c85]">
           <span>
             {(data?.heatmap.reduce((sum, day) => sum + day.count, 0) ?? 0)} touches in the last 52 weeks
           </span>
@@ -799,9 +803,9 @@ function ActivitySection({
       </div>
 
       <h2 className="mt-10 text-[13px] font-medium text-[#a0a0a0]">Recent threads</h2>
-      <div className="mt-3 overflow-hidden rounded-xl border border-white/[0.08] bg-[#141414]">
+      <div className="mt-3 overflow-hidden rounded-xl border border-white/[0.08] bg-[#151517]">
         {(data?.recent ?? []).length === 0 ? (
-          <p className="px-4 py-8 text-center text-[13px] text-[#6b6b6b]">
+          <p className="px-4 py-8 text-center text-[13px] text-[#85858e]">
             {loading ? "Loading activity…" : "No threads yet. Start one from the home composer."}
           </p>
         ) : (
@@ -814,7 +818,7 @@ function ActivitySection({
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] text-[#e4e4e4]">{thread.objective}</p>
-                <p className="mt-0.5 text-[12px] text-[#6b6b6b]">
+                <p className="mt-0.5 text-[12px] text-[#85858e]">
                   {thread.status} · {thread.runCount} runs · {new Date(thread.updatedAt).toLocaleString()}
                 </p>
               </div>
@@ -869,10 +873,10 @@ function MetricCard({
   delta: string
 }) {
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-[#141414] px-4 py-3.5">
-      <p className="text-[12px] text-[#6b6b6b]">{label}</p>
+    <div className="rounded-xl border border-white/[0.08] bg-[#151517] px-4 py-3.5">
+      <p className="text-[12px] text-[#85858e]">{label}</p>
       <p className="mt-2 text-[22px] font-medium tracking-tight">{value}</p>
-      <p className="mt-1 text-[11px] text-[#5c5c5c]">{delta}</p>
+      <p className="mt-1 text-[11px] text-[#7c7c85]">{delta}</p>
     </div>
   )
 }
@@ -893,12 +897,12 @@ function Row({
   action: React.ReactNode
 }) {
   return (
-    <div className="flex items-center gap-4 border-b border-white/[0.06] px-4 py-3.5 last:border-b-0">
-      <div className="min-w-0 flex-1">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-white/[0.06] px-4 py-4 last:border-b-0 sm:flex-nowrap">
+      <div className="min-w-[160px] flex-1">
         <p className="text-[13px] text-[#e4e4e4]">{title}</p>
-        <p className="mt-0.5 text-[12px] leading-5 text-[#6b6b6b]">{description}</p>
+        <p className="mt-0.5 text-[12px] leading-5 text-[#85858e]">{description}</p>
       </div>
-      <div className="shrink-0">{action}</div>
+      <div className="max-w-full shrink-0 break-all">{action}</div>
     </div>
   )
 }
@@ -918,7 +922,7 @@ function Toggle({
       onClick={() => onChange(!checked)}
       className={cn(
         "relative h-5 w-9 rounded-full transition",
-        checked ? "bg-[#2dd4bf]" : "bg-[#333]",
+        checked ? "bg-[#666670]" : "bg-[#333]",
       )}
     >
       <span
@@ -944,7 +948,7 @@ function Select({
     <select
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className="rounded-lg border border-white/[0.08] bg-[#1a1a1a] px-2.5 py-1.5 text-[12px] text-[#c8c8c8] outline-none"
+      className="rounded-lg border border-white/[0.08] bg-[#151517] px-2.5 py-1.5 text-[12px] text-[#c8c8c8] outline-none"
     >
       {options.map((option) => (
         <option key={option.value} value={option.value}>

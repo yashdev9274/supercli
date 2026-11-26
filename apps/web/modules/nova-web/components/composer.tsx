@@ -388,7 +388,7 @@ export function Composer({
       onDragOver={onComposerDragOver}
       onDrop={onComposerDrop}
       className={cn(
-        "relative rounded-2xl border border-[color:var(--chat-border,rgba(255,255,255,0.08))] bg-[var(--chat-surface,#1c1c1c)] transition",
+        "relative rounded-[20px] border border-[color:var(--chat-border,rgba(255,255,255,0.08))] bg-[var(--chat-surface,#161618)] transition focus-within:border-[color:var(--chat-border,rgba(255,255,255,0.16))]",
         dragOver && "border-[#2dd4bf]/55 bg-[#2dd4bf]/[0.04] ring-1 ring-[#2dd4bf]/30",
         className,
       )}
@@ -477,7 +477,7 @@ export function Composer({
           placeholder={placeholder ?? "Ask Nova, paste or drop files, @mention refs"}
           className={cn(
             "w-full resize-none bg-transparent text-[14px] leading-6 text-[var(--chat-text,#ececec)] outline-none placeholder:text-[var(--chat-muted,#5a5a5a)] disabled:opacity-60",
-            large ? "min-h-[72px]" : "min-h-[48px] max-h-[160px]",
+            large ? "min-h-[64px]" : "min-h-[48px] max-h-[160px]",
           )}
         />
         <p id={hintId} className="sr-only">
@@ -548,7 +548,7 @@ export function Composer({
       ) : null}
       <p role="status" aria-live="polite" className="sr-only">{referenceAnnouncement}</p>
 
-      <div className="relative flex items-center gap-1.5 px-2.5 pb-2.5">
+      <div className="relative flex flex-wrap items-center gap-1.5 px-2.5 pb-2.5">
         <DropdownMenu open={attachMenuOpen && attachEnabled} onOpenChange={(open) => {
           setAttachMenuOpen(open)
           if (open) dismissMention()
@@ -557,7 +557,7 @@ export function Composer({
             <button ref={attachRef} type="button" disabled={!attachEnabled}
               aria-label="Attachments and machine size"
               title={`Machine size: ${machineSizeLabel(machine.size)}`}
-              className="flex size-7 items-center justify-center rounded-md text-[#999] hover:bg-white/[0.05] hover:text-white focus-visible:outline-2 focus-visible:outline-[#2dd4bf] disabled:opacity-40">
+              className="flex size-7 items-center justify-center rounded-full bg-white/[0.035] text-[#999] hover:bg-white/[0.08] hover:text-white focus-visible:outline-2 focus-visible:outline-[#2dd4bf] disabled:opacity-40">
               <Plus className="size-4" strokeWidth={1.75} />
             </button>
           </DropdownMenuTrigger>
@@ -651,7 +651,7 @@ export function Composer({
               className={cn(
                 "flex size-8 items-center justify-center rounded-full transition active:scale-[0.97]",
                 canSend
-                  ? "bg-[#2dd4bf] text-[#0a0a0a] hover:bg-[#5eead4]"
+                  ? "bg-[#ededee] text-[#151517] hover:bg-white"
                   : "bg-[var(--chat-hover,#2a2a2a)] text-[var(--chat-muted,#555)]",
               )}
               aria-label="Send"

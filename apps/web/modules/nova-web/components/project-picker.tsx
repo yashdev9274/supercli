@@ -15,6 +15,7 @@ import {
   Settings2,
 } from "lucide-react"
 
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { getConnectedRepos } from "@/modules/dashboard/actions/analytics"
 import {
@@ -67,7 +68,6 @@ export function ProjectPicker({
   const [saved, setSaved] = useState<LocalProjectDto[]>([])
   const [repos, setRepos] = useState<Array<{ owner: string; name: string; fullName: string }>>([])
   const [loadingLists, setLoadingLists] = useState(false)
-  const rootRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
   const label = value?.displayName || getLocalWorkspace()?.displayName || "No project"
@@ -95,28 +95,7 @@ export function ProjectPicker({
       return
     }
     void refreshLists()
-    const id = window.setTimeout(() => searchRef.current?.focus(), 30)
-    return () => window.clearTimeout(id)
   }, [open, refreshLists])
-
-  useEffect(() => {
-    if (!open) return
-    function onPointer(event: PointerEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
-    }
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        if (panel !== "main") setPanel("main")
-        else setOpen(false)
-      }
-    }
-    document.addEventListener("pointerdown", onPointer)
-    document.addEventListener("keydown", onKey)
-    return () => {
-      document.removeEventListener("pointerdown", onPointer)
-      document.removeEventListener("keydown", onKey)
-    }
-  }, [open, panel])
 
   const filteredSaved = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -215,11 +194,12 @@ export function ProjectPicker({
   }
 
   return (
-    <div ref={rootRef} className={cn("relative", className)}>
+    <div className={cn("relative", className)}>
+      <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
       <button
         type="button"
         disabled={disabled || busy}
-        onClick={() => setOpen((v) => !v)}
         className={cn(
           "flex max-w-[260px] items-center gap-1.5 rounded-md px-1.5 py-1 text-[12px] transition",
           open ? "bg-white/[0.06] text-[#d6d6d6]" : "text-[#8a8a8a] hover:bg-white/[0.04] hover:text-[#c8c8c8]",
@@ -238,14 +218,28 @@ export function ProjectPicker({
         <span className="min-w-0 truncate">{label}</span>
         <ChevronDown className={cn("size-3 shrink-0 opacity-70 transition", open && "rotate-180")} />
       </button>
+      </PopoverTrigger>
 
-      {open ? (
-        <div
+        <PopoverContent
           role="menu"
-          className="absolute left-0 top-[calc(100%+6px)] z-50 w-[min(320px,calc(100vw-1.5rem))] overflow-hidden rounded-xl border border-white/[0.1] bg-[#1c1c1c] shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
+          align="start"
+          side="top"
+          sideOffset={6}
+          collisionPadding={12}
+          onOpenAutoFocus={(event) => {
+            event.preventDefault()
+            searchRef.current?.focus()
+          }}
+          onEscapeKeyDown={(event) => {
+            if (panel !== "main") {
+              event.preventDefault()
+              setPanel("main")
+            }
+          }}
+          className="flex max-h-[var(--radix-popover-content-available-height)] w-[min(320px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-xl border border-white/[0.1] bg-[#1c1c1c] p-0 shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
         >
           {/* Search */}
-          <div className="border-b border-white/[0.06] px-2.5 py-2">
+          <div className="shrink-0 border-b border-white/[0.06] px-2.5 py-2">
             <div className="flex items-center gap-2 rounded-md bg-white/[0.04] px-2 py-1.5">
               {panel !== "main" ? (
                 <button
@@ -272,7 +266,7 @@ export function ProjectPicker({
             </div>
           </div>
 
-          <div className="max-h-[360px] overflow-y-auto py-1">
+          <div className="min-h-0 max-h-[360px] flex-1 overflow-y-auto py-1">
             {panel === "main" ? (
               <>
                 {/* Recent */}
@@ -443,15 +437,15 @@ export function ProjectPicker({
           </div>
 
           {error ? (
-            <p className="border-t border-white/[0.06] px-3 py-2 text-[11px] leading-4 text-amber-200/90">{error}</p>
+            <p className="shrink-0 border-t border-white/[0.06] px-3 py-2 text-[11px] leading-4 text-amber-200/90">{error}</p>
           ) : null}
 
-          <div className="flex items-center justify-end gap-3 border-t border-white/[0.06] px-3 py-1.5 text-[10px] text-[#4a4a4a]">
+          <div className="flex shrink-0 items-center justify-end gap-3 border-t border-white/[0.06] px-3 py-1.5 text-[10px] text-[#4a4a4a]">
             <span>↵ Open</span>
             <span>Esc Close</span>
           </div>
-        </div>
-      ) : null}
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }

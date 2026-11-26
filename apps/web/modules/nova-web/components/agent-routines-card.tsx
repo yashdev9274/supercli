@@ -6,8 +6,8 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { cn } from "@/lib/utils"
 import { createAgentRoutine, deleteAgentRoutine, listAgentRoutines, updateAgentRoutine, type AgentRoutine } from "@/modules/nova-web/api"
 
-const button = "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.025] px-3 text-xs text-neutral-300 transition hover:bg-white/[0.07] disabled:opacity-40"
-const input = "h-9 w-full rounded-lg border border-white/10 bg-[#202020] px-3 text-[12px] text-white outline-none focus:border-white/25"
+const button = "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.025] px-3 text-xs text-neutral-300 transition hover:bg-white/[0.07] disabled:opacity-40"
+const input = "h-9 w-full rounded-lg border border-white/[0.08] bg-[#0e0e10] px-3 text-[12px] text-white outline-none focus:border-white/25"
 
 const emptyDraft = () => ({
   name: "Morning brief",
@@ -135,33 +135,33 @@ export function AgentRoutinesCard({ agentId, onClose }: { agentId: string; onClo
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent showCloseButton={false} className="max-h-[calc(100vh-32px)] gap-0 overflow-hidden rounded-2xl border-white/10 bg-[#181818] p-0 text-[#ededed] shadow-2xl sm:max-w-[760px]">
+      <DialogContent showCloseButton={false} className="max-h-[calc(100vh-32px)] gap-0 overflow-hidden rounded-xl border-white/[0.08] bg-[#151517] p-0 text-[#ededed] shadow-2xl sm:max-w-[760px]">
         <DialogTitle className="sr-only">Agent routines</DialogTitle>
         <DialogDescription className="sr-only">Edit scheduled routines for this agent.</DialogDescription>
         <div className="flex max-h-[calc(100vh-32px)] w-full flex-col overflow-hidden">
-          <div className="flex h-12 items-center gap-2 border-b border-white/[0.07] px-4">
+          <div className="flex h-12 items-center gap-2 border-b border-white/[0.08] px-4">
             <button type="button" onClick={onClose} className="text-xs text-neutral-400 hover:text-white">Settings</button>
-            <ChevronRight className="size-3 text-neutral-600" />
+            <ChevronRight className="size-3 text-[#777780]" />
             <span className="text-xs">Routines</span>
             <button type="button" className="ml-auto" onClick={onClose}>×</button>
           </div>
           <div className="grid min-h-0 flex-1 md:grid-cols-[230px_1fr]">
-            <aside className="border-b border-white/[0.07] p-3 md:border-b-0 md:border-r">
+            <aside className="border-b border-white/[0.08] p-3 md:border-b-0 md:border-r">
               <button type="button" className={cn(button, "mb-3 w-full")} onClick={newRoutine}>
                 <Plus className="size-3.5" />New routine
               </button>
-              {loading ? <p className="p-3 text-xs text-neutral-500">Loading…</p> : routines.length ? routines.map((routine) => (
+              {loading ? <p className="p-3 text-xs text-[#92929b]">Loading…</p> : routines.length ? routines.map((routine) => (
                 <button key={routine.id} type="button" onClick={() => edit(routine)} className={cn("mb-1 w-full rounded-lg px-3 py-2 text-left", selected?.id === routine.id ? "bg-white/[0.08]" : "hover:bg-white/[0.05]")}>
                   <span className="block truncate text-xs">{routine.name}</span>
-                  <span className="mt-1 block text-[10px] text-neutral-500">{routine.status} · {routine.scheduleType}</span>
+                  <span className="mt-1 block text-[10px] text-[#92929b]">{routine.status} · {routine.scheduleType}</span>
                 </button>
-              )) : <p className="p-3 text-xs text-neutral-600">No routines yet.</p>}
+              )) : <p className="p-3 text-xs text-[#92929b]">No routines yet.</p>}
             </aside>
             <main className="min-h-0 overflow-y-auto p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-sm font-medium">Routine</h2>
-                  <p className="mt-1 text-[11px] text-neutral-500">Runs this NovaBot agent on a schedule.</p>
+                  <h2 className="text-[13px] font-medium">Routine</h2>
+                  <p className="mt-1 text-[11px] text-[#92929b]">Runs this NovaBot agent on a schedule.</p>
                 </div>
                 <button type="button" className={button} disabled={saving || !selected} onClick={() => selected && void remove(selected.id)}>
                   <Trash2 className="size-3.5" />Delete
@@ -191,14 +191,14 @@ export function AgentRoutinesCard({ agentId, onClose }: { agentId: string; onClo
                   <input className={cn(input, "mt-1.5")} value={draft.timezone} onChange={(event) => setDraft({ ...draft, timezone: event.target.value })} />
                 </label>
                 <label className="block text-xs text-neutral-300">Instruction
-                  <textarea className="mt-1.5 min-h-28 w-full rounded-lg border border-white/10 bg-[#202020] px-3 py-2 text-xs leading-5 text-white outline-none focus:border-white/25" value={draft.instructions} onChange={(event) => setDraft({ ...draft, instructions: event.target.value })} />
+                  <textarea className="mt-1.5 min-h-28 w-full rounded-lg border border-white/[0.08] bg-[#0e0e10] px-3 py-2 text-xs leading-5 text-white outline-none focus:border-white/25" value={draft.instructions} onChange={(event) => setDraft({ ...draft, instructions: event.target.value })} />
                 </label>
-                <div className="rounded-lg border border-white/10 bg-[#202020] p-3">
+                <div className="rounded-lg border border-white/[0.08] bg-[#0e0e10] p-3">
                   <div className="flex items-center gap-2">
                     <CalendarDays className="size-4 text-neutral-300" />
                     <div className="min-w-0 flex-1">
                       <p className="text-xs">Google Calendar</p>
-                      <p className="mt-1 text-[11px] text-neutral-500">{calendar === null ? "Checking connection…" : calendar ? "Connected through Composio" : "Not connected"}</p>
+                      <p className="mt-1 text-[11px] text-[#92929b]">{calendar === null ? "Checking connection…" : calendar ? "Connected through Composio" : "Not connected"}</p>
                     </div>
                     {calendar ? <span className="text-[11px] text-emerald-300">Connected</span> : <div className="flex gap-1">
                       <button type="button" className={button} onClick={() => void checkCalendar()}>Check</button>
@@ -217,7 +217,7 @@ export function AgentRoutinesCard({ agentId, onClose }: { agentId: string; onClo
                 </label>
               </div>
               {error ? <p role="alert" className="mt-4 text-xs text-amber-200">{error}</p> : null}
-              <div className="mt-5 flex justify-end gap-2 border-t border-white/[0.07] pt-4">
+              <div className="mt-5 flex justify-end gap-2 border-t border-white/[0.08] pt-4">
                 <button type="button" className={button} onClick={onClose}>Cancel</button>
                 <button type="button" className="inline-flex h-8 items-center gap-2 rounded-md bg-white px-4 text-xs font-medium text-black disabled:opacity-40" disabled={saving || !draft.name.trim() || !draft.instructions.trim()} onClick={() => void save()}>
                   {saving ? <Loader2 className="size-3 animate-spin" /> : null}Save

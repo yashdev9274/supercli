@@ -35,12 +35,12 @@ export function ProviderApiKeyCard({ provider }: { provider: HarnessProvider }) 
     finally { setBusy(false) }
   }
   const label = provider === "cursor" ? "Cursor Cloud Agents" : "OpenCode Go"
-  return <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+  return <div className="mt-4 rounded-xl border border-white/[0.08] bg-[#151517] p-4">
     <div className="flex items-center justify-between gap-3">
-      <div><p className="text-sm font-medium text-white">{label}</p><p className="mt-1 text-xs text-[#888]">{connected ? "Connected. The key is encrypted on Nova’s backend." : "Connect with your provider API key."}</p></div>
-      {connected ? <button type="button" onClick={() => void disconnect()} disabled={busy} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-[#aaa] hover:bg-white/5 disabled:opacity-50">Disconnect</button> : null}
+      <div><p className="text-[13px] font-medium text-white">{label}</p><p className="mt-1 text-xs text-[#92929b]">{connected ? "Connected. The key is encrypted on Nova’s backend." : "Connect with your provider API key."}</p></div>
+      {connected ? <button type="button" onClick={() => void disconnect()} disabled={busy} className="rounded-lg border border-white/[0.08] px-3 py-1.5 text-xs text-[#aaa] hover:bg-white/5 disabled:opacity-50">Disconnect</button> : null}
     </div>
-    {!connected ? <div className="mt-3 flex gap-2"><input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder={`${label} API key`} className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white outline-none focus:border-[#2dd4bf]/60" /><button type="button" onClick={() => void save()} disabled={busy || !apiKey.trim()} className="rounded-lg bg-[#2dd4bf] px-3 py-2 text-xs font-medium text-black disabled:opacity-40">{busy ? "Checking…" : "Connect"}</button></div> : null}
+    {!connected ? <div className="mt-3 flex gap-2"><input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder={`${label} API key`} className="min-w-0 flex-1 rounded-lg border border-white/[0.08] bg-black/20 px-3 py-2 text-xs text-white outline-none focus:border-[#2dd4bf]/60" /><button type="button" onClick={() => void save()} disabled={busy || !apiKey.trim()} className="rounded-lg bg-[#2dd4bf] px-3 py-2 text-xs font-medium text-black disabled:opacity-40">{busy ? "Checking…" : "Connect"}</button></div> : null}
     {message ? <p className="mt-2 text-xs text-[#aaa]" role="status">{message}</p> : null}
   </div>
 }

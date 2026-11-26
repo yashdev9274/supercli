@@ -25,7 +25,7 @@ export function ModelsSection({ provider, model, onUseModel }: {
 
   return (
     <div>
-      <h1 className="text-[28px] font-medium tracking-tight">Models</h1>
+      <h1 className="text-[22px] font-medium tracking-[-0.025em]">Models</h1>
       <p className="mt-2 text-[13px] leading-5 text-[#8a8a8a]">For each model, a thread runs on the first subscription or key below that serves it.</p>
 
       <CodexDeviceConnectionCard hideSummary />
@@ -34,7 +34,7 @@ export function ModelsSection({ provider, model, onUseModel }: {
           : codex.error ? <p role="alert" className="text-amber-300">{codex.error}</p>
           : !codex.connected ? <p>Connect Codex to load your account’s models.</p>
           : <p>{codex.models.length ? `${codex.models.length} Codex account models available.` : "No models available for this Codex account."}</p>}
-        <button type="button" disabled={codex.loading} onClick={codex.retry} className="shrink-0 rounded-md border border-white/10 px-2.5 py-1 hover:bg-white/5 disabled:opacity-50">Refresh Codex models</button>
+        <button type="button" disabled={codex.loading} onClick={codex.retry} className="shrink-0 rounded-md border border-white/[0.08] px-2.5 py-1 hover:bg-white/5 disabled:opacity-50">Refresh Codex models</button>
       </div>
       <details className="mt-5 text-[12px] text-[#8a8a8a]">
         <summary className="cursor-pointer hover:text-[#ededed]">Advanced · Local Codex companion</summary>
@@ -50,16 +50,16 @@ export function ModelsSection({ provider, model, onUseModel }: {
           <span className="text-[11px] text-[#8a8a8a]">{models.length} shown</span>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <label className="flex h-9 min-w-[180px] flex-1 items-center gap-2 rounded-lg border border-white/[0.08] bg-[#171717] px-3">
+          <label className="flex h-9 min-w-[180px] flex-1 items-center gap-2 rounded-lg border border-white/[0.08] bg-[#151517] px-3">
             <Search aria-hidden="true" className="size-3.5 shrink-0 text-[#8a8a8a]" />
             <input aria-label="Search models" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search models or providers…" className="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-[#777]" />
           </label>
-          <select aria-label="Filter by provider" value={filter} onChange={(event) => setFilter(event.target.value as HarnessProvider | "all")} className="h-9 max-w-full rounded-lg border border-white/[0.08] bg-[#171717] px-3 text-[12px] outline-none focus-visible:outline-2 focus-visible:outline-[#2dd4bf]">
+          <select aria-label="Filter by provider" value={filter} onChange={(event) => setFilter(event.target.value as HarnessProvider | "all")} className="h-9 max-w-full rounded-lg border border-white/[0.08] bg-[#151517] px-3 text-[12px] outline-none focus-visible:outline-2 focus-visible:outline-neutral-400">
             <option value="all">All providers</option>
             {HARNESS_PROVIDERS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
           </select>
         </div>
-        <div className="mt-3 overflow-x-auto rounded-xl border border-white/[0.08] bg-[#171717] p-2">
+        <div className="mt-3 overflow-x-auto rounded-xl border border-white/[0.08] bg-[#151517] p-2">
           <table className="w-full min-w-[560px] text-left text-[12px]">
             <caption className="sr-only">Nova models and their provider configuration</caption>
             <thead className="bg-white/[0.04] text-[#999]">
@@ -101,13 +101,13 @@ function ModelRow({ entry, selected, expanded, onExpand, onUse }: {
   if (!provider) return null
   return (
     <>
-      <tr className="border-b border-white/[0.04] text-[#a0a0a0] hover:bg-white/[0.02]">
+      <tr className="border-b border-white/[0.04] text-[#a0a0a0] hover:bg-[#151517]">
         <td className="px-3 py-3.5">
           <span className="flex items-center gap-2 text-[#d0d0d0]"><CompanyLogo logo={modelLogo(entry)} />{entry.label}{selected ? <Check aria-label="Selected model" className="size-3.5 shrink-0 text-[#2dd4bf]" /> : null}</span>
         </td>
         <td className="px-3 py-3.5"><span className="flex items-center gap-2"><CompanyLogo logo={PROVIDER_LOGOS[entry.provider] ?? modelLogo(entry)} />{provider.shortLabel}</span></td>
         <td className="px-3 py-3.5 tabular-nums">{entry.cost ?? "—"}</td>
-        <td className="px-2 py-3.5 text-right"><button type="button" aria-label={`Configure ${entry.label} via ${provider.label}`} aria-expanded={expanded} onClick={onExpand} className="rounded-md p-1.5 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-[#2dd4bf]"><ChevronDown className={`size-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} /></button></td>
+        <td className="px-2 py-3.5 text-right"><button type="button" aria-label={`Configure ${entry.label} via ${provider.label}`} aria-expanded={expanded} onClick={onExpand} className="rounded-md p-1.5 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-neutral-400"><ChevronDown className={`size-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} /></button></td>
       </tr>
       {expanded ? (
         <tr><td colSpan={4} className="border-b border-white/[0.06] bg-black/15 px-4 py-4">
@@ -117,7 +117,7 @@ function ModelRow({ entry, selected, expanded, onExpand, onUse }: {
             <div><dt className="text-[#888]">Provider</dt><dd className="mt-1 text-[#c0c0c0]">{provider.label} · {entry.provider}</dd></div>
             <div className="sm:col-span-2"><dt className="text-[#888]">Harness credential</dt><dd className="mt-1 break-all font-mono text-[#c0c0c0]">{PROVIDER_CONFIGURATION[entry.provider].credential}</dd></div>
           </dl>
-          <button type="button" onClick={onUse} className="mt-4 rounded-lg border border-[#2dd4bf]/30 bg-[#2dd4bf]/10 px-3 py-1.5 text-[12px] text-[#2dd4bf] hover:bg-[#2dd4bf]/20 focus-visible:outline-2 focus-visible:outline-[#2dd4bf]">{selected ? "Continue with this model" : "Use model"}</button>
+          <button type="button" onClick={onUse} className="mt-4 rounded-lg border border-[#2dd4bf]/30 bg-[#2dd4bf]/10 px-3 py-1.5 text-[12px] text-[#2dd4bf] hover:bg-[#2dd4bf]/20 focus-visible:outline-2 focus-visible:outline-neutral-400">{selected ? "Continue with this model" : "Use model"}</button>
         </td></tr>
       ) : null}
     </>

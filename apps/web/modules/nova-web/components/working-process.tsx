@@ -39,7 +39,7 @@ function FileChip({
         {lang}
       </span>
       <span className="truncate font-mono text-[12.5px] text-[#8ec9c0]">{name}</span>
-      {range ? <span className="font-mono text-[11px] text-[#5c5c5c]">{range}</span> : null}
+      {range ? <span className="font-mono text-[11px] text-[#85858e]">{range}</span> : null}
     </span>
   )
 }
@@ -61,8 +61,8 @@ function StepLine({ step, nested = false }: { step: WorkingStep; nested?: boolea
 
   if (step.kind === "write" && step.meta?.path) {
     return (
-      <p className={cn("text-[12.5px] leading-5 text-[#7a7a7a]", nested && "pl-0")}>
-        <span className="text-[#8a8a8a]">Writing </span>
+      <p className={cn("text-[12.5px] leading-5 text-[#92929b]", nested && "pl-0")}>
+        <span className="text-[#a1a1aa]">Writing </span>
         <FileChip language={step.meta.language} path={step.meta.path} />
         <DiffChip additions={step.meta.additions} deletions={step.meta.deletions} />
       </p>
@@ -71,8 +71,8 @@ function StepLine({ step, nested = false }: { step: WorkingStep; nested?: boolea
 
   if (step.kind === "read" && step.meta?.path) {
     return (
-      <p className="text-[12.5px] leading-5 text-[#7a7a7a]">
-        <span className="text-[#8a8a8a]">Reading </span>
+      <p className="text-[12.5px] leading-5 text-[#92929b]">
+        <span className="text-[#a1a1aa]">Reading </span>
         <FileChip language={step.meta.language} path={step.meta.path} />
       </p>
     )
@@ -84,7 +84,7 @@ function StepLine({ step, nested = false }: { step: WorkingStep; nested?: boolea
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="group flex items-center gap-1 text-[12.5px] leading-5 text-[#7a7a7a] transition hover:text-[#a0a0a0]"
+          className="group flex items-center gap-1 text-[12.5px] leading-5 text-[#92929b] transition hover:text-[#a0a0a0]"
         >
           {open ? (
             <ChevronDown className="size-3 opacity-70" />
@@ -94,7 +94,7 @@ function StepLine({ step, nested = false }: { step: WorkingStep; nested?: boolea
           <span>{step.label}</span>
         </button>
         {open ? (
-          <ul className="mt-1 space-y-1 border-l border-white/[0.06] pl-3 ml-1.5">
+          <ul className="mt-1 space-y-1 border-l border-white/[0.08] pl-3 ml-1.5">
             {step.children!.map((child) => (
               <li key={child.id}>
                 <ChildLine child={child} />
@@ -110,7 +110,7 @@ function StepLine({ step, nested = false }: { step: WorkingStep; nested?: boolea
     <p
       className={cn(
         "text-[12.5px] leading-5",
-        isActive ? "text-[#8a8a8a]" : "text-[#6b6b6b]",
+        isActive ? "text-[#a1a1aa]" : "text-[#92929b]",
       )}
     >
       {isActive && step.kind === "thinking" ? (
@@ -128,13 +128,13 @@ function StepLine({ step, nested = false }: { step: WorkingStep; nested?: boolea
 function ChildLine({ child }: { child: WorkingStepChild }) {
   if (child.path) {
     return (
-      <p className="text-[12.5px] leading-5 text-[#7a7a7a]">
-        <span className="text-[#8a8a8a]">{child.label} </span>
+      <p className="text-[12.5px] leading-5 text-[#92929b]">
+        <span className="text-[#a1a1aa]">{child.label} </span>
         <FileChip language={child.language} path={child.path} range={child.range} />
       </p>
     )
   }
-  return <p className="text-[12.5px] leading-5 text-[#6b6b6b]">{child.label}</p>
+  return <p className="text-[12.5px] leading-5 text-[#92929b]">{child.label}</p>
 }
 
 function WorkingDots() {
@@ -151,7 +151,7 @@ function WorkingDots() {
 export function WorkedForLine({ ms, className }: { ms: number; className?: string }) {
   if (ms < 500) return null
   return (
-    <p className={cn("text-[12.5px] leading-5 text-[#5c5c5c]", className)}>
+    <p className={cn("text-[12.5px] leading-5 text-[#85858e]", className)}>
       Worked for {formatWorkDuration(ms)}
     </p>
   )
@@ -205,11 +205,11 @@ export function WorkingProcess({
     : `Worked for ${formatWorkDuration(elapsed)}`
 
   return (
-    <div className="my-3 select-none">
+    <div className="my-3 select-none rounded-xl border border-white/[0.08] bg-[#151517] px-3.5 py-3">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="group flex items-center gap-1 text-[12.5px] leading-5 text-[#6b6b6b] transition hover:text-[#9a9a9a]"
+        className="group flex items-center gap-1 text-[12.5px] leading-5 text-[#92929b] transition hover:text-[#9a9a9a]"
         aria-expanded={open}
       >
         <span>{header}</span>
@@ -223,7 +223,7 @@ export function WorkingProcess({
       {open ? (
         <div className="mt-1.5 space-y-1 pl-0.5">
           {steps.length === 0 && streaming ? (
-            <p className="flex items-center gap-2 text-[12.5px] leading-5 text-[#7a7a7a]">
+            <p className="flex items-center gap-2 text-[12.5px] leading-5 text-[#92929b]">
               <span className="size-1 animate-pulse rounded-full bg-[#2dd4bf]/80" />
               Starting…
             </p>
@@ -234,7 +234,7 @@ export function WorkingProcess({
       ) : null}
 
       {streaming ? (
-        <p className="mt-3 flex items-center gap-2 text-[12.5px] leading-5 text-[#5c5c5c]">
+        <p className="mt-3 flex items-center gap-2 text-[12.5px] leading-5 text-[#85858e]">
           <WorkingDots />
           <span>{agentName} is working</span>
         </p>

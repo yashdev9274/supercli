@@ -5,10 +5,18 @@ export type ChatAppearance = {
 }
 
 export const DEFAULT_CHAT_APPEARANCE: ChatAppearance = {
-  background: "#101010",
+  background: "#0e0e10",
   ascii: "#a3aaa7",
   text: null,
 }
+
+export const CHAT_APPEARANCE_PRESETS = [
+  { name: "Graphite", background: DEFAULT_CHAT_APPEARANCE.background, ascii: "#a3aaa7" },
+  { name: "Midnight", background: "#0b172b", ascii: "#60a5fa" },
+  { name: "Forest", background: "#0c211b", ascii: "#6ee7b7" },
+  { name: "Ember", background: "#25140e", ascii: "#fb923c" },
+  { name: "Paper", background: "#f1eee7", ascii: "#786c58" },
+] as const
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i
 

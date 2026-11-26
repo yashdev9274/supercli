@@ -47,7 +47,7 @@ export function UsageSection({ loading, error, data, onRefresh }: {
     <div className="space-y-7" aria-busy={loading}>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-[28px] font-medium tracking-tight">Usage</h1>
+          <h1 className="text-[22px] font-medium tracking-[-0.025em]">Usage</h1>
           <p className="mt-1 text-[13px] text-[#929292]">One credit balance for models, cloud machines, and MCP apps.</p>
         </div>
         <button type="button" onClick={onRefresh} disabled={loading} className="mt-1 inline-flex h-8 items-center gap-2 rounded-lg border border-white/[0.08] px-3 text-[12px] text-[#b0b0b0] transition hover:bg-white/[0.05] disabled:opacity-50">
@@ -62,7 +62,7 @@ export function UsageSection({ loading, error, data, onRefresh }: {
         </div>
       ) : null}
 
-      <section aria-label="Monthly credit allowance" className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#181818]">
+      <section aria-label="Monthly credit allowance" className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#151517]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] px-5 py-3.5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[13px] font-medium">{data?.planTier === "spark" ? "Free" : data?.planName ?? "Your plan"}</span>
@@ -104,7 +104,7 @@ export function UsageSection({ loading, error, data, onRefresh }: {
           const entry = data?.categories.find((item) => item.kind === category.kind)
           const Icon = category.icon
           return (
-            <section key={category.kind} aria-label={`${category.label} credit usage`} className="rounded-xl border border-white/[0.08] bg-[#151515] px-4 py-4">
+            <section key={category.kind} aria-label={`${category.label} credit usage`} className="rounded-xl border border-white/[0.08] bg-[#151517] px-4 py-4">
               <p className="flex items-center gap-2 text-[12px] text-[#a8a8a8]"><Icon className={cn("size-3.5", category.text)} />{category.label}</p>
               <p className="mt-3 text-[22px] font-medium tracking-tight tabular-nums">{available ? credits(entry?.spentCredits ?? 0) : "—"}<span className="ml-1.5 text-[12px] font-normal text-[#808080]">credits used</span></p>
               <p className="mt-1 text-[11px] text-[#808080]">{available ? `${credits(entry?.reservedCredits ?? 0)} reserved · ${(entry?.requests ?? 0).toLocaleString()} ${category.kind === "machines" ? "runs" : "calls"}` : "Awaiting usage data"}</p>
@@ -113,7 +113,7 @@ export function UsageSection({ loading, error, data, onRefresh }: {
         })}
       </div>
 
-      <section aria-label="Daily credit usage" className="rounded-xl border border-white/[0.08] bg-[#151515] px-5 py-4">
+      <section aria-label="Daily credit usage" className="rounded-xl border border-white/[0.08] bg-[#151517] px-5 py-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-[20px] font-medium tabular-nums">{available ? credits(chartTotal) : "—"}<span className="ml-2 text-[12px] font-normal text-[#929292]">credits used</span></p>
@@ -148,7 +148,7 @@ export function UsageSection({ loading, error, data, onRefresh }: {
 
       <section aria-label="Credit usage history">
         <div className="mb-3 flex items-center justify-between gap-4"><h2 className="text-[14px] font-medium">History</h2><span className="text-[11px] text-[#808080]">Latest 50 charges · your account</span></div>
-        <div className="overflow-x-auto rounded-xl border border-white/[0.08] bg-[#151515]">
+        <div className="overflow-x-auto rounded-xl border border-white/[0.08] bg-[#151517]">
           <table className="w-full min-w-[520px] text-left text-[12px]">
             <thead className="border-b border-white/[0.06] text-[11px] text-[#808080]"><tr><th className="px-4 py-3 font-normal">Usage</th><th className="px-4 py-3 font-normal">Time</th><th className="px-4 py-3 font-normal">Status</th><th className="px-4 py-3 text-right font-normal">Credits</th></tr></thead>
             <tbody>
