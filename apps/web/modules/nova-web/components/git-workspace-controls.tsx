@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import {
   Check,
   GitBranch,
@@ -40,6 +40,7 @@ export function GitWorkspaceControls({
   onOpenWorkspace,
   workspaceLabels,
   localRootName,
+  agentUsage,
 }: {
   state: GitWorkspaceState
   disabled?: boolean
@@ -47,6 +48,7 @@ export function GitWorkspaceControls({
   onOpenWorkspace?: (threadId: string) => void
   workspaceLabels?: Record<string, string>
   localRootName?: string | null
+  agentUsage?: ReactNode
 }) {
   const [open, setOpen] = useState(false)
   const [port, setPort] = useState("47832")
@@ -137,7 +139,7 @@ export function GitWorkspaceControls({
   const project = projects.find((item) => item.id === projectId)
   return (
     <>
-      <GitWorkspaceToolbar state={state} disabled={disabled} repositoryFullName={repositoryFullName} localRootName={localRootName} onSettings={() => setOpen(true)} onOpenWorkspace={onOpenWorkspace} workspaceLabels={workspaceLabels} />
+      <GitWorkspaceToolbar state={state} disabled={disabled} repositoryFullName={repositoryFullName} localRootName={localRootName} onSettings={() => setOpen(true)} onOpenWorkspace={onOpenWorkspace} workspaceLabels={workspaceLabels} agentUsage={agentUsage} />
       <Dialog
         open={open}
         onOpenChange={(value) => {

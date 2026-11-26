@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import {
   Check,
   ChevronDown,
@@ -43,6 +43,7 @@ export function GitWorkspaceToolbar({
   onOpenWorkspace,
   workspaceLabels = {},
   localRootName,
+  agentUsage,
 }: {
   state: GitWorkspaceState
   disabled: boolean
@@ -51,6 +52,7 @@ export function GitWorkspaceToolbar({
   onOpenWorkspace?: (threadId: string) => void
   workspaceLabels?: Record<string, string>
   localRootName?: string | null
+  agentUsage?: ReactNode
 }) {
   const [machineOpen, setMachineOpen] = useState(false)
   const [branchOpen, setBranchOpen] = useState(false)
@@ -261,7 +263,7 @@ export function GitWorkspaceToolbar({
     source?.replace(/^refs\/(?:heads|remotes)\//, "") || "Choose branch"
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-2">
+    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
       <Popover
         open={machineOpen}
         onOpenChange={(value) => {
@@ -568,6 +570,7 @@ export function GitWorkspaceToolbar({
           )}
         </PopoverContent>
       </Popover>
+      {agentUsage}
       {workspace && (
         <button
           type="button"

@@ -84,6 +84,7 @@ import { packLocalProjectForTurn } from "@/modules/nova-web/project-pack"
 import { useGitWorkspace } from "@/modules/nova-web/use-git-workspace"
 import { workspacePublishIntent } from "@/modules/nova-web/git-workspace"
 import { GitWorkspaceControls } from "@/modules/nova-web/components/git-workspace-controls"
+import { AgentUsage } from "@/modules/nova-web/components/agent-usage"
 import type { ProjectSelection } from "@/modules/nova-web/components/project-picker"
 import type { LocalAttachment } from "@/modules/nova/attachments/contracts"
 import type { NovaReference } from "@/modules/nova/references/contracts"
@@ -1105,7 +1106,7 @@ export function NovaApp({
           onLocalFilesChange={setLocalFiles}
           localProject={gitWorkspace.workspace ? { id: localProject?.id ?? gitWorkspace.workspace.projectId, displayName: gitWorkspace.workspace.path.split(/[\\/]/).pop() ?? "Worktree", rootName: "Worktree", fileCount: gitWorkspace.paths.length, truncated: false, repositoryFullName: localProject?.repositoryFullName ?? null, status: "active", lastUsedAt: null, updatedAt: session.updatedAt, paths: gitWorkspace.paths } : session.githubSource && session.localProject ? { ...session.localProject, paths: gitWorkspace.paths, fileCount: gitWorkspace.paths.length } : localProject ?? session.localProject ?? null}
           readWorkspaceFile={gitWorkspace.workspace ? path => gitClient.read(gitWorkspace.workspace!.id, path) : session.githubSource ? async path => (await readGithubSourceFile(session.id, path)).text : undefined}
-          workspaceControls={!embedded ? <GitWorkspaceControls state={gitWorkspace} disabled={isPending || streaming} repositoryFullName={localProject?.repositoryFullName} localRootName={localProject?.rootName} onOpenWorkspace={id => navigate(`/s/${id}`)} workspaceLabels={Object.fromEntries(sessions.map(item => [item.id, item.objective]))}/> : undefined}
+          workspaceControls={!embedded ? <GitWorkspaceControls state={gitWorkspace} disabled={isPending || streaming} repositoryFullName={localProject?.repositoryFullName} localRootName={localProject?.rootName} onOpenWorkspace={id => navigate(`/s/${id}`)} workspaceLabels={Object.fromEntries(sessions.map(item => [item.id, item.objective]))} agentUsage={<AgentUsage userId={user.id} provider={provider} />}/> : undefined}
           onLocalProjectChange={(workspace) => void handleLocalProjectChange(workspace)}
           onProjectChange={(selection) => void applyProjectSelection(selection)}
           onManageProjects={() => openSettingsSection("projects")}
@@ -1205,7 +1206,7 @@ export function NovaApp({
           onProjectChange={(selection) => void applyProjectSelection(selection)}
           onManageProjects={() => openSettingsSection("projects")}
           localProject={localProject}
-          workspaceControls={<GitWorkspaceControls state={gitWorkspace} disabled={isPending || streaming} repositoryFullName={localProject?.repositoryFullName} localRootName={localProject?.rootName} onOpenWorkspace={id => navigate(`/s/${id}`)} workspaceLabels={Object.fromEntries(sessions.map(item => [item.id, item.objective]))}/>}
+          workspaceControls={<GitWorkspaceControls state={gitWorkspace} disabled={isPending || streaming} repositoryFullName={localProject?.repositoryFullName} localRootName={localProject?.rootName} onOpenWorkspace={id => navigate(`/s/${id}`)} workspaceLabels={Object.fromEntries(sessions.map(item => [item.id, item.objective]))} agentUsage={<AgentUsage userId={user.id} provider={provider} />}/>}
         />
       )}
     </CodexCatalogContext.Provider>
