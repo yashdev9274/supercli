@@ -37,6 +37,7 @@ import {
 } from "./lib/openai-compatible-stream"
 import { stripOrphanToolCalls } from "./cli/ai/sanitize-messages"
 import { registerComposioRoutes } from "./routes/composio"
+import { registerIslandLinkRoutes } from "./routes/island-link"
 import { registerNovaHarnessRoutes } from "./routes/nova-harness"
 import { streamNeonChat } from "./runtime/stream/neon-stream"
 import { DEFAULT_NEON_MODEL } from "./config/neon.config"
@@ -406,6 +407,7 @@ async function getUserFromBearer(req: express.Request) {
 
 registerComposioRoutes(app, getUserFromBearer)
 registerNovaHarnessRoutes(app, getUserFromBearer)
+registerIslandLinkRoutes(app, getUserFromBearer)
 
 async function proxyDesktopReview(req: express.Request, res: express.Response) {
   const user = await getUserFromBearer(req)

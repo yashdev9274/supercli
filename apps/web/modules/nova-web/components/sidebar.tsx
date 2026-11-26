@@ -31,6 +31,7 @@ import type { NovaEffort } from "@/modules/nova-web/models"
 import { SidebarOptions } from "./sidebar-options"
 import { SidebarFolderDialog, SidebarThreads } from "./sidebar-threads"
 import { AccountMenu } from "@/modules/nova-web/components/account-menu"
+import { IslandLinkButton } from "@/modules/nova-web/components/island-link"
 import { NovaChangelog } from "@/modules/nova-web/components/changelog"
 import { NovaIcon } from "@/modules/nova-web/components/nova-icon"
 import { AgentSettingsCard } from "@/modules/nova-web/components/agent-settings-card"
@@ -110,6 +111,7 @@ export function NovaSidebar({
       </div>
 
       <div className="space-y-0.5 px-2 pb-2">
+        <IslandLinkButton />
         <button
           type="button"
           onClick={onNewSession}
