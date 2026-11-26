@@ -41,6 +41,7 @@ import {
   type SettingsSectionId,
 } from "@/modules/nova-web/settings-sections"
 import { NovaSidebar } from "@/modules/nova-web/components/sidebar"
+import { NavigationRail } from "@/modules/nova-web/components/navigation-rail"
 import { NovaMark } from "@/modules/nova-web/components/timeline"
 import { ThreadView } from "@/modules/nova-web/components/thread"
 import { SideThreadGroup } from "@/modules/nova-web/components/side-thread-group"
@@ -1220,7 +1221,8 @@ export function NovaApp({
 
   if (view === "settings") {
     return (
-      <main className="dark flex h-dvh min-h-[560px] overflow-hidden bg-[#0a0a0a] text-[#e8e8e8]">
+      <main className="nova-workspace dark flex h-dvh min-h-[400px] overflow-hidden bg-[#0c0c0d] text-[#e8e8e8]">
+        <NavigationRail view={view} onNavigate={navigate} />
         <div className="min-h-0 min-w-0 flex-1">{content}</div>
         {error ? (
           <button
@@ -1237,7 +1239,8 @@ export function NovaApp({
   }
 
   return (
-    <main className="dark flex h-dvh min-h-[560px] overflow-hidden bg-[#0a0a0a] text-[#e8e8e8]">
+    <main className="nova-workspace dark flex h-dvh min-h-[400px] overflow-hidden bg-[#0c0c0d] text-[#e8e8e8]">
+      <NavigationRail view={view} onNavigate={navigate} />
       {/* Desktop sidebar — flush left like Capy */}
       {desktopSidebarOpen ? <div className="hidden md:flex">{sidebar}</div> : (
         <div className="hidden w-11 shrink-0 flex-col items-center pt-2 md:flex">
@@ -1267,8 +1270,8 @@ export function NovaApp({
       ) : null}
 
       {/* Main stage: inset rounded panel */}
-      <div className="relative flex min-w-0 flex-1 flex-col p-0 md:p-2 md:pl-0">
-        <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden border-0 bg-[#0f0f0f] md:rounded-xl md:border md:border-white/[0.06]">
+      <div className="relative flex min-w-0 flex-1 flex-col pb-0 pr-0 pt-0 md:py-2 md:pr-2">
+        <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden border-0 bg-[#0e0e10] md:rounded-xl md:border md:border-white/[0.08]">
           {/* Mobile top bar */}
           <div className="flex h-11 shrink-0 items-center border-b border-white/[0.05] px-3 md:hidden">
             <button

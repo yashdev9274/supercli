@@ -86,15 +86,15 @@ export function NovaSidebar({
   const agentsActive = false
 
   return (
-    <aside className="flex h-full w-[244px] shrink-0 flex-col bg-[#0c0c0c] text-[#e8e8e8]">
-      <div className="flex h-11 items-center gap-1 px-2.5">
+    <aside className="flex h-full w-[238px] shrink-0 flex-col bg-[#0c0c0d] text-[#e8e8e8]">
+      <div className="flex h-14 items-center gap-1 px-3">
         <button
           type="button"
           onClick={() => onNavigate("/")}
-          className="flex size-7 items-center justify-center overflow-hidden rounded-[7px] transition hover:opacity-90"
+          className="flex items-center gap-2 rounded-md px-1 py-1 text-[16px] font-semibold tracking-[-0.04em] transition hover:opacity-80"
           aria-label="Nova home"
         >
-          <NovaIcon size="md" alt="" />
+          Nova
         </button>
         <div className="ml-auto flex items-center gap-0.5">
           <IconBtn
@@ -115,15 +115,14 @@ export function NovaSidebar({
           onClick={onNewSession}
           className={cn(
             "flex h-8 w-full items-center gap-2 rounded-lg px-2 text-[13px] font-medium transition",
-            view === "home"
-              ? "bg-white/[0.08] text-white"
-              : "text-[#c4c4c4] hover:bg-white/[0.04] hover:text-white",
+            "text-[#c4c4c4] hover:bg-white/[0.04] hover:text-white",
           )}
         >
           <Pencil className="size-3.5 opacity-80" strokeWidth={1.75} />
           New thread
         </button>
 
+        <div className="space-y-0.5 md:hidden">
         <NavItem
           active={threadsActive}
           icon={<MessageSquare className="size-3.5" strokeWidth={1.75} />}
@@ -160,11 +159,12 @@ export function NovaSidebar({
           label="More"
           onClick={() => onNavigate("/more")}
         />
+        </div>
       </div>
 
-      <div className="mt-1 flex min-h-0 flex-1 flex-col border-t border-white/[0.04] pt-2">
+      <div className="mt-4 flex min-h-0 flex-1 flex-col pt-2">
         <div className="flex items-center px-3 pb-1.5">
-          <span className="text-[11px] font-medium text-[#5c5c5c]">
+          <span className="text-[12px] font-normal text-[#8b8b90]">
             {pullsActive ? "Review" : agentsActive ? "Agents" : "Threads"}
           </span>
           <div className="ml-auto flex items-center gap-0.5">
@@ -337,8 +337,8 @@ function AgentSidebar({ user, selectedId, selectedAgentId, onNavigate }: { user:
 
   return (
     <>
-      <aside className="flex h-full w-[320px] shrink-0 bg-[#1b1b1b] text-[#e8e8e8]">
-        <div className="flex w-[54px] shrink-0 flex-col items-center border-r border-white/[0.08] bg-[#171717] py-2">
+      <aside className="flex h-full w-[292px] shrink-0 bg-[#0c0c0d] text-[#e8e8e8] md:w-[238px]">
+        <div className="flex w-[54px] shrink-0 flex-col items-center border-r border-white/[0.08] bg-[#0c0c0d] py-2 md:hidden">
           <RailButton label="Nova home" active={false} onClick={() => onNavigate("/")}><NovaIcon size="sm" alt="" /></RailButton>
           <div className="mt-2 space-y-1">
             <RailButton label="New thread" onClick={() => onNavigate("/")}><Pencil className="size-4" /></RailButton>
@@ -352,10 +352,13 @@ function AgentSidebar({ user, selectedId, selectedAgentId, onNavigate }: { user:
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex h-11 items-center gap-2 px-3"><span className="text-[14px] font-medium text-[#e8e8e8]">Agents</span><button type="button" aria-label="New agent" onClick={() => onNavigate("/agents/new")} className="ml-auto flex size-7 items-center justify-center rounded-md text-[#8f8f8f] transition hover:bg-white/[0.07] hover:text-white"><span className="text-xl leading-none">+</span></button></div>
-          <div className="px-2 pb-2"><div className="flex h-8 items-center gap-2 rounded-lg bg-[#292929] px-2.5 text-[#8f8f8f] focus-within:text-[#c8c8c8]"><Search className="size-3.5 shrink-0" /><input aria-label="Search agents" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search agents" className="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-[#8f8f8f]" /><MoreHorizontal className="size-3.5 rotate-90 opacity-70" /></div></div>
+          <div className="px-2 pb-2"><div className="flex h-8 items-center gap-2 rounded-lg bg-[#151517] px-2.5 text-[#8f8f8f] focus-within:text-[#c8c8c8]"><Search className="size-3.5 shrink-0" /><input aria-label="Search agents" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search agents" className="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-[#8f8f8f]" /><MoreHorizontal className="size-3.5 rotate-90 opacity-70" /></div></div>
           <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
-            <button type="button" onClick={() => onNavigate("/agents/new")} className="mb-2 flex w-full items-center gap-3 rounded-lg bg-[#303030] px-3 py-2.5 text-left transition hover:bg-[#383838]"><span className="flex size-8 items-center justify-center rounded-md border border-dashed border-[#888] text-[#bdbdbd]"><PlusIcon /></span><span className="min-w-0"><span className="block text-[13px] text-[#e2e2e2]">New agent</span><span className="mt-0.5 block truncate text-[12px] text-[#9a9a9a]">Describe it in the chat</span></span></button>
+            <button type="button" onClick={() => onNavigate("/agents/new")} className="mb-2 flex w-full items-center gap-3 rounded-lg bg-[#151517] px-3 py-2.5 text-left transition hover:bg-[#1e1e21]"><span className="flex size-8 items-center justify-center rounded-md border border-dashed border-[#888] text-[#bdbdbd]"><PlusIcon /></span><span className="min-w-0"><span className="block text-[13px] text-[#e2e2e2]">New agent</span><span className="mt-0.5 block truncate text-[12px] text-[#9a9a9a]">Describe it in the chat</span></span></button>
             {loading ? <div className="px-2 py-6 text-xs text-[#777]">Loading agents…</div> : filtered.length ? filtered.map((agent) => <div key={agent.id} className="mb-1"><button type="button" onContextMenu={(event) => openContextMenu(event, agent)} onClick={() => onNavigate(`/agents/${agent.id}`)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition", selectedId === agent.id || selectedAgentId === agent.id ? "bg-white/[0.08]" : "hover:bg-white/[0.05]")}><BotAvatar type={(agent.avatarType as BotAvatarType) || "clover"} color={agent.avatarColor || "#3b93ed"} size={29} paused interactive={false} /><span className="min-w-0"><span className="block truncate text-[13px] text-[#e5e5e5]">{agent.name}</span><span className="mt-0.5 block truncate text-[12px] text-[#8f8f8f]">@ {agent.status === "active" ? "On demand" : agent.status}</span></span></button>{(chats[agent.id] ?? []).slice(0, 4).map((chat) => <button key={chat.id} type="button" onContextMenu={(event) => openContextMenu(event, agent)} onClick={() => onNavigate(`/agents/${agent.id}/chats/${chat.id}`)} className={cn("ml-9 flex w-[calc(100%-2.25rem)] items-center rounded-md px-2 py-1.5 text-left text-[11px] transition", selectedId === chat.id ? "bg-white/[0.08] text-white" : "text-[#969696] hover:bg-white/[0.05] hover:text-[#d0d0d0]")}><MessageSquare className="mr-2 size-3 shrink-0" /><span className="truncate">{chat.objective}</span></button>)}</div>) : <div className="px-2 py-6 text-xs text-[#777]">No agents found.</div>}
+          </div>
+          <div className="hidden shrink-0 border-t border-white/[0.06] p-2 md:block">
+            <AccountMenu user={user} onNavigate={onNavigate} />
           </div>
         </div>
       </aside>

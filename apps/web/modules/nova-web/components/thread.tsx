@@ -189,20 +189,20 @@ export function ThreadView({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col bg-[#0e0e10]">
       {/* Capy-like thin header */}
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-white/[0.05] px-4">
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-white/[0.08] bg-[#0e0e10] px-5">
         <span
           className={cn(
             "size-2 rounded-full",
             uiStatus === "working" || uiStatus === "idle" ? "bg-emerald-400" : "bg-[#3d3d3d]",
           )}
         />
-        <h1 className="min-w-0 flex-1 truncate text-[13px] font-medium text-[#e8e8e8]">
+        <h1 className="min-w-0 flex-1 truncate text-[13px] font-medium text-[#ededf0]">
           {session.objective}
         </h1>
         <div className="hidden sm:block">
-          {chatOnly ? <span className="text-[11px] text-[#777]">{agentName}</span> : <ProjectPicker
+          {chatOnly ? <span className="text-[11px] text-[#92929b]">{agentName}</span> : <ProjectPicker
             value={localProject}
             disabled={loading || streaming || projectLocked}
             onChange={(selection) => onProjectChange?.(selection)}
@@ -210,11 +210,11 @@ export function ThreadView({
           />}
         </div>
         {streaming && workedSeconds != null ? (
-          <span className="hidden text-[11px] text-[#6b6b6b] sm:inline">
+          <span className="hidden text-[11px] text-[#92929b] sm:inline">
             Working · {formatDuration(workedSeconds * 1000)}
           </span>
         ) : (
-          <span className="hidden font-mono text-[10px] uppercase tracking-[0.08em] text-[#3d3d3d] sm:inline">
+          <span className="hidden font-mono text-[10px] uppercase tracking-[0.08em] text-[#66666e] sm:inline">
             {sessionUiLabel(uiStatus)}
           </span>
         )}
@@ -223,7 +223,7 @@ export function ThreadView({
           onClick={() => {
             if (typeof window !== "undefined") window.location.href = "/settings?section=usage"
           }}
-          className="rounded-md px-2 py-1 text-[12px] text-[#8a8a8a] transition hover:bg-white/[0.04] hover:text-[#c8c8c8]"
+          className="rounded-md px-2 py-1 text-[12px] text-[#a1a1aa] transition hover:bg-white/[0.04] hover:text-[#c8c8c8]"
           title="Usage"
         >
           Usage
@@ -235,8 +235,8 @@ export function ThreadView({
             "flex size-7 items-center justify-center rounded-md transition",
             chatOnly && "hidden",
             detailsOpen
-              ? "bg-white/[0.06] text-[#e8e8e8]"
-              : "text-[#5c5c5c] hover:bg-white/[0.04] hover:text-[#a0a0a0]",
+              ? "bg-white/[0.06] text-[#ededf0]"
+              : "text-[#85858e] hover:bg-white/[0.04] hover:text-[#a0a0a0]",
           )}
           aria-label="Toggle details"
         >
@@ -245,7 +245,7 @@ export function ThreadView({
         <button
           type="button"
           onClick={onRefresh}
-          className="flex size-7 items-center justify-center rounded-md text-[#5c5c5c] transition hover:bg-white/[0.04] hover:text-[#a0a0a0]"
+          className="flex size-7 items-center justify-center rounded-md text-[#85858e] transition hover:bg-white/[0.04] hover:text-[#a0a0a0]"
           aria-label="More"
         >
           <MoreHorizontal className="size-3.5" />
@@ -273,7 +273,7 @@ export function ThreadView({
       >
       <div className="relative flex min-h-0 flex-1">
         <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-[720px] px-5 py-8 sm:px-8">
+          <div className="mx-auto w-full max-w-[760px] px-5 py-8 sm:px-8">
             {sessionApprovals.map((approval) => (
               <div key={approval.id} className="mb-4">
                 <ApprovalCard
@@ -349,7 +349,7 @@ export function ThreadView({
                 ) : null}
               </>
             ) : (
-              <div className="py-16 text-center text-[13px] text-[#4a4a4a]">
+              <div className="py-16 text-center text-[13px] text-[#777780]">
                 Send a message to start this thread.
               </div>
             )}
@@ -361,7 +361,7 @@ export function ThreadView({
           <button
             type="button"
             onClick={() => bottomRef.current?.scrollIntoView({ behavior: "smooth" })}
-            className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-white/[0.1] bg-[#1a1a1a]/95 px-3 py-1.5 text-[12px] text-[#a0a0a0] shadow-lg backdrop-blur transition hover:text-white"
+            className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-white/[0.08] bg-[#151517]/95 px-3 py-1.5 text-[12px] text-[#a0a0a0] shadow-lg backdrop-blur transition hover:text-white"
           >
             <ChevronDown className="size-3.5" />
             Jump to latest
@@ -371,7 +371,7 @@ export function ThreadView({
       </div>
 
       <div className="shrink-0 px-4 pb-4 pt-2 sm:px-6">
-        <div className="mx-auto max-w-[720px]">
+        <div className="mx-auto max-w-[760px]">
           {!chatOnly && workspaceControls && <div className="mb-2 flex items-center gap-3">{workspaceControls}</div>}
           {fileProposals && fileProposals.length > 0 ? (
             <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-[#2dd4bf]/25 bg-[#2dd4bf]/[0.06] px-3 py-2">

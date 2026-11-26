@@ -64,7 +64,7 @@ export const AsciiBackground = memo(function AsciiBackground({ color = "#a3aaa7"
             * Math.max(0, 1 - Math.pow(Math.abs(ny) * 2, 4))
           // Leave a quiet pocket behind the composer and project controls.
           const pocket = 1 - 0.92 * Math.exp(-(nx * nx * 18 + (ny + 0.06) ** 2 * 26))
-          context.globalAlpha = (0.08 + density * 0.45) * edge * pocket
+          context.globalAlpha = (0.025 + density * 0.13) * edge * pocket
           context.fillText(glyph, x, y)
         }
       }

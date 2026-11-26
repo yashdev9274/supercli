@@ -5,6 +5,7 @@ import { ChevronDown, Cloud } from "lucide-react"
 
 import { AsciiBackground } from "@/modules/nova-web/components/ascii-background"
 import { Composer } from "@/modules/nova-web/components/composer"
+import { NovaIcon } from "@/modules/nova-web/components/nova-icon"
 import { ChatAppearancePicker, useChatAppearance } from "@/modules/nova-web/components/chat-appearance"
 import { contrastingText } from "@/modules/nova-web/chat-appearance"
 import { ProjectPicker, type ProjectSelection } from "@/modules/nova-web/components/project-picker"
@@ -58,8 +59,8 @@ export function EmptyHome({
     "--chat-bg": appearance.background,
     "--chat-text": text,
     "--chat-muted": `color-mix(in srgb, ${text} 65%, ${appearance.background})`,
-    "--chat-border": `color-mix(in srgb, ${text} 18%, ${appearance.background})`,
-    "--chat-surface": `color-mix(in srgb, ${text} 6%, ${appearance.background})`,
+    "--chat-border": `color-mix(in srgb, ${text} 8%, ${appearance.background})`,
+    "--chat-surface": `color-mix(in srgb, ${text} 3%, ${appearance.background})`,
     "--chat-hover": `color-mix(in srgb, ${text} 12%, ${appearance.background})`,
     backgroundColor: appearance.background,
     color: text,
@@ -86,8 +87,12 @@ export function EmptyHome({
     <div style={theme} className="relative isolate flex h-full min-h-0 flex-col">
       <AsciiBackground color={appearance.ascii} />
       <ChatAppearancePicker appearance={appearance} onChange={update} />
-      <div className="relative z-[1] flex flex-1 flex-col items-center justify-center px-5 pb-24">
-        <div className="mb-3 flex w-full max-w-[640px] flex-wrap items-center gap-3 text-[12px] text-[var(--chat-muted)]">
+      <div className="pointer-events-none relative z-[1] flex min-h-0 flex-1 flex-col items-center justify-center px-5 pb-8 text-center">
+        <NovaIcon size="lg" alt="" className="mb-5 size-11" />
+        <h1 className="text-[26px] font-normal tracking-[-0.04em] sm:text-[30px]">What should we work on?</h1>
+      </div>
+      <div className="relative z-[1] mx-auto w-full max-w-[800px] shrink-0 px-4 pb-6 sm:px-8 sm:pb-8">
+        <div className="mb-2 flex w-full flex-wrap items-center gap-3 px-2 text-[12px] text-[var(--chat-muted)]">
           <ProjectPicker
             className="[&>button]:text-[var(--chat-muted)] [&>button:hover]:bg-[var(--chat-hover)] [&>button:hover]:text-[var(--chat-text)]"
             value={localProject}
@@ -105,7 +110,7 @@ export function EmptyHome({
           </button>}
         </div>
 
-        <div className="w-full max-w-[640px]">
+        <div className="w-full">
           <Composer
             value={draft}
             onChange={setDraft}
@@ -129,14 +134,14 @@ export function EmptyHome({
                 : "Select a project above, then ask Nova to make changes"
             }
           />
-          <div className="mt-4 flex flex-wrap justify-center gap-2">
+          <div className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1">
             {STARTERS.map((starter) => (
               <button
                 key={starter}
                 type="button"
                 disabled={busy}
                 onClick={() => submit(starter)}
-                className="rounded-full border border-[var(--chat-border)] bg-[var(--chat-surface)] px-3 py-1.5 text-[12px] text-[var(--chat-muted)] transition hover:bg-[var(--chat-hover)] hover:text-[var(--chat-text)] disabled:opacity-50"
+                className="rounded-md px-1 py-1 text-[11px] text-[var(--chat-muted)] transition hover:bg-[var(--chat-hover)] hover:text-[var(--chat-text)] focus-visible:outline-2 focus-visible:outline-current disabled:opacity-50"
               >
                 {starter}
               </button>

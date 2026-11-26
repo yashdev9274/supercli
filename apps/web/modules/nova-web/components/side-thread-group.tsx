@@ -66,11 +66,11 @@ export function SideThreadGroup({ parentId, title, children, renderSideThread, o
 
   return (
     <ConversationSplitContext.Provider value={splitVisible}>
-      <div className="flex h-full min-h-0 flex-col">
-        <div className="flex h-10 shrink-0 items-center gap-1 border-b border-white/[0.06] px-2">
+      <div className="flex h-full min-h-0 flex-col bg-[#0e0e10]">
+        <div className="flex h-10 shrink-0 items-center gap-1 border-b border-white/[0.08] bg-[#151517] px-2">
           <div role="tablist" aria-label="Conversation threads" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
             <button type="button" role="tab" aria-selected={active === null} aria-controls={`thread-${parentId}`} onClick={() => select(null)} title={title}
-              className={cn("max-w-52 shrink-0 truncate rounded-md px-3 py-1.5 text-xs", active === null ? "bg-white/[0.07] text-white" : "text-[#888] hover:text-white")}>{title}</button>
+              className={cn("max-w-52 shrink-0 truncate rounded-md px-3 py-1.5 text-xs", active === null ? "bg-white/[0.07] text-white" : "text-[#92929b] hover:text-white")}>{title}</button>
             {tabs.filter((tab) => !tab.closed).map((tab) => (
               <div key={tab.key} className={cn("flex shrink-0 items-center rounded-md", active === tab.key && "bg-white/[0.07]")}>
                 <button type="button" role="tab" aria-selected={active === tab.key} aria-controls={`thread-${tab.key}`} onClick={() => select(tab.key)} title={tab.title}
@@ -78,11 +78,11 @@ export function SideThreadGroup({ parentId, title, children, renderSideThread, o
                 <button type="button" aria-label={`Close ${tab.title}`} onClick={() => {
                   setTabs((current) => closeSideThreadTab(current, tab.key))
                   if (active === tab.key) select(null)
-                }} className="mr-1 rounded p-1 text-[#777] hover:text-white"><X className="size-3" /></button>
+                }} className="mr-1 rounded p-1 text-[#92929b] hover:text-white"><X className="size-3" /></button>
               </div>
             ))}
           </div>
-          <button type="button" aria-label="New side thread" title="New side thread" onClick={add} className="rounded p-1.5 text-[#999] hover:bg-white/[0.06] hover:text-white"><Plus className="size-4" /></button>
+          <button type="button" aria-label="New side thread" title="New side thread" onClick={add} className="rounded p-1.5 text-[#a1a1aa] hover:bg-white/[0.06] hover:text-white"><Plus className="size-4" /></button>
           {closedTabs.length > 0 ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -90,19 +90,19 @@ export function SideThreadGroup({ parentId, title, children, renderSideThread, o
                   type="button"
                   aria-label="Reopen closed side thread"
                   title="Reopen closed side thread"
-                  className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs text-[#999] transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 data-[state=open]:bg-white/[0.06] data-[state=open]:text-white"
+                  className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs text-[#a1a1aa] transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 data-[state=open]:bg-white/[0.06] data-[state=open]:text-white"
                 >
                   <RotateCcw aria-hidden="true" className="size-3.5" />
                   <span className="hidden sm:inline">Reopen</span>
-                  <ChevronDown aria-hidden="true" className="size-3 text-[#777]" />
+                  <ChevronDown aria-hidden="true" className="size-3 text-[#92929b]" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
                 sideOffset={8}
-                className="w-64 max-w-[calc(100vw-1rem)] rounded-lg border-white/10 bg-[#171717] p-1 text-[#bbb] shadow-xl"
+                className="w-64 max-w-[calc(100vw-1rem)] rounded-lg border-white/[0.08] bg-[#151517] p-1 text-[#bbb] shadow-xl"
               >
-                <DropdownMenuLabel className="px-2 py-1.5 text-[11px] font-medium text-[#777]">Closed side threads</DropdownMenuLabel>
+                <DropdownMenuLabel className="px-2 py-1.5 text-[11px] font-medium text-[#92929b]">Closed side threads</DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-white/[0.06]" />
                 {closedTabs.map((tab) => (
                   <DropdownMenuItem
@@ -115,7 +115,7 @@ export function SideThreadGroup({ parentId, title, children, renderSideThread, o
                     }}
                     className="cursor-pointer rounded-md px-2 py-2 text-xs focus:bg-white/[0.07] focus:text-white"
                   >
-                    <GitBranch aria-hidden="true" className="size-3.5 text-[#777]" />
+                    <GitBranch aria-hidden="true" className="size-3.5 text-[#92929b]" />
                     <span className="min-w-0 truncate">{tab.title}</span>
                   </DropdownMenuItem>
                 ))}
@@ -123,7 +123,7 @@ export function SideThreadGroup({ parentId, title, children, renderSideThread, o
             </DropdownMenu>
           ) : null}
           <button type="button" aria-label="Show conversations side by side" aria-pressed={split} disabled={!active} onClick={() => setSplit((value) => !value)}
-            className={cn("hidden rounded p-1.5 text-[#999] hover:bg-white/[0.06] disabled:opacity-30 lg:block", split && "text-[#2dd4bf]")}><Columns2 className="size-4" /></button>
+            className={cn("hidden rounded p-1.5 text-[#a1a1aa] hover:bg-white/[0.06] disabled:opacity-30 lg:block", split && "text-[#2dd4bf]")}><Columns2 className="size-4" /></button>
         </div>
         {error ? <button type="button" onClick={() => void refresh()} className="px-3 py-1 text-left text-xs text-amber-300">{error} · Retry</button> : null}
         <div ref={stageRef} className="relative flex min-h-0 flex-1 overflow-hidden">

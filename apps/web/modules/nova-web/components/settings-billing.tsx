@@ -130,8 +130,8 @@ export function BillingSection() {
   return (
     <>
       <div>
-        <h1 className="text-[28px] font-medium tracking-tight">Billing</h1>
-        <p className="mt-1 text-[13px] text-[#6b6b6b]">
+        <h1 className="text-[22px] font-medium tracking-[-0.025em]">Billing</h1>
+        <p className="mt-1 text-[13px] text-[#85858e]">
           Plan, balance, and invoices for this organization
         </p>
       </div>
@@ -142,7 +142,7 @@ export function BillingSection() {
         </p>
       ) : null}
 
-      <div className="mt-8 overflow-hidden rounded-xl border border-white/[0.08] bg-[#141414]">
+      <div className="mt-8 overflow-hidden rounded-xl border border-white/[0.08] bg-[#151517]">
         <div className="flex flex-wrap items-start justify-between gap-4 px-5 py-4">
           <div className="min-w-0 flex-1">
             {state.loading ? (
@@ -174,7 +174,7 @@ export function BillingSection() {
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-1.5 text-[12.5px] leading-5 text-[#6b6b6b]">
+                <p className="mt-1.5 text-[12.5px] leading-5 text-[#85858e]">
                   {hasPlan
                     ? "Recurring monthly subscription with included credits."
                     : "500 credits each month, shared across hosted DeepSeek, cloud machines, and app queries."}
@@ -188,7 +188,7 @@ export function BillingSection() {
               <button
                 type="button"
                 onClick={() => setManageOpen((v) => !v)}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 text-[12.5px] text-[#e4e4e4] transition hover:bg-white/[0.07]"
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 text-[12.5px] text-[#e4e4e4] transition hover:bg-white/[0.07]"
               >
                 <Wallet className="size-3.5" />
                 Manage plan
@@ -205,7 +205,7 @@ export function BillingSection() {
         </div>
 
         {manageOpen && hasPlan ? (
-          <div className="border-t border-white/[0.06] bg-[#161616] px-5 py-3">
+          <div className="border-t border-white/[0.06] bg-[#151517] px-5 py-3">
             <ManagePlanRow
               onTopUp={() => {
                 setManageOpen(false)
@@ -217,10 +217,10 @@ export function BillingSection() {
         ) : null}
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.08] bg-[#141414]">
+      <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.08] bg-[#151517]">
         <div className="flex items-baseline justify-between gap-3 px-5 py-4">
           <p className="text-[14px] font-medium text-white">Balance</p>
-          <p className="text-[18px] font-medium tracking-tight tabular-nums">
+          <p className="text-[22px] font-medium tracking-[-0.025em] tracking-tight tabular-nums">
             {state.loading
               ? "Loading…"
               : productCredits
@@ -244,7 +244,7 @@ export function BillingSection() {
                 style={{ width: `${spentPct}%` }}
               />
             </div>
-            <div className="flex items-center justify-between gap-3 px-5 py-3 text-[12px] text-[#6b6b6b]">
+            <div className="flex items-center justify-between gap-3 px-5 py-3 text-[12px] text-[#85858e]">
               <span>
                 {productCredits
                   ? `Used ${spentThisPeriod.toLocaleString(undefined, { maximumFractionDigits: 2 })} of ${totalCredits.toLocaleString()} credits this period`
@@ -262,7 +262,7 @@ export function BillingSection() {
             </div>
           </>
         ) : (
-          <div className="flex items-center justify-between gap-3 px-5 py-3 text-[12px] text-[#6b6b6b]">
+          <div className="flex items-center justify-between gap-3 px-5 py-3 text-[12px] text-[#85858e]">
             <span>
               {state.loading
                 ? "Loading balance…"
@@ -283,24 +283,24 @@ export function BillingSection() {
       </div>
 
       <h2 className="mt-10 text-[13px] font-medium text-[#a0a0a0]">Invoices</h2>
-      <div className="mt-3 overflow-hidden rounded-xl border border-white/[0.08] bg-[#141414]">
-        <div className="grid grid-cols-[1.4fr_0.7fr_0.7fr_36px] gap-2 border-b border-white/[0.06] px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.06em] text-[#5c5c5c]">
+      <div className="mt-3 overflow-hidden rounded-xl border border-white/[0.08] bg-[#151517]">
+        <div className="grid grid-cols-[1.4fr_0.7fr_0.7fr_36px] gap-2 border-b border-white/[0.06] px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.06em] text-[#7c7c85]">
           <span>Invoice</span>
           <span>Date</span>
           <span className="text-right">Amount</span>
           <span />
         </div>
         {state.loading ? (
-          <p className="flex items-center gap-2 px-4 py-8 text-[13px] text-[#6b6b6b]">
+          <p className="flex items-center gap-2 px-4 py-8 text-[13px] text-[#85858e]">
             <Loader2 className="size-3.5 animate-spin" /> Loading billing history…
           </p>
         ) : hasPlan ? (
           <div className="flex items-center gap-3 px-5 py-6 text-[13px] text-[#a0a0a0]">
-            <Receipt className="size-4 text-[#6b6b6b]" />
+            <Receipt className="size-4 text-[#85858e]" />
             Invoices for the {state.plan.name} plan arrive by email each renewal.
           </div>
         ) : (
-          <div className="flex items-center gap-3 px-5 py-6 text-[13px] text-[#6b6b6b]">
+          <div className="flex items-center gap-3 px-5 py-6 text-[13px] text-[#85858e]">
             <Receipt className="size-4" />
             No invoices yet. Pick a plan to start a recurring subscription.
           </div>
