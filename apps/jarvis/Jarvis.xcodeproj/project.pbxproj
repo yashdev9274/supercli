@@ -1,0 +1,1021 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		63A78415C5726BE9C806EFAF /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 47C39E67B09152F6665ED683 /* Cocoa.framework */; };
+		7E1ADF1D2EA209B1001DA867 /* SkyLightWindow in Frameworks */ = {isa = PBXBuildFile; productRef = 7E61181E2E24071E0050006C /* SkyLightWindow */; };
+		7E288D122F1659EF0020C117 /* AtollExtensionKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7E288D112F1659EF0020C117 /* AtollExtensionKit */; };
+		7E6118142E24071E0050006C /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 14D032192C68F32E0096E6A1 /* LaunchAtLogin */; };
+		7E6118152E24071E0050006C /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 14D0321C2C68F3350096E6A1 /* Sparkle */; };
+		7E6118162E24071E0050006C /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = B18654382C6F4990000B926A /* KeyboardShortcuts */; };
+		7E6118172E24071E0050006C /* Collections in Frameworks */ = {isa = PBXBuildFile; productRef = 9A987A0F2C73CA8D005CA465 /* Collections */; };
+		7E6118192E24071E0050006C /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = B19016212CC15B3D00E3F12E /* Defaults */; };
+		7E61181A2E24071E0050006C /* SwiftUIIntrospect in Frameworks */ = {isa = PBXBuildFile; productRef = B1628B912CC260C0003D8DF3 /* SwiftUIIntrospect */; };
+		7E61181B2E24071E0050006C /* LottieUI in Frameworks */ = {isa = PBXBuildFile; productRef = B194240A2CD10017003E5DC2 /* LottieUI */; };
+		7E61181C2E24071E0050006C /* MacroVisionKit in Frameworks */ = {isa = PBXBuildFile; productRef = 146BC4362D366E9B0047C66A /* MacroVisionKit */; };
+		7E6856482EA963FD00D261F5 /* Lock.json in Resources */ = {isa = PBXBuildFile; fileRef = 7E6856472EA963FD00D261F5 /* Lock.json */; };
+		7E8130402E3FB40500E08F3F /* mediaremote-adapter.pl in Resources */ = {isa = PBXBuildFile; fileRef = 7E81303D2E3FB40500E08F3F /* mediaremote-adapter.pl */; };
+		7E8840D72E9A346700C5CB8C /* Dog waiting.json in Resources */ = {isa = PBXBuildFile; fileRef = 7E8840D62E9A346700C5CB8C /* Dog waiting.json */; };
+		7E8840D92E9A347000C5CB8C /* Moody Dog.json in Resources */ = {isa = PBXBuildFile; fileRef = 7E8840D82E9A347000C5CB8C /* Moody Dog.json */; };
+		7E8840DB2E9A347800C5CB8C /* Orange Cat Peeping.json in Resources */ = {isa = PBXBuildFile; fileRef = 7E8840DA2E9A347800C5CB8C /* Orange Cat Peeping.json */; };
+		7E9911B02EFD7D1B002EDFD5 /* Reindeer.json in Resources */ = {isa = PBXBuildFile; fileRef = 7E9911AF2EFD7D1B002EDFD5 /* Reindeer.json */; };
+		7E9918722EFDAE5B002EDFD5 /* MediaRemoteAdapter.framework in Resources */ = {isa = PBXBuildFile; fileRef = F4C1DD09EC134302938E84F6 /* MediaRemoteAdapter.framework */; };
+		7EE1D73D2E6B1E0B00997219 /* ApplicationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7EE1D73C2E6B1E0B00997219 /* ApplicationServices.framework */; };
+		7EE1D73F2E6B1E1200997219 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7EE1D73E2E6B1E1200997219 /* IOKit.framework */; };
+		7EF10C122F817ECF004229A0 /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7EF10C112F817ECF004229A0 /* Accelerate.framework */; };
+		7EF19C172F577040005B9929 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 7EF19C162F577040005B9929 /* SwiftTerm */; };
+		A3C83CAF84544DCE386C3BB8 /* JarvisUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54078F29304A9DBBEFBDF932 /* JarvisUITests.swift */; };
+		B4777BB9FE29243B253B8306 /* SpotifyLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFA269966BB987D4A1B411A2 /* SpotifyLibraryTests.swift */; };
+		F910B9C812C7AEFE2293F7D2 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 47C39E67B09152F6665ED683 /* Cocoa.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		D9AAA842E7A7289EDDEAE9BB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F54406DF2CD4987A00C7AFD9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F54406E62CD4987A00C7AFD9;
+			remoteInfo = Jarvis;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		7EA69B1B2F5AE13500EB2D16 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 8;
+			dstPath = Contents/Helpers;
+			dstSubfolderSpec = 1;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		0796C681D7B557C0110EC381 /* JarvisTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = JarvisTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		47C39E67B09152F6665ED683 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
+		54078F29304A9DBBEFBDF932 /* JarvisUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = JarvisUITests.swift; sourceTree = "<group>"; };
+		7E25ECA02E6C6C3800700E72 /* CoreBrightness.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBrightness.framework; path = /System/Library/PrivateFrameworks/CoreBrightness.framework; sourceTree = "<absolute>"; };
+		7E25ECA22E6C6E2600700E72 /* OSD.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OSD.framework; path = /System/Library/PrivateFrameworks/OSD.framework; sourceTree = "<absolute>"; };
+		7E25ECA42E6C6E7800700E72 /* DisplayServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DisplayServices.framework; path = /System/Library/PrivateFrameworks/DisplayServices.framework; sourceTree = "<absolute>"; };
+		7E6856472EA963FD00D261F5 /* Lock.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Lock.json; sourceTree = "<group>"; };
+		7E81303D2E3FB40500E08F3F /* mediaremote-adapter.pl */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; path = "mediaremote-adapter.pl"; sourceTree = "<group>"; };
+		7E8840D62E9A346700C5CB8C /* Dog waiting.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "Dog waiting.json"; sourceTree = "<group>"; };
+		7E8840D82E9A347000C5CB8C /* Moody Dog.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "Moody Dog.json"; sourceTree = "<group>"; };
+		7E8840DA2E9A347800C5CB8C /* Orange Cat Peeping.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "Orange Cat Peeping.json"; sourceTree = "<group>"; };
+		7E9911AF2EFD7D1B002EDFD5 /* Reindeer.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Reindeer.json; sourceTree = "<group>"; };
+		7EE1D73C2E6B1E0B00997219 /* ApplicationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ApplicationServices.framework; path = System/Library/Frameworks/ApplicationServices.framework; sourceTree = SDKROOT; };
+		7EE1D73E2E6B1E1200997219 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
+		7EF10C112F817ECF004229A0 /* Accelerate.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Accelerate.framework; path = System/Library/Frameworks/Accelerate.framework; sourceTree = SDKROOT; };
+		957599910322B546D91E6F96 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A058D80A7EF44593B0F24EB7 /* JarvisUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = JarvisUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		DAA671E7B1B26733F02166C5 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		DFA269966BB987D4A1B411A2 /* SpotifyLibraryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpotifyLibraryTests.swift; sourceTree = "<group>"; };
+		F4C1DD09EC134302938E84F6 /* MediaRemoteAdapter.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MediaRemoteAdapter.framework; path = Frameworks/MediaRemoteAdapter.framework; sourceTree = SOURCE_ROOT; };
+		F54406E72CD4987A00C7AFD9 /* Jarvis.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Jarvis.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		7EA69B212F5B100000EB2D16 /* Exceptions for "Jarvis" folder in "Jarvis" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = F54406E62CD4987A00C7AFD9 /* Jarvis */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		7EA69B1C2F5AE15C00EB2D16 /* Contents */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Contents;
+			sourceTree = "<group>";
+		};
+		F54406E92CD4987A00C7AFD9 /* Jarvis */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				7EA69B212F5B100000EB2D16 /* Exceptions for "Jarvis" folder in "Jarvis" target */,
+			);
+			path = Jarvis;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		18E9246B2B8735B6DC92B1D6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				63A78415C5726BE9C806EFAF /* Cocoa.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C288A7D2D7F2EBA801C0C21F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F910B9C812C7AEFE2293F7D2 /* Cocoa.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F54406E42CD4987A00C7AFD9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7EF19C172F577040005B9929 /* SwiftTerm in Frameworks */,
+				7EF10C122F817ECF004229A0 /* Accelerate.framework in Frameworks */,
+				7E1ADF1D2EA209B1001DA867 /* SkyLightWindow in Frameworks */,
+				7EE1D73F2E6B1E1200997219 /* IOKit.framework in Frameworks */,
+				7EE1D73D2E6B1E0B00997219 /* ApplicationServices.framework in Frameworks */,
+				7E61181C2E24071E0050006C /* MacroVisionKit in Frameworks */,
+				7E61181B2E24071E0050006C /* LottieUI in Frameworks */,
+				7E61181A2E24071E0050006C /* SwiftUIIntrospect in Frameworks */,
+				7E6118192E24071E0050006C /* Defaults in Frameworks */,
+				7E6118172E24071E0050006C /* Collections in Frameworks */,
+				7E6118162E24071E0050006C /* KeyboardShortcuts in Frameworks */,
+				7E6118152E24071E0050006C /* Sparkle in Frameworks */,
+				7E288D122F1659EF0020C117 /* AtollExtensionKit in Frameworks */,
+				7E6118142E24071E0050006C /* LaunchAtLogin in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		2402D98A7C199588E79096D5 /* OS X */ = {
+			isa = PBXGroup;
+			children = (
+				47C39E67B09152F6665ED683 /* Cocoa.framework */,
+			);
+			name = "OS X";
+			sourceTree = "<group>";
+		};
+		50983E4A1FCC1F5E2220FF8A /* JarvisTests */ = {
+			isa = PBXGroup;
+			children = (
+				DFA269966BB987D4A1B411A2 /* SpotifyLibraryTests.swift */,
+				957599910322B546D91E6F96 /* Info.plist */,
+			);
+			path = JarvisTests;
+			sourceTree = "<group>";
+		};
+		7E81303F2E3FB40500E08F3F /* mediaremote-adapter */ = {
+			isa = PBXGroup;
+			children = (
+				7E81303D2E3FB40500E08F3F /* mediaremote-adapter.pl */,
+				F4C1DD09EC134302938E84F6 /* MediaRemoteAdapter.framework */,
+			);
+			path = "mediaremote-adapter";
+			sourceTree = "<group>";
+		};
+		7E81304F2E3FB42700E08F3F /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				7EF10C112F817ECF004229A0 /* Accelerate.framework */,
+				7E25ECA02E6C6C3800700E72 /* CoreBrightness.framework */,
+				7E25ECA42E6C6E7800700E72 /* DisplayServices.framework */,
+				7E25ECA22E6C6E2600700E72 /* OSD.framework */,
+				7EE1D73E2E6B1E1200997219 /* IOKit.framework */,
+				7EE1D73C2E6B1E0B00997219 /* ApplicationServices.framework */,
+				2402D98A7C199588E79096D5 /* OS X */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		7E8840D52E9A341F00C5CB8C /* LottieAnimations */ = {
+			isa = PBXGroup;
+			children = (
+				7E6856472EA963FD00D261F5 /* Lock.json */,
+				7E8840D62E9A346700C5CB8C /* Dog waiting.json */,
+				7E9911AF2EFD7D1B002EDFD5 /* Reindeer.json */,
+				7E8840D82E9A347000C5CB8C /* Moody Dog.json */,
+				7E8840DA2E9A347800C5CB8C /* Orange Cat Peeping.json */,
+			);
+			path = LottieAnimations;
+			sourceTree = "<group>";
+		};
+		BF9102C8771E45168EF97D18 /* JarvisUITests */ = {
+			isa = PBXGroup;
+			children = (
+				54078F29304A9DBBEFBDF932 /* JarvisUITests.swift */,
+				DAA671E7B1B26733F02166C5 /* Info.plist */,
+			);
+			path = JarvisUITests;
+			sourceTree = "<group>";
+		};
+		F54406DE2CD4987A00C7AFD9 = {
+			isa = PBXGroup;
+			children = (
+				7EA69B1C2F5AE15C00EB2D16 /* Contents */,
+				7E8840D52E9A341F00C5CB8C /* LottieAnimations */,
+				7E81304F2E3FB42700E08F3F /* Frameworks */,
+				7E81303F2E3FB40500E08F3F /* mediaremote-adapter */,
+				F54406E92CD4987A00C7AFD9 /* Jarvis */,
+				F54406E82CD4987A00C7AFD9 /* Products */,
+				BF9102C8771E45168EF97D18 /* JarvisUITests */,
+				50983E4A1FCC1F5E2220FF8A /* JarvisTests */,
+			);
+			sourceTree = "<group>";
+		};
+		F54406E82CD4987A00C7AFD9 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F54406E72CD4987A00C7AFD9 /* Jarvis.app */,
+				A058D80A7EF44593B0F24EB7 /* JarvisUITests.xctest */,
+				0796C681D7B557C0110EC381 /* JarvisTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0BED81992D1F2C18E8684884 /* JarvisTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E5DBE55A111A6608A1AA80DB /* Build configuration list for PBXNativeTarget "JarvisTests" */;
+			buildPhases = (
+				838F3057E237C722BA8D6CA6 /* Sources */,
+				18E9246B2B8735B6DC92B1D6 /* Frameworks */,
+				15F8B495D54BBEC1A58B9D3F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BFEC24CC6BD7982DEC013752 /* PBXTargetDependency */,
+			);
+			name = JarvisTests;
+			productName = JarvisTests;
+			productReference = 0796C681D7B557C0110EC381 /* JarvisTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		9CA407B492164F5AEF356E38 /* JarvisUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0EE2CF1552DB8896698C28BD /* Build configuration list for PBXNativeTarget "JarvisUITests" */;
+			buildPhases = (
+				A11BBB270825A1AC5909239B /* Sources */,
+				C288A7D2D7F2EBA801C0C21F /* Frameworks */,
+				9C06E3344924740808B96105 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = JarvisUITests;
+			productName = JarvisUITests;
+			productReference = A058D80A7EF44593B0F24EB7 /* JarvisUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		F54406E62CD4987A00C7AFD9 /* Jarvis */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F54406F62CD4987B00C7AFD9 /* Build configuration list for PBXNativeTarget "Jarvis" */;
+			buildPhases = (
+				F54406E32CD4987A00C7AFD9 /* Sources */,
+				F54406E42CD4987A00C7AFD9 /* Frameworks */,
+				F54406E52CD4987A00C7AFD9 /* Resources */,
+				7EA69B1B2F5AE13500EB2D16 /* CopyFiles */,
+				7EFAA8AA2F6F12F3000A99E8 /* ShellScript */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				7EA69B1C2F5AE15C00EB2D16 /* Contents */,
+				F54406E92CD4987A00C7AFD9 /* Jarvis */,
+			);
+			name = Jarvis;
+			packageProductDependencies = (
+				14D032192C68F32E0096E6A1 /* LaunchAtLogin */,
+				14D0321C2C68F3350096E6A1 /* Sparkle */,
+				B18654382C6F4990000B926A /* KeyboardShortcuts */,
+				9A987A0F2C73CA8D005CA465 /* Collections */,
+				B19016212CC15B3D00E3F12E /* Defaults */,
+				B1628B912CC260C0003D8DF3 /* SwiftUIIntrospect */,
+				B194240A2CD10017003E5DC2 /* LottieUI */,
+				146BC4362D366E9B0047C66A /* MacroVisionKit */,
+				7E61181E2E24071E0050006C /* SkyLightWindow */,
+				7E288D112F1659EF0020C117 /* AtollExtensionKit */,
+				7EF19C162F577040005B9929 /* SwiftTerm */,
+			);
+			productName = Jarvis;
+			productReference = F54406E72CD4987A00C7AFD9 /* Jarvis.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F54406DF2CD4987A00C7AFD9 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					F54406E62CD4987A00C7AFD9 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = F54406E22CD4987A00C7AFD9 /* Build configuration list for PBXProject "Jarvis" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				tr,
+				Base,
+				hi,
+				ta,
+				gu,
+				nl,
+			);
+			mainGroup = F54406DE2CD4987A00C7AFD9;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				F54407082CD4A23F00C7AFD9 /* XCRemoteSwiftPackageReference "swift-collections" */,
+				14D032182C68F32E0096E6A1 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */,
+				14D0321B2C68F3350096E6A1 /* XCRemoteSwiftPackageReference "Sparkle" */,
+				B18654372C6F4990000B926A /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
+				9A987A112C73CAA1005CA465 /* XCRemoteSwiftPackageReference "Pow" */,
+				B19016202CC15B3D00E3F12E /* XCRemoteSwiftPackageReference "Defaults" */,
+				B1628B902CC260C0003D8DF3 /* XCRemoteSwiftPackageReference "swiftui-introspect" */,
+				B19424072CD0DB52003E5DC2 /* XCRemoteSwiftPackageReference "LottieUI" */,
+				146BC4352D366E9B0047C66A /* XCRemoteSwiftPackageReference "MacroVisionKit" */,
+				7E61181F2E24071E0050006C /* XCRemoteSwiftPackageReference "SkyLightWindow" */,
+				7E09D5962EB7B497005AF41D /* XCRemoteSwiftPackageReference "open-meteo" */,
+				7E288D102F1659EF0020C117 /* XCRemoteSwiftPackageReference "AtollExtensionKit" */,
+				7EF19C152F577040005B9929 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F54406E82CD4987A00C7AFD9 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F54406E62CD4987A00C7AFD9 /* Jarvis */,
+				9CA407B492164F5AEF356E38 /* JarvisUITests */,
+				0BED81992D1F2C18E8684884 /* JarvisTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		15F8B495D54BBEC1A58B9D3F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9C06E3344924740808B96105 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F54406E52CD4987A00C7AFD9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7E9918722EFDAE5B002EDFD5 /* MediaRemoteAdapter.framework in Resources */,
+				7E8130402E3FB40500E08F3F /* mediaremote-adapter.pl in Resources */,
+				7E6856482EA963FD00D261F5 /* Lock.json in Resources */,
+				7E8840D92E9A347000C5CB8C /* Moody Dog.json in Resources */,
+				7E9911B02EFD7D1B002EDFD5 /* Reindeer.json in Resources */,
+				7E8840D72E9A346700C5CB8C /* Dog waiting.json in Resources */,
+				7E8840DB2E9A347800C5CB8C /* Orange Cat Peeping.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		7EFAA8AA2F6F12F3000A99E8 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"$CONFIGURATION\" != \"Release\" ] || [ \"$ACTION\" != \"install\" ]; then\n\texit 0\nfi\n\nAPP=\"$CODESIGNING_FOLDER_PATH\"\nSPARKLE=\"$APP/Contents/Frameworks/Sparkle.framework\"\nXPC_DIR=\"$SPARKLE/Versions/Current/XPCServices\"\n\nif [ ! -d \"$XPC_DIR\" ]; then\n\texit 0\nfi\n\nfor xpc in \"$XPC_DIR\"/*.xpc; do\n\t/usr/bin/codesign --force --sign \"$EXPANDED_CODE_SIGN_IDENTITY\" --timestamp --options runtime --preserve-metadata=identifier,entitlements \"$xpc\"\ndone\n\n/usr/bin/codesign --force --sign \"$EXPANDED_CODE_SIGN_IDENTITY\" --timestamp --options runtime --preserve-metadata=identifier,entitlements \"$SPARKLE\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		838F3057E237C722BA8D6CA6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B4777BB9FE29243B253B8306 /* SpotifyLibraryTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A11BBB270825A1AC5909239B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A3C83CAF84544DCE386C3BB8 /* JarvisUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F54406E32CD4987A00C7AFD9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		BFEC24CC6BD7982DEC013752 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = Jarvis;
+			target = F54406E62CD4987A00C7AFD9 /* Jarvis */;
+			targetProxy = D9AAA842E7A7289EDDEAE9BB /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1D3C7B18ECFF6DEECBEF798B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = JarvisTests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.supercli.jarvis.JarvisTests;
+				PRODUCT_MODULE_NAME = JarvisTests;
+				PRODUCT_NAME = JarvisTests;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Jarvis.app/Contents/MacOS/Jarvis";
+			};
+			name = Debug;
+		};
+		47D3CCE276A629D16371338D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = JarvisTests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.supercli.jarvis.JarvisTests;
+				PRODUCT_MODULE_NAME = JarvisTests;
+				PRODUCT_NAME = JarvisTests;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Jarvis.app/Contents/MacOS/Jarvis";
+			};
+			name = Release;
+		};
+		76C88DDCF7D65738FAD9DB22 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_TESTING_SEARCH_PATHS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PLATFORM_DIR)/Developer/Library/Frameworks",
+				);
+				INFOPLIST_FILE = JarvisUITests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.supercli.jarvis.JarvisUITests;
+				PRODUCT_MODULE_NAME = JarvisUITests;
+				PRODUCT_NAME = JarvisUITests;
+				SDKROOT = macosx;
+				SWIFT_TESTING_FRAMEWORK = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Jarvis;
+				USES_SWIFT_TESTING = YES;
+			};
+			name = Debug;
+		};
+		80C3D48B29D18AD34C41AA75 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_TESTING_SEARCH_PATHS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PLATFORM_DIR)/Developer/Library/Frameworks",
+				);
+				INFOPLIST_FILE = JarvisUITests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.supercli.jarvis.JarvisUITests;
+				PRODUCT_MODULE_NAME = JarvisUITests;
+				PRODUCT_NAME = JarvisUITests;
+				SDKROOT = macosx;
+				SWIFT_TESTING_FRAMEWORK = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Jarvis;
+				USES_SWIFT_TESTING = YES;
+			};
+			name = Release;
+		};
+		F54406F42CD4987B00C7AFD9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		F54406F52CD4987B00C7AFD9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		F54406F72CD4987B00C7AFD9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIconDev;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = YES;
+				CODE_SIGN_ENTITLEMENTS = Jarvis/Jarvis.entitlements;
+				CODE_SIGN_IDENTITY = "Jarvis Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Jarvis Development";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1196;
+				DEVELOPMENT_ASSET_PATHS = "\"Jarvis/Preview Content\"";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = YES;
+				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = YES;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+					"$(PROJECT_DIR)/Frameworks",
+					"$(PROJECT_DIR)/mediaremote-adapter",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Jarvis/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Jarvis;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_MetalCaptureEnabled = YES;
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Jarvis uses AppleScripts to control Spotify, Apple Music, and Notes.";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Jarvis needs Bluetooth access to detect when audio devices connect and display their battery status in the HUD.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Show calender events inside the notch";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "Need for Calendar Mode";
+				INFOPLIST_KEY_NSCameraUsageDescription = "We need your camera for Mirror mode";
+				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Jarvis needs access to save screenshots to your desktop.";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "Jarvis needs access to save and read shelf dragged files.";
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Jarvis needs access to read files in the downloads folder.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocationUsageDescription = "Jarvis uses your location to display accurate lock screen weather.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Jarvis uses your location to display accurate lock screen weather.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Jarvis needs Reminders access to show your reminders";
+				INFOPLIST_KEY_NSRemindersUsageDescription = "Jarvis needs Reminders access to show your reminders";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				MARKETING_VERSION = 2.3.3;
+				PRODUCT_BUNDLE_IDENTIFIER = com.supercli.jarvis.dev;
+				PRODUCT_NAME = Jarvis;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
+				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
+				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "Jarvis/Jarvis-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				SYSTEM_FRAMEWORK_SEARCH_PATHS = (
+					"$(SDKROOT)/System/Library/Frameworks",
+					"$(SDKROOT)/System/Library/PrivateFrameworks",
+				);
+			};
+			name = Debug;
+		};
+		F54406F82CD4987B00C7AFD9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = YES;
+				CODE_SIGN_ENTITLEMENTS = Jarvis/Jarvis.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1196;
+				DEVELOPMENT_ASSET_PATHS = "\"Jarvis/Preview Content\"";
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = "";
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = YES;
+				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = YES;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+					"$(PROJECT_DIR)/Frameworks",
+					"$(PROJECT_DIR)/mediaremote-adapter",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Jarvis/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Jarvis;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_MetalCaptureEnabled = YES;
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Jarvis uses AppleScripts to control Spotify, Apple Music, and Notes.";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Jarvis needs Bluetooth access to detect when audio devices connect and display their battery status in the HUD.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Show calender events inside the notch";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "Need for Calendar Mode";
+				INFOPLIST_KEY_NSCameraUsageDescription = "We need your camera for Mirror mode";
+				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Jarvis needs access to save screenshots to your desktop.";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "Jarvis needs access to save and read shelf dragged files.";
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Jarvis needs access to read files in the downloads folder.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocationUsageDescription = "Jarvis uses your location to display accurate lock screen weather.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Jarvis uses your location to display accurate lock screen weather.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Jarvis needs Reminders access to show your reminders";
+				INFOPLIST_KEY_NSRemindersUsageDescription = "Jarvis needs Reminders access to show your reminders";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				MARKETING_VERSION = 2.3.3;
+				PRODUCT_BUNDLE_IDENTIFIER = com.supercli.jarvis;
+				PRODUCT_NAME = Jarvis;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
+				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
+				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "Jarvis/Jarvis-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				SYSTEM_FRAMEWORK_SEARCH_PATHS = (
+					"$(SDKROOT)/System/Library/Frameworks",
+					"$(SDKROOT)/System/Library/PrivateFrameworks",
+				);
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0EE2CF1552DB8896698C28BD /* Build configuration list for PBXNativeTarget "JarvisUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				80C3D48B29D18AD34C41AA75 /* Release */,
+				76C88DDCF7D65738FAD9DB22 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E5DBE55A111A6608A1AA80DB /* Build configuration list for PBXNativeTarget "JarvisTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				47D3CCE276A629D16371338D /* Release */,
+				1D3C7B18ECFF6DEECBEF798B /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F54406E22CD4987A00C7AFD9 /* Build configuration list for PBXProject "Jarvis" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F54406F42CD4987B00C7AFD9 /* Debug */,
+				F54406F52CD4987B00C7AFD9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F54406F62CD4987B00C7AFD9 /* Build configuration list for PBXNativeTarget "Jarvis" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F54406F72CD4987B00C7AFD9 /* Debug */,
+				F54406F82CD4987B00C7AFD9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		146BC4352D366E9B0047C66A /* XCRemoteSwiftPackageReference "MacroVisionKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/TheBoredTeam/MacroVisionKit";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.1.0;
+			};
+		};
+		14D032182C68F32E0096E6A1 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/LaunchAtLogin-Modern";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+		14D0321B2C68F3350096E6A1 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.6.4;
+			};
+		};
+		7E09D5962EB7B497005AF41D /* XCRemoteSwiftPackageReference "open-meteo" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/open-meteo/open-meteo";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.4.16;
+			};
+		};
+		7E288D102F1659EF0020C117 /* XCRemoteSwiftPackageReference "AtollExtensionKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Ebullioscopic/AtollExtensionKit";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+		7E61181F2E24071E0050006C /* XCRemoteSwiftPackageReference "SkyLightWindow" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Lakr233/SkyLightWindow";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+		7EF19C152F577040005B9929 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.5.0;
+			};
+		};
+		9A987A112C73CAA1005CA465 /* XCRemoteSwiftPackageReference "Pow" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/EmergeTools/Pow";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.4;
+			};
+		};
+		B1628B902CC260C0003D8DF3 /* XCRemoteSwiftPackageReference "swiftui-introspect" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/siteline/swiftui-introspect";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.3.0;
+			};
+		};
+		B18654372C6F4990000B926A /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.2.4;
+			};
+		};
+		B19016202CC15B3D00E3F12E /* XCRemoteSwiftPackageReference "Defaults" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/Defaults";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.0.2;
+			};
+		};
+		B19424072CD0DB52003E5DC2 /* XCRemoteSwiftPackageReference "LottieUI" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/jasudev/LottieUI.git";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+		F54407082CD4A23F00C7AFD9 /* XCRemoteSwiftPackageReference "swift-collections" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-collections.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.1.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		146BC4362D366E9B0047C66A /* MacroVisionKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 146BC4352D366E9B0047C66A /* XCRemoteSwiftPackageReference "MacroVisionKit" */;
+			productName = MacroVisionKit;
+		};
+		14D032192C68F32E0096E6A1 /* LaunchAtLogin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 14D032182C68F32E0096E6A1 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */;
+			productName = LaunchAtLogin;
+		};
+		14D0321C2C68F3350096E6A1 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 14D0321B2C68F3350096E6A1 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+		7E288D112F1659EF0020C117 /* AtollExtensionKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7E288D102F1659EF0020C117 /* XCRemoteSwiftPackageReference "AtollExtensionKit" */;
+			productName = AtollExtensionKit;
+		};
+		7E61181E2E24071E0050006C /* SkyLightWindow */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7E61181F2E24071E0050006C /* XCRemoteSwiftPackageReference "SkyLightWindow" */;
+			productName = SkyLightWindow;
+		};
+		7EF19C162F577040005B9929 /* SwiftTerm */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7EF19C152F577040005B9929 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
+			productName = SwiftTerm;
+		};
+		9A987A0F2C73CA8D005CA465 /* Collections */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F54407082CD4A23F00C7AFD9 /* XCRemoteSwiftPackageReference "swift-collections" */;
+			productName = Collections;
+		};
+		B1628B912CC260C0003D8DF3 /* SwiftUIIntrospect */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B1628B902CC260C0003D8DF3 /* XCRemoteSwiftPackageReference "swiftui-introspect" */;
+			productName = SwiftUIIntrospect;
+		};
+		B18654382C6F4990000B926A /* KeyboardShortcuts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B18654372C6F4990000B926A /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
+			productName = KeyboardShortcuts;
+		};
+		B19016212CC15B3D00E3F12E /* Defaults */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B19016202CC15B3D00E3F12E /* XCRemoteSwiftPackageReference "Defaults" */;
+			productName = Defaults;
+		};
+		B194240A2CD10017003E5DC2 /* LottieUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B19424072CD0DB52003E5DC2 /* XCRemoteSwiftPackageReference "LottieUI" */;
+			productName = LottieUI;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = F54406DF2CD4987A00C7AFD9 /* Project object */;
+}
