@@ -57,6 +57,18 @@ struct VoiceConfig {
         defaults.string(forKey: "voice_server_url") ?? "http://localhost:3004"
     }
 
+    /// Where Nova web runs. Spoken requests become threads here, so the
+    /// browser does not have to be open.
+    static var novaWebURL: String {
+        defaults.string(forKey: "nova_web_url") ?? "http://localhost:3000"
+    }
+
+    /// The one-time code Nova web shows for "Connect island". Empty until the
+    /// user pastes it in Settings → Integrations.
+    static var islandLinkCode: String {
+        defaults.string(forKey: "island_link_code") ?? ""
+    }
+
     static var screenVisionEnabled: Bool {
         defaults.object(forKey: "screen_vision_enabled") as? Bool ?? true
     }
@@ -72,7 +84,9 @@ struct VoiceConfig {
         sarvamLanguage: String? = nil,
         authToken: String? = nil,
         serverURL: String? = nil,
-        screenVisionEnabled: Bool? = nil
+        novaWebURL: String? = nil,
+        screenVisionEnabled: Bool? = nil,
+        islandLinkCode: String? = nil
     ) {
         if let provider = activeProvider { defaults.set(provider.rawValue, forKey: "active_voice_provider") }
         if let key = smallestAPIKey { defaults.set(key, forKey: "smallest_api_key") }
@@ -84,6 +98,8 @@ struct VoiceConfig {
         if let lang = sarvamLanguage { defaults.set(lang, forKey: "sarvam_language") }
         if let token = authToken { defaults.set(token, forKey: "auth_token") }
         if let url = serverURL { defaults.set(url, forKey: "voice_server_url") }
+        if let url = novaWebURL { defaults.set(url, forKey: "nova_web_url") }
         if let enabled = screenVisionEnabled { defaults.set(enabled, forKey: "screen_vision_enabled") }
+        if let code = islandLinkCode { defaults.set(code, forKey: "island_link_code") }
     }
 }

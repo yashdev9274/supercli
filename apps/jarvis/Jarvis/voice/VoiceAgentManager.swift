@@ -53,6 +53,11 @@ class VoiceAgentManager: ObservableObject {
     private var sttService: STTService
     private let ttsService = TTSService()
     private let chatService: VoiceChatService
+    private let novaService = NovaVoiceService()
+
+    /// The Nova thread this island is talking to. The first spoken request
+    /// opens one; later requests continue it, so a follow-up keeps context.
+    private var novaSessionId: String?
 
     private var ttsAPIKey: String {
         switch VoiceConfig.activeProvider {
@@ -88,6 +93,7 @@ class VoiceAgentManager: ObservableObject {
     }
 
     func startWakeWordListening() {
+        IslandLinkService.shared.connectIfNeeded()
         guard state == .idle else { return }
         guard !audioCapture.isMicPermissionDenied else {
             presentMicDenied()
@@ -106,6 +112,7 @@ class VoiceAgentManager: ObservableObject {
     }
 
     func startPushToTalk() {
+        IslandLinkService.shared.connectIfNeeded()
         guard state == .idle else { return }
         guard !audioCapture.isMicPermissionDenied else {
             presentMicDenied()
@@ -180,6 +187,7 @@ class VoiceAgentManager: ObservableObject {
         conversationHideWorkItem = nil
         isConversationVisible = false
         conversation = []
+        novaSessionId = nil
         reset()
     }
 
@@ -273,48 +281,10 @@ class VoiceAgentManager: ObservableObject {
                     reset()
 
                 case .chat(let message):
-                    state = .processing
-                    let result: VoiceChatResult
-                    conversation.append(["role": "user", "content": message])
-                    do {
-                        result = try await chatService.chat(transcript: message, history: conversation, enableTools: true)
-                    } catch {
-                        print("[VoiceAgent] Chat server unavailable, using local response: \(error)")
-                        result = VoiceChatResult(reply: localResponse(for: message), tools: [])
-                    }
-                    conversation.append(["role": "assistant", "content": result.reply])
-                    if conversation.count > conversationLimit {
-                        conversation.removeFirst(conversation.count - conversationLimit)
-                    }
-                    response = result.reply
-                    if !result.tools.isEmpty {
-                        await IntegrationPanelManager.shared.present(toolCalls: result.tools)
-                    }
-                    state = .speaking
-                    await ttsService.speak(result.reply, apiKey: ttsAPIKey)
-                    reset()
+                    await runNovaTurn(message)
 
                 case .unknown(let text):
-                    state = .processing
-                    let result: VoiceChatResult
-                    conversation.append(["role": "user", "content": text])
-                    do {
-                        result = try await chatService.chat(transcript: text, history: conversation, enableTools: true)
-                    } catch {
-                        print("[VoiceAgent] Chat server unavailable, using local response: \(error)")
-                        result = VoiceChatResult(reply: localResponse(for: text), tools: [])
-                    }
-                    conversation.append(["role": "assistant", "content": result.reply])
-                    if conversation.count > conversationLimit {
-                        conversation.removeFirst(conversation.count - conversationLimit)
-                    }
-                    response = result.reply
-                    if !result.tools.isEmpty {
-                        await IntegrationPanelManager.shared.present(toolCalls: result.tools)
-                    }
-                    state = .speaking
-                    await ttsService.speak(result.reply, apiKey: ttsAPIKey)
-                    reset()
+                    await runNovaTurn(text)
                 }
             } catch {
                 print("[VoiceAgent] Processing error: \(error)")
@@ -344,6 +314,26 @@ class VoiceAgentManager: ObservableObject {
                     self?.reset()
                 }
             }
+        }
+    }
+
+    /// Runs the utterance as a Nova web turn and speaks the compact summary
+    /// Nova sends back. The full answer stays in the Nova thread.
+    private func runNovaTurn(_ text: String) async {
+        state = .processing
+        transcript = text
+        do {
+            let turn = try await novaService.run(content: text, sessionId: novaSessionId)
+            novaSessionId = turn.sessionId
+            response = turn.summary
+            state = .speaking
+            await ttsService.speak(turn.summary, apiKey: ttsAPIKey)
+            reset()
+        } catch {
+            print("[VoiceAgent] Nova turn failed: \(error)")
+            response = (error as? LocalizedError)?.errorDescription ?? "Nova could not run that."
+            await ttsService.speak("I couldn't reach Nova. Try again in a moment.", apiKey: ttsAPIKey)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.reset() }
         }
     }
 

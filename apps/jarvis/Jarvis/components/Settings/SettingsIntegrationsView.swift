@@ -37,6 +37,9 @@ struct SettingsIntegrationsView: View {
     @State private var smallestAPIKey: String = VoiceConfig.smallestAPIKey
     @State private var sarvamAPIKey: String = VoiceConfig.sarvamAPIKey
     @State private var sarvamTTSSpeaker: String = VoiceConfig.sarvamTTSSpeaker
+    @State private var islandLinkCode: String = VoiceConfig.islandLinkCode
+    @State private var authToken: String = VoiceConfig.authToken
+    @ObservedObject private var novaSignIn = NovaSignIn.shared
 
     private let authSessionPresenter: (any ComposioAuthSessionPresenting)?
 
@@ -53,6 +56,8 @@ struct SettingsIntegrationsView: View {
             header
 
             voiceProviderSection
+
+            novaLinkSection
 
             IntegrationSearchBar(searchText: $searchText, filter: $filter)
 
@@ -137,6 +142,65 @@ struct SettingsIntegrationsView: View {
                             VoiceConfig.configure(activeProvider: selectedProvider, smallestAPIKey: smallestAPIKey, sarvamAPIKey: sarvamAPIKey, sarvamTTSSpeaker: speaker)
                         }
                 }
+            }
+        }
+    }
+
+    // MARK: - Nova link
+
+    /// The code Nova web shows after "Connect island", plus the CLI session
+    /// token the voice link requires. Speech stays on Sarvam either way.
+    private var novaLinkSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Nova")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+
+            HStack {
+                Button(action: { novaSignIn.signingIn ? novaSignIn.cancel() : novaSignIn.start() }) {
+                    Text(novaSignIn.signingIn ? "Cancel sign-in" : (authToken.isEmpty ? "Sign in to Nova" : "Signed in"))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(Color.white.opacity(0.16)))
+                }
+                .buttonStyle(.plain)
+                if !novaSignIn.userCode.isEmpty {
+                    Text(novaSignIn.userCode)
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.white)
+                }
+            }
+            if !novaSignIn.status.isEmpty {
+                Text(novaSignIn.status)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack {
+                Text("Link code")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 60, alignment: .trailing)
+                TextField("From Nova", text: $islandLinkCode)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11))
+                    .onChange(of: islandLinkCode) { _, code in
+                        VoiceConfig.configure(islandLinkCode: code)
+                    }
+            }
+            HStack {
+                Text("Token")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 60, alignment: .trailing)
+                SecureField("CLI session token", text: $authToken)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11))
+                    .onChange(of: authToken) { _, token in
+                        VoiceConfig.configure(authToken: token)
+                    }
             }
         }
     }
