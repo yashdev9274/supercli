@@ -1,7 +1,9 @@
+import prisma from "@super/db"
 import { auth } from "@super/auth/server"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
+import { terminalHarnessUrl } from "@/modules/nova/harness/client"
 import { ensureHarnessToken } from "@/modules/nova/harness/auth"
 import { createAgentSession } from "@/modules/nova/sessions/service"
 import { runWebTurn, type TurnStreamEvent } from "@/modules/nova/sessions/turn"
@@ -26,33 +28,33 @@ export async function POST(request: NextRequest) {
   const token = bearer(request)
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const session = await auth.api.getSession({ headers: new Headers({ Authorization: `Bearer ${token}` }) })
-  if (!session?.user?.id || !session.user.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const caller = await resolveCaller(request, token)
+  if (!caller) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const parsed = turnSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: "Say that again" }, { status: 400 })
 
-  let harness
-  try {
-    harness = await ensureHarnessToken({
-      email: session.user.email,
-      name: session.user.name,
-      image: session.user.image,
-      background: true,
-    })
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Nova could not authorize the harness" },
-      { status: 502 },
-    )
+  let harnessToken = caller.harnessToken
+  if (!harnessToken) {
+    try {
+      harnessToken = (await ensureHarnessToken({
+        email: caller.email,
+        name: caller.name,
+        image: caller.image,
+        background: true,
+      })).token
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Nova could not authorize the harness" },
+        { status: 502 },
+      )
+    }
   }
 
   let sessionId = parsed.data.sessionId
   if (!sessionId) {
     const created = await createAgentSession({
-      userId: session.user.id,
+      userId: caller.id,
       objective: parsed.data.content,
       mode: "agent",
       surface: "web",
@@ -63,11 +65,11 @@ export async function POST(request: NextRequest) {
   const events: TurnStreamEvent[] = []
   try {
     for await (const event of runWebTurn({
-      userId: session.user.id,
+      userId: caller.id,
       sessionId,
       content: parsed.data.content,
       mode: "agent",
-      harnessToken: harness.token,
+      harnessToken,
       signal: request.signal,
     })) {
       events.push(event)
@@ -99,4 +101,51 @@ export async function POST(request: NextRequest) {
 function bearer(request: Request): string | null {
   const header = request.headers.get("authorization") ?? ""
   return header.startsWith("Bearer ") ? header.slice(7).trim() : null
+}
+
+type Caller = {
+  id: string
+  email: string
+  name: string | null
+  image: string | null
+  harnessToken: string | null
+}
+
+async function resolveCaller(request: NextRequest, token: string): Promise<Caller | null> {
+  const web = await auth.api.getSession({ headers: request.headers })
+  if (web?.user?.id && web.user.email) {
+    return {
+      id: web.user.id,
+      email: web.user.email,
+      name: web.user.name,
+      image: web.user.image,
+      harnessToken: null,
+    }
+  }
+
+  const response = await fetch(`${terminalHarnessUrl()}/api/user/me`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(8_000),
+  }).catch(() => null)
+  if (!response?.ok) return null
+  const terminal = await response.json().catch(() => null) as { email?: string; name?: string; image?: string | null } | null
+  const email = terminal?.email?.trim().toLowerCase()
+  if (!email) return null
+
+  const existing = await prisma.user.findFirst({
+    where: { email: { equals: email, mode: "insensitive" } },
+    select: { id: true, email: true, name: true, image: true },
+  })
+  const user = existing ?? await prisma.user.create({
+    data: {
+      id: crypto.randomUUID(),
+      email,
+      name: terminal?.name?.trim() || email.split("@")[0] || "Nova user",
+      emailVerified: true,
+      image: terminal?.image ?? null,
+    },
+    select: { id: true, email: true, name: true, image: true },
+  })
+  return { ...user, harnessToken: token }
 }

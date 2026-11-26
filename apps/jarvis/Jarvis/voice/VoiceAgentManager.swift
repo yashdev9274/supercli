@@ -332,7 +332,7 @@ class VoiceAgentManager: ObservableObject {
         } catch {
             print("[VoiceAgent] Nova turn failed: \(error)")
             response = (error as? LocalizedError)?.errorDescription ?? "Nova could not run that."
-            await ttsService.speak("I couldn't reach Nova. Try again in a moment.", apiKey: ttsAPIKey)
+            await ttsService.speak(response, apiKey: ttsAPIKey)
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.reset() }
         }
     }

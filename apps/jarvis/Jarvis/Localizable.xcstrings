@@ -14769,6 +14769,9 @@
         }
       }
     },
+    "Cancel sign-in" : {
+
+    },
     "Caps Lock" : {
       "localizations" : {
         "nl" : {
@@ -17686,6 +17689,9 @@
           }
         }
       }
+    },
+    "CLI session token" : {
+
     },
     "Click 'Pick Color' or use Cmd+Shift+P to start picking colors" : {
       "localizations" : {
@@ -31112,7 +31118,7 @@
         }
       }
     },
-    "Enable the microphone for JARVIS in System Settings, then press ⌃V again." : {
+    "Enable the microphone for JARVIS in System Settings, then press ⇧⌘Space again." : {
 
     },
     "Enable the timer feature in Settings to access this tab." : {
@@ -34169,6 +34175,9 @@
           }
         }
       }
+    },
+    "From Nova" : {
+
     },
     "Frosted Glass" : {
       "comment" : "The name of the frosted glass style. | The name of the frosted glass style. | merge:ko:alt='Frosted Glass'",
@@ -40703,6 +40712,9 @@
           }
         }
       }
+    },
+    "Link code" : {
+
     },
     "LinkedIn" : {
       "extractionState" : "stale",
@@ -51604,6 +51616,9 @@
         }
       }
     },
+    "Nova" : {
+
+    },
     "now" : {
       "comment" : "A string indicating that an event is starting at the current time.",
       "extractionState" : "manual",
@@ -61041,7 +61056,7 @@
         }
       }
     },
-    "Say \"Jarvis\" or press ⌃V" : {
+    "Say \"Jarvis\" or press ⇧⌘Space" : {
 
     },
     "Scale Down" : {
@@ -67936,6 +67951,9 @@
         }
       }
     },
+    "Sign in to Nova" : {
+
+    },
     "Sign in to Spotify to capture the `sp_dc` cookie automatically, or paste it in below." : {
       "comment" : "A description of how to sign in to Spotify to get the `sp_dc` cookie.",
       "extractionState" : "stale",
@@ -68021,6 +68039,9 @@
           }
         }
       }
+    },
+    "Signed in" : {
+
     },
     "Simple and minimal interface with just the essentials for everyday tasks." : {
       "extractionState" : "stale",
@@ -74965,6 +74986,9 @@
           }
         }
       }
+    },
+    "Token" : {
+
     },
     "Top Processes" : {
       "localizations" : {

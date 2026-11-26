@@ -47,7 +47,7 @@ extension KeyboardShortcuts.Name {
     static let colorPickerPanel = Self("colorPickerPanel")
     static let toggleTerminalTab = Self("toggleTerminalTab")
     static let screenAssistantPanel = Self("screenAssistantPanel")
-    static let voiceAgent = Self("voiceAgent", default: .init(.v, modifiers: .control))
+    static let voiceAgent = Self("voiceAgent", default: .init(.space, modifiers: [.command, .shift]))
 }
 
 extension KeyboardShortcuts.Shortcut {

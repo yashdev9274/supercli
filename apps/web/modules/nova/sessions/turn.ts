@@ -312,7 +312,33 @@ function harnessContentToText(content: HarnessChatMessage["content"]): string {
     .join("\n")
 }
 
+function transactionStartFailed(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return /unable to start a transaction|transaction api error/i.test(message)
+}
+
 async function completeRun(input: {
+  runId: string
+  sessionId: string
+  surfaceId: string
+  body: string
+  model: string
+  failed?: boolean
+}) {
+  let last: unknown
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      return await writeCompletedRun(input)
+    } catch (error) {
+      last = error
+      if (!transactionStartFailed(error) || attempt === 3) throw error
+      await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)))
+    }
+  }
+  throw last
+}
+
+async function writeCompletedRun(input: {
   runId: string
   sessionId: string
   surfaceId: string

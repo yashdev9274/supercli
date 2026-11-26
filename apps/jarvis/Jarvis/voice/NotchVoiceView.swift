@@ -65,7 +65,7 @@ struct NotchVoiceView: View {
                     .foregroundColor(.white)
             }
 
-            Text("Say \"Jarvis\" or press ⌃V")
+            Text("Say \"Jarvis\" or press ⇧⌘Space")
                 .font(.system(size: 11))
                 .foregroundColor(.white.opacity(0.6))
 
@@ -249,7 +249,7 @@ struct NotchVoiceView: View {
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(.white.opacity(0.9))
 
-            Text("Enable the microphone for JARVIS in System Settings, then press ⌃V again.")
+            Text("Enable the microphone for JARVIS in System Settings, then press ⇧⌘Space again.")
                 .font(.system(size: 10))
                 .foregroundColor(.white.opacity(0.6))
                 .multilineTextAlignment(.center)

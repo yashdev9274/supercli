@@ -60,7 +60,12 @@ struct VoiceConfig {
     /// Where Nova web runs. Spoken requests become threads here, so the
     /// browser does not have to be open.
     static var novaWebURL: String {
-        defaults.string(forKey: "nova_web_url") ?? "http://localhost:3000"
+        let stored = defaults.string(forKey: "nova_web_url") ?? ""
+        // Nova web listens on 3003. 3000 is the terminal client, which has no voice route.
+        if stored.isEmpty || stored == "http://localhost:3000" || stored == "http://127.0.0.1:3000" {
+            return "http://localhost:3003"
+        }
+        return stored
     }
 
     /// The one-time code Nova web shows for "Connect island". Empty until the

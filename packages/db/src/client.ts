@@ -2,7 +2,16 @@ import { PrismaPg } from "@prisma/adapter-pg"
 import { Prisma, PrismaClient } from "./generated"
 
 const prismaClientSingleton = () => new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+  transactionOptions: {
+    maxWait: 20_000,
+    timeout: 30_000,
+  },
+  adapter: new PrismaPg({
+    connectionString: process.env.DATABASE_URL,
+    max: 10,
+    connectionTimeoutMillis: 20_000,
+    idleTimeoutMillis: 20_000,
+  }),
 })
 
 // Next.js preserves globals across hot reloads, including clients generated

@@ -1375,6 +1375,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        let legacyVoiceShortcut = KeyboardShortcuts.Shortcut(.v, modifiers: .control)
+        if KeyboardShortcuts.getShortcut(for: .voiceAgent) == legacyVoiceShortcut {
+            KeyboardShortcuts.setShortcut(.init(.space, modifiers: [.command, .shift]), for: .voiceAgent)
+        }
+
         KeyboardShortcuts.onKeyDown(for: .voiceAgent) { [weak self] in
             guard let self else { return }
             // The KeyboardShortcuts global event monitor fires on a background
