@@ -75,6 +75,14 @@ export const availableTools: ToolConfig[] = [
     enabled: false,
   },
   {
+    id: "specstream_search",
+    name: "SpecStream Search",
+    description:
+      "Search the web using SpecStream. Optional; off until SPECSTREAM_API_KEY is set",
+    getTool: () => registryTools.specstream_search as unknown as Record<string, unknown>,
+    enabled: false,
+  },
+  {
     id: "exa_fetch",
     name: "Exa Fetch",
     description:
