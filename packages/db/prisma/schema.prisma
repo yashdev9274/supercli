@@ -1003,6 +1003,67 @@ model DesktopDevice {
   @@map("desktop_device")
 }
 
+model DesktopControlEnrollment {
+  id             String   @id @default(cuid())
+  codeHash       String   @unique
+  userId         String
+  organizationId String
+  membershipId   String
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([expiresAt])
+  @@map("desktop_control_enrollment")
+}
+
+model DesktopControlNonce {
+  deviceId  String
+  nonceHash String
+  createdAt DateTime @default(now())
+
+  @@id([deviceId, nonceHash])
+  @@map("desktop_control_nonce")
+}
+
+model DesktopControlDevice {
+  deviceId       String   @id
+  userId         String
+  organizationId String
+  membershipId   String
+  revokedAt      DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([userId, organizationId])
+  @@map("desktop_control_device")
+}
+
+model DesktopControlCommand {
+  id               String   @id @default(cuid())
+  organizationId   String
+  membershipId     String
+  userId           String
+  deviceId         String
+  sessionId        String
+  runId            String
+  invocationId     String   @unique
+  argsHash         String
+  invocationHash   String
+  toolName         String
+  capability       String
+  status           String   @default("queued")
+  fenceHash        String?
+  expiresAt        DateTime
+  claimedAt        DateTime?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  result           Json?
+  createdAt        DateTime @default(now())
+
+  @@index([deviceId, status, expiresAt])
+  @@map("desktop_control_command")
+}
+
 /// Browser-granted local project folder for Nova web (File System Access API on the client).
 /// Path index lives in Postgres so threads remember the project; file bodies are read in-browser.
 model WebLocalProject {

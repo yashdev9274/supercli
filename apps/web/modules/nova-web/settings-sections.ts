@@ -4,6 +4,7 @@ export const SETTINGS_SECTIONS = [
   "profile",
   "projects",
   "models",
+  "computer-use",
   "activity",
   "usage",
   "billing",
