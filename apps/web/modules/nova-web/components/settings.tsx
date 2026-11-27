@@ -13,6 +13,7 @@ import {
   Github,
   Loader2,
   MoreHorizontal,
+  Monitor,
   Palette,
   Plus,
   Search,
@@ -33,6 +34,7 @@ import { BillingSection } from "@/modules/nova-web/components/settings-billing"
 import { UsageSection } from "@/modules/nova-web/components/settings-usage"
 import { ModelsSection } from "@/modules/nova-web/components/settings-models"
 import { AppearanceSection } from "@/modules/nova-web/components/settings-appearance"
+import { ComputerUseSection } from "@/modules/nova-web/components/settings-computer-use"
 import type { HarnessProvider } from "@/modules/nova-web/models"
 import { getConnectedRepos } from "@/modules/dashboard/actions/analytics"
 import type { SettingsActivity, SettingsUsage } from "@/modules/nova/settings/service"
@@ -56,6 +58,7 @@ const SECTION_META: Array<{
   { id: "profile", label: "Profile", icon: UserRound },
   { id: "projects", label: "Projects", icon: FolderGit2 },
   { id: "models", label: "Models", icon: Cpu },
+  { id: "computer-use", label: "Computer use", icon: Monitor },
   { id: "activity", label: "Activity", icon: Activity },
   { id: "usage", label: "Usage", icon: CreditCard },
   { id: "billing", label: "Billing", icon: Wallet },
@@ -263,6 +266,7 @@ export function SettingsView({
             <GeneralSection prefs={prefs} onChange={updatePrefs} />
           ) : null}
           {section === "appearance" ? <AppearanceSection /> : null}
+          {section === "computer-use" ? <ComputerUseSection /> : null}
           {section === "profile" ? (
             <ProfileSection user={user} copied={copied} onCopy={copyText} />
           ) : null}
