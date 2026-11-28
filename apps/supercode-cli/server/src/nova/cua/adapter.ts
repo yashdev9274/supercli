@@ -83,10 +83,16 @@ class BoundedStdio implements Transport {
     const child = this.child
     if (!child) return
     child.stdin.destroy()
+    child.stdout.destroy()
+    child.stderr.destroy()
     child.kill("SIGKILL")
     await new Promise<void>(resolve => {
       if (child.exitCode !== null || child.signalCode !== null) return resolve()
-      child.once("close", () => resolve())
+      const timer = setTimeout(resolve, 1_000)
+      child.once("exit", () => {
+        clearTimeout(timer)
+        resolve()
+      })
     })
   }
 }

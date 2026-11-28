@@ -58,6 +58,9 @@ export function createProviderTransport(provider: ProviderCredentialProvider, co
   const config: StoredProviderConfig = typeof configOrApiKey === "string" ? { apiKey: configOrApiKey } : configOrApiKey
   return (async function* ({ messages, model, tools, signal }) {
     if (provider === "cursor") {
+      if (messages.some((message) => Array.isArray(message.content) && message.content.some((part) => part.type !== "text"))) {
+        throw new Error("Cursor Cloud Agents cannot receive screen images through this connection. Choose a vision-capable provider.")
+      }
       const prompt = messages.map((message) => `${message.role}: ${textOf(message.content)}`).join("\n\n")
       const create = await fetch("https://api.cursor.com/v1/agents", { method: "POST", headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ prompt: { text: prompt }, model: { id: model } }), signal })
       if (!create.ok) throw new Error(`Cursor Cloud Agents returned HTTP ${create.status}`)
@@ -76,7 +79,13 @@ export function createProviderTransport(provider: ProviderCredentialProvider, co
     const isAnthropic = family === "anthropic"
     const url = isAnthropic ? `${base}/v1/messages`.replace("/v1/v1/", "/v1/") : `${base}/chat/completions`
     const body = isAnthropic
-      ? { model, stream: true, max_tokens: 16_384, system: messages.filter((message) => message.role === "system").map((message) => textOf(message.content)).join("\n\n") || undefined, messages: messages.filter((message) => message.role !== "system").map((message) => ({ role: message.role === "tool" ? "user" : message.role, content: textOf(message.content) })) }
+      ? { model, stream: true, max_tokens: 16_384, system: messages.filter((message) => message.role === "system").map((message) => textOf(message.content)).join("\n\n") || undefined, messages: messages.filter((message) => message.role !== "system").map((message) => ({ role: message.role === "tool" ? "user" : message.role, content: typeof message.content === "string" ? message.content : message.content.map((part) => {
+        if (part.type === "text") return part
+        const url = part.type === "image" ? part.image : part.image_url.url
+        const match = /^data:(image\/(?:jpeg|png|gif|webp));base64,(.+)$/i.exec(url)
+        if (!match) throw new Error("This image cannot be sent to the selected Anthropic provider")
+        return { type: "image", source: { type: "base64", media_type: match[1], data: match[2] } }
+      }) })) }
       : { model, stream: true, messages, tools: tools?.length ? tools : undefined }
     const response = await fetch(url, { method: "POST", headers: headersFor(provider, config), body: JSON.stringify(body), signal })
     if (!response.ok) throw await providerResponseError(response, provider, config)

@@ -44,4 +44,12 @@ describe("local Cua adapter", () => {
       await expect(adapter.call("get_window_state", { pid: 88, window_id: 1 })).rejects.toThrow()
     } finally { await adapter.close() }
   })
+
+  test("closes even when a helper inherits the driver's output pipes", async () => {
+    const adapter = await CuaAdapter.connect({ enabled: true, executablePath })
+    await adapter.call("get_window_state", { pid: 77, window_id: 1 })
+    const start = Date.now()
+    await adapter.close()
+    expect(Date.now() - start).toBeLessThan(1500)
+  })
 })

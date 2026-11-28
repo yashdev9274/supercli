@@ -69,6 +69,24 @@ test("accepts a validated JSON completion", async () => {
   expect(await runResponse(Response.json(completion))).toEqual([{ type: "text", content: "Hello" }, { type: "finish", reason: "stop" }])
 })
 
+test("forwards screen images as Codex input images", async () => {
+  const fetcher = (async (url, init) => {
+    if (String(url).includes("/models?")) return Response.json({ models: [{ slug: "account-model", display_name: "Account Model", visibility: "list" }] })
+    const body = JSON.parse(String(init?.body))
+    expect(body.input).toEqual([{ role: "user", content: [
+      { type: "input_text", text: "What is this?" },
+      { type: "input_image", image_url: "data:image/jpeg;base64,aGVsbG8=" },
+    ] }])
+    return Response.json(completion)
+  }) as typeof fetch
+  const transport = await createCodexRuntime(context(), fetcher).prepare("account-model")
+  const events = []
+  for await (const event of transport({ token: "synthetic", provider: "codex", model: "account-model", messages: [{ role: "user", content: [
+    { type: "text", text: "What is this?" }, { type: "image_url", image_url: { url: "data:image/jpeg;base64,aGVsbG8=" } },
+  ] }] })) events.push(event)
+  expect(events.some((event) => event.type === "text")).toBe(true)
+})
+
 test("rejects HTML, truncated SSE, empty bodies and JSON errors without exposing their contents", async () => {
   for (const response of [
     new Response("<html>private upstream details</html>", { headers: { "Content-Type": "text/html" } }),

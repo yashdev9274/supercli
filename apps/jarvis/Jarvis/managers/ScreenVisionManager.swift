@@ -184,12 +184,12 @@ final class ScreenVisionManager: NSObject, ObservableObject {
             restartAttempt = 0
             stopPermissionRetryTimer()
             logToFile("stream started: display \(display.displayID) \(display.width)x\(display.height) config \(config.width)x\(config.height)")
-            captureScale = CGFloat(config.width) / CGFloat(display.width)
             captureDisplayID = display.displayID
             captureDisplayFrame =
                 NSScreen.screens.first {
                     ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID) == display.displayID
                 }?.frame ?? .zero
+            captureScale = captureDisplayFrame.width > 0 ? CGFloat(config.width) / captureDisplayFrame.width : 1
             setCapturing(true)
             print("[ScreenVision] Capture started on \(display.width)x\(display.height)")
         } catch {

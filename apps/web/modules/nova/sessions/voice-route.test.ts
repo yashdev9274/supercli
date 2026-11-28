@@ -43,6 +43,16 @@ test("mutation requests retain agent mode instead of losing their capabilities",
   expect(turns[0]).toMatchObject({ sessionId: "existing-thread", mode: "agent" })
 })
 
+test("a selected screen capture reaches the turn as an image", async () => {
+  const response = await POST(new NextRequest("http://localhost/api/nova/voice/turn", {
+    method: "POST",
+    headers: { Authorization: "Bearer device-token", "Content-Type": "application/json" },
+    body: JSON.stringify({ content: "Explain this", screenImage: "data:image/jpeg;base64,aGVsbG8=", screenSelection: "true" }),
+  }))
+  expect(response.status).toBe(200)
+  expect(turns[0]).toMatchObject({ localAttachments: [{ kind: "image", name: "screen-selection.jpg", mediaType: "image/jpeg", size: 5, dataBase64: "aGVsbG8=" }] })
+})
+
 test("the explicit cloud model selection reaches the harness unchanged", async () => {
   const response = await POST(request("What is Vercel?", "existing-thread", { provider: "supercode", model: "minimax-m3", effort: "medium" }))
   expect(response.status).toBe(200)

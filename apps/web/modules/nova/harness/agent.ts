@@ -115,10 +115,7 @@ export async function* streamHarnessAgent(input: {
   const toolkits = [...new Set(ranked.map((tool) => tool.toolkit).filter(Boolean))]
 
   const messages: HarnessChatMessage[] = [
-    ...input.messages.map((message): HarnessChatMessage => ({
-      ...message,
-      content: flattenHarnessContent(message.content),
-    })),
+    ...input.messages,
     {
       role: "system",
       content: `Nova host context: mode=${mode}. Available toolkits: ${toolkits.join(", ") || "none"}. Native capabilities: ${extraTools.map((tool) => tool.function.name).join(", ") || "none"}.

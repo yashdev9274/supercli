@@ -25,6 +25,7 @@ enum VoiceAgentState: Equatable {
 }
 
 enum VoiceCommand: Equatable {
+    case createNote(String)
     case workspace
     case openApp(String)
     case openAppInBrowser(String, String) // app, browser
@@ -240,6 +241,13 @@ class VoiceAgentManager: ObservableObject {
                 lastCommand = command
 
                 switch command {
+                case .createNote(let text):
+                    state = .processing
+                    let result = await chatService.createNote(text)
+                    response = result
+                    state = .speaking
+                    await ttsService.speak(result, apiKey: ttsAPIKey)
+                    reset()
                 case .workspace:
                     state = .processing
                     let result = await chatService.runWorkspaceLauncher()
@@ -344,6 +352,15 @@ class VoiceAgentManager: ObservableObject {
         let lower = text.lowercased()
         let normalized = WakeWordDetector.normalize(text)
         let tokens = lower.split(separator: " ").map(String.init)
+
+        // Preserve the original case and text after an explicit Notes command.
+        let notePattern = #"(?i)\b(?:open|launch|start)\s+(?:the\s+)?(?:apple\s+)?notes(?:\s+app)?\s+and\s+(?:write|type|add)\s+(.+?)\s*(?:in it|in notes)?[.!]?$"#
+        if let regex = try? NSRegularExpression(pattern: notePattern),
+           let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+           let range = Range(match.range(at: 1), in: text) {
+            let note = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !note.isEmpty { return .createNote(note) }
+        }
 
         // ── 1. Workspace triggers ──────────────────────────────────────
         let workspaceTriggers = [

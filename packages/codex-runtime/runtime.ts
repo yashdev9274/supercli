@@ -131,8 +131,15 @@ export function createCodexRuntime(context: CodexCredentialContext, fetcher: typ
     const transport: ChatTransport = async function* (input) {
       if (!completed) {
         items = input.messages.filter((message) => message.role !== "system").map((message) => {
-          if (message.role === "tool" || message.tool_calls || typeof message.content !== "string") throw new CodexError("Invalid Codex conversation")
-          return { role: message.role, content: message.content }
+          if (message.role === "tool" || message.tool_calls) throw new CodexError("Invalid Codex conversation")
+          if (typeof message.content === "string") return { role: message.role, content: message.content }
+          if (message.role !== "user") throw new CodexError("Images are only supported in user messages")
+          return { role: "user", content: message.content.map((part) => {
+            if (part.type === "text") return { type: "input_text", text: part.text }
+            const url = part.type === "image" ? part.image : part.image_url.url
+            if (!/^data:image\/(?:jpeg|png|gif|webp);base64,[A-Za-z0-9+/]+={0,2}$/i.test(url)) throw new CodexError("Unsupported screen image")
+            return { type: "input_image", image_url: url }
+          }) }
         })
       } else {
         const results = input.messages.slice(consumed).filter((message) => message.role === "tool")

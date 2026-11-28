@@ -21,6 +21,31 @@ export function prepareBridgeMessages(messages: HarnessChatMessage[]): HarnessCh
   if (prepared.length > 100) throw new Error("Local context exceeds the CLI harness's 100-message limit. Start a new thread or select fewer files.")
   return prepared
 }
+
+/** Keep images on the web side of the text-only CLI protocol, then restore
+ * them on the matching user message before each provider inference call. */
+export function prepareBridgeImages(messages: HarnessChatMessage[]) {
+  const images = new Map<string, Exclude<HarnessChatMessage["content"], string>>()
+  const prepared = messages.map((message): HarnessChatMessage => {
+    if (typeof message.content === "string") return message
+    const parts = message.content
+    if (!parts.some((part) => part.type !== "text")) {
+      return { ...message, content: parts.map((part) => part.type === "text" ? part.text : "").join("\n") }
+    }
+    if (message.role !== "user") throw new Error("Images are only supported in user messages")
+    const marker = `[nova-image-${crypto.randomUUID()}]`
+    images.set(marker, parts)
+    return { ...message, content: marker }
+  })
+  return {
+    messages: prepared,
+    restore: (handoff: HarnessChatMessage[]): HarnessChatMessage[] => handoff.map((message) => {
+      if (message.role !== "user" || typeof message.content !== "string") return message
+      const parts = images.get(message.content)
+      return parts ? { ...message, content: parts } : message
+    }),
+  }
+}
 export type BridgeEvent = HarnessStreamEvent | { type: "tool-result"; toolName: string; toolCallId: string; args: Record<string, unknown>; content: string; status: "completed" | "failed" | "denied"; message: string }
 export type BridgeInput = {
   token: string
@@ -48,10 +73,11 @@ async function* streamBridge(input: BridgeInput, emit: (event: BridgeEvent) => P
   input = { ...input, signal: AbortSignal.any([cancellation.signal, ...(input.signal ? [input.signal] : []), AbortSignal.timeout(540_000)]) }
   input.signal?.throwIfAborted()
   if (!input.token) throw new Error("A CLI session is required to authorize the original harness bridge")
+  const imageBridge = prepareBridgeImages(input.messages)
   const headers = { Authorization: `Bearer ${input.token}`, "Content-Type": "application/json", Accept: "application/x-ndjson" }
   const response = await fetch(`${terminalHarnessUrl()}/api/nova/harness/turn`, {
     method: "POST", headers, signal: input.signal, cache: "no-store", redirect: "error",
-    body: JSON.stringify({ version: VERSION, mode: input.mode, messages: prepareBridgeMessages(input.messages), tools: input.tools, budget: input.budget ?? 30 }),
+    body: JSON.stringify({ version: VERSION, mode: input.mode, messages: prepareBridgeMessages(imageBridge.messages), tools: input.tools, budget: input.budget ?? 30 }),
   })
   if (!response.ok || !response.body) {
     await response.body?.cancel()
@@ -94,7 +120,7 @@ async function* streamBridge(input: BridgeInput, emit: (event: BridgeEvent) => P
         let bytes = 0
         for await (const part of (input.chatTransport ?? streamHarnessChat)({
           token: input.token, provider: input.provider, model: input.model, signal: input.signal,
-          messages: payload.messages as HarnessChatMessage[], tools: payload.tools as HarnessChatTool[],
+          messages: imageBridge.restore(payload.messages as HarnessChatMessage[]), tools: payload.tools as HarnessChatTool[],
         })) {
           bytes += JSON.stringify(part).length
           if (bytes > 4_000_000 || events.length >= 10_000) throw new Error("Inference response exceeded bridge limits")

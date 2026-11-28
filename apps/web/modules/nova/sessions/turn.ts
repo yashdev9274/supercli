@@ -27,6 +27,7 @@ import {
 } from "@/modules/nova/harness/native-github-tools"
 import {
   formatLocalAttachmentsContext,
+  imageDataUrl,
   localAttachmentsSchema,
   type LocalAttachment,
   type LocalAttachmentMeta,
@@ -714,18 +715,13 @@ export async function* runWebTurn(input: {
       if (localContext) {
         text += `\n\n${localContext}`
       }
-      // Always send plain string content to the harness. Multimodal arrays were
-      // coercing to "[object Object]" on some terminal/provider paths.
-      const imageNotes = localAttachments
-        .filter((file) => file.kind === "image" && file.dataBase64)
-        .map((file) => `Image attachment “${file.name}” (${file.mediaType}, ${file.size} bytes) was provided as base64 and is available to vision-capable routes.`)
-      if (imageNotes.length) {
-        text += `\n\n${imageNotes.join("\n")}`
-      }
       if (mode === "agent" && !workspace && localAttachments.length > 0) {
         text += `\n\n[Nova agent mode] Implement now. For EVERY file you change, emit a FULL file body in a fenced block with path=, e.g. \n\`\`\`tsx path=apps/web/modules/nova-web/components/workspace-panel.tsx\n...entire file...\n\`\`\`\nNova will apply those fences to the user's local folder. Do not claim you wrote a file unless you emitted its full path= fence. Do not reply with only a plan.`
       }
-      userMessage.content = text
+      const images = localAttachments.map(imageDataUrl).filter((url): url is string => url !== null)
+      userMessage.content = images.length
+        ? [{ type: "text", text }, ...images.map((url) => ({ type: "image_url" as const, image_url: { url } }))]
+        : text
     }
 
     yield {

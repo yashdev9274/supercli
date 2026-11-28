@@ -5,6 +5,7 @@ let sequence = 2
 const activities: Array<Record<string, unknown>> = []
 const db = {
   agentSession: {
+    findFirst: async () => ({ localWorkspaceBinding: null }),
     findUniqueOrThrow: async () => ({ objective: "Review attached files", nextSequence: sequence }),
     update: async () => ({ nextSequence: ++sequence }),
     updateMany: async () => ({ count: 1 }),
@@ -20,6 +21,9 @@ const db = {
     },
   },
   agentRun: { updateMany: async () => ({ count: 1 }) },
+  toolInvocation: {
+    upsert: async ({ create }: { create: { arguments: unknown } }) => ({ arguments: create.arguments }),
+  },
   $transaction: async (fn: (tx: unknown) => unknown): Promise<unknown> => fn(db),
 }
 
@@ -51,7 +55,7 @@ mock.module("./service", () => ({ postSessionMessage: postMessage }))
 
 const requests: Array<{
   path: string
-  body: { messages?: Array<{ role: string; content: string | Array<{ type?: string; text?: string; image?: string }> }> }
+  body: { messages?: Array<{ role: string; content: string | Array<{ type?: string; text?: string; image_url?: { url: string } }> }> }
 }> = []
 const server = Bun.serve({
   port: 0,
@@ -128,9 +132,8 @@ test("local attachments reach the harness and metadata-only tags reach message p
   expect(text).toContain("export function add")
   expect(text).toContain("util.ts")
   expect(text).toContain("untrusted user-provided")
-  expect(typeof content).toBe("string")
-  expect(String(content)).toContain("ui.png")
-  expect(String(content)).not.toContain("[object Object]")
+  expect(text).toContain("ui.png")
+  expect(Array.isArray(content) && content.some((part) => part.type === "image_url" && part.image_url?.url === "data:image/png;base64,aGVsbG8=")).toBe(true)
   expect(postMessage.mock.calls[0]?.[0]).toMatchObject({
     localAttachments: [
       {

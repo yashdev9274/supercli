@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import Carbon.HIToolbox
 
 /// Lets the user pick a screen region by holding Cmd and dragging (or
 /// circling) over any window. The voice agent then crops its screen vision to
@@ -10,14 +11,13 @@ import Combine
 /// - Cmd + left-drag over any window starts a selection; the drag rectangle is
 ///   shown live as a cut-out with a white border on a dimmed overlay.
 /// - Releasing the mouse finalizes the selection (needs ≥16pt in each axis).
-/// - Escape (while a selection exists) clears it. A new Cmd+drag replaces it.
+/// - Escape cancels a drag or clears a selection. A new Cmd+drag replaces it.
 ///
 /// Implementation notes:
 /// - Borderless overlay windows run at `.screenSaver` level and ignore mouse
 ///   events so they never block the underlying app.
-/// - Global event monitors don't receive mouseDown/mouseUp, so the end of a
-///   drag over another app is detected via `NSEvent.pressedMouseButtons` on
-///   the global `leftMouseDragged` events.
+/// - Local and global monitors track the complete mouse gesture, including
+///   mouse-up events delivered to another application.
 final class ScreenSelectionManager: NSObject, ObservableObject {
     static let shared = ScreenSelectionManager()
 
@@ -30,15 +30,25 @@ final class ScreenSelectionManager: NSObject, ObservableObject {
     private var overlayWindows: [NSWindow] = []
     private var dragStart: NSPoint?
     private var isDragging = false
+    private var ignoreDragUntilMouseUp = false
     private var liveRect: CGRect?
     private var localMonitor: Any?
     private var globalMonitor: Any?
     private var observers: [NSObjectProtocol] = []
+    private var escapeHotKey: EventHotKeyRef?
+    private var escapeHandler: EventHandlerRef?
 
     private override init() {
         super.init()
         installMonitors()
         installObservers()
+        var event = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        InstallEventHandler(GetApplicationEventTarget(), { _, _, context in
+            guard let context else { return OSStatus(eventNotHandledErr) }
+            let manager = Unmanaged<ScreenSelectionManager>.fromOpaque(context).takeUnretainedValue()
+            manager.cancelSelection()
+            return noErr
+        }, 1, &event, Unmanaged.passUnretained(self).toOpaque(), &escapeHandler)
     }
 
     /// Shows the overlay infrastructure. Safe to call repeatedly.
@@ -48,6 +58,8 @@ final class ScreenSelectionManager: NSObject, ObservableObject {
 
     /// Clears the current selection and hides the overlays.
     func clearSelection() {
+        if let escapeHotKey { UnregisterEventHotKey(escapeHotKey) }
+        escapeHotKey = nil
         selection = nil
         selectionDisplayID = nil
         isDragging = false
@@ -64,11 +76,8 @@ final class ScreenSelectionManager: NSObject, ObservableObject {
             self?.handleLocal(event)
             return event
         }
-        // Global monitor: Cmd+drag over other apps. Global monitors only see
-        // keyDown, flagsChanged, mouseMoved, and the mouseDragged variants, so
-        // the drag start is synthesized from the first dragged event while Cmd
-        // is held, and the drag end from `NSEvent.pressedMouseButtons`.
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDragged, .keyDown]) { [weak self] event in
+        // Global monitor: track the complete gesture over other apps.
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp, .keyDown]) { [weak self] event in
             self?.handleGlobal(event)
         }
     }
@@ -76,18 +85,18 @@ final class ScreenSelectionManager: NSObject, ObservableObject {
     private func handleLocal(_ event: NSEvent) {
         switch event.type {
         case .leftMouseDown:
+            ignoreDragUntilMouseUp = false
             guard event.modifierFlags.contains(.command) else { return }
             beginDrag()
         case .leftMouseDragged:
-            guard isDragging, let start = dragStart else { return }
+            guard isDragging else { return }
             updateLiveRect(to: NSEvent.mouseLocation)
         case .leftMouseUp:
+            ignoreDragUntilMouseUp = false
             guard isDragging else { return }
             finalizeSelection(at: NSEvent.mouseLocation)
         case .keyDown:
-            if event.keyCode == 53, selection != nil { // Escape
-                clearSelection()
-            }
+            cancelOnEscape(event)
         default:
             break
         }
@@ -95,24 +104,19 @@ final class ScreenSelectionManager: NSObject, ObservableObject {
 
     private func handleGlobal(_ event: NSEvent) {
         switch event.type {
-        case .leftMouseDragged:
-            let location = NSEvent.mouseLocation
-            if NSEvent.pressedMouseButtons & 1 == 0 {
-                // Button released between drag events — end of a global drag.
-                if isDragging { finalizeSelection(at: location) }
-                return
-            }
+        case .leftMouseDown:
+            ignoreDragUntilMouseUp = false
             guard event.modifierFlags.contains(.command) else { return }
-            if dragStart == nil {
-                beginDrag()
-            }
-            if isDragging {
-                updateLiveRect(to: location)
-            }
+            beginDrag()
+        case .leftMouseDragged:
+            guard isDragging, !ignoreDragUntilMouseUp else { return }
+            updateLiveRect(to: NSEvent.mouseLocation)
+        case .leftMouseUp:
+            ignoreDragUntilMouseUp = false
+            guard isDragging else { return }
+            finalizeSelection(at: NSEvent.mouseLocation)
         case .keyDown:
-            if event.keyCode == 53, selection != nil { // Escape
-                clearSelection()
-            }
+            cancelOnEscape(event)
         default:
             break
         }
@@ -120,7 +124,20 @@ final class ScreenSelectionManager: NSObject, ObservableObject {
 
     // MARK: - Gesture state
 
+    private func cancelOnEscape(_ event: NSEvent) {
+        guard event.keyCode == 53, isDragging || selection != nil else { return }
+        cancelSelection()
+    }
+
+    private func cancelSelection() {
+        ignoreDragUntilMouseUp = isDragging
+        clearSelection()
+    }
+
     private func beginDrag() {
+        if escapeHotKey == nil {
+            RegisterEventHotKey(UInt32(kVK_Escape), 0, EventHotKeyID(signature: 0x4A525653, id: 1), GetApplicationEventTarget(), 0, &escapeHotKey)
+        }
         isDragging = true
         dragStart = NSEvent.mouseLocation
         liveRect = nil
@@ -151,13 +168,16 @@ final class ScreenSelectionManager: NSObject, ObservableObject {
         guard rect.width >= 16, rect.height >= 16,
               let screen = NSScreen.screens.first(where: { $0.frame.contains(start) })
         else {
-            // Too small to be a real selection (accidental click) — keep any
-            // previous selection and its overlay.
-            overlayWindows.forEach { $0.contentView?.needsDisplay = true }
+            clearSelection()
+            rebuildOverlayWindows()
             return
         }
         rect = rect.intersection(screen.frame)
-        guard rect.width >= 16, rect.height >= 16 else { return }
+        guard rect.width >= 16, rect.height >= 16 else {
+            clearSelection()
+            rebuildOverlayWindows()
+            return
+        }
 
         selection = rect
         selectionDisplayID = screen.displayID

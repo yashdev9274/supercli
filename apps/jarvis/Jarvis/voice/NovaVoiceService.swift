@@ -49,6 +49,22 @@ struct NovaVoiceService {
         if !model.isEmpty { body["model"] = model }
         if !VoiceConfig.inferenceEffort.isEmpty { body["effort"] = VoiceConfig.inferenceEffort }
         if let sessionId, !sessionId.isEmpty { body["sessionId"] = sessionId }
+        if VoiceConfig.screenVisionEnabled {
+            let screen = await MainActor.run { () -> (String?, Bool) in
+                if let selection = ScreenSelectionManager.shared.selection,
+                   let displayID = ScreenSelectionManager.shared.selectionDisplayID {
+                    return (ScreenVisionManager.shared.croppedScreenImageDataURL(rect: selection, displayID: displayID), true)
+                }
+                return (ScreenVisionManager.shared.latestScreenImageDataURL(), false)
+            }
+            if screen.1 && screen.0 == nil {
+                throw NovaError.unavailable("The selected screen could not be captured. Check Screen Recording permission and select an area on the captured display.")
+            }
+            if let image = screen.0 {
+                body["screenImage"] = image
+                if screen.1 { body["screenSelection"] = "true" }
+            }
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await session.data(for: request)

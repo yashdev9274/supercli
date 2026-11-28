@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { createInterface } from "node:readline"
+import { spawn } from "node:child_process"
 
 const tools = [
   { name: "list_apps", inputSchema: { type: "object", properties: {} } },
@@ -14,6 +15,10 @@ createInterface({ input: process.stdin }).on("line", line => {
   if (message.method !== "tools/call") return
   const { name, arguments: args } = message.params
   if (args.pid === 99) return
+  if (args.pid === 77) {
+    const helper = spawn(process.execPath, ["-e", "setTimeout(() => {}, 3000)"], { stdio: ["ignore", "inherit", "inherit"] })
+    helper.unref()
+  }
   if (args.pid === 88) return void process.stdout.write("x".repeat(600_000))
   if (name === "get_window_state" && (args.include_screenshot !== false || args.tree_format !== "elements")) process.exit(1)
   const key = name === "list_apps" ? "apps" : name === "list_windows" ? "windows" : "elements"

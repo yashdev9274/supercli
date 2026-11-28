@@ -189,6 +189,31 @@ class VoiceChatService {
         return "Unknown app: \(appName)"
     }
 
+    /// Creates a note using Notes' scripting interface, preserving literal text.
+    func createNote(_ text: String) async -> String {
+        let html = text.replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\n", with: "<br>")
+        let literal = html.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\r", with: "")
+        let source = """
+        tell application "Notes"
+            activate
+            make new note at default account with properties {body:"<html><body>\(literal)</body></html>"}
+        end tell
+        """
+        guard let script = NSAppleScript(source: source) else { return "I couldn't prepare the note." }
+        var error: NSDictionary?
+        script.executeAndReturnError(&error)
+        if let error {
+            print("[VoiceChat] Notes automation failed: \(error)")
+            return "I couldn't create the note. Check Notes automation permission and make sure a Notes account is configured."
+        }
+        return "Created the note in Notes."
+    }
+
     // MARK: - Open app in specific browser
 
     func openAppInBrowser(_ appName: String, browser: String) async -> String {

@@ -77,6 +77,7 @@ export async function runAgent(
   let stopForRepetition = false
   let lastStepHadToolCalls = false
   let lastStepHadActionClaim = false
+  let streamError: unknown
 
   const messages = buildMessages(opts)
 
@@ -110,6 +111,7 @@ export async function runAgent(
       tools,
       stopWhen: stepCountIs(budget),
       abortSignal: opts.signal,
+      onError: ({ error }) => { streamError = error },
       onChunk: async ({ chunk }) => {
         const c = chunk as { type: string; text?: string; delta?: string }
         if (c.type === "text-delta" && typeof c.text === "string") {
@@ -261,6 +263,7 @@ export async function runAgent(
     })
 
     await result.consumeStream()
+    if (streamError) throw streamError
 
     const flushed = thinkSplit.flush()
     if (flushed.reasoning) {
@@ -330,7 +333,7 @@ export async function runAgent(
       tokens: { input: inputTokens, output: outputTokens },
       filesRead: Array.from(filesRead),
       filesChanged: Array.from(filesChanged),
-      error: error?.message ?? String(error),
+      error: (streamError as { message?: string } | undefined)?.message ?? error?.message ?? String(error),
     }
     await emitHook({
       type: "turn_end",

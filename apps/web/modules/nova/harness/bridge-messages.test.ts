@@ -42,6 +42,52 @@ test("packed local files reach the CLI bridge without violating its message limi
   }
 })
 
+test("screen images pass the text-only CLI bridge and reach provider inference", async () => {
+  const parts = [{ type: "text" as const, text: "What is on screen?" }, { type: "image_url" as const, image_url: { url: "data:image/jpeg;base64,aGVsbG8=" } }]
+  const fixture = createBridgeFixture()
+  const fetchSpy = spyOn(globalThis, "fetch").mockImplementation(Object.assign(async (url: Parameters<typeof fetch>[0], options?: Parameters<typeof fetch>[1]) => {
+    const request = new Request(String(url), options)
+    const value = JSON.parse(String(options?.body))
+    if (new URL(request.url).pathname.endsWith("/turn")) {
+      expect(startSchema.safeParse(value).success).toBe(true)
+      expect(JSON.stringify(value)).not.toContain("aGVsbG8=")
+    }
+    return await fixture(request, value) ?? new Response(null, { status: 404 })
+  }, { preconnect: globalThis.fetch.preconnect }))
+  try {
+    let received = false
+    for await (const _event of streamOriginalHarness({
+      token: "fixture", provider: "fixture", model: "fixture", mode: "chat",
+      messages: [{ role: "user", content: parts }], tools: [], execute: async () => ({}),
+      chatTransport: async function* (input) {
+        expect(input.messages.find((message) => message.role === "user")?.content).toEqual(parts)
+        received = true
+        yield { type: "text", content: "A screen." }
+        yield { type: "finish", reason: "stop" }
+      },
+    })) { /* consume stream */ }
+    expect(received).toBe(true)
+  } finally { fetchSpy.mockRestore() }
+})
+
+test("provider failures survive the CLI harness instead of becoming empty-output errors", async () => {
+  const fixture = createBridgeFixture()
+  const fetchSpy = spyOn(globalThis, "fetch").mockImplementation(Object.assign(async (url: Parameters<typeof fetch>[0], options?: Parameters<typeof fetch>[1]) => {
+    const request = new Request(String(url), options)
+    return await fixture(request, JSON.parse(String(options?.body))) ?? new Response(null, { status: 404 })
+  }, { preconnect: globalThis.fetch.preconnect }))
+  try {
+    const consume = async () => {
+      for await (const _event of streamOriginalHarness({
+        token: "fixture", provider: "fixture", model: "fixture", mode: "chat",
+        messages: [{ role: "user", content: "Hello" }], tools: [], execute: async () => ({}),
+        chatTransport: async function* () { yield { type: "error", message: "Fixture provider unavailable" } },
+      })) { /* consume stream */ }
+    }
+    await expect(consume()).rejects.toThrow("Fixture provider unavailable")
+  } finally { fetchSpy.mockRestore() }
+})
+
 test("bridge splitting preserves roles, order, and Unicode without mutating messages", () => {
   const content = "a".repeat(199_999) + "😀" + "b".repeat(200_001)
   const original = [{ role: "user" as const, content }]

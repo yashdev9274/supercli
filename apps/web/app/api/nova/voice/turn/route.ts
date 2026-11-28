@@ -9,6 +9,7 @@ import { spokenSummary } from "@/modules/nova/sessions/voice-summary"
 import { resolveNovaTurnMode } from "@/modules/nova-web/resolve-mode"
 import { resolveVoiceCaller } from "@/modules/nova/voice/auth"
 import { prepareVoiceProvider, voiceProviderFailure } from "@/modules/nova/voice/providers"
+import { MAX_LOCAL_BASE64_CHARS, MAX_LOCAL_FILE_BYTES } from "@/modules/nova/attachments/contracts"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -20,6 +21,8 @@ const turnSchema = z.object({
   provider: z.string().trim().min(1).max(64).optional(),
   model: z.string().trim().min(1).max(128).optional(),
   effort: codexEffortSchema.optional(),
+  screenImage: z.string().max(MAX_LOCAL_BASE64_CHARS + 23).regex(/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/).optional(),
+  screenSelection: z.literal("true").optional(),
 }).strict()
 
 /**
@@ -42,6 +45,9 @@ async function runVoiceRequest(request: NextRequest) {
 
   const parsed = turnSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: "Say that again" }, { status: 400 })
+  const imageData = parsed.data.screenImage?.slice("data:image/jpeg;base64,".length)
+  const imageSize = imageData ? Buffer.from(imageData, "base64").length : 0
+  if (imageSize > MAX_LOCAL_FILE_BYTES) return NextResponse.json({ error: "Screen capture is too large" }, { status: 400 })
   const mode = resolveNovaTurnMode({ message: parsed.data.content }).mode
   const selection = await prepareVoiceProvider(caller, parsed.data, request.signal)
 
@@ -81,6 +87,10 @@ async function runVoiceRequest(request: NextRequest) {
       userId: caller.id,
       sessionId,
       content: parsed.data.content,
+      localAttachments: imageData ? [{
+        id: crypto.randomUUID(), kind: "image", name: parsed.data.screenSelection ? "screen-selection.jpg" : "screen.jpg",
+        mediaType: "image/jpeg", size: imageSize, dataBase64: imageData,
+      }] : [],
       mode,
       ...selection,
       responseStyle: "voice",
