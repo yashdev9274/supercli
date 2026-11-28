@@ -5,6 +5,7 @@ import { tools } from "src/agents/tools/registry.ts"
 import { getMcpManager } from "src/mcp/mcp-manager"
 import { loadEnvOnce } from "src/lib/load-env"
 import { isKeenableEnabled } from "src/lib/keenable"
+import { isSpecStreamEnabled } from "src/lib/specstream"
 
 export type ToolsForTurn = {
   tools: Record<string, unknown>
@@ -36,6 +37,11 @@ export async function buildToolsForTurn(
   // Keenable is opt-in: keep it out of the turn (and delegated agents) unless enabled.
   if (!isKeenableEnabled()) {
     delete toolsToUse.keenable_search
+  }
+
+  // SpecStream is opt-in too: the tool exists only when SPECSTREAM_API_KEY is set.
+  if (!isSpecStreamEnabled()) {
+    delete toolsToUse.specstream_search
   }
 
   // Keep Exa + Firecrawl tools always available. Local keys are preferred; when
